@@ -9,7 +9,7 @@
 
 ## Environment Variables
 
-- `POSTGRES_PRISMA_URL` - Supabase Postgres connection string
+- `DATABASE_URL` - Supabase Postgres connection string
 - `DIRECT_URL` - Supabase Postgres connection string
 
 ## Migration
