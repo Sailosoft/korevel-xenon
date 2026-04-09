@@ -1,12 +1,12 @@
-import { PrismaClient, Prisma } from "../app/generated/prisma/client";
+import { PrismaClient, Prisma } from "../src/app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import "dotenv/config";
 
-if (!process.env.POSTGRES_PRISMA_URL) {
-  throw new Error("POSTGRES_URL is not defined in environment variables");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not defined in environment variables");
 }
-const connectionString = process.env.POSTGRES_PRISMA_URL;
+const connectionString = process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString,
