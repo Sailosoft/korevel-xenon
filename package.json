@@ -6,7 +6,8 @@
     "dev": "next dev -p 3050",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "next": "16.2.3",
