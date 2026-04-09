@@ -5,7 +5,7 @@ const globalForPrisma = global as unknown as {
 };
 
 // const pool = new Pool({
-//   connectionString: process.env.POSTGRES_PRISMA_URL,
+//   connectionString: process.env.DATABASE_URL,
 //   ssl: {
 //     rejectUnauthorized: false, // Don't forget this!
 //   },
