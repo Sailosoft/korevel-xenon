@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
 // Pure SVG Icon Components
@@ -264,8 +265,8 @@ export default function AppPage() {
   const [applications, setApplications] = useState([
     {
       id: 1,
-      name: "Customer Portal",
-      url: "/apps/customer-portal",
+      name: "Book Builder",
+      url: "/modules/book-builder",
       status: "Active",
       category: "Frontend",
       latency: "42ms",
@@ -314,6 +315,8 @@ export default function AppPage() {
     ...new Set(applications.map((app) => app.category)),
   ];
 
+  const useRoute = useRouter();
+
   const filteredApps = useMemo(() => {
     return applications.filter((app) => {
       const matchesSearch =
@@ -325,6 +328,7 @@ export default function AppPage() {
   }, [searchQuery, activeTab, applications]);
 
   const handleRouteClick = (app: any) => {
+    useRoute.push(app.url);
     if (isNavigating) return;
     setIsNavigating(true);
     setCurrentRoute(app.id);
