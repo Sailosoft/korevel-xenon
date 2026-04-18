@@ -9,7 +9,7 @@ export default class BookBuilderAI {
   constructor(model: string) {
     this.ai = new OpenAI({
       apiKey: "[ENCRYPTION_KEY]",
-      baseURL: "http://localhost:11434/v1", // Ollama
+      baseURL: "http://localhost:11434/v1",
     });
     this.model = model;
   }
