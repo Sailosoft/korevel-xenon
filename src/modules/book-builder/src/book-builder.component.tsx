@@ -1,38 +1,58 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
 import {
+  BoldItalicUnderlineToggles,
+  headingsPlugin,
+  listsPlugin,
+  markdownShortcutPlugin,
+  MDXEditor,
+  quotePlugin,
+  toolbarPlugin,
+  UndoRedo,
+} from "@mdxeditor/editor";
+import "@mdxeditor/editor/style.css";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  BookOpen,
+  BookText,
+  Edit3,
+  Eye,
+  FileText,
+  Globe,
+  Loader2,
   Plus,
-  Trash2,
-  UserPlus,
   Save,
   Sparkles,
-  BookOpen,
-  Loader2,
-  Eye,
-  Edit3,
-  BookText,
+  Trash2,
+  UserPlus,
 } from "lucide-react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useEffect, useState } from "react";
 
 import BookBuilderDB from "./book-builder.db";
 import {
   IBookBuilderAuthor,
   IBookBuilderAuthorSkill,
-  IBookBuilderGeneration,
   IBookBuilderChapter,
+  IBookBuilderGeneration,
 } from "./book-builder.interface";
 
 // UI Components
+import { Badge } from "@/src/shadcnui/components/ui/badge";
 import { Button } from "@/src/shadcnui/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/src/shadcnui/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/shadcnui/components/ui/dialog";
 import { Input } from "@/src/shadcnui/components/ui/input";
 import { Label } from "@/src/shadcnui/components/ui/label";
 import {
@@ -43,23 +63,17 @@ import {
   SelectValue,
 } from "@/src/shadcnui/components/ui/select";
 import { Separator } from "@/src/shadcnui/components/ui/separator";
-import { Badge } from "@/src/shadcnui/components/ui/badge";
-import { Textarea } from "@/src/shadcnui/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/shadcnui/components/ui/dialog";
 
 // Server Actions
 import {
+  bookBuilderGenerateChapterContentWithContextAction,
   bookBuilderGenerateChaptersAction,
-  bookBuilderGenerateChapterContentAction,
 } from "./book-builder.actions";
 
 import Markdown from "react-markdown";
+import BookBuilderExportService from "./book-builder.export.service";
+import { JSX } from "react/jsx-runtime";
+import BookBuilderEditor from "./book-builder.editor";
 
 const db = new BookBuilderDB();
 
@@ -89,6 +103,9 @@ export default function AuthorManager() {
 
   const allAuthors = useLiveQuery(() => db.authors.toArray()) || [];
   const allGenerations = useLiveQuery(() => db.generations.toArray()) || [];
+
+  // --- Auto Generation ---
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
 
   // Load author data
   useEffect(() => {
@@ -210,6 +227,18 @@ export default function AuthorManager() {
 
       setSelectedGenerationId(generationId);
       alert("Book outline generated and saved successfully!");
+
+      // New: If toggle is on, start the loop
+      if (isBulkGenerating) {
+        // Fetch the newly created chapters from DB so they have IDs
+        const newlyCreated = await db.chapters
+          .where("generationId")
+          .equals(generationId)
+          .toArray();
+        await runAutoPipeline(generationId, newlyCreated);
+      } else {
+        setSelectedGenerationId(generationId);
+      }
     } catch (error) {
       console.error(error);
       alert("Error generating chapters. Make sure Ollama is running.");
@@ -225,11 +254,19 @@ export default function AuthorManager() {
     setGeneratingChapterId(chapter.id!);
     try {
       const skillNames = skills.map((s) => s.name || "");
-      const content = await bookBuilderGenerateChapterContentAction(
+      const content = await bookBuilderGenerateChapterContentWithContextAction({
+        book: {
+          title: bookTitle,
+          description: bookDesc,
+          chapters,
+        },
         chapter,
-        authorName,
-        skillNames,
-      );
+        author: {
+          name: authorName,
+          description: authorDesc,
+        },
+        skills: skillNames,
+      });
 
       await db.chapters.update(chapter.id!, { content });
 
@@ -245,6 +282,67 @@ export default function AuthorManager() {
     } finally {
       setGeneratingChapterId(null);
     }
+  };
+
+  const runAutoPipeline = async (
+    generationId: number,
+    chaptersToGenerate: IBookBuilderChapter[],
+  ) => {
+    setIsBulkGenerating(true);
+
+    for (const chapter of chaptersToGenerate) {
+      // Only generate if content is empty, or you can force overwrite
+      if (!chapter.content) {
+        setGeneratingChapterId(chapter.id!);
+        try {
+          const skillNames = skills.map((s) => s.name || "");
+          const content =
+            await bookBuilderGenerateChapterContentWithContextAction({
+              book: {
+                title: bookTitle,
+                description: bookDesc,
+                chapters: chaptersToGenerate,
+              },
+              chapter,
+              author: { name: authorName, description: authorDesc },
+              skills: skillNames,
+            });
+
+          await db.chapters.update(chapter.id!, { content });
+          await loadChapters(generationId);
+        } catch (e) {
+          console.error(`Failed at chapter ${chapter.number}`, e);
+          break; // Stop pipeline on error
+        }
+      }
+    }
+
+    await loadChapters(generationId); // Final refresh
+    setGeneratingChapterId(null);
+    setIsBulkGenerating(false);
+    alert("Bulk generation complete!");
+  };
+
+  const handleExportMarkdown = () => {
+    const book = allGenerations.find((g) => g.id === selectedGenerationId);
+    if (!book) return;
+    const content = BookBuilderExportService.generateMarkdown(book, chapters);
+    BookBuilderExportService.downloadFile(
+      content,
+      `${book.title}.md`,
+      "text/markdown",
+    );
+  };
+
+  const handleExportHTML = async () => {
+    const book = allGenerations.find((g) => g.id === selectedGenerationId);
+    if (!book) return;
+    const content = await BookBuilderExportService.generateHTML(book, chapters);
+    BookBuilderExportService.downloadFile(
+      content,
+      `${book.title}.html`,
+      "text/html",
+    );
   };
 
   return (
@@ -384,11 +482,28 @@ export default function AuthorManager() {
           </div>
           <div className="grid gap-2">
             <Label>Concept / Description</Label>
-            <Textarea
+            {/* <Textarea
               placeholder="What is this book about?"
               value={bookDesc}
               onChange={(e) => setBookDesc(e.target.value)}
+            /> */}
+            <div className="border rounded-md bg-white dark:bg-slate-950 overflow-hidden">
+              <BookBuilderEditor
+                markdown={bookDesc}
+                onChange={(markdown) => setBookDesc(markdown)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 py-2">
+            <input
+              type="checkbox"
+              id="auto-pipeline"
+              checked={isBulkGenerating}
+              onChange={(e) => setIsBulkGenerating(e.target.checked)}
             />
+            <Label htmlFor="auto-pipeline">
+              Automatically generate all chapters in sequence
+            </Label>
           </div>
         </CardContent>
         <CardFooter>
@@ -414,11 +529,25 @@ export default function AuthorManager() {
       {/* CHAPTERS SECTION */}
       {selectedGenerationId && chapters.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>
               Chapters —{" "}
               {allGenerations.find((g) => g.id === selectedGenerationId)?.title}
             </CardTitle>
+
+            {/* ADDED EXPORT BUTTONS */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportMarkdown}
+              >
+                <FileText className="w-4 h-4 mr-2" /> .MD
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportHTML}>
+                <Globe className="w-4 h-4 mr-2" /> .HTML
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {chapters.map((chapter) => (
@@ -463,13 +592,17 @@ export default function AuthorManager() {
                             Preview
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[900px]">
-                          <DialogHeader>
-                            <DialogTitle>
+                        <DialogContent className="!w-[90vw] !max-w-[90vw] h-[90vh] overflow-y-auto flex flex-col gap-6">
+                          <DialogHeader className="shrink-0 border-b pb-4">
+                            <DialogTitle className="text-2xl md:text-3xl font-bold tracking-tight">
                               Chapter {chapter.number}: {chapter.title}
                             </DialogTitle>
                           </DialogHeader>
-                          <Markdown>{chapter.content}</Markdown>
+                          <div className="flex-1 overflow-y-auto pr-2 pb-8">
+                            <div className="prose prose-lg dark:prose-invert max-w-none text-lg leading-relaxed space-y-4">
+                              <Markdown>{chapter.content}</Markdown>
+                            </div>
+                          </div>
                         </DialogContent>
                       </Dialog>
                     )}
