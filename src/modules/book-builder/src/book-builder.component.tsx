@@ -74,6 +74,7 @@ import Markdown from "react-markdown";
 import BookBuilderExportService from "./book-builder.export.service";
 import { JSX } from "react/jsx-runtime";
 import BookBuilderEditor from "./book-builder.editor";
+import BookBuilderExportServiceInteractive from "./book-builder.export.service.interactive";
 
 const db = new BookBuilderDB();
 
@@ -337,7 +338,11 @@ export default function AuthorManager() {
   const handleExportHTML = async () => {
     const book = allGenerations.find((g) => g.id === selectedGenerationId);
     if (!book) return;
-    const content = await BookBuilderExportService.generateHTML(book, chapters);
+    const content =
+      await BookBuilderExportServiceInteractive.generateTailwindHTML(
+        book,
+        chapters,
+      );
     BookBuilderExportService.downloadFile(
       content,
       `${book.title}.html`,
