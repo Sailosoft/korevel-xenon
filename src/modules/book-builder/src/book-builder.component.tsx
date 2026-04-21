@@ -20,6 +20,7 @@ import {
   Globe,
   Loader2,
   Plus,
+  RefreshCw,
   Save,
   Sparkles,
   Trash2,
@@ -75,6 +76,7 @@ import BookBuilderExportService from "./book-builder.export.service";
 import { JSX } from "react/jsx-runtime";
 import BookBuilderEditor from "./book-builder.editor";
 import BookBuilderExportServiceInteractive from "./book-builder.export.service.interactive";
+import BookBuilderComponentRegenerate from "./components/book-builder.component.regenerate";
 
 const db = new BookBuilderDB();
 
@@ -107,6 +109,8 @@ export default function AuthorManager() {
 
   // --- Auto Generation ---
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+
+  const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState(false);
 
   // Load author data
   useEffect(() => {
@@ -288,12 +292,13 @@ export default function AuthorManager() {
   const runAutoPipeline = async (
     generationId: number,
     chaptersToGenerate: IBookBuilderChapter[],
+    rewrite: boolean = false,
   ) => {
     setIsBulkGenerating(true);
 
     for (const chapter of chaptersToGenerate) {
       // Only generate if content is empty, or you can force overwrite
-      if (!chapter.content) {
+      if (!chapter.content || rewrite) {
         setGeneratingChapterId(chapter.id!);
         try {
           const skillNames = skills.map((s) => s.name || "");
@@ -322,6 +327,53 @@ export default function AuthorManager() {
     setGeneratingChapterId(null);
     setIsBulkGenerating(false);
     alert("Bulk generation complete!");
+  };
+
+  const handleRegenerateAllChapters = async () => {
+    if (!selectedGenerationId) return;
+
+    // 1. Add the confirmation dialog
+    const userConfirmed = window.confirm(
+      "Warning: This will reset all existing chapter content. Are you sure you want to continue?",
+    );
+
+    // 2. Exit if the user clicks 'Cancel'
+    if (!userConfirmed) return;
+
+    const book = allGenerations.find((g) => g.id === selectedGenerationId);
+    if (!book) return;
+
+    const chaptersToGenerate = await db.chapters
+      .where("generationId")
+      .equals(selectedGenerationId)
+      .toArray();
+
+    await runAutoPipeline(selectedGenerationId, chaptersToGenerate);
+  };
+
+  const handleRegenerationFlow = async (mode: "all" | "empty") => {
+    if (!selectedGenerationId) return;
+
+    let chaptersToProcess = await db.chapters
+      .where("generationId")
+      .equals(selectedGenerationId)
+      .toArray();
+    console.log("chaptersToProcess", chaptersToProcess);
+
+    if (mode === "empty") {
+      // Only target chapters that have no content or just whitespace
+      chaptersToProcess = chaptersToProcess.filter(
+        (ch) => !ch.content || ch.content.trim() === "",
+      );
+    }
+
+    if (chaptersToProcess.length === 0) {
+      console.log("No chapters to generate.");
+      return;
+    }
+
+    runAutoPipeline(selectedGenerationId, chaptersToProcess, true);
+    setIsRegenerateDialogOpen(false); // Close dialog after starting
   };
 
   const handleExportMarkdown = () => {
@@ -545,6 +597,13 @@ export default function AuthorManager() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIsRegenerateDialogOpen(true)}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" /> Regenerate All Chapters
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleExportMarkdown}
               >
                 <FileText className="w-4 h-4 mr-2" /> .MD
@@ -624,6 +683,11 @@ export default function AuthorManager() {
           </CardContent>
         </Card>
       )}
+      <BookBuilderComponentRegenerate
+        isOpen={isRegenerateDialogOpen}
+        onOpenChange={(open) => setIsRegenerateDialogOpen(open)}
+        onConfirm={handleRegenerationFlow}
+      />
     </div>
   );
 }

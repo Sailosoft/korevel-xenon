@@ -41,9 +41,10 @@ export default class BookBuilderExportServiceInteractive extends BookBuilderExpo
 
     const contentHtml = await Promise.all(
       sortedChapters.map(async (ch) => {
-        const parsedContent = await marked.parse(
-          ch.content || "_Content not generated yet._",
-        );
+        const sanitizedContent = (ch.content || "_Content not generated yet._")
+          .replace(/\$\\rightarrow\$/g, "→")
+          .replace(/\\rightarrow/g, "→");
+        const parsedContent = await marked.parse(sanitizedContent);
         return `
         <section id="chapter-${ch.number}" class="mb-32 scroll-mt-20 chapter-break">
             <header class="mb-10">
@@ -52,7 +53,7 @@ export default class BookBuilderExportServiceInteractive extends BookBuilderExpo
                   ${ch.title}
               </h2>
             </header>
-            <div class="prose prose-slate prose-lg max-w-none prose-headings:font-normal prose-p:leading-relaxed text-slate-600">
+            <div class="prose prose-slate prose-lg max-w-none prose-headings:font-normal prose-p:leading-relaxed text-slate-800">
                 ${parsedContent}
             </div>
         </section>
