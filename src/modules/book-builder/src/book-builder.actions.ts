@@ -6,10 +6,12 @@ import {
   IBookBuilderChapter,
   IBookBuilderGeneration,
 } from "./book-builder.interface";
+import { BOOK_BUILDER_CONFIG } from "../config/book-builder.config";
 
 const module = new BookBuilderModule();
 // const model = "gemma3:4b";
-const model = "gemma4:31b-cloud";
+// const model = "gemma4:31b-cloud";
+const model = BOOK_BUILDER_CONFIG.OPEN_AI_MODEL;
 
 // You are an expert book architect. Generate exactly 5 chapters for the book:
 export async function bookBuilderGenerateChaptersAction(

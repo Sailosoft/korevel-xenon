@@ -1,15 +1,17 @@
 import OpenAI from "openai";
 import BookBuilderAI from "./book-builder.ai";
+import { BOOK_BUILDER_CONFIG } from "../config/book-builder.config";
 
 export default class BookBuilderModule {
   ai: OpenAI;
   bookBuilderAI: BookBuilderAI;
   constructor() {
     this.ai = new OpenAI({
-      apiKey: "[ENCRYPTION_KEY]",
-      baseURL: "http://localhost:11434/v1",
+      apiKey: BOOK_BUILDER_CONFIG.OPEN_AI_API_KEY,
+      baseURL: BOOK_BUILDER_CONFIG.OPEN_AI_BASE_URL,
+      // baseURL: "http://localhost:11434/v1",
     });
-    this.bookBuilderAI = new BookBuilderAI("gemma3:4b");
+    this.bookBuilderAI = new BookBuilderAI(BOOK_BUILDER_CONFIG.OPEN_AI_MODEL, this.ai);
   }
 
   async generateBook() {
