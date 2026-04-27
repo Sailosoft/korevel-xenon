@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.12",
+    "@heroui/react": "^3.0.3",
+    "@heroui/styles": "^3.0.3",
     "@mdxeditor/editor": "^3.55.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
