@@ -1,0 +1,10 @@
+{
+  "name": "@korevel/elven",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/elven.tsx",
+  "types": "./src/elven.tsx",
+  "exports": {
+    ".": "./src/elven.tsx"
+  }
+}

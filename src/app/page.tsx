@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
 // Pure SVG Icon Components
@@ -264,8 +265,8 @@ export default function AppPage() {
   const [applications, setApplications] = useState([
     {
       id: 1,
-      name: "Customer Portal",
-      url: "/apps/customer-portal",
+      name: "Book Builder",
+      url: "/modules/book-builder",
       status: "Active",
       category: "Frontend",
       latency: "42ms",
@@ -273,39 +274,21 @@ export default function AppPage() {
     },
     {
       id: 2,
-      name: "Admin Dashboard",
-      url: "/apps/admin",
-      status: "Maintenance",
-      category: "Internal",
-      latency: "120ms",
-      icon: <Icons.Shield />,
+      name: "Concept Builder",
+      url: "/modules/concept-builder",
+      status: "Active",
+      category: "Frontend",
+      latency: "42ms",
+      icon: <Icons.LayoutGrid />,
     },
     {
       id: 3,
-      name: "Payment Gateway",
-      url: "/api/v1/payments",
+      name: "Elven",
+      url: "/modules/elven",
       status: "Active",
-      category: "API",
-      latency: "12ms",
+      category: "Frontend",
+      latency: "42ms",
       icon: <Icons.Zap />,
-    },
-    {
-      id: 4,
-      name: "Auth Service",
-      url: "/auth",
-      status: "Active",
-      category: "Core",
-      latency: "8ms",
-      icon: <Icons.Shield />,
-    },
-    {
-      id: 5,
-      name: "Analytics Hub",
-      url: "/analytics",
-      status: "Draft",
-      category: "Internal",
-      latency: "-",
-      icon: <Icons.LayoutGrid />,
     },
   ]);
 
@@ -313,6 +296,8 @@ export default function AppPage() {
     "All",
     ...new Set(applications.map((app) => app.category)),
   ];
+
+  const useRoute = useRouter();
 
   const filteredApps = useMemo(() => {
     return applications.filter((app) => {
@@ -325,6 +310,7 @@ export default function AppPage() {
   }, [searchQuery, activeTab, applications]);
 
   const handleRouteClick = (app: any) => {
+    useRoute.push(app.url);
     if (isNavigating) return;
     setIsNavigating(true);
     setCurrentRoute(app.id);
