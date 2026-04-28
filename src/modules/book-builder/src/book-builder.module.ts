@@ -11,7 +11,7 @@ export default class BookBuilderModule {
       baseURL: BOOK_BUILDER_CONFIG.OPEN_AI_BASE_URL,
       // baseURL: "http://localhost:11434/v1",
     });
-    this.bookBuilderAI = new BookBuilderAI(BOOK_BUILDER_CONFIG.OPEN_AI_MODEL, this.ai);
+    this.bookBuilderAI = new BookBuilderAI(BOOK_BUILDER_CONFIG.OPEN_AI_MODEL);
   }
 
   async generateBook() {
