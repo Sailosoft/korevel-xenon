@@ -1,14 +1,6 @@
 "use client";
-import {
-  BoldItalicUnderlineToggles,
-  headingsPlugin,
-  listsPlugin,
-  markdownShortcutPlugin,
-  MDXEditor,
-  quotePlugin,
-  toolbarPlugin,
-  UndoRedo,
-} from "@mdxeditor/editor";
+
+import "./book-builder.css";
 import "@mdxeditor/editor/style.css";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
