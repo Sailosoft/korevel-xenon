@@ -71,8 +71,7 @@ export default function ElvenAuthorComponent() {
             data={authors}
             label="Authors"
             columns={[
-              { key: "id", label: "ID" },
-              { key: "name", label: "NAME" },
+              ...elvenAuthorModule.columns,
               {
                 key: "actions",
                 label: "Actions",

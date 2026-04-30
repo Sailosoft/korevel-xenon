@@ -6,7 +6,7 @@ interface ElvenAuthorModule {
 
 export const elvenAuthorModule: ElvenAuthorModule = {
   columns: [
-    { key: "id", label: "Id" },
+    // { key: "id", label: "Id" },
     { key: "name", label: "Name" },
   ],
 };

@@ -13,7 +13,7 @@ export default function ElvenHeader() {
         <Button isIconOnly variant="primary" onPress={header.toggleDrawer}>
           <Menu />
         </Button>
-        <ElvenTypography variant="display-small">Elven AI</ElvenTypography>
+        <ElvenTypography variant="display-medium">Elven AI</ElvenTypography>
       </ElvenStack>
     </Card>
   );
