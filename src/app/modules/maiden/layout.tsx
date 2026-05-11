@@ -1,5 +1,5 @@
-import { ReactElement } from "react";
+import { ReactNode } from "react";
 
-export default function MaidenLayout({ children }: { children: ReactElement }) {
+export default function MaidenLayout({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
