@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   UseAdminPanelDeleteProps,
-  UseAdminPanelDeleteReturn,
+  UseAdminPanelDelete,
 } from "./admin-panel-del.interface";
 
 export function useAdminPanelDelete<T = any>({
@@ -12,7 +12,7 @@ export function useAdminPanelDelete<T = any>({
   successMessage = "Record deleted successfully",
   confirmMessage = (item: T) => `Are you sure you want to delete ${itemName}?`,
   itemName = "record",
-}: UseAdminPanelDeleteProps<T>): UseAdminPanelDeleteReturn<T> {
+}: UseAdminPanelDeleteProps<T>): UseAdminPanelDelete<T> {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -22,7 +22,7 @@ export function useAdminPanelDelete<T = any>({
       setError(null);
 
       try {
-        const result = await mutation(id);
+        const result = await mutation.delete(id);
 
         if (result?.status === "success") {
           // Success handling

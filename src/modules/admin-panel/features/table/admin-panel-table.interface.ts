@@ -20,6 +20,11 @@ export interface UseAdminPanelTableProps<T> {
   pageAll?: boolean;
 }
 
+export type UseAdminPanelTablePropsWithoutQuery<T> = Omit<
+  UseAdminPanelTableProps<T>,
+  "query"
+>;
+
 export interface UseAdminPanelTable<T> {
   rows: T[];
   isLoading: boolean;
@@ -29,7 +34,7 @@ export interface UseAdminPanelTable<T> {
   search: AdminPanelSearchOption;
   queryOptions: AdminPanelQueryOptions;
   fetchData: () => Promise<void>;
-  resetToDefault: () => void;
+  clearQueryOptions: () => void;
   setSorts: (sort: AdminPanelSortOption[]) => void;
   setFilters: (filters: AdminPanelFilterOption[]) => void;
   setSearch: (search: AdminPanelSearchOption) => void;
@@ -38,8 +43,6 @@ export interface UseAdminPanelTable<T> {
   setRows: (rows: T[]) => void;
   loadingOn: () => void;
   loadingOff: () => void;
-
-  clearQueryOptions: () => void;
   removeFilters(): void;
   removeSorts(): void;
   removeSearch(): void;

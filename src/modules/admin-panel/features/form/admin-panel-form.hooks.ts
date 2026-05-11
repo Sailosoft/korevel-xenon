@@ -12,14 +12,10 @@ import type {
 } from "./admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
 
-export interface UseAdminPanelFormInternalProps<
-  TForm = any,
-> extends UseAdminPanelFormProps<TForm> {}
-
 // Internal mutation handler (consolidated)
 const useInternalMutation = <TForm>(
   mutation: AdminPanelMutation<TForm>,
-  mode: AdminPanelFormMode,
+  mode?: AdminPanelFormMode,
   plugin?: AdminPanelFormPlugin<TForm>,
   onSuccess?: (data: TForm) => void,
   onError?: (error: Error) => void,
@@ -89,7 +85,7 @@ const useInternalMutation = <TForm>(
   return { submit, isSubmitting, error };
 };
 
-export function useAdminPanelForm<TForm extends object = any>({
+export function useAdminPanelForm<TForm = any>({
   mode,
   mutation,
   query,

@@ -30,14 +30,14 @@ export interface AdminPanelQueryOptions {
   [key: string]: unknown;
 }
 
-export interface AdminPanelQuery<T> {
+export interface AdminPanelQuery<TRow, TForm = any> {
   getAll: (
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,
   ) => Promise<{
-    data: T[];
+    data: TRow[];
     total: number;
     [key: string]: unknown;
   }>;
-  getOne: (id: string | number) => Promise<T>;
+  getOne: (id: string | number) => Promise<TForm>;
 }

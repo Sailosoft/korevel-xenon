@@ -48,7 +48,7 @@ export function useAdminPanelTable<T>({
       filter: filters.length > 0 ? filters : undefined,
       search: search.search.trim() ? search : undefined,
     }),
-    [pagination, sorts, filters, search, initialQuery],
+    [pagination, sorts, filters, search],
   );
 
   const loadingOn = useCallback(() => setIsLoading(true), []);
@@ -122,13 +122,6 @@ export function useAdminPanelTable<T>({
     [],
   );
 
-  const resetToDefault = useCallback(() => {
-    setPaginationState(defaultQuery?.pagination || getDefaultPagination());
-    setSortsState(defaultQuery?.sort || []);
-    setFiltersState(defaultQuery?.filter || []);
-    setSearchState(defaultQuery?.search || getDefaultSearch());
-  }, [defaultQuery]);
-
   const clearQueryOptions = useCallback(() => {
     setPaginationState(defaultQuery?.pagination || getDefaultPagination());
     setSortsState(defaultQuery?.sort || []);
@@ -146,7 +139,6 @@ export function useAdminPanelTable<T>({
     queryOptions,
     clearQueryOptions,
     fetchData,
-    resetToDefault,
     setSorts,
     setFilters,
     setSearch,

@@ -1,14 +1,10 @@
 // hooks/use-admin-panel-notify.ts
 import { useCallback } from "react";
 import type {
-  AdminPanelNotify,
+  UseAdminPanelNotify,
   AdminPanelNotifyOptions,
+  UseAdminPanelNotifyProps,
 } from "./admin-panel-notify.interface";
-
-interface UseAdminPanelNotifyProps {
-  // Optional adapter for different toast/snackbar libraries (Sonner, React Hot Toast, Material UI, etc.)
-  adapter?: (message: string, options: AdminPanelNotifyOptions) => void;
-}
 
 /**
  * AdminPanelNotify Hook
@@ -23,7 +19,7 @@ interface UseAdminPanelNotifyProps {
  */
 export function useAdminPanelNotify({
   adapter,
-}: UseAdminPanelNotifyProps = {}): AdminPanelNotify {
+}: UseAdminPanelNotifyProps = {}): UseAdminPanelNotify {
   const show = useCallback(
     (message: string, options: AdminPanelNotifyOptions = {}) => {
       const notifyOptions: AdminPanelNotifyOptions = {
