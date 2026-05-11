@@ -2,6 +2,7 @@ import { Drawer, Button } from "@heroui/react";
 import useElvenContext from "../hooks/use-elven-context";
 import { ElvenNavigation } from "../interfaces/elven.interface";
 import useElvenDrawer from "../hooks/use-elven-drawer";
+import { ElvenTypography } from "./elven.typography";
 
 export default function ElvenDrawer() {
   const { header } = useElvenContext();
@@ -17,7 +18,9 @@ export default function ElvenDrawer() {
           <Drawer.Handle /> {/* Optional: Drag handle */}
           <Drawer.CloseTrigger /> {/* Optional: Close button */}
           <Drawer.Header>
-            <Drawer.Heading />
+            <Drawer.Heading>
+              <ElvenTypography variant="title-large">Elven AI</ElvenTypography>
+            </Drawer.Heading>
           </Drawer.Header>
           <Drawer.Body>
             <nav className="flex flex-col gap-1">
