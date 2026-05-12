@@ -13,6 +13,13 @@ export function useAdminPanelModal(
     mode: initialMode,
   });
 
+  const setIsOpen = useCallback((isOpen: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      isOpen,
+    }));
+  }, []);
+
   const openModal = useCallback((mode: AdminPanelFormMode) => {
     setState({
       isOpen: true,
@@ -45,7 +52,7 @@ export function useAdminPanelModal(
 
     openModal,
     closeModal,
-
+    setIsOpen,
     openCreate,
     openUpdate,
     openView,

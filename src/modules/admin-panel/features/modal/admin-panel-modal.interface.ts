@@ -13,6 +13,7 @@ export interface UseAdminPanelModal {
   // Core Actions
   openModal: (mode: AdminPanelFormMode) => void;
   closeModal: () => void;
+  setIsOpen: (isOpen: boolean) => void;
 
   // Convenience Methods (for table actions)
   openCreate: () => void;

@@ -24,7 +24,8 @@ export type UseAdminPanelTablePropsWithoutQuery<T> = Omit<
   UseAdminPanelTableProps<T>,
   "query"
 >;
-
+export type AdminPanelSelectionMode = "multiple" | "single" | "none";
+export type AdminPanelSelectionKey<T> = string | number | keyof T;
 export interface UseAdminPanelTable<T> {
   rows: T[];
   isLoading: boolean;
@@ -33,6 +34,8 @@ export interface UseAdminPanelTable<T> {
   filters: AdminPanelFilterOption[];
   search: AdminPanelSearchOption;
   queryOptions: AdminPanelQueryOptions;
+  selectionMode: AdminPanelSelectionMode;
+  selection: Set<AdminPanelSelectionKey<T>>;
   fetchData: () => Promise<void>;
   clearQueryOptions: () => void;
   setSorts: (sort: AdminPanelSortOption[]) => void;
@@ -48,4 +51,6 @@ export interface UseAdminPanelTable<T> {
   removeSearch(): void;
   setPage(page: number): void;
   setPageSize(pageSize: number): void;
+  setSelection(selection: Set<AdminPanelSelectionKey<T>>): void;
+  setSelectionMode(selectionMode: AdminPanelSelectionMode): void;
 }
