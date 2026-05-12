@@ -1,8 +1,10 @@
 import { AdminPanelFormMode } from "../form/admin-panel-form.interface";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 export interface AdminPanelModalState {
   isOpen: boolean;
   mode: AdminPanelFormMode;
+  id?: string | null | number;
 }
 
 export interface UseAdminPanelModal {
@@ -17,8 +19,8 @@ export interface UseAdminPanelModal {
 
   // Convenience Methods (for table actions)
   openCreate: () => void;
-  openUpdate: () => void;
-  openView: () => void;
+  openUpdate: (id: AdminPanelId) => void;
+  openView: (id: AdminPanelId) => void;
   openPlain: () => void;
 
   // Reset

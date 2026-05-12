@@ -1,5 +1,6 @@
 "use client";
 
+import { BookA } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -289,6 +290,15 @@ export default function AppPage() {
       category: "Frontend",
       latency: "42ms",
       icon: <Icons.Zap />,
+    },
+    {
+      id: 4,
+      name: "Maiden",
+      url: "/modules/maiden",
+      status: "Active",
+      category: "Backend",
+      latency: "42ms",
+      icon: <BookA />,
     },
   ]);
 

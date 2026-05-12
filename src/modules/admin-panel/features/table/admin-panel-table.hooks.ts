@@ -76,7 +76,7 @@ export function useAdminPanelTable<T>({
   const fetchData = useCallback(async () => {
     if (!query?.getAll) return;
 
-    loadingOn();
+    setIsLoading(true);
     try {
       const result = await query.getAll(queryOptions);
 

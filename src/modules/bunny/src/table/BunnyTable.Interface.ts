@@ -9,6 +9,7 @@ export interface BunnyColumn<TRow = any> {
   render?: (row: TRow, column: BunnyColumn<TRow>) => ReactNode;
 }
 export interface BunnyRowAction<TRow = any> {
+  id: string;
   label?: string;
   icon?: ReactNode; // Using Iconify string for simplicity
   variant?:

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
@@ -21,7 +21,7 @@ export function useBunnyHeaderActions(
         id: "create",
         label: "Create",
         variant: "primary",
-        icon: <PlusIcon />,
+        icon: React.createElement(PlusIcon),
         onClick: () => {},
       });
     }
@@ -31,7 +31,7 @@ export function useBunnyHeaderActions(
         id: "refresh",
         label: "Refresh",
         variant: "secondary",
-        icon: <RefreshCwIcon />,
+        icon: React.createElement(RefreshCwIcon),
         onClick: () => {},
       });
     }
@@ -41,7 +41,7 @@ export function useBunnyHeaderActions(
         id: "delete",
         label: "Delete",
         variant: "danger",
-        icon: <DeleteIcon />,
+        icon: React.createElement(DeleteIcon),
         onClick: () => {},
       });
     }

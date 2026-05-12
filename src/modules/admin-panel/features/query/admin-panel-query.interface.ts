@@ -41,5 +41,5 @@ export interface AdminPanelQuery<TRow, TForm = any> {
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,
   ) => Promise<GetAllResponse<TRow>>;
-  getOne: (id: string | number) => Promise<TForm>;
+  getOne: (id: string | number) => Promise<TForm | undefined>;
 }

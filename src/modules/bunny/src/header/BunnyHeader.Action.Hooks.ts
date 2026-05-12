@@ -4,8 +4,9 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 
 export const useBunnyHeaderMappedHeaderActions = () => {
   const { headerActions } = useBunnyConfig();
-  const { modal } = useAdminPanelContext();
-  const { openCreate, openUpdate, openView, openPlain, closeModal } = modal;
+  const { modal, table } = useAdminPanelContext();
+  const { openCreate, closeModal } = modal;
+  const { fetchData } = table;
   const mapped = useMemo(() => {
     return headerActions?.map((action) => {
       switch (action.id) {
@@ -14,20 +15,12 @@ export const useBunnyHeaderMappedHeaderActions = () => {
             ...action,
             onClick: openCreate,
           };
-        case "update":
+        case "refresh":
           return {
             ...action,
-            onClick: openUpdate,
-          };
-        case "view":
-          return {
-            ...action,
-            onClick: openView,
-          };
-        case "plain":
-          return {
-            ...action,
-            onClick: openPlain,
+            onClick: async () => {
+              await fetchData();
+            },
           };
         case "delete":
           return {
@@ -38,6 +31,6 @@ export const useBunnyHeaderMappedHeaderActions = () => {
           return action;
       }
     });
-  }, [headerActions, openCreate, openUpdate, openView, openPlain, closeModal]);
+  }, [headerActions, openCreate, closeModal]);
   return mapped;
 };

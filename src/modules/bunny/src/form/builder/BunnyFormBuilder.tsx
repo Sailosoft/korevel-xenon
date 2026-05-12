@@ -1,0 +1,161 @@
+"use client";
+
+import React from "react";
+import {
+  Input,
+  Select,
+  ListBox,
+  Label,
+  TextArea,
+  Switch,
+  cn,
+} from "@heroui/react";
+import { BunnyFormConfig, BunnyFormField } from "../BunnyForm.Interface";
+
+interface BunnyFormBuilderProps<T = Record<string, any>> {
+  config: BunnyFormConfig;
+  formData: T;
+  onChange: (name: string, value: any) => void;
+  errors?: Record<string, string>;
+}
+
+export function BunnyFormBuilder<T>({
+  config,
+  formData,
+  onChange,
+  errors = {},
+}: BunnyFormBuilderProps<T>) {
+  return (
+    <div className="space-y-6 w-full">
+      <div
+        className={cn(
+          "grid gap-6 w-full py-2",
+          config.gridCols === 2 ? "grid-cols-2" : "grid-cols-1",
+        )}
+      >
+        {config.fields.map((field) => (
+          <div
+            key={field.name}
+            className={cn(
+              field.colSpan ? `col-span-${field.colSpan}` : "",
+              "w-full px-1",
+            )}
+          >
+            <FieldRenderer
+              field={field}
+              value={(formData as any)[field.name]}
+              onChange={onChange}
+              error={errors[field.name]}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ====================== Field Renderer ====================== */
+
+interface FieldRendererProps {
+  field: BunnyFormField;
+  value: any;
+  onChange: (name: string, value: any) => void;
+  error?: string;
+}
+
+function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
+  const handleChange = (val: any) => onChange(field.name, val);
+  const fieldId = `field-${field.name}`;
+  const showError = !!error;
+  const isRequired = !!field.required;
+
+  switch (field.type) {
+    case "select":
+      return (
+        <div className="flex flex-col gap-1 w-full">
+          <Label htmlFor={fieldId}>
+            {field.label}
+            {isRequired && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <Select
+            id={fieldId}
+            value={value != null ? String(value) : undefined}
+            onChange={handleChange}
+            placeholder={field.placeholder}
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {field.options?.map((opt) => (
+                  <ListBox.Item key={opt.value} textValue={String(opt.value)}>
+                    {opt.label}
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
+        </div>
+      );
+
+    case "textarea":
+      return (
+        <div className="flex flex-col gap-1 w-full">
+          <Label htmlFor={fieldId}>
+            {field.label}
+            {isRequired && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <TextArea
+            id={fieldId}
+            placeholder={field.placeholder}
+            value={value ?? ""}
+            onChange={(e) => handleChange(e.target.value)}
+          />
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
+        </div>
+      );
+
+    case "switch":
+      return (
+        <div className="flex flex-col gap-2 w-full">
+          <div className="flex items-center gap-3">
+            <Switch id={fieldId} isSelected={!!value} onChange={handleChange} />
+            <Label htmlFor={fieldId} className="cursor-pointer">
+              {field.label}
+              {isRequired && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+          </div>
+          {showError && <p className="text-sm text-red-500">{error}</p>}
+        </div>
+      );
+
+    default: // text, email, password, number
+      return (
+        <div className="flex flex-col gap-1 w-full">
+          <Label htmlFor={fieldId}>
+            {field.label}
+            {isRequired && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <Input
+            id={fieldId}
+            type={
+              field.type === "number"
+                ? "number"
+                : field.type === "password"
+                  ? "password"
+                  : field.type === "email"
+                    ? "email"
+                    : "text"
+            }
+            placeholder={field.placeholder}
+            value={value ?? ""}
+            onChange={(e) => handleChange(e.target.value)}
+          />
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
+        </div>
+      );
+  }
+}

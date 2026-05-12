@@ -12,6 +12,8 @@ import {
 import { ChevronUp } from "lucide-react";
 import { useBunnyConfig } from "../context/BunnyContext";
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
+import BunnyTableEmpty from "./BunnyTable.Empty";
+import BunnyTableLoading from "./BunnyTable.Loading";
 
 function SortableColumnHeader({
   children,
@@ -39,22 +41,29 @@ function SortableColumnHeader({
 export function BunnyTable<TRow extends Record<string, any>>() {
   const { columns, rowActions: actions, rowKey } = useBunnyConfig();
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
-    column: String(columns[0]?.field),
-    direction: "ascending",
-  });
+  // const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+  //   column: String(columns[0]?.field),
+  //   direction: "ascending",
+  // });
+  const [sortDescriptor, setSortDescriptor] = useState<
+    SortDescriptor | undefined
+  >();
 
   const { table } = useAdminPanelContext<TRow>();
-  const { rows, setSelection, selectionMode } = table;
+  const { rows, setSelection, selectionMode, isLoading } = table;
 
   const sortedItems = useMemo(() => {
+    if (!sortDescriptor) {
+      return rows;
+    }
+
     return [...rows].sort((a, b) => {
-      const col = sortDescriptor.column as keyof TRow;
+      const col = sortDescriptor?.column as keyof TRow;
       const first = String(a[col] ?? "");
       const second = String(b[col] ?? "");
       let cmp = first.localeCompare(second);
 
-      return sortDescriptor.direction === "descending" ? -cmp : cmp;
+      return sortDescriptor?.direction === "descending" ? -cmp : cmp;
     });
   }, [rows, sortDescriptor]);
 
@@ -115,54 +124,60 @@ export function BunnyTable<TRow extends Record<string, any>>() {
             )}
           </Table.Header>
 
-          <Table.Body>
-            {sortedItems.map((row) => (
-              <Table.Row key={row[rowKey as any]} id={row[rowKey as any]}>
-                {/* Row Selection Cell */}
-                {selectionMode !== "none" && (
-                  <Table.Cell className="pr-0">
-                    <Checkbox
-                      aria-label="Select row"
-                      slot="selection"
-                      variant="secondary"
-                    >
-                      <Checkbox.Control>
-                        <Checkbox.Indicator />
-                      </Checkbox.Control>
-                    </Checkbox>
-                  </Table.Cell>
-                )}
-
-                {/* Data Cells */}
-                {columns.map((col) => (
-                  <Table.Cell key={String(col.field)}>
-                    {col.render
-                      ? col.render(row, col)
-                      : row[col.field as keyof TRow]}
-                  </Table.Cell>
-                ))}
-
-                {/* Actions Cell */}
-                {actions && (
-                  <Table.Cell>
-                    <div className="flex items-center justify-end gap-1">
-                      {actions.map((action, idx) => (
-                        <Button
-                          key={idx}
-                          isIconOnly
-                          size="sm"
-                          variant={action.variant as any}
-                          onClick={() => action.onClick(row)}
+          <Table.Body
+            renderEmptyState={() =>
+              isLoading ? <BunnyTableLoading /> : <BunnyTableEmpty />
+            }
+          >
+            {isLoading
+              ? undefined
+              : sortedItems.map((row) => (
+                  <Table.Row key={row[rowKey as any]} id={row[rowKey as any]}>
+                    {/* Row Selection Cell */}
+                    {selectionMode !== "none" && (
+                      <Table.Cell className="pr-0">
+                        <Checkbox
+                          aria-label="Select row"
+                          slot="selection"
+                          variant="secondary"
                         >
-                          {action.icon}
-                          {action.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </Table.Cell>
-                )}
-              </Table.Row>
-            ))}
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                        </Checkbox>
+                      </Table.Cell>
+                    )}
+
+                    {/* Data Cells */}
+                    {columns.map((col) => (
+                      <Table.Cell key={String(col.field)}>
+                        {col.render
+                          ? col.render(row, col)
+                          : row[col.field as keyof TRow]}
+                      </Table.Cell>
+                    ))}
+
+                    {/* Actions Cell */}
+                    {actions && (
+                      <Table.Cell>
+                        <div className="flex items-center justify-end gap-1">
+                          {actions.map((action, idx) => (
+                            <Button
+                              key={idx}
+                              isIconOnly
+                              size="sm"
+                              variant={action.variant as any}
+                              onClick={() => action.onClick(row)}
+                            >
+                              {action.icon}
+                              {action.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </Table.Cell>
+                    )}
+                  </Table.Row>
+                ))}
           </Table.Body>
         </Table.Content>
       </Table.ScrollContainer>

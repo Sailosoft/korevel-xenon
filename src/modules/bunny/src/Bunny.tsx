@@ -8,6 +8,8 @@ import { BunnyProvider } from "./context/BunnyContext";
 import BunnyHeader from "./header/BunnyHeader";
 import { BunnyTable } from "./table/BunnyTable";
 import BunnyModal from "./modal/BunnyModal";
+import { useCallback, useEffect } from "react";
+import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -23,13 +25,29 @@ export default function Bunny<TRow, TForm>({
 }
 
 function BunnyMainPanel({ children }: { children: React.ReactNode }) {
-  // const { table } = useAdminPanelContext();
+  const { form, modal, table } = useAdminPanelContext();
+
+  const handlePrimaryAction = useCallback(async () => {
+    await form.submit();
+  }, [form]);
+
+  useEffect(() => {
+    adminPanelEvents.on("form:success", () => {
+      table.fetchData();
+      modal.closeModal();
+    });
+
+    // clean up
+    return () => {
+      adminPanelEvents.off("form:success");
+    };
+  }, [modal]);
 
   return (
     <Card>
       <BunnyHeader />
       <BunnyTable />
-      <BunnyModal>{children}</BunnyModal>
+      <BunnyModal onPrimaryAction={handlePrimaryAction}>{children}</BunnyModal>
     </Card>
   );
 }

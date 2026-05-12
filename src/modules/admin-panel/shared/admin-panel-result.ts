@@ -6,7 +6,7 @@ export type AdminPanelResultStatus =
 
 // Discriminated Union for better type narrowing
 export type AdminPanelResult<T = void, TError = unknown> =
-  | { status: "success"; data: T; message?: string }
+  | { status: "success"; data?: T; message?: string }
   | { status: "error"; error: TError; message?: string }
   | { status: "validation-error"; error: TError; message?: string }
   | { status: "neutral"; message?: string };

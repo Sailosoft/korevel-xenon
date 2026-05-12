@@ -14,8 +14,8 @@ export interface BunnyProps<TRow, TForm> {
 export interface BunnyConfig<TRow = any, TForm = any> {
   title: string;
   titlePlural?: string;
-  modalSize?: number;
-  modalClass?: number;
+  modalSizeWidth?: number;
+  modalSize?: "xs" | "sm" | "md" | "lg" | "cover" | "full";
   columns: BunnyColumn<TRow>[];
   rowActions?: BunnyRowAction<TRow>[];
   rowKey: keyof TRow;

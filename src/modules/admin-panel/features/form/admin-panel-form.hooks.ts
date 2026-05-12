@@ -2,21 +2,19 @@
 import { useState, useEffect, useCallback } from "react";
 
 import type { AdminPanelMutation } from "../mutation/admin-panel-mutation.interface";
-import type { AdminPanelQuery } from "../query/admin-panel-query.interface";
 import type {
   AdminPanelFormMode,
   AdminPanelFormError,
-  AdminPanelFormPlugin,
   UseAdminPanelFormProps,
   UseAdminPanelForm,
 } from "./admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
+import { adminPanelEvents } from "../event/admin-panel-event";
 
 // Internal mutation handler (consolidated)
 const useInternalMutation = <TForm>(
   mutation: AdminPanelMutation<TForm>,
   mode?: AdminPanelFormMode,
-  plugin?: AdminPanelFormPlugin<TForm>,
   onSuccess?: (data: TForm) => void,
   onError?: (error: Error) => void,
 ) => {
@@ -33,9 +31,13 @@ const useInternalMutation = <TForm>(
         let dataToSubmit = { ...formData };
 
         // Plugin: before submit
-        if (plugin?.onBeforeSubmit) {
-          dataToSubmit = await plugin.onBeforeSubmit(dataToSubmit, mode);
-        }
+        // if (plugin?.onBeforeSubmit) {
+        //   dataToSubmit = await plugin.onBeforeSubmit(dataToSubmit, mode);
+        // }
+        adminPanelEvents.emit("form:beforeSubmit", {
+          mode: mode,
+          payload: formData,
+        });
 
         let result: AdminPanelResult<TForm, Error | unknown> | undefined;
 
@@ -47,17 +49,24 @@ const useInternalMutation = <TForm>(
           throw new Error("Invalid mode or missing ID for update operation");
         }
 
-        const data = result?.status === "success" ? result.data : undefined;
-
-        if (data !== undefined) {
-          plugin?.onAfterSubmit?.(data, mode);
+        if (result) {
+          adminPanelEvents.emit("form:submit", {
+            mode: mode,
+            result,
+          });
         }
 
         // Plugin: after success
         if (result !== undefined && result.status == "success") {
-          onSuccess?.(result.data);
+          if (result.data) {
+            onSuccess?.(result.data);
+            adminPanelEvents.emit("form:success", {
+              mode: mode,
+              result,
+            });
+          }
         } else if (result !== undefined && result.status === "error") {
-          plugin?.onError?.(result.error as Error, mode);
+          // plugin?.onError?.(result.error as Error, mode);
           onError?.(result.error as Error);
         } else if (
           result !== undefined &&
@@ -65,6 +74,11 @@ const useInternalMutation = <TForm>(
         ) {
           // plugin?.onError?.(result.error, mode);
           // onError?.(result.error);
+          adminPanelEvents.emit("form:error", {
+            mode: mode,
+            error: result.error,
+            result,
+          });
         }
 
         return result;
@@ -72,14 +86,14 @@ const useInternalMutation = <TForm>(
         const errorObj =
           err instanceof Error ? err : new Error("Operation failed");
         setError(errorObj);
-        plugin?.onError?.(errorObj, mode);
+        // plugin?.onError?.(errorObj, mode);
         onError?.(errorObj);
         throw errorObj;
       } finally {
         setIsSubmitting(false);
       }
     },
-    [mutation, mode, plugin, onSuccess, onError, isSubmitting],
+    [mutation, mode, onSuccess, onError, isSubmitting],
   );
 
   return { submit, isSubmitting, error };
@@ -91,7 +105,6 @@ export function useAdminPanelForm<TForm = any>({
   query,
   initialData,
   id,
-  plugin,
   onSuccess,
   onError,
 }: UseAdminPanelFormProps<TForm>): UseAdminPanelForm<TForm> {
@@ -103,7 +116,7 @@ export function useAdminPanelForm<TForm = any>({
     submit: internalSubmit,
     isSubmitting,
     error: mutationError,
-  } = useInternalMutation(mutation, mode, plugin, onSuccess, onError);
+  } = useInternalMutation(mutation, mode, onSuccess, onError);
 
   // Initialize form with initialData
   useEffect(() => {
@@ -157,6 +170,13 @@ export function useAdminPanelForm<TForm = any>({
     setFormErrorState(null);
   }, [initialData]);
 
+  const handleChange = useCallback(
+    (field: string, data: any) => {
+      setFormDataState((prev) => ({ ...prev, [field]: data }));
+    },
+    [setFormDataState],
+  );
+
   return {
     formData,
     formError,
@@ -169,5 +189,6 @@ export function useAdminPanelForm<TForm = any>({
     submit,
     resetForm,
     loadData,
+    handleChange,
   };
 }
