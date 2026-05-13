@@ -1,3 +1,4 @@
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 import {
   AdminPanelFilterOption,
   AdminPanelPagination,
@@ -35,7 +36,7 @@ export interface UseAdminPanelTable<T> {
   search: AdminPanelSearchOption;
   queryOptions: AdminPanelQueryOptions;
   selectionMode: AdminPanelSelectionMode;
-  selection: Set<AdminPanelSelectionKey<T>>;
+  selection: AdminPanelId[];
   fetchData: () => Promise<void>;
   clearQueryOptions: () => void;
   setSorts: (sort: AdminPanelSortOption[]) => void;
@@ -51,6 +52,6 @@ export interface UseAdminPanelTable<T> {
   removeSearch(): void;
   setPage(page: number): void;
   setPageSize(pageSize: number): void;
-  setSelection(selection: Set<AdminPanelSelectionKey<T>>): void;
+  setSelection(selection: AdminPanelId[]): void;
   setSelectionMode(selectionMode: AdminPanelSelectionMode): void;
 }

@@ -1,4 +1,4 @@
-import { Card } from "@heroui/react";
+import { Card, toast, Toast } from "@heroui/react";
 import {
   AdminPanelProvider,
   useAdminPanelContext,
@@ -10,6 +10,7 @@ import { BunnyTable } from "./table/BunnyTable";
 import BunnyModal from "./modal/BunnyModal";
 import { useCallback, useEffect } from "react";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
+import BunnyDeleteModal from "./del/BunnyDelete.Modal";
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -18,6 +19,7 @@ export default function Bunny<TRow, TForm>({
   return (
     <BunnyProvider config={config}>
       <AdminPanelProvider query={config.query} mutation={config.mutation}>
+        <Toast.Provider />
         <BunnyMainPanel>{children}</BunnyMainPanel>
       </AdminPanelProvider>
     </BunnyProvider>
@@ -32,13 +34,26 @@ function BunnyMainPanel({ children }: { children: React.ReactNode }) {
   }, [form]);
 
   useEffect(() => {
-    adminPanelEvents.on("form:success", () => {
-      table.fetchData();
-      modal.closeModal();
+    adminPanelEvents.on("form:success", ({ mode, result }) => {
+      if (mode === "update") {
+        modal.openView(modal.id!);
+        table.fetchData();
+        toast.success("Updated successfully");
+      } else if (mode === "create" && result.status === "success") {
+        const { data } = result;
+        modal.openView(data?.id ?? "");
+        table.fetchData();
+        toast.success("Created successfully");
+      }
+    });
+
+    adminPanelEvents.on("del:success", () => {
+      toast.success("Deleted successfully");
     });
 
     // clean up
     return () => {
+      adminPanelEvents.off("del:success");
       adminPanelEvents.off("form:success");
     };
   }, [modal]);
@@ -48,6 +63,7 @@ function BunnyMainPanel({ children }: { children: React.ReactNode }) {
       <BunnyHeader />
       <BunnyTable />
       <BunnyModal onPrimaryAction={handlePrimaryAction}>{children}</BunnyModal>
+      <BunnyDeleteModal />
     </Card>
   );
 }

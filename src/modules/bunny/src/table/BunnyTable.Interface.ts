@@ -20,7 +20,7 @@ export interface BunnyRowAction<TRow = any> {
     | "outline"
     | "tertiary"
     | "danger-soft";
-  onClick: (row: TRow) => void;
+  onClick: (row: TRow) => void | Promise<void>;
 }
 
 export interface BunnyPagination {}

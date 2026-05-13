@@ -1,3 +1,4 @@
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
 
 export interface AdminPanelMutation<T> {
@@ -5,11 +6,11 @@ export interface AdminPanelMutation<T> {
     data: any,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
-    id: string | number,
+    id: AdminPanelId,
     data: any,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
-    id: string | number,
+    id: AdminPanelId,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
 }
 

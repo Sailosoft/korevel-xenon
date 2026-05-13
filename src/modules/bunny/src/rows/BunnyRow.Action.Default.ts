@@ -8,14 +8,12 @@ export function useBunnyRowActionDefault<TRow>({
 }: {
   hides: Array<"view" | "edit" | "delete">;
 }) {
-  const { modal, table } = useAdminPanelContext();
   return useMemo<BunnyRowAction<TRow>[]>(() => {
     const actions: BunnyRowAction<TRow>[] = [];
 
     if (!hides.includes("view")) {
       actions.push({
         id: "view",
-        // label: "View",
         variant: "ghost",
         icon: React.createElement(ViewIcon),
         onClick: () => {},
@@ -25,7 +23,6 @@ export function useBunnyRowActionDefault<TRow>({
     if (!hides.includes("edit")) {
       actions.push({
         id: "edit",
-        // label: "Edit",
         icon: React.createElement(PencilIcon),
         variant: "secondary",
         onClick: () => {},
@@ -35,7 +32,6 @@ export function useBunnyRowActionDefault<TRow>({
     if (!hides.includes("delete")) {
       actions.push({
         id: "delete",
-        // label: "Delete",
         variant: "danger-soft",
         icon: React.createElement(Trash2Icon),
         onClick: () => {},

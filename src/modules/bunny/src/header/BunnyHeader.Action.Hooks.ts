@@ -4,8 +4,10 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 
 export const useBunnyHeaderMappedHeaderActions = () => {
   const { headerActions } = useBunnyConfig();
-  const { modal, table } = useAdminPanelContext();
+  const { modal, table, del } = useAdminPanelContext();
+  const { openBatchDeleteConfirm } = del;
   const { openCreate, closeModal } = modal;
+  const { selection } = table;
   const { fetchData } = table;
   const mapped = useMemo(() => {
     return headerActions?.map((action) => {
@@ -25,12 +27,12 @@ export const useBunnyHeaderMappedHeaderActions = () => {
         case "delete":
           return {
             ...action,
-            onClick: closeModal,
+            onClick: openBatchDeleteConfirm,
           };
         default:
           return action;
       }
     });
-  }, [headerActions, openCreate, closeModal]);
+  }, [headerActions, openCreate, closeModal, selection]);
   return mapped;
 };

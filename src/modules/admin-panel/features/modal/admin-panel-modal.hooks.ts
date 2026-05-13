@@ -42,18 +42,18 @@ export function useAdminPanelModal(
       setState({
         isOpen: true,
         mode: "update",
-        id,
+        id: id,
       }),
-    [openModal],
+    [],
   );
   const openView = useCallback(
     (id: AdminPanelId) =>
       setState({
         isOpen: true,
         mode: "view",
-        id,
+        id: id,
       }),
-    [openModal],
+    [],
   );
   const openPlain = useCallback(() => openModal("plain"), [openModal]);
 
@@ -67,6 +67,7 @@ export function useAdminPanelModal(
   return {
     isOpen: state.isOpen,
     mode: state.mode,
+    id: state.id,
 
     openModal,
     closeModal,

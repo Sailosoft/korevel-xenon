@@ -24,12 +24,13 @@ export default function MaidenAuthorForm() {
     ],
   };
 
-  const { form, modal } = useAdminPanelContext();
+  const { form } = useAdminPanelContext();
   const { formData, handleChange, resetForm } = form;
 
-  useEffect(() => {
-    resetForm();
-  }, []);
+  // useEffect(() => {
+  //   resetForm();
+  // }, []);
+
   return (
     <BunnyFormBuilder
       config={formConf}

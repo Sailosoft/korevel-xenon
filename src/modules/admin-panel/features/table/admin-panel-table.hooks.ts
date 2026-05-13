@@ -13,6 +13,7 @@ import {
   UseAdminPanelTable,
   UseAdminPanelTableProps,
 } from "./admin-panel-table.interface";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 export function useAdminPanelTable<T>({
   query,
@@ -31,9 +32,7 @@ export function useAdminPanelTable<T>({
   const [rows, setRows] = useState<T[]>([]);
   const [selectionMode, setSelectionMode] =
     useState<AdminPanelSelectionMode>("multiple");
-  const [selection, setSelection] = useState<Set<AdminPanelSelectionKey<T>>>(
-    new Set<AdminPanelSelectionKey<T>>(),
-  );
+  const [selection, setSelection] = useState<AdminPanelId[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const [pagination, setPaginationState] = useState<AdminPanelPagination>(

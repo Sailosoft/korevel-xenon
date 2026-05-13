@@ -3,6 +3,7 @@ import { AdminPanelFormMode } from "../form/admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
 
 type AdminPanelEvents = {
+  "del:success": void;
   "form:success": {
     result: AdminPanelResult<any, any>;
     mode?: AdminPanelFormMode;

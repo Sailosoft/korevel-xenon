@@ -10,6 +10,7 @@ import type {
 } from "./admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
 import { adminPanelEvents } from "../event/admin-panel-event";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 // Internal mutation handler (consolidated)
 const useInternalMutation = <TForm>(
@@ -22,7 +23,7 @@ const useInternalMutation = <TForm>(
   const [error, setError] = useState<Error | null>(null);
 
   const submit = useCallback(
-    async (formData: TForm, id?: string | number) => {
+    async (formData: TForm, id?: AdminPanelId) => {
       if (isSubmitting) return;
       setIsSubmitting(true);
       setError(null);
@@ -100,11 +101,10 @@ const useInternalMutation = <TForm>(
 };
 
 export function useAdminPanelForm<TForm = any>({
-  mode,
+  modal,
   mutation,
   query,
   initialData,
-  id,
   onSuccess,
   onError,
 }: UseAdminPanelFormProps<TForm>): UseAdminPanelForm<TForm> {
@@ -112,6 +112,7 @@ export function useAdminPanelForm<TForm = any>({
   const [formError, setFormErrorState] = useState<AdminPanelFormError>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const { mode, id, isOpen } = modal;
   const {
     submit: internalSubmit,
     isSubmitting,
@@ -144,10 +145,14 @@ export function useAdminPanelForm<TForm = any>({
   }, [mode, id, query]);
 
   useEffect(() => {
-    if ((mode === "update" || mode === "view") && id) {
-      loadData();
+    if (isOpen) {
+      if ((mode === "update" || mode === "view") && id) {
+        loadData();
+      } else {
+        resetForm();
+      }
     }
-  }, [loadData, mode, id]);
+  }, [loadData, mode, id, isOpen]);
 
   const setFormData = useCallback((data: TForm | ((prev: TForm) => TForm)) => {
     setFormDataState(data);

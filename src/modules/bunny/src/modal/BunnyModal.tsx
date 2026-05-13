@@ -25,14 +25,18 @@ export default function BunnyModal({
     return "";
   }, [modalSizeWidth]);
 
-  const computedTitle = useMemo(
-    () => `${mode} ${title}`.toUpperCase(),
-    [mode, title],
-  );
+  const computedTitle = useMemo(() => {
+    const rawTitle = `${mode} ${title}`;
+    return rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
+  }, [mode, title]);
 
   return (
     <Modal>
-      <Modal.Backdrop isOpen={isOpen} onOpenChange={handleOpenChange}>
+      <Modal.Backdrop
+        isOpen={isOpen}
+        onOpenChange={handleOpenChange}
+        isDismissable={false}
+      >
         <Modal.Container size={modalSize}>
           <Modal.Dialog className={dialogClassName}>
             <Modal.CloseTrigger />
@@ -40,12 +44,14 @@ export default function BunnyModal({
               <Modal.Heading>{computedTitle}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>{children}</Modal.Body>
-            <Modal.Footer>
-              <Button slot="close" variant="secondary">
-                Cancel
-              </Button>
-              <Button onClick={onPrimaryAction}>Confirm</Button>
-            </Modal.Footer>
+            {mode === "view" || (
+              <Modal.Footer>
+                <Button slot="close" variant="secondary">
+                  Cancel
+                </Button>
+                <Button onClick={onPrimaryAction}>Confirm</Button>
+              </Modal.Footer>
+            )}
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

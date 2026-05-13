@@ -2,12 +2,14 @@ import { useCallback, useState } from "react";
 import {
   UseAdminPanelDeleteProps,
   UseAdminPanelDelete,
+  AdminPanelDeleteMode,
 } from "./admin-panel-del.interface";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
+import { adminPanelEvents } from "../event/admin-panel-event";
 
 export function useAdminPanelDelete<T = any>({
   mutation,
   table,
-  modal,
   notify,
   successMessage = "Record deleted successfully",
   confirmMessage = (item: T) => `Are you sure you want to delete ${itemName}?`,
@@ -15,6 +17,9 @@ export function useAdminPanelDelete<T = any>({
 }: UseAdminPanelDeleteProps<T>): UseAdminPanelDelete<T> {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<AdminPanelDeleteMode>("single");
+  const [id, setId] = useState<AdminPanelId | null>(null);
 
   const handleDelete = useCallback(
     async (id: string | number) => {
@@ -25,14 +30,11 @@ export function useAdminPanelDelete<T = any>({
         const result = await mutation.delete(id);
 
         if (result?.status === "success") {
-          // Success handling
-          notify?.success(successMessage);
-
-          // Refresh table (keep current query options)
+          // notify?.success(successMessage);
           await table.fetchData?.();
-
-          // Close modal if open
-          modal.closeModal();
+          setOpen(false);
+          console.log("call for emit");
+          adminPanelEvents.emit("del:success");
         } else {
           const err = new Error(result?.message || "Delete failed");
           setError(err);
@@ -47,14 +49,7 @@ export function useAdminPanelDelete<T = any>({
         setIsDeleting(false);
       }
     },
-    [mutation, table, modal, notify, successMessage],
-  );
-
-  const deleteItem = useCallback(
-    async (id: string | number) => {
-      await handleDelete(id);
-    },
-    [handleDelete],
+    [mutation, table, open, notify, successMessage],
   );
 
   const openDeleteConfirm = useCallback(
@@ -63,19 +58,17 @@ export function useAdminPanelDelete<T = any>({
         console.error("Cannot delete: ID is missing");
         return;
       }
-
-      // Open modal in delete mode (or use 'plain' with context)
-      modal.openModal("plain"); // or you can extend mode to include 'delete'
-
-      // You can store the item to delete in modal data if needed
+      setOpen(true);
+      setMode("single");
+      setId(id);
     },
-    [modal],
+    [setOpen, setId, setMode],
   );
 
   const closeDeleteModal = useCallback(() => {
-    modal.closeModal();
+    setOpen(false);
     setError(null);
-  }, [modal]);
+  }, [setOpen]);
 
   const deleteWithoutConfirm = useCallback(
     async (id: string | number) => {
@@ -84,16 +77,70 @@ export function useAdminPanelDelete<T = any>({
     [handleDelete],
   );
 
+  const openBatchDeleteConfirm = useCallback(() => {
+    if (table.selection.length === 0) {
+      return;
+    }
+    setOpen(true);
+    setMode("batch");
+  }, [setOpen, setMode, table.selection.length]);
+
+  // Inside useAdminPanelDelete.ts
+
+  const deleteBatch = useCallback(async () => {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      // Option A: If your API supports batch delete
+      // const result = await mutation.deleteMany(ids);
+
+      // Option B: Sequential deletion (fallback)
+      const results = await Promise.all(
+        table.selection.map((id) => mutation.delete(id)),
+      );
+      const allSuccessful = results.every((res) => res?.status === "success");
+
+      if (allSuccessful) {
+        await table.fetchData?.();
+        table.setSelection([]);
+        closeDeleteModal();
+        adminPanelEvents.emit("del:success");
+      } else {
+        notify?.error("Some records failed to delete");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Batch delete failed"));
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [mutation, table, notify]);
+
+  const deleteItem = useCallback(async () => {
+    if (mode === "batch") {
+      await deleteBatch();
+    } else {
+      if (!id) return;
+      await handleDelete(id);
+    }
+  }, [handleDelete, id, deleteBatch]);
+
   return {
     isDeleting,
     error,
+    mode,
+    open,
     deleteItem,
+    setMode,
+    setOpen,
     confirmMessage: useCallback(
       (item: T) => confirmMessage(item),
       [confirmMessage],
     ),
+    openBatchDeleteConfirm,
     openDeleteConfirm,
     closeDeleteModal,
     deleteWithoutConfirm,
+    deleteBatch,
   };
 }

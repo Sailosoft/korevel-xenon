@@ -1,12 +1,12 @@
 import { AdminPanelMutation } from "../mutation/admin-panel-mutation.interface";
 import { UseAdminPanelTable } from "../table/admin-panel-table.interface";
-import { UseAdminPanelModal } from "../modal/admin-panel-modal.interface";
 import { UseAdminPanelNotify } from "../notify/admin-panel-notify.interface";
+
+export type AdminPanelDeleteMode = "single" | "batch";
 
 export interface UseAdminPanelDeleteProps<TRow = any, TForm = any> {
   mutation: AdminPanelMutation<TForm>; // or AdminPanelDeleteMutation<T>
   table: UseAdminPanelTable<TRow>;
-  modal: UseAdminPanelModal;
   notify?: UseAdminPanelNotify;
   successMessage?: string;
   confirmMessage?: (item: TRow) => string;
@@ -14,16 +14,22 @@ export interface UseAdminPanelDeleteProps<TRow = any, TForm = any> {
 }
 
 export interface UseAdminPanelDelete<T = any> {
+  open: boolean;
   isDeleting: boolean;
   error: Error | null;
+  mode: AdminPanelDeleteMode;
   confirmMessage: (item: T) => string;
 
+  setOpen: (open: boolean) => void;
+  setMode: (mode: AdminPanelDeleteMode) => void;
   // Main action
-  deleteItem: (id: string | number) => Promise<void>;
+  deleteItem: () => Promise<void>;
 
   // Modal helpers
   openDeleteConfirm: (id: string | number) => void;
+  openBatchDeleteConfirm: () => void; // New helper
   closeDeleteModal: () => void;
+  deleteBatch: () => Promise<void>;
 
   // Direct delete (headless)
   deleteWithoutConfirm: (id: string | number) => Promise<void>;

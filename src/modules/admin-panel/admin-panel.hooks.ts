@@ -6,6 +6,7 @@ import { useAdminPanelForm } from "./features/form/admin-panel-form.hooks";
 import { useAdminPanelNotify } from "./features/notify/admin-panel-nofity.hooks";
 import { useAdminPanelDelete } from "./features/del/admin-panel-del.hooks";
 import { AdminPanelFormMode } from "./features/form/admin-panel-form.interface";
+import { AdminPanelModalState } from "./features/modal/admin-panel-modal.interface";
 
 export default function useAdminPanel<TRow, TForm = any>({
   query,
@@ -16,16 +17,25 @@ export default function useAdminPanel<TRow, TForm = any>({
   const table = useAdminPanelTable<TRow>({ query: query, ...tableProps });
   const modal = useAdminPanelModal();
   const notify = useAdminPanelNotify({ ...props?.notify });
-  const del = useAdminPanelDelete<TRow>({ notify, table, mutation, modal });
+  const del = useAdminPanelDelete<TRow>({
+    notify,
+    table,
+    mutation,
+  });
 
-  const mode = useMemo(() => {
-    return modal.mode;
-  }, [modal.mode]);
+  const modalState = useMemo<AdminPanelModalState>(
+    () => ({
+      mode: modal.mode,
+      id: modal.id,
+      isOpen: modal.isOpen,
+    }),
+    [modal],
+  );
 
   const form = useAdminPanelForm<TForm>({
     query,
     mutation,
-    mode,
+    modal: modalState,
     ...props?.form,
     // onSuccess: async (data: TForm, mode?: AdminPanelFormMode) => {
     //   await table.fetchData();

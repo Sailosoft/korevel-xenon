@@ -4,14 +4,10 @@ import { AdminPanelId } from "../id/admin-panel-id.interface";
 export interface AdminPanelModalState {
   isOpen: boolean;
   mode: AdminPanelFormMode;
-  id?: string | null | number;
+  id?: AdminPanelId;
 }
 
-export interface UseAdminPanelModal {
-  // State
-  isOpen: boolean;
-  mode: AdminPanelFormMode;
-
+export interface UseAdminPanelModal extends AdminPanelModalState {
   // Core Actions
   openModal: (mode: AdminPanelFormMode) => void;
   closeModal: () => void;

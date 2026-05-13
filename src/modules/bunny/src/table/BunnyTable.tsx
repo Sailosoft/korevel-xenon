@@ -14,6 +14,7 @@ import { useBunnyConfig } from "../context/BunnyContext";
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
 import BunnyTableEmpty from "./BunnyTable.Empty";
 import BunnyTableLoading from "./BunnyTable.Loading";
+import { useBunnyRowActionCallback } from "../rows/BunnyRow.Action.Callback";
 
 function SortableColumnHeader({
   children,
@@ -51,6 +52,7 @@ export function BunnyTable<TRow extends Record<string, any>>() {
 
   const { table } = useAdminPanelContext<TRow>();
   const { rows, setSelection, selectionMode, isLoading } = table;
+  const { callAction } = useBunnyRowActionCallback();
 
   const sortedItems = useMemo(() => {
     if (!sortDescriptor) {
@@ -68,8 +70,19 @@ export function BunnyTable<TRow extends Record<string, any>>() {
   }, [rows, sortDescriptor]);
 
   useEffect(() => {
-    setSelection(selectedKeys as any);
-  }, [selectedKeys]);
+    let selectedArray: string[] = [];
+
+    if (selectedKeys === "all") {
+      // If "all" is selected, map all row IDs
+      selectedArray = rows.map((row) => String(row[rowKey as any]));
+    } else {
+      // Convert Set to Array
+      selectedArray = Array.from(selectedKeys as Set<string | number>).map(
+        String,
+      );
+    }
+    setSelection(selectedArray);
+  }, [selectedKeys, rows, rowKey, setSelection]);
 
   return (
     <Table>
@@ -167,7 +180,7 @@ export function BunnyTable<TRow extends Record<string, any>>() {
                               isIconOnly
                               size="sm"
                               variant={action.variant as any}
-                              onClick={() => action.onClick(row)}
+                              onClick={() => callAction(action, row)}
                             >
                               {action.icon}
                               {action.label}
