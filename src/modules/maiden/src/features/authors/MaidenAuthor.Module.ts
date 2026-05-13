@@ -3,6 +3,7 @@ import { MaidenAuthor } from "../../entities/entities";
 import { GetAllResponse } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { maidenDatabase } from "../../database/MaidenDatabase";
 import { AdminPanelResult } from "@/src/modules/admin-panel/shared/admin-panel-result";
+import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 
 interface MaidenAuthorModule {
   config: BunnyConfig<MaidenAuthor, MaidenAuthor>;
@@ -14,15 +15,16 @@ export const maidenAuthorModule: MaidenAuthorModule = {
     rowKey: "id",
     modalSize: "lg",
     columns: [
-      {
-        field: "id",
-        header: "Id",
-        sortable: true,
-        isRowHeader: true,
-      },
+      // {
+      //   field: "id",
+      //   header: "Id",
+      //   sortable: true,
+      //   isRowHeader: true,
+      // },
       {
         field: "name",
         header: "Name",
+        isRowHeader: true,
         sortable: true,
       },
       {
@@ -74,7 +76,7 @@ export const maidenAuthorModule: MaidenAuthorModule = {
       },
 
       update: async (
-        id: string | number,
+        id: AdminPanelId,
         data: Partial<MaidenAuthor>,
       ): Promise<AdminPanelResult<MaidenAuthor, unknown>> => {
         try {
@@ -99,7 +101,7 @@ export const maidenAuthorModule: MaidenAuthorModule = {
       },
 
       delete: async (
-        id: string | number,
+        id: AdminPanelId,
       ): Promise<AdminPanelResult<MaidenAuthor, unknown>> => {
         try {
           const numericId = Number(id);
