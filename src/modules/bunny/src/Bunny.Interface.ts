@@ -20,7 +20,7 @@ export interface BunnyConfig<TRow = any, TForm = any> {
   rowActions?: BunnyRowAction<TRow>[];
   rowKey: keyof TRow;
   headerActions?: BunnyHeaderAction[];
-
+  tableHeight?: number | string;
   query: AdminPanelQuery<TRow, TForm>;
   mutation: AdminPanelMutation<TForm>;
 
