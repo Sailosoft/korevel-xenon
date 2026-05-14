@@ -1,0 +1,41 @@
+.glass-header {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.sidebar-transition {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.3s ease, 
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border 0.3s ease;
+}
+
+#sidebarOverlay {
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+@media (max-width: 767px) {
+  #sidebar {
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* Custom scrollbar for the sidebar */
+#sidebar nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+#sidebar nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#sidebar nav::-webkit-scrollbar-thumb {
+  background: #fbcfe8;
+  border-radius: 10px;
+}
+
+#sidebar nav::-webkit-scrollbar-thumb:hover {
+  background: #f9a8d4;
+}

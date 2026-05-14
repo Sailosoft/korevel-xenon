@@ -1,6 +1,6 @@
 "use client";
 
-import { BookA } from "lucide-react";
+import { BookA, Rabbit, RabbitIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -299,6 +299,15 @@ export default function AppPage() {
       category: "Backend",
       latency: "42ms",
       icon: <BookA />,
+    },
+    {
+      id: 5,
+      name: "BunnyAI",
+      url: "/modules/bunny-ai",
+      status: "Active",
+      category: "AI",
+      latency: "42ms",
+      icon: <RabbitIcon />,
     },
   ]);
 
