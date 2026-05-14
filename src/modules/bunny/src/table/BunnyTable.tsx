@@ -54,6 +54,7 @@ export function BunnyTable<TRow extends Record<string, any>>({
     rowActions: actions,
     rowKey,
     tableHeight,
+    rowActionsColLength,
   } = useBunnyConfig();
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
   const [sortDescriptor, setSortDescriptor] = useState<
@@ -63,6 +64,11 @@ export function BunnyTable<TRow extends Record<string, any>>({
   const { table } = useAdminPanelContext<TRow>();
   const { rows, setSelection, selectionMode, isLoading } = table;
   const { callAction } = useBunnyRowActionCallback();
+
+  const actionColumnLength = useMemo(
+    () => rowActionsColLength ?? 120,
+    [rowActionsColLength],
+  );
 
   const sortedItems = useMemo(() => {
     if (!sortDescriptor) return rows;
@@ -152,7 +158,7 @@ export function BunnyTable<TRow extends Record<string, any>>({
 
               {/* Actions Column */}
               {actions && actions.length > 0 && (
-                <Table.Column className="text-end" width={120}>
+                <Table.Column className="text-end" width={actionColumnLength}>
                   Actions
                 </Table.Column>
               )}

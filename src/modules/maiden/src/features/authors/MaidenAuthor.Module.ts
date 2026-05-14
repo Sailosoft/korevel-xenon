@@ -14,6 +14,7 @@ export const maidenAuthorModule: MaidenAuthorModule = {
     titlePlural: "Authors",
     rowKey: "id",
     modalSize: "lg",
+    rowActionsColLength: 200,
     columns: [
       // {
       //   field: "id",
