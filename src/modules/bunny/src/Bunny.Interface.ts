@@ -7,7 +7,7 @@ import { UseAdminPanelTablePropsWithoutQuery } from "../../admin-panel/features/
 import { BunnyHeaderAction } from "./header/BunnyHeader.Interface";
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 
-export type BunnyAdjust<TRow, TForm> = (
+export type BunnyCustomize<TRow, TForm> = (
   admin: UseAdminPanel<TRow, TForm>,
   config: BunnyConfig<TRow, TForm>,
 ) => Partial<BunnyConfig<TRow, TForm>>;
@@ -21,7 +21,7 @@ export interface ExtendedBunnyProps<TRow, TForm> extends BunnyProps<
   TRow,
   TForm
 > {
-  adjust?: BunnyAdjust<TRow, TForm>;
+  customize?: BunnyCustomize<TRow, TForm>;
 }
 
 export interface BunnyConfig<TRow = any, TForm = any> {

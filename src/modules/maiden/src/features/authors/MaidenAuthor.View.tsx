@@ -4,7 +4,7 @@ import Bunny from "@/src/modules/bunny/src/Bunny";
 import { maidenAuthorModule } from "./MaidenAuthor.Module";
 import { useCallback, useMemo } from "react";
 import {
-  BunnyAdjust,
+  BunnyCustomize,
   BunnyConfig,
 } from "@/src/modules/bunny/src/Bunny.Interface";
 import { MaidenAuthor } from "../../entities/entities";
@@ -25,7 +25,7 @@ export default function MaidenAuthorView() {
     };
   }, []);
 
-  const adjust: BunnyAdjust<MaidenAuthor, MaidenAuthor> = useCallback(
+  const customize: BunnyCustomize<MaidenAuthor, MaidenAuthor> = useCallback(
     (admin, config) => {
       admin.table = { ...admin.table, selectionMode: "single" };
       // admin.
@@ -41,12 +41,12 @@ export default function MaidenAuthorView() {
         ],
       };
     },
-    [],
+    [actions, row],
   );
 
   return (
     <div className="px-6">
-      <Bunny config={module} adjust={adjust}>
+      <Bunny config={module} customize={customize}>
         <MaidenAuthorForm />
       </Bunny>
     </div>

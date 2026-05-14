@@ -19,13 +19,13 @@ import BunnyDeleteModal from "./del/BunnyDelete.Modal";
 export default function Bunny<TRow, TForm>({
   children,
   config,
-  adjust,
+  customize,
 }: ExtendedBunnyProps<TRow, TForm>) {
   return (
     // AdminPanel MUST be first so children can access context for adjustment
     <AdminPanelProvider query={config.query} mutation={config.mutation}>
       <Toast.Provider />
-      <BunnyMainPanel config={config} adjust={adjust}>
+      <BunnyMainPanel config={config} customize={customize}>
         {children}
       </BunnyMainPanel>
     </AdminPanelProvider>
@@ -35,11 +35,11 @@ export default function Bunny<TRow, TForm>({
 function BunnyMainPanel({
   children,
   config,
-  adjust,
+  customize,
 }: {
   children: React.ReactNode;
   config: any;
-  adjust?: any;
+  customize?: any;
 }) {
   const admin = useAdminPanelContext();
   const { form, modal, table } = admin;
@@ -48,9 +48,9 @@ function BunnyMainPanel({
   const finalConfig = useMemo(() => {
     return {
       ...config,
-      ...(adjust ? adjust(admin, config) : {}),
+      ...(customize ? customize(admin, config) : {}),
     };
-  }, [config, adjust, admin]);
+  }, [config, customize, admin]);
 
   const handlePrimaryAction = useCallback(async () => {
     await form.submit();
