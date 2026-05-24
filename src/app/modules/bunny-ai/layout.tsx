@@ -2,8 +2,9 @@
 
 import { Button } from "@heroui/react";
 import "./layout.css";
-import { LucideRabbit, Menu, Plus, Rabbit, X } from "lucide-react";
+import { LucideRabbit, Menu, Plus, Rabbit, Settings, X } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Suspense, useCallback } from "react";
 
 export default function BunnyAILayout({
@@ -50,12 +51,11 @@ function BunnyAILayoutContent({ children }: { children: React.ReactNode }) {
     >
       <div
         id="sidebarOverlay"
-        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-20 transition-opacity duration-300 md:hidden ${
-          isOpen ? "opacity-100 visible" : "opacity-0 invisible"
-        }`}
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-20 transition-opacity duration-300 md:hidden ${isOpen ? "opacity-100 visible" : "opacity-0 invisible"
+          }`}
         onClick={closeSidebar}
       ></div>
-      <Sidebar isOpen={isOpen} onClose={closeSidebar} />
+      <Sidebar isOpen={isOpen} onClose={closeSidebar} pathname={pathname} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="glass-header h-16 flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 sticky top-0">
           <div className="flex items-center space-x-4">
@@ -87,18 +87,19 @@ function BunnyAILayoutContent({ children }: { children: React.ReactNode }) {
 const Sidebar = ({
   isOpen,
   onClose,
+  pathname,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  pathname: string;
 }) => {
   return (
     <aside
       id="sidebar"
-      className={`fixed inset-y-0 left-0 z-30 bg-white border-pink-100 flex flex-col sidebar-transition md:relative overflow-hidden ${
-        isOpen
-          ? "translate-x-0 w-72 opacity-100 border-r"
-          : "-translate-x-full w-72 md:w-0 md:opacity-0 md:border-none"
-      }`}
+      className={`fixed inset-y-0 left-0 z-30 bg-white border-pink-100 flex flex-col sidebar-transition md:relative overflow-hidden ${isOpen
+        ? "translate-x-0 w-72 opacity-100 border-r"
+        : "-translate-x-full w-72 md:w-0 md:opacity-0 md:border-none"
+        }`}
     >
       <div className="w-72 flex flex-col h-full flex-shrink-0">
         <div className="p-6 flex items-center justify-between">
@@ -127,52 +128,52 @@ const Sidebar = ({
             Main Menu
           </div>
 
-          <a
-            href="#"
-            className="flex items-center space-x-3 px-4 py-2.5 text-pink-600 bg-pink-50/50 rounded-xl transition-colors group"
+          <Link
+            href="/modules/bunny-ai"
+            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${pathname === "/modules/bunny-ai" ? "text-pink-600 bg-pink-50/50" : "text-gray-600 hover:bg-pink-50 hover:text-pink-600"}`}
           >
             <i data-lucide="layout-dashboard" className="w-5 h-5"></i>
             <span className="font-medium">Dashboard</span>
-          </a>
-          <a
-            href="#"
-            className="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-pink-50 hover:text-pink-600 rounded-xl transition-colors group"
+          </Link>
+          <Link
+            href="/modules/bunny-ai/authors"
+            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${pathname === "/modules/bunny-ai/authors" ? "text-pink-600 bg-pink-50/50" : "text-gray-600 hover:bg-pink-50 hover:text-pink-600"}`}
           >
             <i data-lucide="users" className="w-5 h-5"></i>
             <span className="font-medium">Authors</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-pink-50 hover:text-pink-600 rounded-xl transition-colors group"
           >
             <i data-lucide="book-open" className="w-5 h-5"></i>
             <span className="font-medium">Books</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-pink-50 hover:text-pink-600 rounded-xl transition-colors group"
           >
             <i data-lucide="zap" className="w-5 h-5"></i>
             <span className="font-medium">Skills</span>
-          </a>
-          <a
+          </Link>
+          <Link
             href="#"
             className="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-pink-50 hover:text-pink-600 rounded-xl transition-colors group"
           >
             <i data-lucide="layers" className="w-5 h-5"></i>
             <span className="font-medium">Book Chapters</span>
-          </a>
+          </Link>
 
           <div className="text-xs font-semibold text-pink-300 uppercase tracking-wider px-4 mt-8 mb-2">
             Settings
           </div>
-          <a
+          <Link
             href="#"
             className="flex items-center space-x-3 px-4 py-2.5 text-gray-600 hover:bg-pink-50 hover:text-pink-600 rounded-xl transition-colors group"
           >
-            <i data-lucide="settings" className="w-5 h-5"></i>
+            <Settings className="w-5 h-5" />
             <span className="font-medium">Preferences</span>
-          </a>
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-pink-50">
