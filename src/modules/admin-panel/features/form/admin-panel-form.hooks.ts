@@ -132,7 +132,7 @@ export function useAdminPanelForm<TForm = any>({
 
     setIsLoading(true);
     try {
-      const data = await query.getOne(id);
+      const data = await query.getOne(id) as TForm;
       setFormDataState(data);
     } catch (err) {
       const errorObj =

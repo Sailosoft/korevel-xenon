@@ -16,6 +16,7 @@ import BunnyModal from "./modal/BunnyModal";
 import BunnyDeleteModal from "./del/BunnyDelete.Modal";
 import { AdminPanelEventFormSuccessPayload } from '../../admin-panel/features/event/admin-panel-event.interface';
 import { BunnyHeaderActionType, BunnyHeaderDefaultActions } from './header/BunnyHeader.Interface';
+import { BunnyReactiveTable } from './table/BunnyReactiveTable';
 
 
 
@@ -119,7 +120,7 @@ function BunnyMainPanel<TRow, TForm>({
     <BunnyProvider config={finalConfig}>
       <Card>
         <BunnyHeader />
-        <BunnyTable />
+        <BunnyReactiveTable />
         <BunnyModal onPrimaryAction={handlePrimaryAction}>
           {children}
         </BunnyModal>

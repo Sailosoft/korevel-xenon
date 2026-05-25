@@ -77,7 +77,7 @@ export function BunnyTable<TRow extends Record<string, any>>({
       const col = sortDescriptor.column as keyof TRow;
       const first = String(a[col] ?? "");
       const second = String(b[col] ?? "");
-      let cmp = first.localeCompare(second);
+      const cmp = first.localeCompare(second);
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
   }, [rows, sortDescriptor]);
@@ -172,7 +172,7 @@ export function BunnyTable<TRow extends Record<string, any>>({
               {isLoading
                 ? undefined
                 : sortedItems.map((row) => (
-                    <Table.Row key={row[rowKey as any]} id={row[rowKey as any]}>
+                    <Table.Row key={row[rowKey as unknown as string]} id={row[rowKey as unknown as string]}>
                       {/* Selection Cell */}
                       {selectionMode !== "none" && (
                         <Table.Cell className="pr-0">

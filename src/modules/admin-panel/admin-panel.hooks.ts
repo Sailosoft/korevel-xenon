@@ -17,7 +17,7 @@ export default function useAdminPanel<TRow, TForm = any>({
   const table = useAdminPanelTable<TRow>({ query: query, ...tableProps });
   const modal = useAdminPanelModal();
   const notify = useAdminPanelNotify({ ...props?.notify });
-  const del = useAdminPanelDelete<TRow>({
+  const del = useAdminPanelDelete<TRow, TForm>({
     notify,
     table,
     mutation,
