@@ -150,6 +150,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           </Label>
           <div className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert">
             <MDXEditor
+              key={value ? "active" : "empty"}
               markdown={typeof value === "string" ? value : ""}
               onChange={handleChange}
               placeholder={field.placeholder}

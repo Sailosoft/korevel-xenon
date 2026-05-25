@@ -83,7 +83,7 @@ export function useAdminPanelDelete<TRow, TForm>({
     }
     setOpen(true);
     setMode("batch");
-  }, [setOpen, setMode, table.selection.length]);
+  }, [table.selection]);
 
   // Inside useAdminPanelDelete.ts
 
@@ -110,7 +110,9 @@ export function useAdminPanelDelete<TRow, TForm>({
         notify?.error("Some records failed to delete");
       }
     } catch (err) {
+
       setError(err instanceof Error ? err : new Error("Batch delete failed"));
+      throw err instanceof Error ? err : new Error("Batch delete failed");
     } finally {
       setIsDeleting(false);
     }

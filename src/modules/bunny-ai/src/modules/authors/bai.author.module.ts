@@ -84,11 +84,8 @@ export const baiAuthorModule: BunnyConfig<BAIAuthor, BAIAuthor> = {
         await baiDatabase.authors.get(id) as BAIAuthor,
       );
     },
-    delete: async function (id: AdminPanelId): Promise<AdminPanelResult<BAIAuthor, unknown> | undefined> {
-      if (typeof id !== 'number') {
-        throw new Error('Invalid ID type. Expected a number.');
-      }
-
+    delete: async function (iid: AdminPanelId): Promise<AdminPanelResult<BAIAuthor, unknown> | undefined> {
+      const id = Number(iid);
       await baiDatabase.authors.delete(id);
 
       return adminPanelResultSuccess<BAIAuthor>(
