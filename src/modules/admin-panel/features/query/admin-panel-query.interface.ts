@@ -36,7 +36,7 @@ export interface GetAllResponse<TRow> {
   [key: string]: unknown;
 }
 
-export interface AdminPanelQuery<TRow, TForm = any> {
+export interface AdminPanelQuery<TRow, TForm = unknown> {
   getAll: (
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,

@@ -6,8 +6,7 @@ export const useBunnyHeaderMappedHeaderActions = () => {
   const { headerActions } = useBunnyConfig();
   const { modal, table, del } = useAdminPanelContext();
   const { openBatchDeleteConfirm } = del;
-  const { openCreate, closeModal } = modal;
-  const { selection } = table;
+  const { openCreate } = modal;
   const { fetchData } = table;
   const mapped = useMemo(() => {
     return headerActions?.map((action) => {
@@ -33,6 +32,6 @@ export const useBunnyHeaderMappedHeaderActions = () => {
           return action;
       }
     });
-  }, [headerActions, openCreate, closeModal, selection]);
+  }, [headerActions, openCreate, openBatchDeleteConfirm, fetchData]);
   return mapped;
 };

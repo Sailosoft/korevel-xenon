@@ -1,13 +1,11 @@
 import mitt from "mitt";
 import { AdminPanelFormMode } from "../form/admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
+import { AdminPanelEventFormSuccessPayload } from './admin-panel-event.interface';
 
 type AdminPanelEvents = {
   "del:success": void;
-  "form:success": {
-    result: AdminPanelResult<any, any>;
-    mode?: AdminPanelFormMode;
-  };
+  "form:success": AdminPanelEventFormSuccessPayload<unknown>;
   "form:error": {
     error: any;
     mode?: AdminPanelFormMode;

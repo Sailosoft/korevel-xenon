@@ -7,14 +7,14 @@ import {
 import { AdminPanelId } from "../id/admin-panel-id.interface";
 import { adminPanelEvents } from "../event/admin-panel-event";
 
-export function useAdminPanelDelete<T = any>({
+export function useAdminPanelDelete<TRow, TForm>({
   mutation,
   table,
   notify,
   successMessage = "Record deleted successfully",
-  confirmMessage = (item: T) => `Are you sure you want to delete ${itemName}?`,
+  confirmMessage = (item: TRow) => `Are you sure you want to delete ${itemName}?`,
   itemName = "record",
-}: UseAdminPanelDeleteProps<T>): UseAdminPanelDelete<T> {
+}: UseAdminPanelDeleteProps<TRow, TForm>): UseAdminPanelDelete<TRow> {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [open, setOpen] = useState(false);
@@ -22,7 +22,7 @@ export function useAdminPanelDelete<T = any>({
   const [id, setId] = useState<AdminPanelId | null>(null);
 
   const handleDelete = useCallback(
-    async (id: string | number) => {
+    async (id: AdminPanelId) => {
       setIsDeleting(true);
       setError(null);
 
@@ -49,11 +49,11 @@ export function useAdminPanelDelete<T = any>({
         setIsDeleting(false);
       }
     },
-    [mutation, table, open, notify, successMessage],
+    [mutation, table, notify],
   );
 
   const openDeleteConfirm = useCallback(
-    (id: string | number) => {
+    (id: AdminPanelId) => {
       if (!id) {
         console.error("Cannot delete: ID is missing");
         return;
@@ -71,7 +71,7 @@ export function useAdminPanelDelete<T = any>({
   }, [setOpen]);
 
   const deleteWithoutConfirm = useCallback(
-    async (id: string | number) => {
+    async (id: AdminPanelId) => {
       await handleDelete(id);
     },
     [handleDelete],
@@ -114,7 +114,7 @@ export function useAdminPanelDelete<T = any>({
     } finally {
       setIsDeleting(false);
     }
-  }, [mutation, table, notify]);
+  }, [table, mutation, closeDeleteModal, notify]);
 
   const deleteItem = useCallback(async () => {
     if (mode === "batch") {
@@ -123,7 +123,7 @@ export function useAdminPanelDelete<T = any>({
       if (!id) return;
       await handleDelete(id);
     }
-  }, [handleDelete, id, deleteBatch]);
+  }, [mode, deleteBatch, id, handleDelete]);
 
   return {
     isDeleting,
@@ -134,7 +134,7 @@ export function useAdminPanelDelete<T = any>({
     setMode,
     setOpen,
     confirmMessage: useCallback(
-      (item: T) => confirmMessage(item),
+      (item: TRow) => confirmMessage(item),
       [confirmMessage],
     ),
     openBatchDeleteConfirm,

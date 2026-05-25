@@ -1,10 +1,13 @@
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import { UseAdminPanelFormPropsWithoutQueryMutation } from "../../admin-panel/features/form/admin-panel-form.interface";
+import { AdminPanelId } from '../../admin-panel/features/id/admin-panel-id.interface';
 import { AdminPanelMutation } from "../../admin-panel/features/mutation/admin-panel-mutation.interface";
 import { UseAdminPanelNotifyProps } from "../../admin-panel/features/notify/admin-panel-notify.interface";
 import { AdminPanelQuery } from "../../admin-panel/features/query/admin-panel-query.interface";
 import { UseAdminPanelTablePropsWithoutQuery } from "../../admin-panel/features/table/admin-panel-table.interface";
-import { BunnyHeaderAction } from "./header/BunnyHeader.Interface";
+import { BunnyFormConfig } from './form/BunnyForm.Interface';
+import { BunnyHeaderAction, BunnyHeaderActionType, BunnyHeaderDefaultActions } from "./header/BunnyHeader.Interface";
+import { BunnyRowDefaultActions } from './rows/BunnyRow.Interface';
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 
 export type BunnyCustomize<TRow, TForm> = (
@@ -24,23 +27,40 @@ export interface ExtendedBunnyProps<TRow, TForm> extends BunnyProps<
   customize?: BunnyCustomize<TRow, TForm>;
 }
 
-export interface BunnyConfig<TRow = any, TForm = any> {
+export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   title: string;
   titlePlural?: string;
   modalSizeWidth?: number;
   modalSize?: "xs" | "sm" | "md" | "lg" | "cover" | "full";
   columns: BunnyColumn<TRow>[];
-  rowActions?: BunnyRowAction<TRow>[];
   rowKey: keyof TRow;
-  headerActions?: BunnyHeaderAction[];
   tableHeight?: number | string;
   query: AdminPanelQuery<TRow, TForm>;
   mutation: AdminPanelMutation<TForm>;
   rowActionsColLength?: number;
+  formConfig?: BunnyFormConfig<TForm>;
+
+  /** Automatically pull in default platform header actions (create, refresh, etc.) */
+  defaultHeaderActions?: boolean;
+  /** Explicitly hide specific default header buttons */
+  hideHeaderActions?: BunnyHeaderActionType[];
+  /** Manually appended custom header items */
+  headerActions?: BunnyHeaderAction[];
+
+  /** Automatically pull in default row actions (view, edit, delete) */
+  defaultRowActions?: boolean;
+  /** Explicitly hide specific default table row buttons */
+  hideRowActions?: BunnyRowDefaultActions[];
+  /** Manually appended custom row action items */
+  rowActions?: BunnyRowAction<TRow>[];
 
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;
     form?: Partial<UseAdminPanelFormPropsWithoutQueryMutation<TForm>>;
     notify?: Partial<UseAdminPanelNotifyProps>;
   };
+}
+
+export interface BunnyHasId {
+  id: AdminPanelId;
 }

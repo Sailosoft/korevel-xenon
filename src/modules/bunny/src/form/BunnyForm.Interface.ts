@@ -8,20 +8,28 @@ export type BunnyFieldType =
   | "switch"
   | "editor";
 
-export interface BunnyFormField {
+export interface BunnyFormField<TForm = Record<string, any>> {
   name: string;
   label: string;
   placeholder?: string;
   type: BunnyFieldType;
   options?: { label: string; value: string | number }[]; // For select
-  defaultValue?: any;
+  defaultValue?: TForm[keyof TForm];
   required?: boolean;
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
-  validation?: (value: any, formData?: any) => string | boolean | undefined;
+  // validation?: (value: any, formData?: any) => string | boolean | undefined;
+  rules: BunnyValidationRule[];
 }
 
-export interface BunnyFormConfig {
-  fields: BunnyFormField[];
+export interface BunnyValidationRule {
+  rule: "required" | "minLength" | "maxLength" | "email" | "custom";
+  message: string;
+  value?: any;
+  validate?: (value: any, formData: any) => boolean;
+}
+
+export interface BunnyFormConfig<TForm> {
+  fields: BunnyFormField<TForm>[];
   submitLabel?: string;
   gridCols?: number;
 }

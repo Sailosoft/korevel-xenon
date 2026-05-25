@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-export type BunnyHeaderActionType = "create" | "refresh" | "delete" | "search";
+export type BunnyHeaderActionType = "create" | "refresh" | "delete" | "search" | "export" | "import";
 export type BunnyHeaderVariants =
   | "primary"
   | "secondary"
@@ -18,6 +18,7 @@ export interface BunnyHeaderAction {
   onClick?: () => void;
   disable?: boolean;
   render?: () => React.ReactNode;
+  displayMode?: "always" | "collapse";
 }
 
 export interface BunnyHeaderDefaultActions {

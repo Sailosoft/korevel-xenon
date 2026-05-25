@@ -1,20 +1,23 @@
+// Bunny.tsx
 "use client";
 
-import { Card, toast, Toast } from "@heroui/react";
+import { Card, toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  AdminPanelProvider,
-  useAdminPanelContext,
-} from "../../admin-panel/features/provider";
+import { AdminPanelProvider, useAdminPanelContext } from "../../admin-panel/features/provider";
 import { BunnyProvider } from "./context/BunnyContext";
-import { ExtendedBunnyProps } from "./Bunny.Interface";
+import { BunnyCustomize, ExtendedBunnyProps, BunnyConfig, BunnyHasId } from "./Bunny.Interface";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
+import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
+import { useBunnyRowActionDefault } from "./rows/BunnyRow.Action.Default";
+import { validateBunnyForm } from './validator/bunny-validator.utils';
 import BunnyHeader from "./header/BunnyHeader";
 import { BunnyTable } from "./table/BunnyTable";
 import BunnyModal from "./modal/BunnyModal";
 import BunnyDeleteModal from "./del/BunnyDelete.Modal";
+import { AdminPanelEventFormSuccessPayload } from '../../admin-panel/features/event/admin-panel-event.interface';
+import { BunnyHeaderActionType, BunnyHeaderDefaultActions } from './header/BunnyHeader.Interface';
 
-// 1. Updated Props to include the 'adjust' callback
+
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -22,9 +25,7 @@ export default function Bunny<TRow, TForm>({
   customize,
 }: ExtendedBunnyProps<TRow, TForm>) {
   return (
-    // AdminPanel MUST be first so children can access context for adjustment
     <AdminPanelProvider query={config.query} mutation={config.mutation}>
-      <Toast.Provider />
       <BunnyMainPanel config={config} customize={customize}>
         {children}
       </BunnyMainPanel>
@@ -32,52 +33,82 @@ export default function Bunny<TRow, TForm>({
   );
 }
 
-function BunnyMainPanel({
+function BunnyMainPanel<TRow, TForm>({
   children,
   config,
   customize,
 }: {
   children: React.ReactNode;
-  config: any;
-  customize?: any;
+  config: BunnyConfig<TRow, TForm>;
+  customize?: BunnyCustomize<TRow, TForm>;
 }) {
-  const admin = useAdminPanelContext();
+  const admin = useAdminPanelContext<TRow, TForm>();
   const { form, modal, table } = admin;
 
-  // 2. Merge config with dynamic adjustments on the fly
+  // 1. Fetch default action arrays from hooks unconditionally at the top level
+  const defaultHeaderActions = useBunnyHeaderActions([]);
+  const defaultRowActions = useBunnyRowActionDefault({ hides: config.hideRowActions || [] });
+
+  // 2. Compute the composite configuration on the fly
   const finalConfig = useMemo(() => {
-    return {
+    // Resolve base header actions
+    let resolvedHeaders = config.headerActions || [];
+    if (config.defaultHeaderActions) {
+      const filteredDefaults = defaultHeaderActions.filter(
+        (action) => !config.hideHeaderActions?.includes(action.id as BunnyHeaderActionType)
+      );
+      resolvedHeaders = [...filteredDefaults, ...resolvedHeaders];
+    }
+
+    // Resolve base row actions
+    let resolvedRows = config.rowActions || [];
+    if (config.defaultRowActions) {
+      resolvedRows = [...defaultRowActions, ...resolvedRows];
+    }
+
+    const baseMergedConfig = {
       ...config,
-      ...(customize ? customize(admin, config) : {}),
+      headerActions: resolvedHeaders,
+      rowActions: resolvedRows,
     };
-  }, [config, customize, admin]);
+
+    // Apply any late runtime modifications from the customize property function
+    return {
+      ...baseMergedConfig,
+      ...(customize ? customize(admin, baseMergedConfig) : {}),
+    };
+  }, [config, customize, admin, defaultHeaderActions, defaultRowActions]);
 
   const handlePrimaryAction = useCallback(async () => {
+    form.clearFormError();
+    if (finalConfig.formConfig?.fields) {
+      const clientErrors = validateBunnyForm(finalConfig.formConfig.fields, form.formData);
+      if (Object.keys(clientErrors).length > 0) {
+        form.setFormError(clientErrors);
+        return;
+      }
+    }
     await form.submit();
-  }, [form]);
+  }, [form, finalConfig]);
 
-  // 3. Keep your existing events logic
   useEffect(() => {
-    const onFormSuccess = ({ mode, result }: any) => {
+    const onFormSuccess = ({ mode, result }: AdminPanelEventFormSuccessPayload<unknown>) => {
       if (mode === "update") {
         modal.openView(modal.id!);
         table.fetchData();
         toast.success("Updated successfully");
       } else if (mode === "create" && result.status === "success") {
-        const { data } = result;
+        const data = result.data as unknown as BunnyHasId;
         modal.openView(data?.id ?? "");
         table.fetchData();
         toast.success("Created successfully");
       }
     };
 
-    const onDeleteSuccess = () => {
-      toast.success("Deleted successfully");
-    };
+    const onDeleteSuccess = () => toast.success("Deleted successfully");
 
     adminPanelEvents.on("form:success", onFormSuccess);
     adminPanelEvents.on("del:success", onDeleteSuccess);
-
     return () => {
       adminPanelEvents.off("form:success", onFormSuccess);
       adminPanelEvents.off("del:success", onDeleteSuccess);
@@ -85,7 +116,6 @@ function BunnyMainPanel({
   }, [modal, table]);
 
   return (
-    // 4. Finally wrap the UI in BunnyProvider with the MERGED config
     <BunnyProvider config={finalConfig}>
       <Card>
         <BunnyHeader />

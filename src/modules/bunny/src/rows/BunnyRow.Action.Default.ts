@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
 import { BunnyRowAction } from "../table/BunnyTable.Interface";
 import { PencilIcon, Trash2Icon, ViewIcon } from "lucide-react";
-import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
+import { BunnyRowDefaultActions } from './BunnyRow.Interface';
 
 export function useBunnyRowActionDefault<TRow>({
   hides,
 }: {
-  hides: Array<"view" | "edit" | "delete">;
+  hides: Array<BunnyRowDefaultActions>;
 }) {
   return useMemo<BunnyRowAction<TRow>[]>(() => {
     const actions: BunnyRowAction<TRow>[] = [];

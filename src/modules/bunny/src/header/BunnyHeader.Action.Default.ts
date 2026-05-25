@@ -3,16 +3,11 @@ import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
 } from "./BunnyHeader.Interface";
-import { DeleteIcon, PlusIcon, RefreshCwIcon, SearchIcon } from "lucide-react";
-import { Input } from "@heroui/react";
-import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
+import { DeleteIcon, FileJson2Icon, FileJsonIcon, LucideUpload, PlusIcon, RefreshCwIcon } from "lucide-react";
 
 export function useBunnyHeaderActions(
   hides: BunnyHeaderActionType[],
 ): BunnyHeaderAction[] {
-  // We stringify the array or use a stable key because arrays are reference types
-  const hideKey = hides.join(",");
-
   return useMemo(() => {
     const actions: BunnyHeaderAction[] = [];
 
@@ -46,6 +41,28 @@ export function useBunnyHeaderActions(
       });
     }
 
+    if (!hides.includes("export")) {
+      actions.push({
+        id: "export",
+        label: "Export Records",
+        variant: "secondary",
+        icon: React.createElement(FileJsonIcon),
+        onClick: () => {},
+        displayMode: "collapse",
+      });
+    }
+
+        if (!hides.includes("import")) {
+      actions.push({
+        id: "import",
+        label: "Import Records",
+        variant: "secondary",
+        icon: React.createElement(LucideUpload),
+        onClick: () => {},
+        displayMode: "collapse",
+      });
+    }
+
     // if (!hides.includes("search")) {
     //   actions.push({
     //     id: "search",
@@ -58,5 +75,5 @@ export function useBunnyHeaderActions(
 
     return actions;
     // Dependency on hideKey ensures it only re-runs when the items in the array change
-  }, [hideKey]);
+  }, [hides]);
 }

@@ -10,16 +10,25 @@ import {
   Switch,
   cn,
 } from "@heroui/react";
+import {
+  MDXEditor,
+  headingsPlugin,
+  listsPlugin,
+  quotePlugin,
+  thematicBreakPlugin,
+  markdownShortcutPlugin
+} from "@mdxeditor/editor";
+import "@mdxeditor/editor/style.css";
 import { BunnyFormConfig, BunnyFormField } from "../BunnyForm.Interface";
 
-interface BunnyFormBuilderProps<T = Record<string, any>> {
-  config: BunnyFormConfig;
+interface BunnyFormBuilderProps<T extends Record<string, unknown> = Record<string, unknown>> {
+  config: BunnyFormConfig<T>;
   formData: T;
-  onChange: (name: string, value: any) => void;
+  onChange: (name: string, value: unknown) => void;
   errors?: Record<string, string>;
 }
 
-export function BunnyFormBuilder<T>({
+export function BunnyFormBuilder<T extends Record<string, unknown>>({
   config,
   formData,
   onChange,
@@ -42,8 +51,8 @@ export function BunnyFormBuilder<T>({
             )}
           >
             <FieldRenderer
-              field={field}
-              value={(formData as any)[field.name]}
+              field={field as BunnyFormField<Record<string, unknown>>}
+              value={formData[field.name]}
               onChange={onChange}
               error={errors[field.name]}
             />
@@ -57,14 +66,14 @@ export function BunnyFormBuilder<T>({
 /* ====================== Field Renderer ====================== */
 
 interface FieldRendererProps {
-  field: BunnyFormField;
-  value: any;
-  onChange: (name: string, value: any) => void;
+  field: BunnyFormField<Record<string, unknown>>;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
   error?: string;
 }
 
 function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
-  const handleChange = (val: any) => onChange(field.name, val);
+  const handleChange = (val: unknown) => onChange(field.name, val);
   const fieldId = `field-${field.name}`;
   const showError = !!error;
   const isRequired = !!field.required;
@@ -111,7 +120,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           <TextArea
             id={fieldId}
             placeholder={field.placeholder}
-            value={value ?? ""}
+            value={typeof value === "string" ? value : ""}
             onChange={(e) => handleChange(e.target.value)}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
@@ -122,13 +131,38 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
       return (
         <div className="flex flex-col gap-2 w-full">
           <div className="flex items-center gap-3">
-            <Switch id={fieldId} isSelected={!!value} onChange={handleChange} />
+            <Switch id={fieldId} isSelected={Boolean(value)} onChange={handleChange} />
             <Label htmlFor={fieldId} className="cursor-pointer">
               {field.label}
               {isRequired && <span className="text-red-500 ml-1">*</span>}
             </Label>
           </div>
           {showError && <p className="text-sm text-red-500">{error}</p>}
+        </div>
+      );
+
+    case "editor":
+      return (
+        <div className="flex flex-col gap-1 w-full mdx-editor-wrapper">
+          <Label htmlFor={fieldId}>
+            {field.label}
+            {isRequired && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          <div className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert">
+            <MDXEditor
+              markdown={typeof value === "string" ? value : ""}
+              onChange={handleChange}
+              placeholder={field.placeholder}
+              plugins={[
+                headingsPlugin(),
+                listsPlugin(),
+                quotePlugin(),
+                thematicBreakPlugin(),
+                markdownShortcutPlugin()
+              ]}
+            />
+          </div>
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
         </div>
       );
 
@@ -151,7 +185,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
                     : "text"
             }
             placeholder={field.placeholder}
-            value={value ?? ""}
+            value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
             onChange={(e) => handleChange(e.target.value)}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}

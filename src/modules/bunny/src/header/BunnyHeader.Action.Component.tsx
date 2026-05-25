@@ -1,15 +1,12 @@
-import { Button, ButtonProps, ButtonVariants } from "@heroui/react";
+import { Button, ButtonVariants } from "@heroui/react";
 import { BunnyHeaderAction } from "./BunnyHeader.Interface";
 import { useCallback, useMemo } from "react";
-import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
 
 export default function BunnyHeaderActionComponent({
   action,
 }: {
   action: BunnyHeaderAction;
 }) {
-  if (action.render) return action.render();
-
   const variant = useMemo<ButtonVariants["variant"]>(() => {
     if (action.variant === "primary") return "primary";
     if (action.variant === "secondary") return "secondary";
@@ -25,6 +22,8 @@ export default function BunnyHeaderActionComponent({
     if (action.onClick) action.onClick();
   }, [action]);
 
+  if (action.render) return action.render();
+
   return (
     <Button
       key={action.id || action.label}
@@ -33,7 +32,9 @@ export default function BunnyHeaderActionComponent({
       variant={variant}
     >
       {action.icon}
-      {action.label}
+      <span className="hidden sm:inline ml-1">
+        {action.label}
+      </span>
     </Button>
   );
 }

@@ -1,6 +1,5 @@
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
 import { Button, Modal } from "@heroui/react";
-import { CircleCheck } from "lucide-react";
 import { ReactNode, useCallback, useMemo } from "react";
 import { useBunnyConfig } from "../context/BunnyContext";
 
@@ -17,7 +16,7 @@ export default function BunnyModal({
 
   const handleOpenChange = useCallback((open: boolean) => {
     if (!open) setIsOpen(open);
-  }, []);
+  }, [setIsOpen]);
 
   const dialogClassName = useMemo(() => {
     if (modalSizeWidth) return `sm:max-w-[${modalSizeWidth}px]`;
@@ -31,30 +30,28 @@ export default function BunnyModal({
   }, [mode, title]);
 
   return (
-    <Modal>
-      <Modal.Backdrop
-        isOpen={isOpen}
-        onOpenChange={handleOpenChange}
-        isDismissable={false}
-      >
-        <Modal.Container size={modalSize}>
-          <Modal.Dialog className={dialogClassName}>
-            <Modal.CloseTrigger />
-            <Modal.Header>
-              <Modal.Heading>{computedTitle}</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body>{children}</Modal.Body>
-            {mode === "view" || (
-              <Modal.Footer>
-                <Button slot="close" variant="secondary">
-                  Cancel
-                </Button>
-                <Button onClick={onPrimaryAction}>Confirm</Button>
-              </Modal.Footer>
-            )}
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+    <Modal.Backdrop
+      isOpen={isOpen}
+      onOpenChange={handleOpenChange}
+      isDismissable={false}
+    >
+      <Modal.Container size={modalSize}>
+        <Modal.Dialog className={dialogClassName}>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{computedTitle}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body>{children}</Modal.Body>
+          {mode === "view" || (
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                Cancel
+              </Button>
+              <Button onClick={onPrimaryAction}>Confirm</Button>
+            </Modal.Footer>
+          )}
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
