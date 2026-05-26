@@ -14,8 +14,8 @@ import { useBunnyRowActionDefault } from "@/src/modules/bunny/src/rows/BunnyRow.
 import { Edit } from "lucide-react";
 
 export default function MaidenAuthorView() {
-  const actions = useBunnyHeaderActions([]);
-  const row = useBunnyRowActionDefault({ hides: [] });
+  const actions = useBunnyHeaderActions<MaidenAuthor, MaidenAuthor>([]);
+  const row = useBunnyRowActionDefault<MaidenAuthor>({ hides: [] });
   // maidenAuthorModule.config.headerActions = cr
   const moduleMaiden = useMemo<BunnyConfig<MaidenAuthor, MaidenAuthor>>(() => {
     return {

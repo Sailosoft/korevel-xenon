@@ -7,6 +7,7 @@ import { AdminPanelQuery } from "../../admin-panel/features/query/admin-panel-qu
 import { UseAdminPanelTablePropsWithoutQuery } from "../../admin-panel/features/table/admin-panel-table.interface";
 import { BunnyFormConfig } from './form/BunnyForm.Interface';
 import { BunnyHeaderAction, BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
+import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
 import { BunnyRowDefaultActions } from './rows/BunnyRow.Interface';
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 
@@ -45,7 +46,7 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   /** Explicitly hide specific default header buttons */
   hideHeaderActions?: BunnyHeaderActionType[];
   /** Manually appended custom header items */
-  headerActions?: BunnyHeaderAction[];
+  headerActions?: BunnyHeaderAction<TRow, TForm>[];
 
   /** Automatically pull in default row actions (view, edit, delete) */
   defaultRowActions?: boolean;
@@ -53,6 +54,8 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   hideRowActions?: BunnyRowDefaultActions[];
   /** Manually appended custom row action items */
   rowActions?: BunnyRowAction<TRow>[];
+
+  modalHeaderActions?: BunnyModalHeaderAction<TRow, TForm>[];
 
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;
@@ -63,4 +66,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
 
 export interface BunnyHasId {
   id: AdminPanelId;
+}
+
+export interface BunnyKernel<TRow, TForm> {
+    config: BunnyConfig<TRow, TForm>;
+    panel: UseAdminPanel<TRow, TForm>
 }

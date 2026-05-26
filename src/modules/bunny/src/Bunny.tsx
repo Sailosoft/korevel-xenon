@@ -1,24 +1,29 @@
-// Bunny.tsx
 "use client";
 
 import { Card, toast } from "@heroui/react";
-import { useCallback, useEffect, useMemo } from "react";
-import { AdminPanelProvider, useAdminPanelContext } from "../../admin-panel/features/provider";
+import { useCallback, useEffect, useMemo, ReactNode } from "react";
+import {
+  AdminPanelProvider,
+  useAdminPanelContext,
+} from "../../admin-panel/features/provider";
 import { BunnyProvider } from "./context/BunnyContext";
-import { BunnyCustomize, ExtendedBunnyProps, BunnyConfig, BunnyHasId } from "./Bunny.Interface";
+import {
+  BunnyCustomize,
+  ExtendedBunnyProps,
+  BunnyConfig,
+  BunnyHasId,
+} from "./Bunny.Interface";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
 import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
 import { useBunnyRowActionDefault } from "./rows/BunnyRow.Action.Default";
-import { validateBunnyForm } from './validator/bunny-validator.utils';
+import { validateBunnyForm } from "./validator/bunny-validator.utils";
 import BunnyHeader from "./header/BunnyHeader";
-import { BunnyTable } from "./table/BunnyTable";
 import BunnyModal from "./modal/BunnyModal";
 import BunnyDeleteModal from "./del/BunnyDelete.Modal";
-import { AdminPanelEventFormSuccessPayload } from '../../admin-panel/features/event/admin-panel-event.interface';
-import { BunnyHeaderActionType, BunnyHeaderDefaultActions } from './header/BunnyHeader.Interface';
-import { BunnyReactiveTable } from './table/BunnyReactiveTable';
-
-
+import { AdminPanelEventFormSuccessPayload } from "../../admin-panel/features/event/admin-panel-event.interface";
+import { BunnyReactiveTable } from "./table/BunnyReactiveTable";
+import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
+import { BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -39,51 +44,70 @@ function BunnyMainPanel<TRow, TForm>({
   config,
   customize,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   config: BunnyConfig<TRow, TForm>;
   customize?: BunnyCustomize<TRow, TForm>;
 }) {
-  const admin = useAdminPanelContext<TRow, TForm>();
+  const admin = useAdminPanelContext<TRow, TForm>() as unknown as UseAdminPanel<
+    TRow,
+    TForm
+  >;
+
+  /**
+   * Admin Panel State and Action
+   */
   const { form, modal, table } = admin;
 
-  // 1. Fetch default action arrays from hooks unconditionally at the top level
-  const defaultHeaderActions = useBunnyHeaderActions([]);
-  const defaultRowActions = useBunnyRowActionDefault({ hides: config.hideRowActions || [] });
+  const defaultHeaderActions = useBunnyHeaderActions<TRow, TForm>([]);
+  const defaultRowActions = useBunnyRowActionDefault({
+    hides: config.hideRowActions || [],
+  });
 
-  // 2. Compute the composite configuration on the fly
-  const finalConfig = useMemo(() => {
-    // Resolve base header actions
+  const finalConfig = useMemo<BunnyConfig<TRow, TForm>>(() => {
     let resolvedHeaders = config.headerActions || [];
     if (config.defaultHeaderActions) {
       const filteredDefaults = defaultHeaderActions.filter(
-        (action) => !config.hideHeaderActions?.includes(action.id as BunnyHeaderActionType)
+        (action) =>
+          !config.hideHeaderActions?.includes(
+            action.id as BunnyHeaderActionType,
+          ),
       );
       resolvedHeaders = [...filteredDefaults, ...resolvedHeaders];
     }
 
-    // Resolve base row actions
     let resolvedRows = config.rowActions || [];
     if (config.defaultRowActions) {
       resolvedRows = [...defaultRowActions, ...resolvedRows];
     }
 
-    const baseMergedConfig = {
+    const baseMergedConfig: BunnyConfig<TRow, TForm> = {
       ...config,
       headerActions: resolvedHeaders,
       rowActions: resolvedRows,
+      modalHeaderActions: config.modalHeaderActions || [],
     };
 
-    // Apply unknown late runtime modifications from the customize property function
+    const customizations = customize ? customize(admin, baseMergedConfig) : {};
+
     return {
       ...baseMergedConfig,
-      ...(customize ? customize(admin, baseMergedConfig) : {}),
+      ...customizations,
+      rowActions: customizations.rowActions || baseMergedConfig.rowActions,
+      headerActions:
+        customizations.headerActions || baseMergedConfig.headerActions,
+      modalHeaderActions:
+        customizations.modalHeaderActions ||
+        baseMergedConfig.modalHeaderActions,
     };
   }, [config, customize, admin, defaultHeaderActions, defaultRowActions]);
 
   const handlePrimaryAction = useCallback(async () => {
     form.clearFormError();
     if (finalConfig.formConfig?.fields) {
-      const clientErrors = validateBunnyForm(finalConfig.formConfig.fields, form.formData);
+      const clientErrors = validateBunnyForm(
+        finalConfig.formConfig.fields,
+        form.formData,
+      );
       if (Object.keys(clientErrors).length > 0) {
         form.setFormError(clientErrors);
         return;
@@ -93,7 +117,11 @@ function BunnyMainPanel<TRow, TForm>({
   }, [form, finalConfig]);
 
   useEffect(() => {
-    const onFormSuccess = ({ mode, result }: AdminPanelEventFormSuccessPayload<unknown>) => {
+    const onFormSuccess = ({
+      mode,
+      result,
+    }: AdminPanelEventFormSuccessPayload<unknown>) => {
+      console.log("Success");
       if (mode === "update") {
         modal.openView(modal.id!);
         table.fetchData();

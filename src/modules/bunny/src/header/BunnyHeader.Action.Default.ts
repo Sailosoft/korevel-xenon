@@ -5,11 +5,11 @@ import {
 } from "./BunnyHeader.Interface";
 import { DeleteIcon, FileJsonIcon, LucideUpload, PlusIcon, RefreshCwIcon } from "lucide-react";
 
-export function useBunnyHeaderActions(
+export function useBunnyHeaderActions<TRow, TForm>(
   hides: BunnyHeaderActionType[],
-): BunnyHeaderAction[] {
+): BunnyHeaderAction<TRow, TForm>[] {
   return useMemo(() => {
-    const actions: BunnyHeaderAction[] = [];
+    const actions: BunnyHeaderAction<TRow, TForm>[] = [];
 
     if (!hides.includes("create")) {
       actions.push({

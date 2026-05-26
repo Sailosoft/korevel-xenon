@@ -1,4 +1,4 @@
-export interface BAIAuthor {
+export interface BUIAuthor {
   id?: number;
   name: string;
   description?: string;

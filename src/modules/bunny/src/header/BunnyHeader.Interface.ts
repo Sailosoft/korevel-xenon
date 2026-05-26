@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { BunnyKernel } from "../Bunny.Interface";
 
 export type BunnyHeaderActionType = "create" | "refresh" | "delete" | "search" | "export" | "import";
 export type BunnyHeaderVariants =
@@ -10,12 +11,13 @@ export type BunnyHeaderVariants =
   | "danger-soft"
   | "tertiary"
   | "outline";
-export interface BunnyHeaderAction {
+
+export interface BunnyHeaderAction<TRow = unknown, TForm = unknown> {
   id?: string;
   label: string;
   icon?: ReactNode;
   variant?: BunnyHeaderVariants;
-  onClick?: () => void;
+  onClick?: (context?: BunnyKernel<TRow, TForm>) => void;
   disable?: boolean;
   render?: () => React.ReactNode;
   displayMode?: "always" | "collapse";
