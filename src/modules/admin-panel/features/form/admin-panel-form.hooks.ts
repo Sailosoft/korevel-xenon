@@ -29,7 +29,7 @@ const useInternalMutation = <TForm>(
       setError(null);
 
       try {
-        let dataToSubmit = { ...formData };
+        const dataToSubmit = { ...formData };
 
         // Plugin: before submit
         // if (plugin?.onBeforeSubmit) {
@@ -100,7 +100,7 @@ const useInternalMutation = <TForm>(
   return { submit, isSubmitting, error };
 };
 
-export function useAdminPanelForm<TForm = any>({
+export function useAdminPanelForm<TForm = unknown>({
   modal,
   mutation,
   query,
@@ -176,7 +176,7 @@ export function useAdminPanelForm<TForm = any>({
   }, [initialData]);
 
   const handleChange = useCallback(
-    (field: string, data: any) => {
+    (field: string, data: unknown) => {
       setFormDataState((prev) => ({ ...prev, [field]: data }));
     },
     [setFormDataState],

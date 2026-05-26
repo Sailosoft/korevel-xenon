@@ -23,7 +23,7 @@ import {
   type MDXEditorProps,
   CodeToggle,
 } from "@mdxeditor/editor";
-import { FC, forwardRef } from "react";
+import { forwardRef } from "react";
 
 // interface EditorProps {
 //   markdown: string;

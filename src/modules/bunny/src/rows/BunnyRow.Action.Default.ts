@@ -39,5 +39,5 @@ export function useBunnyRowActionDefault<TRow>({
     }
 
     return actions;
-  }, []);
+  }, [hides]);
 }

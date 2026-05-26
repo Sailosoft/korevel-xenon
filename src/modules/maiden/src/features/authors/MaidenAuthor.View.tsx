@@ -17,13 +17,13 @@ export default function MaidenAuthorView() {
   const actions = useBunnyHeaderActions([]);
   const row = useBunnyRowActionDefault({ hides: [] });
   // maidenAuthorModule.config.headerActions = cr
-  const module = useMemo<BunnyConfig<MaidenAuthor, MaidenAuthor>>(() => {
+  const moduleMaiden = useMemo<BunnyConfig<MaidenAuthor, MaidenAuthor>>(() => {
     return {
       ...maidenAuthorModule.config,
       headerActions: actions,
       rowActions: row,
     };
-  }, []);
+  }, [actions, row]);
 
   const customize: BunnyCustomize<MaidenAuthor, MaidenAuthor> = useCallback(
     (admin, config) => {
@@ -36,7 +36,7 @@ export default function MaidenAuthorView() {
             id: "edit2",
             icon: <Edit />,
             // label: "Edit",
-            onClick: (item) => {},
+            onClick: () => {},
           },
         ],
       };
@@ -46,7 +46,7 @@ export default function MaidenAuthorView() {
 
   return (
     <div className="px-6">
-      <Bunny config={module} customize={customize}>
+      <Bunny config={moduleMaiden} customize={customize}>
         <MaidenAuthorForm />
       </Bunny>
     </div>

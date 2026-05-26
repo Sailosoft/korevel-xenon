@@ -8,7 +8,6 @@ import {
   AdminPanelQueryOptions,
 } from "../query/admin-panel-query.interface";
 import {
-  AdminPanelSelectionKey,
   AdminPanelSelectionMode,
   UseAdminPanelTable,
   UseAdminPanelTableProps,

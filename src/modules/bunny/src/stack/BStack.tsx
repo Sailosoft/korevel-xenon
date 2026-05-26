@@ -20,7 +20,7 @@ interface SxProps {
   padding?: number | string;
   paddingX?: number | string;
   paddingY?: number | string;
-  [key: string]: any; // Allow other styles
+  [key: string]: unknown; // Allow other styles
 }
 
 interface BStackProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -148,7 +148,7 @@ export const BStack = React.forwardRef<HTMLDivElement, BStackProps>(
     const excludedKeys = ["p", "px", "py", "padding", "paddingX", "paddingY"];
     Object.entries(sx).forEach(([key, value]) => {
       if (!excludedKeys.includes(key)) {
-        (inlineStyle as any)[key] = value;
+        (inlineStyle as unknown as Record<string, unknown>)[key] = value;
       }
     });
 

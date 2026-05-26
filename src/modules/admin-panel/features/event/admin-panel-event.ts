@@ -7,15 +7,15 @@ type AdminPanelEvents = {
   "del:success": void;
   "form:success": AdminPanelEventFormSuccessPayload<unknown>;
   "form:error": {
-    error: any;
+    error: unknown;
     mode?: AdminPanelFormMode;
-    result: AdminPanelResult<any, any>;
+    result: AdminPanelResult<unknown, unknown>;
   };
   "form:submit": {
-    result: AdminPanelResult<any, any>;
+    result: AdminPanelResult<unknown, unknown>;
     mode?: AdminPanelFormMode;
   };
-  "form:beforeSubmit": { payload: any; mode?: AdminPanelFormMode };
+  "form:beforeSubmit": { payload: unknown; mode?: AdminPanelFormMode };
   "table:refresh": void;
   notify: { message: string; type: "success" | "error" };
 };

@@ -66,7 +66,7 @@ export const baiAuthorModule: BunnyConfig<BAIAuthor, BAIAuthor> = {
     }
   },
   mutation: {
-    create: async function (data: BAIAuthor): Promise<AdminPanelResult<BAIAuthor, unknown> | undefined> {
+    create: async function (data: BAIAuthor): Promise<AdminPanelResult<BAIAuthor, unknown>> {
       const id = await baiDatabase.authors.add(data);
 
       return adminPanelResultSuccess<BAIAuthor>(

@@ -2,13 +2,14 @@ import { useAdminPanelContext } from '@/src/modules/admin-panel/features/provide
 import { useBunnyConfig } from '../context/BunnyContext';
 import { BunnyFormBuilder } from './builder/BunnyFormBuilder';
 
-export default function BunnyForm() {
-  const { formConfig } = useBunnyConfig();
-  const { form } = useAdminPanelContext();
+export default function BunnyForm<TRow, TForm>() {
+  const { formConfig } = useBunnyConfig<TRow, TForm>();
+  const { form } = useAdminPanelContext<TRow, TForm>();
+  const { formData } = form;
   return (
-    <BunnyFormBuilder
-      config={formConfig}
-      formData={form.formData}
+    <BunnyFormBuilder<TForm>
+      config={formConfig!}
+      formData={formData}
       onChange={form.handleChange}
     />
   );

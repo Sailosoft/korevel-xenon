@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-export interface BunnyColumn<TRow = any> {
+export interface BunnyColumn<TRow = unknown> {
   field: string;
   header: string;
   sortable?: boolean;
@@ -8,7 +8,7 @@ export interface BunnyColumn<TRow = any> {
   isRowHeader?: boolean;
   render?: (row: TRow, column: BunnyColumn<TRow>) => ReactNode;
 }
-export interface BunnyRowAction<TRow = any> {
+export interface BunnyRowAction<TRow = unknown> {
   id: string;
   label?: string;
   icon?: ReactNode; // Using Iconify string for simplicity
@@ -22,5 +22,3 @@ export interface BunnyRowAction<TRow = any> {
     | "danger-soft";
   onClick: (row: TRow) => void | Promise<void>;
 }
-
-export interface BunnyPagination {}

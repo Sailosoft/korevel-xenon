@@ -3,7 +3,7 @@ import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
 } from "./BunnyHeader.Interface";
-import { DeleteIcon, FileJson2Icon, FileJsonIcon, LucideUpload, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { DeleteIcon, FileJsonIcon, LucideUpload, PlusIcon, RefreshCwIcon } from "lucide-react";
 
 export function useBunnyHeaderActions(
   hides: BunnyHeaderActionType[],

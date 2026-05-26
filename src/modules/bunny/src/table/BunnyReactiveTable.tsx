@@ -18,6 +18,7 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 import BunnyTableEmpty from "./BunnyTable.Empty";
 import BunnyTableLoading from "./BunnyTable.Loading";
 import { useBunnyRowActionCallback } from "../rows/BunnyRow.Action.Callback";
+import { BunnyHasId } from "../Bunny.Interface";
 
 function SortableColumnHeader({
   children,
@@ -60,7 +61,7 @@ type BunnyTableProps = {
   className?: string;
 };
 
-export function BunnyReactiveTable<TRow extends Record<string, any>>({
+export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
   className,
 }: BunnyTableProps) {
   const {
@@ -75,7 +76,7 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
     SortDescriptor | undefined
   >();
 
-  const { table } = useAdminPanelContext<TRow>();
+  const { table } = useAdminPanelContext<TRow, unknown>();
   const { rows, setSelection, selectionMode, isLoading } = table;
   const { callAction } = useBunnyRowActionCallback();
 
@@ -93,7 +94,7 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
       const col = sortDescriptor.column as keyof TRow;
       const first = String(a[col] ?? "");
       const second = String(b[col] ?? "");
-      let cmp = first.localeCompare(second);
+      const cmp = first.localeCompare(second);
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
   }, [rows, sortDescriptor]);
@@ -103,7 +104,7 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
     let selectedArray: string[] = [];
 
     if (selectedKeys === "all") {
-      selectedArray = rows.map((row) => String(row[rowKey as any]));
+      selectedArray = rows.map((row) => String(row[rowKey]));
     } else {
       selectedArray = Array.from(selectedKeys as Set<string | number>).map(
         String,
@@ -192,7 +193,7 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
               {isLoading
                 ? undefined
                 : sortedItems.map((row) => (
-                  <Table.Row key={row[rowKey as any]} id={row[rowKey as any]}>
+                  <Table.Row key={String(row[rowKey])} id={String(row[rowKey])}>
                     {isMobile ? (
                       /* MOBILE CARD UI */
                       <Table.Cell>
@@ -225,8 +226,8 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
                                     key={idx}
                                     isIconOnly
                                     size="sm"
-                                    variant={action.variant as any}
-                                    onClick={() => callAction(action, row)}
+                                    variant={action.variant}
+                                    onClick={() => callAction(action, row as unknown as BunnyHasId)}
                                   >
                                     {action.icon}
                                     {action.label}
@@ -273,7 +274,7 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
                           <Table.Cell key={String(col.field)}>
                             {col.render
                               ? col.render(row, col)
-                              : row[col.field as keyof TRow]}
+                              : (row[col.field as keyof TRow] as React.ReactNode)}
                           </Table.Cell>
                         ))}
 
@@ -285,8 +286,8 @@ export function BunnyReactiveTable<TRow extends Record<string, any>>({
                                   key={idx}
                                   isIconOnly
                                   size="sm"
-                                  variant={action.variant as any}
-                                  onClick={() => callAction(action, row)}
+                                  variant={action.variant}
+                                  onClick={() => callAction(action, row as unknown as BunnyHasId)}
                                 >
                                   {action.icon}
                                   {action.label}

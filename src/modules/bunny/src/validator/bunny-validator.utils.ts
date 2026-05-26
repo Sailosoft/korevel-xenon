@@ -28,10 +28,10 @@ export function validateBunnyForm<TForm = Record<string, unknown>>(
             isValid = value !== undefined && value !== null && String(value).trim() !== "";
             break;
           case "minLength":
-            isValid = String(value || "").length >= (ruleDef.value ?? 0);
+            isValid = String(value || "").length >= (ruleDef.value as number ?? 0);
             break;
           case "maxLength":
-            isValid = String(value || "").length <= (ruleDef.value ?? 0);
+            isValid = String(value || "").length <= (ruleDef.value as number ?? 0);
             break;
           case "email":
             isValid = !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value));

@@ -81,7 +81,7 @@ return (
 ## Reference Typescript For Admin Panel
 
 ```typescript
-export function AdminPanelProvider<TRow, TForm = any>({
+export function AdminPanelProvider<TRow, TForm = unknown>({
   children,
   query,
   mutation,
@@ -127,7 +127,7 @@ export interface UseAdminPanelProps<TRow, TForm> {
 }
 
 
-export interface AdminPanelQuery<TRow, TForm = any> {
+export interface AdminPanelQuery<TRow, TForm = unknown> {
   getAll: (
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,
@@ -140,18 +140,18 @@ export interface AdminPanelQuery<TRow, TForm = any> {
 }
 export interface AdminPanelMutation<T> {
   create: (
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
     id: string | number,
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
     id: string | number,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
 }
 
-export interface UseAdminPanelDeleteProps<TRow = any, TForm = any> {
+export interface UseAdminPanelDeleteProps<TRow = unknown, TForm = unknown> {
   mutation: AdminPanelMutation<TForm>; // or AdminPanelDeleteMutation<T>
   table: UseAdminPanelTable<TRow>;
   modal: UseAdminPanelModal;
@@ -161,7 +161,7 @@ export interface UseAdminPanelDeleteProps<TRow = any, TForm = any> {
   itemName?: string;
 }
 
-export interface UseAdminPanelDelete<T = any> {
+export interface UseAdminPanelDelete<T = unknown> {
   isDeleting: boolean;
   error: Error | null;
   confirmMessage: (item: T) => string;
@@ -178,14 +178,14 @@ export interface UseAdminPanelDelete<T = any> {
 }
 
 
-export interface AdminPanelFormPlugin<T = any> {
+export interface AdminPanelFormPlugin<T = unknown> {
   onSuccess?: (data: T, mode?: AdminPanelFormMode) => void;
   onError?: (error: Error, mode?: AdminPanelFormMode) => void;
   onBeforeSubmit?: (data: T, mode?: AdminPanelFormMode) => T | Promise<T>;
   onAfterSubmit?: (data: T, mode?: AdminPanelFormMode) => void;
 }
 
-export interface UseAdminPanelFormProps<TForm = any> {
+export interface UseAdminPanelFormProps<TForm = unknown> {
   mode?: AdminPanelFormMode;
   mutation: AdminPanelMutation<TForm>;
   query?: Pick<AdminPanelQuery<TForm>, "getOne">;
@@ -201,7 +201,7 @@ export type UseAdminPanelFormPropsWithoutQueryMutation<TForm> = Omit<
   "query" | "mutation"
 >;
 
-export interface UseAdminPanelForm<TForm = any> {
+export interface UseAdminPanelForm<TForm = unknown> {
   formData: TForm;
   formError: AdminPanelFormError;
   setFormData: (data: TForm | ((prev: TForm) => TForm)) => void;
@@ -261,7 +261,7 @@ export interface AdminPanelNotifyOptions {
     | "bottom-right";
   actionLabel?: string;
   onAction?: () => void;
-  [key: string]: any; // for custom options
+  [key: string]: unknown; // for custom options
 }
 
 export interface UseAdminPanelNotify {

@@ -6,7 +6,7 @@ export type AdminPanelFormMode = "create" | "update" | "view" | "plain";
 
 export type AdminPanelFormError = Record<string, string> | null;
 
-export interface UseAdminPanelFormProps<TForm = any> {
+export interface UseAdminPanelFormProps<TForm = unknown> {
   modal: AdminPanelModalState;
   mutation: AdminPanelMutation<TForm>;
   query?: Pick<AdminPanelQuery<TForm>, "getOne">;
@@ -20,7 +20,7 @@ export type UseAdminPanelFormPropsWithoutQueryMutation<TForm> = Omit<
   "query" | "mutation"
 >;
 
-export interface UseAdminPanelForm<TForm = any> {
+export interface UseAdminPanelForm<TForm = unknown> {
   formData: TForm;
   formError: AdminPanelFormError;
   setFormData: (data: TForm | ((prev: TForm) => TForm)) => void;
@@ -33,5 +33,5 @@ export interface UseAdminPanelForm<TForm = any> {
   submit: () => Promise<void>;
   resetForm: () => void;
   loadData: () => Promise<void>;
-  handleChange: (field: string, data: any) => void;
+  handleChange: (field: string, data: unknown) => void;
 }

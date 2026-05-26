@@ -11,8 +11,8 @@ export function useAdminPanelDelete<TRow, TForm>({
   mutation,
   table,
   notify,
-  successMessage = "Record deleted successfully",
-  confirmMessage = (item: TRow) => `Are you sure you want to delete ${itemName}?`,
+  // _successMessage = "Record deleted successfully",
+  confirmMessage = () => `Are you sure you want to delete ${itemName}?`,
   itemName = "record",
 }: UseAdminPanelDeleteProps<TRow, TForm>): UseAdminPanelDelete<TRow> {
   const [isDeleting, setIsDeleting] = useState(false);

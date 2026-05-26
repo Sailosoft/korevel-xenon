@@ -104,7 +104,7 @@ export const BTypography = React.forwardRef<HTMLElement, BTypographyProps>(
       .join(" ");
 
     return (
-      <Component ref={ref as any} className={classes} {...props}>
+      <Component ref={ref as unknown} className={classes} {...props}>
         {children}
       </Component>
     );

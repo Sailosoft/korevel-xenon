@@ -73,7 +73,7 @@ function BunnyMainPanel<TRow, TForm>({
       rowActions: resolvedRows,
     };
 
-    // Apply any late runtime modifications from the customize property function
+    // Apply unknown late runtime modifications from the customize property function
     return {
       ...baseMergedConfig,
       ...(customize ? customize(admin, baseMergedConfig) : {}),

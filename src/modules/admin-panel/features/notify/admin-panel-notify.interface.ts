@@ -18,7 +18,7 @@ export interface AdminPanelNotifyOptions {
     | "bottom-right";
   actionLabel?: string;
   onAction?: () => void;
-  [key: string]: any; // for custom options
+  [key: string]: unknown; // for custom options
 }
 
 export interface UseAdminPanelNotify {

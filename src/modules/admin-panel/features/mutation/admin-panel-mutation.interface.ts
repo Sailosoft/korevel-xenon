@@ -3,11 +3,11 @@ import { AdminPanelResult } from "../../shared/admin-panel-result";
 
 export interface AdminPanelMutation<T> {
   create: (
-    data: any,
+    data: T,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
     id: AdminPanelId,
-    data: any,
+    data: T,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
     id: AdminPanelId,
@@ -47,11 +47,11 @@ export interface UseAdminPanelDeleteProps<T> {
 
 export interface UseAdminPanelMutations<T> {
   create: (
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
     id: string | number,
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
     id: string | number,

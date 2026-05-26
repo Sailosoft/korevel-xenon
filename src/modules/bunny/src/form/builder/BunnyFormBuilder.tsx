@@ -21,14 +21,14 @@ import {
 import "@mdxeditor/editor/style.css";
 import { BunnyFormConfig, BunnyFormField } from "../BunnyForm.Interface";
 
-interface BunnyFormBuilderProps<T extends Record<string, unknown> = Record<string, unknown>> {
+interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
   formData: T;
   onChange: (name: string, value: unknown) => void;
   errors?: Record<string, string>;
 }
 
-export function BunnyFormBuilder<T extends Record<string, unknown>>({
+export function BunnyFormBuilder<T>({
   config,
   formData,
   onChange,
@@ -52,7 +52,7 @@ export function BunnyFormBuilder<T extends Record<string, unknown>>({
           >
             <FieldRenderer
               field={field as BunnyFormField<Record<string, unknown>>}
-              value={formData[field.name]}
+              value={(formData as Record<string, unknown>)[field.name]}
               onChange={onChange}
               error={errors[field.name]}
             />

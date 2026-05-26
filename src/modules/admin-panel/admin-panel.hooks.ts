@@ -5,10 +5,9 @@ import { useAdminPanelModal } from "./features/modal/admin-panel-modal.hooks";
 import { useAdminPanelForm } from "./features/form/admin-panel-form.hooks";
 import { useAdminPanelNotify } from "./features/notify/admin-panel-nofity.hooks";
 import { useAdminPanelDelete } from "./features/del/admin-panel-del.hooks";
-import { AdminPanelFormMode } from "./features/form/admin-panel-form.interface";
 import { AdminPanelModalState } from "./features/modal/admin-panel-modal.interface";
 
-export default function useAdminPanel<TRow, TForm = any>({
+export default function useAdminPanel<TRow, TForm = unknown>({
   query,
   mutation,
   props,

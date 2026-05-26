@@ -6,7 +6,7 @@ import { UseAdminPanelNotifyProps } from "../../admin-panel/features/notify/admi
 import { AdminPanelQuery } from "../../admin-panel/features/query/admin-panel-query.interface";
 import { UseAdminPanelTablePropsWithoutQuery } from "../../admin-panel/features/table/admin-panel-table.interface";
 import { BunnyFormConfig } from './form/BunnyForm.Interface';
-import { BunnyHeaderAction, BunnyHeaderActionType, BunnyHeaderDefaultActions } from "./header/BunnyHeader.Interface";
+import { BunnyHeaderAction, BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
 import { BunnyRowDefaultActions } from './rows/BunnyRow.Interface';
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 

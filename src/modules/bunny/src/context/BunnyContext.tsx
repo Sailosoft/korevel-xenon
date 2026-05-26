@@ -1,13 +1,13 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { BunnyConfig } from "../Bunny.Interface";
 
-interface BunnyContextType<TRow = any, TForm = any> {
+interface BunnyContextType<TRow = unknown, TForm = unknown> {
   config: BunnyConfig<TRow, TForm>;
 }
 
-const BunnyContext = createContext<BunnyContextType<any, any> | null>(null);
+const BunnyContext = createContext<BunnyContextType<unknown, unknown> | null>(null);
 
-export function BunnyProvider<TRow = any, TForm = any>({
+export function BunnyProvider<TRow = unknown, TForm = unknown>({
   config,
   children,
 }: {
@@ -15,11 +15,11 @@ export function BunnyProvider<TRow = any, TForm = any>({
   children: ReactNode;
 }) {
   return (
-    <BunnyContext.Provider value={{ config }}>{children}</BunnyContext.Provider>
+    <BunnyContext.Provider value={{ config } as BunnyContextType<unknown, unknown>}>{children}</BunnyContext.Provider>
   );
 }
 
-export function useBunnyConfig<TRow = any, TForm = any>() {
+export function useBunnyConfig<TRow = unknown, TForm = unknown>() {
   const context = useContext(BunnyContext) as BunnyContextType<TRow, TForm>;
 
   if (!context) {

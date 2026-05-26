@@ -5,7 +5,7 @@ import type { UseAdminPanelModal } from "../modal/admin-panel-modal.interface";
 import type { UseAdminPanelNotify } from "../notify/admin-panel-notify.interface";
 
 export interface CreateAdminPanelModalPluginProps {
-  table: UseAdminPanelTable<any>;
+  table: UseAdminPanelTable<unknown>;
   modal: UseAdminPanelModal;
   notify: UseAdminPanelNotify;
   successMessages?: {
@@ -18,7 +18,7 @@ export interface CreateAdminPanelModalPluginProps {
  * Default Plugin for Modal Forms
  * Handles: Snackbar + Close Modal + Refresh Table
  */
-export function createAdminPanelModalPlugin<T = any>({
+export function createAdminPanelModalPlugin<T = unknown>({
   table,
   modal,
   notify,
@@ -63,8 +63,8 @@ export function createAdminPanelModalPlugin<T = any>({
       }
     },
 
-    onBeforeSubmit: async (data: T, mode?: AdminPanelFormMode) => {
-      // You can add any pre-processing logic here (e.g. formatting dates, cleaning fields)
+    onBeforeSubmit: async (data: T, _mode?: AdminPanelFormMode) => {
+      // You can add unknown pre-processing logic here (e.g. formatting dates, cleaning fields)
       return data;
     },
 
