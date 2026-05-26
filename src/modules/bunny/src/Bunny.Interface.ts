@@ -70,5 +70,5 @@ export interface BunnyHasId {
 
 export interface BunnyKernel<TRow, TForm> {
     config: BunnyConfig<TRow, TForm>;
-    panel: UseAdminPanel<TRow, TForm>
+    adminPanel: UseAdminPanel<TRow, TForm>
 }

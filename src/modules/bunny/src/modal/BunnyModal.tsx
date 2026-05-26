@@ -1,10 +1,11 @@
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
-import { Button, Dropdown, Modal } from "@heroui/react";
+import { Button, Dropdown, Modal, Spinner } from "@heroui/react";
 import { ReactNode, useCallback, useMemo } from "react";
 import { useBunnyConfig } from "../context/BunnyContext";
 import { UseAdminPanel } from "@/src/modules/admin-panel/admin-panel.interface";
 import { MoreVerticalIcon } from "lucide-react";
 import { AdminPanelFormMode } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
+import { BunnyKernel } from "../Bunny.Interface";
 
 function Label({ children }: { children: ReactNode }) {
   return <span className="text-sm font-medium">{children}</span>;
@@ -22,19 +23,22 @@ export default function BunnyModal({
   const { modal } = admin;
   const { title, modalSize, modalSizeWidth, modalHeaderActions } =
     useBunnyConfig();
-  const { isOpen, setIsOpen, mode } = modal;
+  const { isOpen, setIsOpen, mode, isLoading } = modal;
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      if (isLoading) return;
       if (!open) setIsOpen(open);
     },
-    [setIsOpen],
+    [setIsOpen, isLoading],
   );
 
   const dialogClassName = useMemo(() => {
-    if (modalSizeWidth) return `sm:max-w-[${modalSizeWidth}px]`;
+    // added standard relative positioning to safely anchor our loading layer
+    const base = "relative overflow-hidden";
+    if (modalSizeWidth) return `${base} sm:max-w-[${modalSizeWidth}px]`;
 
-    return "";
+    return base;
   }, [modalSizeWidth]);
 
   const computedTitle = useMemo(() => {
@@ -44,7 +48,7 @@ export default function BunnyModal({
 
   const handleDropdownAction = useCallback(
     (key: string | number) => {
-      if (!modalHeaderActions) return;
+      if (!modalHeaderActions || isLoading) return;
       const targetedAction = modalHeaderActions.find((action, index) => {
         const actionId = action.id || `overflow-${index}`;
         return actionId === String(key);
@@ -52,17 +56,17 @@ export default function BunnyModal({
       if (targetedAction) {
         targetedAction.onClick({
           config: bunny,
-          panel: admin,
+          adminPanel: admin,
         });
       }
     },
     [modalHeaderActions, admin],
   );
 
-  const kernelContext = useMemo(
+  const kernelContext: BunnyKernel<unknown, unknown> = useMemo(
     () => ({
       config: bunny,
-      panel: admin,
+      adminPanel: admin,
     }),
     [bunny, admin],
   );
@@ -95,6 +99,22 @@ export default function BunnyModal({
     >
       <Modal.Container size={modalSize}>
         <Modal.Dialog className={dialogClassName}>
+          {/* --- TOP LAYER LOADING OVERLAY --- */}
+          {isLoading && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/70 dark:bg-black/70 backdrop-blur-[1px] transition-all animate-fade-in">
+              <div className="flex flex-col items-center gap-3 p-4 rounded-xl">
+                {/* HeroUI Spinner or custom Tailwind layout */}
+                <Spinner size="lg" color="current" />
+                <Label>Loading...</Label>
+
+                {/* FALLBACK: If HeroUI Spinner is missing, uncomment below: */}
+                {/* 
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-default-600">Processing...</span> 
+                */}
+              </div>
+            </div>
+          )}
           <Modal.CloseTrigger />
           <Modal.Header className="w-full pr-12">
             <div className="flex items-center w-full gap-4">

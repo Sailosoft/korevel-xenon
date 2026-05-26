@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   Input,
   Select,
@@ -16,10 +15,12 @@ import {
   listsPlugin,
   quotePlugin,
   thematicBreakPlugin,
-  markdownShortcutPlugin
+  markdownShortcutPlugin,
+  MDXEditorMethods,
 } from "@mdxeditor/editor";
 import "@mdxeditor/editor/style.css";
 import { BunnyFormConfig, BunnyFormField } from "../BunnyForm.Interface";
+import { useEffect, useRef } from "react";
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -78,6 +79,17 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
   const showError = !!error;
   const isRequired = !!field.required;
 
+  const editorRef = useRef<MDXEditorMethods>(null);
+
+  // Sync external changes (like a form reset or API load) into the editor
+  useEffect(() => {
+    const currentMarkdown = editorRef.current?.getMarkdown();
+
+    // Only update if the parent state is genuinely different from internal state
+    if (value !== currentMarkdown) {
+      editorRef.current?.setMarkdown((value as string) || "");
+    }
+  }, [value]);
   switch (field.type) {
     case "select":
       return (
@@ -131,7 +143,11 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
       return (
         <div className="flex flex-col gap-2 w-full">
           <div className="flex items-center gap-3">
-            <Switch id={fieldId} isSelected={Boolean(value)} onChange={handleChange} />
+            <Switch
+              id={fieldId}
+              isSelected={Boolean(value)}
+              onChange={handleChange}
+            />
             <Label htmlFor={fieldId} className="cursor-pointer">
               {field.label}
               {isRequired && <span className="text-red-500 ml-1">*</span>}
@@ -150,7 +166,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           </Label>
           <div className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert">
             <MDXEditor
-              key={value ? "active" : "empty"}
+              ref={editorRef}
               markdown={typeof value === "string" ? value : ""}
               onChange={handleChange}
               placeholder={field.placeholder}
@@ -159,7 +175,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
                 listsPlugin(),
                 quotePlugin(),
                 thematicBreakPlugin(),
-                markdownShortcutPlugin()
+                markdownShortcutPlugin(),
               ]}
             />
           </div>
@@ -186,7 +202,11 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
                     : "text"
             }
             placeholder={field.placeholder}
-            value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
+            value={
+              typeof value === "string" || typeof value === "number"
+                ? String(value)
+                : ""
+            }
             onChange={(e) => handleChange(e.target.value)}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}

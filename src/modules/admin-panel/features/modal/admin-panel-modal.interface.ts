@@ -8,6 +8,9 @@ export interface AdminPanelModalState {
 }
 
 export interface UseAdminPanelModal extends AdminPanelModalState {
+  isLoading: boolean;
+  setIsLoadingOn: () => void;
+  setIsLoadingOff: () => void;
   // Core Actions
   openModal: (mode: AdminPanelFormMode) => void;
   closeModal: () => void;

@@ -11,14 +11,14 @@ export default function BunnyHeaderActionComponent({
   action: BunnyHeaderAction;
 }) {
   const config = useBunnyConfig();
-  const panel = useAdminPanelContext();
+  const adminPanel = useAdminPanelContext();
 
   const kernel: BunnyKernel<unknown, unknown> = useMemo(
     () => ({
       config,
-      panel,
+      adminPanel,
     }),
-    [config, panel],
+    [config, adminPanel],
   );
 
   const variant = useMemo<ButtonVariants["variant"]>(() => {

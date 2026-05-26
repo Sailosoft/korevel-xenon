@@ -15,6 +15,8 @@ export function useAdminPanelModal(
     id: null,
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const setIsOpen = useCallback((isOpen: boolean) => {
     setState((prev) => ({
       ...prev,
@@ -68,7 +70,9 @@ export function useAdminPanelModal(
     isOpen: state.isOpen,
     mode: state.mode,
     id: state.id,
-
+    isLoading,
+    setIsLoadingOn: () => setIsLoading(true),
+    setIsLoadingOff: () => setIsLoading(false),
     openModal,
     closeModal,
     setIsOpen,
