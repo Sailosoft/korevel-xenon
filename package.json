@@ -13,6 +13,7 @@
     "@heroui/react": "^3.0.3",
     "@heroui/styles": "^3.0.3",
     "@mdxeditor/editor": "^3.55.0",
+    "awilix": "^13.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.4.2",

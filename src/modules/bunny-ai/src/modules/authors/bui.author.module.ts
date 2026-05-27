@@ -14,6 +14,7 @@ import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/que
 import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import buiAuthorServerEnhance from "./bui.author.server.enhance";
+import { buiContainer } from "../../container/bui.container";
 
 export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   title: "Author",
