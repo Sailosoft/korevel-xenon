@@ -44,7 +44,7 @@ export default class BUIAIService implements BUIAIServiceType {
     try {
       const response = await this.ai.chat.completions.create({
         // Fallback hierarchy: explicit runtime override -> constructor configuration default
-        model: option.model || this.model,
+        model: option.model || this.getModel(),
         messages: [
           { role: "system", content: option.system },
           { role: "user", content: option.user },
