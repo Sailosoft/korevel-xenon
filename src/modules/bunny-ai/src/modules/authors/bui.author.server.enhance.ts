@@ -5,9 +5,9 @@ import { buiContainer } from "../../container/bui.container";
 export default async function buiAuthorServerEnhance() {
   console.log("Console from server");
 
-  const ai = buiContainer.resolve("ai");
+  // const ai = buiContainer.resolve("ai");
   return {
-    name: ai.test(),
-    description: ai.description(),
+    name: "TEST",
+    description: "DESCRIPTION",
   };
 }
