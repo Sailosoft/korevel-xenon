@@ -1,5 +1,3 @@
-import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
-
 /**
  * Core UI state for managing the Admin Panel Modal visibility and basic messaging.
  */
@@ -18,7 +16,12 @@ export interface AdminPanelModalActionState {
   title?: string;
 }
 
-type ModalActionInterface<TRow = any, TForm = any> = Omit<
+/**
+ * Dynamic configuration payload passed when opening a headless modal action.
+ * Extracts text/label configurations from the state and couples them with functional callbacks.
+ * * @template TContext - The execution engine or operational context passed to the handler.
+ */
+export type ModalActionInterface<TContext = any> = Omit<
   AdminPanelModalActionState,
   "open" | "loading"
 > & {
@@ -27,11 +30,10 @@ type ModalActionInterface<TRow = any, TForm = any> = Omit<
 
   /**
    * Execution pipeline triggered when the user submits or confirms the modal.
-   *
-   * @param form - Raw browser FormData instance extracted from the submission event.
-   * @param context - The operational engine context containing specialized state and methods.
+   * * @param form - Raw browser FormData instance extracted from the submission event.
+   * @param context - The dynamic context engine containing specialized runtime state and methods.
    */
-  onConfirm: (form: FormData, context: BunnyKernel<TRow, TForm>) => void;
+  onConfirm: (form: FormData, context: TContext) => void;
 
   /** Optional cleanup hook executed when the user explicitly dismisses or cancels the modal. */
   onCancel?: () => void;
@@ -40,9 +42,9 @@ type ModalActionInterface<TRow = any, TForm = any> = Omit<
 export interface UseAdminPanelModalAction extends AdminPanelModalActionState {
   /**
    * Triggers the modal to open, injecting a context-specific layout and execution strategy.
-   *
+   * * @template TContext - Implicitly or explicitly defined operational context type.
    */
-  openActionModal<TRow, TForm>(option: ModalActionInterface<TRow, TForm>): void;
+  openActionModal<TContext>(option: ModalActionInterface<TContext>): void;
 
   /**
    * Programmatically closes the modal window and resets transient display states.
