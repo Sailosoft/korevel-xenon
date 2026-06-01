@@ -6,6 +6,7 @@ import { useAdminPanelForm } from "./features/form/admin-panel-form.hooks";
 import { useAdminPanelNotify } from "./features/notify/admin-panel-nofity.hooks";
 import { useAdminPanelDelete } from "./features/del/admin-panel-del.hooks";
 import { AdminPanelModalState } from "./features/modal/admin-panel-modal.interface";
+import { useAdminPanelDialog } from "./features/dialog/admin-panel-dialog";
 
 export default function useAdminPanel<TRow, TForm = unknown>({
   query,
@@ -21,6 +22,8 @@ export default function useAdminPanel<TRow, TForm = unknown>({
     table,
     mutation,
   });
+
+  const dialog = useAdminPanelDialog();
 
   const modalState = useMemo<AdminPanelModalState>(
     () => ({
@@ -45,8 +48,8 @@ export default function useAdminPanel<TRow, TForm = unknown>({
   });
 
   const adminPanel = useMemo<UseAdminPanel<TRow, TForm>>(
-    () => ({ table, modal, form, notify, del }),
-    [table, modal, form, notify, del],
+    () => ({ table, modal, form, notify, del, dialog }),
+    [table, modal, form, notify, del, dialog],
   );
 
   return adminPanel;

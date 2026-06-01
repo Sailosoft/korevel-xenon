@@ -1,4 +1,5 @@
 import { UseAdminPanelDelete } from "./features/del/admin-panel-del.interface";
+import { UseAdminPanelDialog } from "./features/dialog/admin-panel-dialog.interface";
 import {
   UseAdminPanelForm,
   UseAdminPanelFormPropsWithoutQueryMutation,
@@ -21,6 +22,7 @@ export interface UseAdminPanel<TRow, TForm> {
   modal: UseAdminPanelModal;
   notify: UseAdminPanelNotify;
   del: UseAdminPanelDelete<TRow>;
+  dialog: UseAdminPanelDialog;
 }
 
 export interface UseAdminPanelProps<TRow, TForm> {

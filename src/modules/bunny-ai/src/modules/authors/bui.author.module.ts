@@ -15,6 +15,7 @@ import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import buiAuthorServerEnhance from "./bui.author.server.enhance";
 import { buiContainer } from "../../container/bui.container";
+import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 
 export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   title: "Author",
@@ -84,17 +85,30 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
       hide: ["create"],
       onClick: async (context) => {
         const { adminPanel } = context!;
-        const result = await buiAuthorServerEnhance();
-        console.log(result);
+        const action: AdminPanelDialogOption = {
+          actionId: "enhance",
+          fields: [
+            {
+              name: "name",
+              label: "Name",
+              type: "text",
+            },
+          ],
+          async onConfirm({ form }) {
+            const result = await buiAuthorServerEnhance();
+            console.log(result);
+            const data = form.getAll("name")[0] as string;
+            console.log(data, "data");
+            adminPanel.form.setFormData({
+              ...adminPanel.form.formData,
+              name: data,
+              description: result.description,
+            });
 
-        adminPanel.form.setFormData({
-          ...adminPanel.form.formData,
-          name: result.name,
-          description: result.description,
-        });
-
-        // console.log(adminContext?.panel.form.formData)
-        // adminContext.query.refresh();
+            return { success: true };
+          },
+        };
+        adminPanel.dialog.openDialog(action);
       },
     },
   ],

@@ -1,14 +1,17 @@
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import { UseAdminPanelFormPropsWithoutQueryMutation } from "../../admin-panel/features/form/admin-panel-form.interface";
-import { AdminPanelId } from '../../admin-panel/features/id/admin-panel-id.interface';
+import { AdminPanelId } from "../../admin-panel/features/id/admin-panel-id.interface";
 import { AdminPanelMutation } from "../../admin-panel/features/mutation/admin-panel-mutation.interface";
 import { UseAdminPanelNotifyProps } from "../../admin-panel/features/notify/admin-panel-notify.interface";
 import { AdminPanelQuery } from "../../admin-panel/features/query/admin-panel-query.interface";
 import { UseAdminPanelTablePropsWithoutQuery } from "../../admin-panel/features/table/admin-panel-table.interface";
-import { BunnyFormConfig } from './form/BunnyForm.Interface';
-import { BunnyHeaderAction, BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
+import { BunnyFormConfig } from "./form/BunnyForm.Interface";
+import {
+  BunnyHeaderAction,
+  BunnyHeaderActionType,
+} from "./header/BunnyHeader.Interface";
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
-import { BunnyRowDefaultActions } from './rows/BunnyRow.Interface';
+import { BunnyRowDefaultActions } from "./rows/BunnyRow.Interface";
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 
 export type BunnyCustomize<TRow, TForm> = (
@@ -69,6 +72,6 @@ export interface BunnyHasId {
 }
 
 export interface BunnyKernel<TRow, TForm> {
-    config: BunnyConfig<TRow, TForm>;
-    adminPanel: UseAdminPanel<TRow, TForm>
+  config: BunnyConfig<TRow, TForm>;
+  adminPanel: UseAdminPanel<TRow, TForm>;
 }
