@@ -101,23 +101,26 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
             },
           ],
           async onConfirm({ form }) {
+            adminPanel.dialog.setLoading(true)
             const name = form.getAll("name")[0] as string;
             const description = form.getAll("description")[0] as string;
 
             if (!name || !description) {
               // adminPanel.modal.setIsLoadingOff();
+              adminPanel.dialog.setLoading(false);
+              
               return { success: false, message: "Name and Description are required." };
             }
 
             const result = await buiAuthorServerEnhanceWithParams(name, description);
 
-            console.log(result, "result");
             adminPanel.form.setFormData({
               ...adminPanel.form.formData,
               name: result.name,
               description: result.description,
             });
 
+            adminPanel.dialog.setLoading(false);
             return { success: true };
           },
         };

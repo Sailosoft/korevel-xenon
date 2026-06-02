@@ -69,4 +69,6 @@ export interface UseAdminPanelDialog extends AdminPanelDialogState {
     prevState: AdminPanelFormActionState,
     payload: { formData: FormData; context: TContext },
   ): Promise<AdminPanelFormActionState>;
+
+  setLoading(loading: boolean): void;
 }

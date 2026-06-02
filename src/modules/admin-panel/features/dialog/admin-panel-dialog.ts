@@ -99,5 +99,8 @@ export function useAdminPanelDialog(): UseAdminPanelDialog {
     closeDialog,
     triggerConfirm,
     executeAction,
+    setLoading(loading: boolean) {
+      setState((prev) => ({ ...prev, loading }));
+    }
   };
 }
