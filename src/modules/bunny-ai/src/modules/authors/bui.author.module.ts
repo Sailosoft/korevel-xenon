@@ -13,7 +13,7 @@ import { buiDatabase } from "../../database/bui.database";
 import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/query/admin-panel-query.util";
 import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
-import buiAuthorServerEnhance from "./bui.author.server.enhance";
+import buiAuthorServerEnhance, { buiAuthorServerEnhanceWithParams } from "./bui.author.server.enhance";
 import { buiContainer } from "../../container/bui.container";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 
@@ -79,13 +79,14 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   modalHeaderActions: [
     {
       id: "enhanced",
-      label: "Enhanced",
+      label: "Enhanced Author With AI",
       icon: React.createElement(CircleFadingArrowUp),
       variant: "default",
-      hide: ["create"],
+      hide: ["view"],
       onClick: async (context) => {
         const { adminPanel } = context!;
         const action: AdminPanelDialogOption = {
+          title: "Enhance Author Profile with AI",
           actionId: "enhance",
           fields: [
             {
@@ -93,15 +94,27 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
               label: "Name",
               type: "text",
             },
+            {
+              name: "description",
+              label: "Description",
+              type: "textarea",
+            },
           ],
           async onConfirm({ form }) {
-            const result = await buiAuthorServerEnhance();
-            console.log(result);
-            const data = form.getAll("name")[0] as string;
-            console.log(data, "data");
+            const name = form.getAll("name")[0] as string;
+            const description = form.getAll("description")[0] as string;
+
+            if (!name || !description) {
+              // adminPanel.modal.setIsLoadingOff();
+              return { success: false, message: "Name and Description are required." };
+            }
+
+            const result = await buiAuthorServerEnhanceWithParams(name, description);
+
+            console.log(result, "result");
             adminPanel.form.setFormData({
               ...adminPanel.form.formData,
-              name: data,
+              name: result.name,
               description: result.description,
             });
 

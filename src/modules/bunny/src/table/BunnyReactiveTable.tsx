@@ -214,7 +214,7 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
                                 </Checkbox>
                               )}
                               <span className="font-semibold text-sm">
-                                {String(row[columns[0]?.field as keyof TRow] ?? '')}
+                                {String(row[columns[0]?.field as keyof TRow] ?? '').slice(0, 50)}
                               </span>
                             </div>
 
@@ -274,7 +274,7 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
                           <Table.Cell key={String(col.field)}>
                             {col.render
                               ? col.render(row, col)
-                              : (row[col.field as keyof TRow] as React.ReactNode)}
+                              : String(row[col.field as keyof TRow] ?? "").slice(0, 50)}
                           </Table.Cell>
                         ))}
 

@@ -13,6 +13,7 @@ export default class BUIAIService implements BUIAIServiceType {
   private readonly aiSchema: BUIAISchema;
   constructor({ config: { ai }, aiSchema }: BUIContainer) {
     this.model = ai.model;
+    console.log("AI Config in BUIAIService constructor:", ai);
     this.ai = new OpenAI({
       apiKey: ai.apiKey,
       baseURL: ai.endpoint,
