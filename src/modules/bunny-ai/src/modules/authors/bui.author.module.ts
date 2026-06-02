@@ -13,7 +13,7 @@ import { buiDatabase } from "../../database/bui.database";
 import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/query/admin-panel-query.util";
 import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
-import buiAuthorServerEnhance, { buiAuthorServerEnhanceWithParams } from "./bui.author.server.enhance";
+import { buiAuthorServerEnhanceWithParams } from "./bui.author.server.enhance";
 import { buiContainer } from "../../container/bui.container";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 
@@ -101,18 +101,24 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
             },
           ],
           async onConfirm({ form }) {
-            adminPanel.dialog.setLoading(true)
+            adminPanel.dialog.setLoading(true);
             const name = form.getAll("name")[0] as string;
             const description = form.getAll("description")[0] as string;
 
             if (!name || !description) {
               // adminPanel.modal.setIsLoadingOff();
               adminPanel.dialog.setLoading(false);
-              
-              return { success: false, message: "Name and Description are required." };
+
+              return {
+                success: false,
+                message: "Name and Description are required.",
+              };
             }
 
-            const result = await buiAuthorServerEnhanceWithParams(name, description);
+            const result = await buiAuthorServerEnhanceWithParams(
+              name,
+              description,
+            );
 
             adminPanel.form.setFormData({
               ...adminPanel.form.formData,
