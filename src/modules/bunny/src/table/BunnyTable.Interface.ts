@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { BunnyKernel } from "../Bunny.Interface";
 
 export interface BunnyColumn<TRow = unknown> {
   field: string;
@@ -20,5 +21,8 @@ export interface BunnyRowAction<TRow = unknown> {
     | "outline"
     | "tertiary"
     | "danger-soft";
-  onClick: (row: TRow) => void | Promise<void>;
+  onClick: (
+    row: TRow,
+    context: BunnyKernel<TRow, unknown>,
+  ) => void | Promise<void>;
 }

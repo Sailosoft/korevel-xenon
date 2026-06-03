@@ -3,7 +3,13 @@ import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
 } from "./BunnyHeader.Interface";
-import { DeleteIcon, FileJsonIcon, LucideUpload, PlusIcon, RefreshCwIcon } from "lucide-react";
+import {
+  DeleteIcon,
+  FileJsonIcon,
+  LucideUpload,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 
 export function useBunnyHeaderActions<TRow, TForm>(
   hides: BunnyHeaderActionType[],
@@ -17,7 +23,9 @@ export function useBunnyHeaderActions<TRow, TForm>(
         label: "Create",
         variant: "primary",
         icon: React.createElement(PlusIcon),
-        onClick: () => {},
+        onClick: (context) => {
+          context?.adminPanel.modal.openCreate();
+        },
       });
     }
 
@@ -27,7 +35,9 @@ export function useBunnyHeaderActions<TRow, TForm>(
         label: "Refresh",
         variant: "secondary",
         icon: React.createElement(RefreshCwIcon),
-        onClick: () => {},
+        onClick: async (context) => {
+          await context?.adminPanel.table.fetchData();
+        },
       });
     }
 
@@ -37,7 +47,9 @@ export function useBunnyHeaderActions<TRow, TForm>(
         label: "Delete",
         variant: "danger",
         icon: React.createElement(DeleteIcon),
-        onClick: () => {},
+        onClick: (context) => {
+          context?.adminPanel.del.openBatchDeleteConfirm();
+        },
       });
     }
 
@@ -52,7 +64,7 @@ export function useBunnyHeaderActions<TRow, TForm>(
       });
     }
 
-        if (!hides.includes("import")) {
+    if (!hides.includes("import")) {
       actions.push({
         id: "import",
         label: "Import Records",

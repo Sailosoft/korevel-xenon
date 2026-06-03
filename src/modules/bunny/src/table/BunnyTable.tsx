@@ -19,6 +19,7 @@ import BunnyTableEmpty from "./BunnyTable.Empty";
 import BunnyTableLoading from "./BunnyTable.Loading";
 import { useBunnyRowActionCallback } from "../rows/BunnyRow.Action.Callback";
 import { BunnyHasId } from "../Bunny.Interface";
+import { BunnyRowAction } from "./BunnyTable.Interface";
 
 function SortableColumnHeader({
   children,
@@ -173,7 +174,10 @@ export function BunnyTable<TRow extends Record<string, unknown>>({
               {isLoading
                 ? undefined
                 : sortedItems.map((row) => (
-                    <Table.Row key={String(row[rowKey])} id={String(row[rowKey])}>
+                    <Table.Row
+                      key={String(row[rowKey])}
+                      id={String(row[rowKey])}
+                    >
                       {/* Selection Cell */}
                       {selectionMode !== "none" && (
                         <Table.Cell className="pr-0">
@@ -208,7 +212,12 @@ export function BunnyTable<TRow extends Record<string, unknown>>({
                                 isIconOnly
                                 size="sm"
                                 variant={action.variant}
-                                onClick={() => callAction(action, row as unknown as BunnyHasId)}
+                                onClick={() =>
+                                  callAction(
+                                    action as BunnyRowAction<BunnyHasId>,
+                                    row as unknown as BunnyHasId,
+                                  )
+                                }
                               >
                                 {action.icon}
                                 {action.label}

@@ -19,6 +19,7 @@ import BunnyTableEmpty from "./BunnyTable.Empty";
 import BunnyTableLoading from "./BunnyTable.Loading";
 import { useBunnyRowActionCallback } from "../rows/BunnyRow.Action.Callback";
 import { BunnyHasId } from "../Bunny.Interface";
+import { BunnyRowAction } from "./BunnyTable.Interface";
 
 function SortableColumnHeader({
   children,
@@ -126,14 +127,18 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
       layout={TableLayout}
       layoutOptions={{
         headingHeight: isMobile ? 0 : 42, // Shrinks layout header space on mobile viewports
-        rowHeight: isMobile ? 200 : 49,   // Taller row constraints for card layout stacks
+        rowHeight: isMobile ? 200 : 49, // Taller row constraints for card layout stacks
       }}
     >
       <Table>
         <Table.ScrollContainer>
           <Table.Content
             aria-label="Bunny Virtualized Table"
-            className={cn("w-full overflow-auto", !isMobile && "min-w-[800px]", className)}
+            className={cn(
+              "w-full overflow-auto",
+              !isMobile && "min-w-[800px]",
+              className,
+            )}
             style={{ height: internalTableHeight }}
             selectedKeys={selectedKeys}
             selectionMode={selectionMode}
@@ -142,13 +147,22 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
             onSortChange={setSortDescriptor}
           >
             {/* Dynamic key configuration forces layout unmount, bypassing collection node tracking issues */}
-            <Table.Header key={isMobile ? "mobile-view-header" : "desktop-view-header"} className="h-full w-full">
+            <Table.Header
+              key={isMobile ? "mobile-view-header" : "desktop-view-header"}
+              className="h-full w-full"
+            >
               {isMobile ? (
-                <Table.Column id="mobile-list-col" isRowHeader>Items</Table.Column>
+                <Table.Column id="mobile-list-col" isRowHeader>
+                  Items
+                </Table.Column>
               ) : (
                 <>
                   {selectionMode !== "none" && (
-                    <Table.Column id="selection-col" className="pr-0" width={40}>
+                    <Table.Column
+                      id="selection-col"
+                      className="pr-0"
+                      width={40}
+                    >
                       <Checkbox aria-label="Select all" slot="selection">
                         <Checkbox.Control>
                           <Checkbox.Indicator />
@@ -177,7 +191,11 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
                   ))}
 
                   {actions && actions.length > 0 && (
-                    <Table.Column id="actions-col" className="text-end" width={actionColumnLength}>
+                    <Table.Column
+                      id="actions-col"
+                      className="text-end"
+                      width={actionColumnLength}
+                    >
                       Actions
                     </Table.Column>
                   )}
@@ -193,113 +211,135 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
               {isLoading
                 ? undefined
                 : sortedItems.map((row) => (
-                  <Table.Row key={String(row[rowKey])} id={String(row[rowKey])}>
-                    {isMobile ? (
-                      /* MOBILE CARD UI */
-                      <Table.Cell>
-                        <div className="flex flex-col p-3 border border-default-200 rounded-xl gap-3 w-full bg-content1 shadow-sm text-left">
+                    <Table.Row
+                      key={String(row[rowKey])}
+                      id={String(row[rowKey])}
+                    >
+                      {isMobile ? (
+                        /* MOBILE CARD UI */
+                        <Table.Cell>
+                          <div className="flex flex-col p-3 border border-default-200 rounded-xl gap-3 w-full bg-content1 shadow-sm text-left">
+                            {/* Top row controls */}
+                            <div className="flex items-center justify-between border-b border-default-100 pb-2">
+                              <div className="flex items-center gap-2">
+                                {selectionMode !== "none" && (
+                                  <Checkbox
+                                    aria-label="Select row"
+                                    slot="selection"
+                                    variant="secondary"
+                                  >
+                                    <Checkbox.Control>
+                                      <Checkbox.Indicator />
+                                    </Checkbox.Control>
+                                  </Checkbox>
+                                )}
+                                <span className="font-semibold text-sm">
+                                  {String(
+                                    row[columns[0]?.field as keyof TRow] ?? "",
+                                  ).slice(0, 50)}
+                                </span>
+                              </div>
 
-                          {/* Top row controls */}
-                          <div className="flex items-center justify-between border-b border-default-100 pb-2">
-                            <div className="flex items-center gap-2">
-                              {selectionMode !== "none" && (
-                                <Checkbox
-                                  aria-label="Select row"
-                                  slot="selection"
-                                  variant="secondary"
-                                >
-                                  <Checkbox.Control>
-                                    <Checkbox.Indicator />
-                                  </Checkbox.Control>
-                                </Checkbox>
+                              {/* Row Actions pinned top right */}
+                              {actions && (
+                                <div className="flex items-center gap-1">
+                                  {actions.map((action, idx) => (
+                                    <Button
+                                      key={idx}
+                                      isIconOnly
+                                      size="sm"
+                                      variant={action.variant}
+                                      onClick={() =>
+                                        callAction(
+                                          action as BunnyRowAction<BunnyHasId>,
+                                          row as unknown as BunnyHasId,
+                                        )
+                                      }
+                                    >
+                                      {action.icon}
+                                      {action.label}
+                                    </Button>
+                                  ))}
+                                </div>
                               )}
-                              <span className="font-semibold text-sm">
-                                {String(row[columns[0]?.field as keyof TRow] ?? '').slice(0, 50)}
-                              </span>
                             </div>
 
-                            {/* Row Actions pinned top right */}
-                            {actions && (
-                              <div className="flex items-center gap-1">
+                            {/* Value Grid mapping */}
+                            <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                              {columns.map((col) => (
+                                <div
+                                  key={String(col.field)}
+                                  className="contents"
+                                >
+                                  <span className="text-default-500 font-medium">
+                                    {String(col.header)}:
+                                  </span>
+                                  <span className="text-default-800 text-right truncate">
+                                    {col.render
+                                      ? col.render(row, col)
+                                      : String(
+                                          row[col.field as keyof TRow] ?? "",
+                                        )}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </Table.Cell>
+                      ) : (
+                        /* DESKTOP ROW UI */
+                        <>
+                          {selectionMode !== "none" && (
+                            <Table.Cell className="pr-0">
+                              <Checkbox
+                                aria-label="Select row"
+                                slot="selection"
+                                variant="secondary"
+                              >
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                              </Checkbox>
+                            </Table.Cell>
+                          )}
+
+                          {columns.map((col) => (
+                            <Table.Cell key={String(col.field)}>
+                              {col.render
+                                ? col.render(row, col)
+                                : String(
+                                    row[col.field as keyof TRow] ?? "",
+                                  ).slice(0, 50)}
+                            </Table.Cell>
+                          ))}
+
+                          {actions && (
+                            <Table.Cell>
+                              <div className="flex items-center justify-end gap-1">
                                 {actions.map((action, idx) => (
                                   <Button
                                     key={idx}
                                     isIconOnly
                                     size="sm"
                                     variant={action.variant}
-                                    onClick={() => callAction(action, row as unknown as BunnyHasId)}
+                                    onClick={() =>
+                                      callAction(
+                                        action as BunnyRowAction<BunnyHasId>,
+                                        row as unknown as BunnyHasId,
+                                      )
+                                    }
                                   >
                                     {action.icon}
                                     {action.label}
                                   </Button>
                                 ))}
                               </div>
-                            )}
-                          </div>
-
-                          {/* Value Grid mapping */}
-                          <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-                            {columns.map((col) => (
-                              <div key={String(col.field)} className="contents">
-                                <span className="text-default-500 font-medium">{String(col.header)}:</span>
-                                <span className="text-default-800 text-right truncate">
-                                  {col.render
-                                    ? col.render(row, col)
-                                    : String(row[col.field as keyof TRow] ?? "")}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-
-                        </div>
-                      </Table.Cell>
-                    ) : (
-                      /* DESKTOP ROW UI */
-                      <>
-                        {selectionMode !== "none" && (
-                          <Table.Cell className="pr-0">
-                            <Checkbox
-                              aria-label="Select row"
-                              slot="selection"
-                              variant="secondary"
-                            >
-                              <Checkbox.Control>
-                                <Checkbox.Indicator />
-                              </Checkbox.Control>
-                            </Checkbox>
-                          </Table.Cell>
-                        )}
-
-                        {columns.map((col) => (
-                          <Table.Cell key={String(col.field)}>
-                            {col.render
-                              ? col.render(row, col)
-                              : String(row[col.field as keyof TRow] ?? "").slice(0, 50)}
-                          </Table.Cell>
-                        ))}
-
-                        {actions && (
-                          <Table.Cell>
-                            <div className="flex items-center justify-end gap-1">
-                              {actions.map((action, idx) => (
-                                <Button
-                                  key={idx}
-                                  isIconOnly
-                                  size="sm"
-                                  variant={action.variant}
-                                  onClick={() => callAction(action, row as unknown as BunnyHasId)}
-                                >
-                                  {action.icon}
-                                  {action.label}
-                                </Button>
-                              ))}
-                            </div>
-                          </Table.Cell>
-                        )}
-                      </>
-                    )}
-                  </Table.Row>
-                ))}
+                            </Table.Cell>
+                          )}
+                        </>
+                      )}
+                    </Table.Row>
+                  ))}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>

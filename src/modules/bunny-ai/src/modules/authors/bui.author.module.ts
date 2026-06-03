@@ -1,5 +1,5 @@
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
-import { BUIAuthor } from "./bui.author.entity";
+import { BUIAuthor, BUIAuthorPromptType } from "./bui.author.entity";
 import {
   AdminPanelQueryOptions,
   GetAllResponse,
@@ -90,6 +90,17 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
           actionId: "enhance",
           fields: [
             {
+              name: "promptType",
+              label: "AI Tone Style",
+              type: "select", // Matches the select block in your FieldRenderer
+              defaultValue: "professional",
+              options: [
+                { label: "Professional Bio", value: "professional" },
+                { label: "Creative Narrative", value: "creative" },
+                { label: "Short Blurb / Summary", value: "short" },
+              ],
+            },
+            {
               name: "name",
               label: "Name",
               type: "text",
@@ -102,22 +113,24 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
           ],
           async onConfirm({ form }) {
             adminPanel.dialog.setLoading(true);
-            const name = form.getAll("name")[0] as string;
-            const description = form.getAll("description")[0] as string;
-
+            const {
+              name,
+              description,
+              promptType = "professional",
+            } = Object.fromEntries(form) as Record<string, string>;
             if (!name || !description) {
-              // adminPanel.modal.setIsLoadingOff();
               adminPanel.dialog.setLoading(false);
-
               return {
                 success: false,
                 message: "Name and Description are required.",
               };
             }
 
+            // Pass promptType to your updated server enhancement action
             const result = await buiAuthorServerEnhanceWithParams(
               name,
               description,
+              promptType as BUIAuthorPromptType,
             );
 
             adminPanel.form.setFormData({

@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import { BunnyRowAction } from "../table/BunnyTable.Interface";
 import { PencilIcon, Trash2Icon, ViewIcon } from "lucide-react";
-import { BunnyRowDefaultActions } from './BunnyRow.Interface';
+import { BunnyRowDefaultActions } from "./BunnyRow.Interface";
+import { BunnyHasId } from "../Bunny.Interface";
 
 export function useBunnyRowActionDefault<TRow>({
   hides,
@@ -16,7 +17,10 @@ export function useBunnyRowActionDefault<TRow>({
         id: "view",
         variant: "ghost",
         icon: React.createElement(ViewIcon),
-        onClick: () => {},
+        onClick: (row, { adminPanel: { modal } }) => {
+          const rowData = row as BunnyHasId;
+          modal.openView(rowData.id);
+        },
       });
     }
 
@@ -25,7 +29,10 @@ export function useBunnyRowActionDefault<TRow>({
         id: "edit",
         icon: React.createElement(PencilIcon),
         variant: "secondary",
-        onClick: () => {},
+        onClick: (row, { adminPanel: { modal } }) => {
+          const rowData = row as BunnyHasId;
+          modal.openUpdate(rowData.id);
+        },
       });
     }
 
@@ -34,7 +41,10 @@ export function useBunnyRowActionDefault<TRow>({
         id: "delete",
         variant: "danger-soft",
         icon: React.createElement(Trash2Icon),
-        onClick: () => {},
+        onClick: (row, { adminPanel: { del } }) => {
+          const rowData = row as BunnyHasId;
+          del.openDeleteConfirm(rowData.id);
+        },
       });
     }
 

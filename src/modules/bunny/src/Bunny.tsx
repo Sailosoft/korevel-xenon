@@ -24,6 +24,7 @@ import { AdminPanelEventFormSuccessPayload } from "../../admin-panel/features/ev
 import { BunnyReactiveTable } from "./table/BunnyReactiveTable";
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import { BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
+import { BunnyRowAction } from "./table/BunnyTable.Interface";
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -77,7 +78,10 @@ function BunnyMainPanel<TRow, TForm>({
 
     let resolvedRows = config.rowActions || [];
     if (config.defaultRowActions) {
-      resolvedRows = [...defaultRowActions, ...resolvedRows];
+      resolvedRows = [
+        ...(defaultRowActions as BunnyRowAction<TRow>[]),
+        ...resolvedRows,
+      ];
     }
 
     const baseMergedConfig: BunnyConfig<TRow, TForm> = {

@@ -4,34 +4,34 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 
 export const useBunnyHeaderMappedHeaderActions = () => {
   const { headerActions } = useBunnyConfig();
-  const { modal, table, del } = useAdminPanelContext();
-  const { openBatchDeleteConfirm } = del;
-  const { openCreate } = modal;
-  const { fetchData } = table;
-  const mapped = useMemo(() => {
-    return headerActions?.map((action) => {
-      switch (action.id) {
-        case "create":
-          return {
-            ...action,
-            onClick: openCreate,
-          };
-        case "refresh":
-          return {
-            ...action,
-            onClick: async () => {
-              await fetchData();
-            },
-          };
-        case "delete":
-          return {
-            ...action,
-            onClick: openBatchDeleteConfirm,
-          };
-        default:
-          return action;
-      }
-    });
-  }, [headerActions, openCreate, openBatchDeleteConfirm, fetchData]);
-  return mapped;
+  // const { modal, table, del } = useAdminPanelContext();
+  // const { openBatchDeleteConfirm } = del;
+  // const { openCreate } = modal;
+  // const { fetchData } = table;
+  // const mapped = useMemo(() => {
+  //   return headerActions?.map((action) => {
+  //     switch (action.id) {
+  //       case "create":
+  //         return {
+  //           ...action,
+  //           onClick: openCreate,
+  //         };
+  //       case "refresh":
+  //         return {
+  //           ...action,
+  //           onClick: async () => {
+  //             await fetchData();
+  //           },
+  //         };
+  //       case "delete":
+  //         return {
+  //           ...action,
+  //           onClick: openBatchDeleteConfirm,
+  //         };
+  //       default:
+  //         return action;
+  //     }
+  //   });
+  // }, [headerActions, openCreate, openBatchDeleteConfirm, fetchData]);
+  return headerActions;
 };

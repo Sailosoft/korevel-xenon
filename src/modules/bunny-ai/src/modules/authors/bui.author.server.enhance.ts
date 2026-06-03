@@ -1,28 +1,20 @@
+// bui.author.server.enhance.ts
 "use server";
 
 import Handlebars from "handlebars";
-import { buiContainer } from "../../container/bui.container"; // Adjust import path as needed
+import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiAuthorPrompt } from "./bui.author.prompt";
-
-export default async function buiAuthorServerEnhance() {
-  console.log("Console from server");
-
-  // const ai = buiContainer.resolve("ai");
-  return {
-    name: "TEST",
-    description: "DESCRIPTION",
-  };
-}
+import { BUIAuthorPromptType } from "./bui.author.entity";
 
 export async function buiAuthorServerEnhanceWithParams(
   name: string,
   description: string,
+  promptType: BUIAuthorPromptType = "professional",
 ) {
   const container = buiContainer.createScope();
-  const ai = container.resolve("ai"); // Resolves to BUIAIService
+  const ai = container.resolve("ai");
 
-  // 1. Define the schema contract for the response
   const authorEnhancementSchema: BUIAISchemaOptions = {
     name: "author_enhancement",
     description:
@@ -30,33 +22,30 @@ export async function buiAuthorServerEnhanceWithParams(
     properties: {
       name: {
         type: "string",
-        description:
-          "The validated or enhanced author name (e.g., matching standard well-known spelling if recognizable).",
+        description: "The validated or enhanced author name.",
       },
       description: {
         type: "string",
         description:
-          "An enhanced, high-quality description mixing the provided context. If the author is well-known, weave in historical/professional achievements along with recommended highlights.",
+          "An enhanced, high-quality description mixing the provided context based on instructions.",
       },
     },
   };
 
-  // 2. Draft the system guidelines and user payload
-  const systemPrompt = buiAuthorPrompt.enhance.systemPrompt;
-  const template = Handlebars.compile(buiAuthorPrompt.enhance.userPrompt);
-  const userPrompt = template({
-    name: name,
-    description: description,
-  });
+  // Select the prompts dynamically based on promptType
+  const selectedPromptGroup =
+    buiAuthorPrompt.enhance[promptType] || buiAuthorPrompt.enhance.professional;
+
+  const systemPrompt = selectedPromptGroup.systemPrompt;
+  const template = Handlebars.compile(selectedPromptGroup.userPrompt);
+  const userPrompt = template({ name, description });
 
   try {
-    // 3. Invoke structured chat.
-    // TypeScript will automatically type the result as { name: string; description: string; }
     const enhancedAuthor = await ai.doChatStructured({
       system: systemPrompt,
       user: userPrompt,
       schema: authorEnhancementSchema,
-      temperature: 0.7, // Balanced for blending factual knowledge with creative prose
+      temperature: promptType === "creative" ? 0.85 : 0.6, // Tweak temperature per style choice!
     });
 
     return enhancedAuthor;
