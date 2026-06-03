@@ -35,8 +35,14 @@ export async function buiAuthorServerEnhanceWithParams(
   // Select the prompts dynamically based on promptType
   const selectedPromptGroup =
     buiAuthorPrompt.enhance[promptType] || buiAuthorPrompt.enhance.professional;
-
-  const systemPrompt = selectedPromptGroup.systemPrompt;
+  console.log("promptType", promptType);
+  const systemPrompt = `${selectedPromptGroup.systemPrompt}
+    \n\n
+    CRITICAL: Return ONLY a valid JSON object matching the requested structure. Do not include any markdown formatting (like \`\`\`json), explanations, or introduction outside of the raw JSON code.
+    \n\n
+    PROPERTY CONSTRAINTS YOU MUST FOLLOW: 
+    { name: string; description: string }
+   `;
   const template = Handlebars.compile(selectedPromptGroup.userPrompt);
   const userPrompt = template({ name, description });
 

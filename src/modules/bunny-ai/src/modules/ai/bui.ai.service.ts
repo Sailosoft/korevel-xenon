@@ -83,6 +83,7 @@ export default class BUIAIService implements BUIAIServiceType {
       response_format: responseFormat,
       temperature: temperature ?? 0.7,
     });
+    console.log(response.choices);
 
     return JSON.parse(response.choices[0]?.message?.content || "{}");
   }

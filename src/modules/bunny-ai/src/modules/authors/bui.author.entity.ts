@@ -5,4 +5,8 @@ export interface BUIAuthor {
   // tags?: string[];
 }
 
-export type BUIAuthorPromptType = "professional" | "creative" | "short";
+export type BUIAuthorPromptType =
+  | "professional"
+  | "creative"
+  | "short"
+  | "basic";

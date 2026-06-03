@@ -1,7 +1,7 @@
 export interface AdminPanelFormFieldDefinition {
   name: string;
   label: string;
-  type: "text" | "number" | "textarea" | "select" | "checkbox";
+  type: "text" | "number" | "textarea" | "select" | "checkbox" | "editor";
   placeholder?: string;
   required?: boolean;
   defaultValue?: unknown;

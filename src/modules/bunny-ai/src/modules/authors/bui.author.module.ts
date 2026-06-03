@@ -98,6 +98,7 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
                 { label: "Professional Bio", value: "professional" },
                 { label: "Creative Narrative", value: "creative" },
                 { label: "Short Blurb / Summary", value: "short" },
+                { label: "Basic", value: "basic" },
               ],
             },
             {
@@ -113,11 +114,9 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
           ],
           async onConfirm({ form }) {
             adminPanel.dialog.setLoading(true);
-            const {
-              name,
-              description,
-              promptType = "professional",
-            } = Object.fromEntries(form) as Record<string, string>;
+            const { name, description, promptType } = Object.fromEntries(
+              form,
+            ) as Record<string, string>;
             if (!name || !description) {
               adminPanel.dialog.setLoading(false);
               return {
@@ -125,12 +124,13 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
                 message: "Name and Description are required.",
               };
             }
+            console.log(promptType);
 
             // Pass promptType to your updated server enhancement action
             const result = await buiAuthorServerEnhanceWithParams(
               name,
               description,
-              promptType as BUIAuthorPromptType,
+              (promptType ?? "professional") as BUIAuthorPromptType,
             );
 
             adminPanel.form.setFormData({

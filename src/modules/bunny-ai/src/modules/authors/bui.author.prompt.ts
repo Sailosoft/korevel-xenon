@@ -39,5 +39,13 @@ export const buiAuthorPrompt: {
       userPrompt:
         "Author Name: {{name}} \n Provided Description: {{description}}",
     },
+    basic: {
+      systemPrompt: `
+        generate me an author name and a description as a bio for author for a given description.
+        Should given me atleast 5 outlines to that author that base on the description.
+      `,
+      userPrompt:
+        "Author Name: {{name}} \n Provided Description: {{description}}",
+    },
   },
 };

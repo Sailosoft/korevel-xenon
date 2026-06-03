@@ -1,15 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Input,
-  Select,
-  ListBox,
-  Label,
-  TextArea,
-  Switch,
-  cn,
-} from "@heroui/react";
+import { Input, Select, ListBox, Label, TextArea, Switch } from "@heroui/react";
 import {
   MDXEditor,
   headingsPlugin,
@@ -58,27 +50,31 @@ interface FieldRendererProps {
 
 function FieldRenderer({ field, formState }: FieldRendererProps) {
   const fieldId = `field-${field.name}`;
+  const labelId = `${fieldId}-label`;
   const fieldErrors = formState?.errors?.[field.name];
   const showError = !!(fieldErrors && fieldErrors.length > 0);
   const errorText = fieldErrors?.join(", ");
   const isRequired = !!field.required;
 
-  // Derive the current state value injected from useActionState validation snapshots or fallback definitions
+  // Derive the current state value injected from validation snapshots or fallback definitions
   const fallbackValue = formState?.values?.[field.name] ?? field.defaultValue;
 
-  // Local state synchronization mappings for non-native primitives (Editor and Switch)
+  // Local state synchronization mappings for non-native components
   const [editorValue, setEditorValue] = useState<string>(
     typeof fallbackValue === "string" ? fallbackValue : "",
   );
   const [switchSelected, setSwitchSelected] = useState<boolean>(
     Boolean(fallbackValue),
   );
+  const [selectedKey, setSelectedKey] = useState<string>(
+    fallbackValue ? String(fallbackValue) : "",
+  );
 
   const editorRef = useRef<MDXEditorMethods>(null);
 
   // Synchronize incoming resets or revalidation states across hook cycles
   useEffect(() => {
-    if (field.type === "textarea") {
+    if (field.type === "editor") {
       const currentMarkdown = editorRef.current?.getMarkdown();
       const nextValue = typeof fallbackValue === "string" ? fallbackValue : "";
       if (nextValue !== currentMarkdown) {
@@ -87,6 +83,8 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
       }
     } else if (field.type === "checkbox") {
       setSwitchSelected(Boolean(fallbackValue));
+    } else if (field.type === "select") {
+      setSelectedKey(fallbackValue ? String(fallbackValue) : "");
     }
   }, [fallbackValue, field.type]);
 
@@ -94,26 +92,33 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
     case "select":
       return (
         <div className="flex flex-col gap-1 w-full">
-          <Label htmlFor={fieldId}>
+          <Label id={labelId} htmlFor={fieldId}>
             {field.label}
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </Label>
           <Select
+            name={field.name}
             id={fieldId}
-            name={field.name} // Native key name pairing for FormData ingestion
-            // defaultSelectedKeys={
-            //   fallbackValue ? [String(fallbackValue)] : undefined
-            // }
+            aria-labelledby={labelId}
+            value={selectedKey}
+            // selectedKeys={selectedKey ? [selectedKey] : []}
+            onChange={(key) => {
+              setSelectedKey(key ? String(key) : "");
+            }}
             placeholder={field.placeholder}
           >
-            <Select.Trigger>
-              <Select.Value />
+            <Select.Trigger aria-labelledby={labelId}>
+              <Select.Value aria-labelledby={labelId} />
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover>
-              <ListBox>
+              <ListBox aria-labelledby={labelId}>
                 {(field.options ?? []).map((opt) => (
-                  <ListBox.Item key={opt.value} textValue={String(opt.value)}>
+                  <ListBox.Item
+                    key={opt.value}
+                    id={opt.value}
+                    textValue={String(opt.value)}
+                  >
                     {opt.label}
                   </ListBox.Item>
                 ))}
@@ -129,13 +134,14 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
     case "textarea":
       return (
         <div className="flex flex-col gap-1 w-full">
-          <Label htmlFor={fieldId}>
+          <Label id={labelId} htmlFor={fieldId}>
             {field.label}
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </Label>
           <TextArea
             id={fieldId}
-            name={field.name} // Exposes text stream value automatically
+            name={field.name}
+            aria-labelledby={labelId}
             placeholder={field.placeholder}
             defaultValue={
               typeof fallbackValue === "string" ? fallbackValue : ""
@@ -154,9 +160,10 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
             <Switch
               id={fieldId}
               isSelected={switchSelected}
-              //   onValueChange={setSwitchSelected}
+              // onValueChange={setSwitchSelected}
+              aria-labelledby={labelId}
             />
-            <Label htmlFor={fieldId} className="cursor-pointer">
+            <Label id={labelId} htmlFor={fieldId} className="cursor-pointer">
               {field.label}
               {isRequired && <span className="text-red-500 ml-1">*</span>}
             </Label>
@@ -171,14 +178,18 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
         </div>
       );
 
-    case "textarea":
+    case "editor":
       return (
         <div className="flex flex-col gap-1 w-full mdx-editor-wrapper">
-          <Label htmlFor={fieldId}>
+          <Label id={labelId} htmlFor={fieldId}>
             {field.label}
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </Label>
-          <div className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert">
+          <div
+            className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert"
+            role="application"
+            aria-labelledby={labelId}
+          >
             <MDXEditor
               ref={editorRef}
               markdown={editorValue}
@@ -204,13 +215,14 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
     default: // text, email, password, number
       return (
         <div className="flex flex-col gap-1 w-full">
-          <Label htmlFor={fieldId}>
+          <Label id={labelId} htmlFor={fieldId}>
             {field.label}
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </Label>
           <Input
             id={fieldId}
-            name={field.name} // Maps native data entries cleanly to form action pipelines
+            name={field.name}
+            aria-labelledby={labelId}
             type={field.type === "number" ? "number" : "text"}
             placeholder={field.placeholder}
             defaultValue={
