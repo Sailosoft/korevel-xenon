@@ -2,8 +2,11 @@ import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookEntity } from "./bui.book.entity";
 
 import { BUIBookRepository } from "./bui.book.repository";
+import BUIAuthorRepository from "../authors/bui.author.repository";
+import { BunnySelectOption } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
 
 const repository = new BUIBookRepository();
+const authorRepository = new BUIAuthorRepository();
 
 export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   title: "Book",
@@ -47,6 +50,28 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
           {
             rule: "required",
             message: "Description is required",
+          },
+        ],
+      },
+      {
+        name: "author",
+        label: "Author",
+        type: "select",
+        options: async () => {
+          const result = await authorRepository.getList({});
+          if (result.isSuccess) {
+            return result.value.map<BunnySelectOption>((e) => ({
+              label: e.name,
+              value: e.id as number,
+            }));
+          }
+
+          throw new Error();
+        },
+        rules: [
+          {
+            rule: "required",
+            message: "Author is requried",
           },
         ],
       },

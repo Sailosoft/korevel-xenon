@@ -19,8 +19,13 @@ import {
   MDXEditorMethods,
 } from "@mdxeditor/editor";
 import "@mdxeditor/editor/style.css";
-import { BunnyFormConfig, BunnyFormField } from "../BunnyForm.Interface";
-import { useEffect, useRef } from "react";
+
+import { useEffect, useRef, useState } from "react"; // Added useState for async options
+import {
+  BunnyFormConfig,
+  BunnyFormField,
+  BunnySelectOption,
+} from "../BunnyForm.Interface";
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -81,15 +86,58 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
 
   const editorRef = useRef<MDXEditorMethods>(null);
 
-  // Sync external changes (like a form reset or API load) into the editor
-  useEffect(() => {
-    const currentMarkdown = editorRef.current?.getMarkdown();
+  // States to manage asynchronous mapping cleanly
+  const [computedOptions, setComputedOptions] = useState<BunnySelectOption[]>(
+    [],
+  );
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
 
-    // Only update if the parent state is genuinely different from internal state
-    if (value !== currentMarkdown) {
-      editorRef.current?.setMarkdown((value as string) || "");
+  // Sync external changes into the editor
+  useEffect(() => {
+    if (field.type === "editor") {
+      const currentMarkdown = editorRef.current?.getMarkdown();
+      if (value !== currentMarkdown) {
+        editorRef.current?.setMarkdown((value as string) || "");
+      }
     }
-  }, [value]);
+  }, [value, field.type]);
+
+  // Sync and resolve options configuration (runs explicitly for select fields)
+  useEffect(() => {
+    if (field.type !== "select" || !field.options) return;
+
+    if (Array.isArray(field.options)) {
+      setComputedOptions(field.options);
+      return;
+    }
+
+    if (typeof field.options === "function") {
+      let isMounted = true;
+      setIsLoadingOptions(true);
+
+      // Force resolution regardless of synchronous execution or API Promises
+      Promise.resolve(field.options())
+        .then((resolvedData) => {
+          if (isMounted) {
+            setComputedOptions(resolvedData || []);
+          }
+        })
+        .catch((err) => {
+          console.error(
+            `Failed to load options for field "${field.name}":`,
+            err,
+          );
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingOptions(false);
+        });
+
+      return () => {
+        isMounted = false; // Prevents race conditions / state updates on unmounted components
+      };
+    }
+  }, [field.options, field.type, field.name]);
+
   switch (field.type) {
     case "select":
       return (
@@ -102,7 +150,9 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
             id={fieldId}
             value={value != null ? String(value) : undefined}
             onChange={handleChange}
-            placeholder={field.placeholder}
+            placeholder={isLoadingOptions ? "Loading..." : field.placeholder}
+            // disabled={isLoadingOptions}
+            isDisabled={isLoadingOptions}
           >
             <Select.Trigger>
               <Select.Value />
@@ -110,11 +160,29 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {field.options?.map((opt) => (
-                  <ListBox.Item key={opt.value} textValue={String(opt.value)}>
-                    {opt.label}
+                {isLoadingOptions ? (
+                  <ListBox.Item
+                    key="loading"
+                    textValue="Loading options..."
+                    className="text-default-400 italic"
+                  >
+                    Loading options...
                   </ListBox.Item>
-                ))}
+                ) : computedOptions.length === 0 ? (
+                  <ListBox.Item
+                    key="empty"
+                    textValue="No options found"
+                    className="text-default-400 italic"
+                  >
+                    No options available
+                  </ListBox.Item>
+                ) : (
+                  computedOptions.map((opt) => (
+                    <ListBox.Item key={opt.value} textValue={String(opt.value)}>
+                      {opt.label}
+                    </ListBox.Item>
+                  ))
+                )}
               </ListBox>
             </Select.Popover>
           </Select>

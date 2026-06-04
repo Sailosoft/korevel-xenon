@@ -7,13 +7,19 @@ export type BunnyFieldType =
   | "textarea"
   | "switch"
   | "editor";
+export interface BunnySelectOption {
+  label: string;
+  value: string | number;
+}
 
 export interface BunnyFormField<TForm = Record<string, unknown>> {
   name: string;
   label: string;
   placeholder?: string;
   type: BunnyFieldType;
-  options?: { label: string; value: string | number }[]; // For select
+  options?:
+    | BunnySelectOption[]
+    | (() => BunnySelectOption[] | Promise<BunnySelectOption[]>);
   defaultValue?: TForm[keyof TForm];
   required?: boolean;
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
