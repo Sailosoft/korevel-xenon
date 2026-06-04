@@ -6,6 +6,7 @@ import { UseAdminPanel } from "@/src/modules/admin-panel/admin-panel.interface";
 import { MoreVerticalIcon } from "lucide-react";
 import { AdminPanelFormMode } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
 import { BunnyKernel } from "../Bunny.Interface";
+import { useBunnyKernel } from "../kernel";
 
 function Label({ children }: { children: ReactNode }) {
   return <span className="text-sm font-medium">{children}</span>;
@@ -18,8 +19,8 @@ export default function BunnyModal({
   children: ReactNode;
   onPrimaryAction?: () => void;
 }) {
-  const admin = useAdminPanelContext();
-  const bunny = useBunnyConfig();
+  const kernel = useBunnyKernel();
+  const { adminPanel: admin,  } = kernel;
   const { modal } = admin;
   const { title, modalSize, modalSizeWidth, modalHeaderActions } =
     useBunnyConfig();
@@ -54,22 +55,12 @@ export default function BunnyModal({
         return actionId === String(key);
       });
       if (targetedAction) {
-        targetedAction.onClick({
-          config: bunny,
-          adminPanel: admin,
-        });
+        targetedAction.onClick(kernel);
       }
     },
-    [modalHeaderActions, admin],
+    [modalHeaderActions, kernel],
   );
 
-  const kernelContext: BunnyKernel<unknown, unknown> = useMemo(
-    () => ({
-      config: bunny,
-      adminPanel: admin,
-    }),
-    [bunny, admin],
-  );
   // Evaluates the hide arrays or function rules safely
   const visibleHeaderActions = useMemo(() => {
     if (!modalHeaderActions) return [];
@@ -84,12 +75,12 @@ export default function BunnyModal({
 
       // Handle Evaluation Callback Function
       if (typeof action.hide === "function") {
-        return !action.hide(kernelContext);
+        return !action.hide(kernel);
       }
 
       return true;
     });
-  }, [modalHeaderActions, mode, kernelContext]);
+  }, [modalHeaderActions, mode, kernel]);
 
   return (
     <Modal.Backdrop
@@ -115,11 +106,12 @@ export default function BunnyModal({
               </div>
             </div>
           )}
-          <Modal.CloseTrigger />
           <Modal.Header className="w-full pr-12">
             <div className="flex items-center w-full gap-4">
               {/* Heading and dropdown trigger are now forced onto the same line with space-between spacing */}
               {/* Renders dropdown ONLY if visible actions exist after conditional evaluation */}
+
+              <Modal.Heading>{computedTitle}</Modal.Heading>
               {visibleHeaderActions.length > 0 && (
                 <div>
                   <Dropdown>
@@ -161,7 +153,8 @@ export default function BunnyModal({
                   </Dropdown>
                 </div>
               )}
-              <Modal.Heading>{computedTitle}</Modal.Heading>
+
+              <Modal.CloseTrigger />
             </div>
           </Modal.Header>
           <Modal.Body>{children}</Modal.Body>

@@ -79,7 +79,15 @@ interface FieldRendererProps {
 }
 
 function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
-  const handleChange = (val: unknown) => onChange(field.name, val);
+  const handleChange = (val: unknown) => {
+    // Safely cast numeric string IDs back to integers for form configuration
+    const sanitizedValue =
+      field.type === "select" && typeof val === "string" && !isNaN(Number(val))
+        ? Number(val)
+        : val;
+
+    onChange(field.name, sanitizedValue);
+  };
   const fieldId = `field-${field.name}`;
   const showError = !!error;
   const isRequired = !!field.required;
@@ -148,10 +156,10 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           </Label>
           <Select
             id={fieldId}
-            value={value != null ? String(value) : undefined}
-            onChange={handleChange}
+            aria-label={field.label}
+            value={value != null ? String(value) : null}
+            onChange={(val) => handleChange(val)}
             placeholder={isLoadingOptions ? "Loading..." : field.placeholder}
-            // disabled={isLoadingOptions}
             isDisabled={isLoadingOptions}
           >
             <Select.Trigger>
@@ -159,10 +167,15 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover>
-              <ListBox>
+              {/* 
+                FIX 1: Keying the ListBox forces a total collection reset 
+                when switching states, safely avoiding cached node reuse.
+              */}
+              <ListBox key={isLoadingOptions ? "loading-state" : "ready-state"}>
                 {isLoadingOptions ? (
                   <ListBox.Item
-                    key="loading"
+                    key="loading-item" // FIX 2: Explicit React key
+                    id="loading"
                     textValue="Loading options..."
                     className="text-default-400 italic"
                   >
@@ -170,7 +183,8 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
                   </ListBox.Item>
                 ) : computedOptions.length === 0 ? (
                   <ListBox.Item
-                    key="empty"
+                    key="empty-item" // FIX 2: Explicit React key
+                    id="empty"
                     textValue="No options found"
                     className="text-default-400 italic"
                   >
@@ -178,7 +192,11 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
                   </ListBox.Item>
                 ) : (
                   computedOptions.map((opt) => (
-                    <ListBox.Item key={opt.value} textValue={String(opt.value)}>
+                    <ListBox.Item
+                      key={String(opt.value)}
+                      id={String(opt.value)}
+                      textValue={opt.label}
+                    >
                       {opt.label}
                     </ListBox.Item>
                   ))
@@ -189,7 +207,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
         </div>
       );
-
+    // TextArea
     case "textarea":
       return (
         <div className="flex flex-col gap-1 w-full">

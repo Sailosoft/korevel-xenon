@@ -1,28 +1,32 @@
-import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
+// bui.book.module.ts
+import React from "react";
+import { CircleFadingArrowUp } from "lucide-react";
+import { BunnyConfig, BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookEntity } from "./bui.book.entity";
 
 import { BUIBookRepository } from "./bui.book.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
 import { BunnySelectOption } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
-
+import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
+import { buiBookServerEnhanceWithParams } from "./bui.book.server.enhance";
+import { BUIBookPromptType } from "./bui.book.prompt";
+import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
+import { BookOpenText } from 'lucide-react';
 const repository = new BUIBookRepository();
 const authorRepository = new BUIAuthorRepository();
+const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>(); 
 
 export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   title: "Book",
   titlePlural: "Books",
   rowKey: "id",
+  modalSize: "cover",
   columns: [
-    {
-      field: "id",
-      header: "Id",
-      sortable: true,
-      isRowHeader: true,
-    },
     {
       field: "title",
       header: "Title",
       sortable: true,
+      isRowHeader: true,
     },
     {
       field: "description",
@@ -43,18 +47,7 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
         ],
       },
       {
-        name: "description",
-        label: "Description",
-        type: "editor",
-        rules: [
-          {
-            rule: "required",
-            message: "Description is required",
-          },
-        ],
-      },
-      {
-        name: "author",
+        name: "author_id",
         label: "Author",
         type: "select",
         options: async () => {
@@ -71,7 +64,18 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
         rules: [
           {
             rule: "required",
-            message: "Author is requried",
+            message: "Author is required",
+          },
+        ],
+      },
+      {
+        name: "description",
+        label: "Description",
+        type: "editor",
+        rules: [
+          {
+            rule: "required",
+            message: "Description is required",
           },
         ],
       },
@@ -79,15 +83,116 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   },
   defaultHeaderActions: true,
   headerActions: [],
-  defaultRowActions: true,
-  modalHeaderActions: [],
+  defaultRowActions: false,
+  rowActions: [
+    {
+      id: "chapters",
+      variant: "ghost",
+      icon: React.createElement(BookOpenText),
+      onClick: function (row: BUIBookEntity, context: BunnyKernel<BUIBookEntity, unknown>): void | Promise<void> {
+        const { router } = context;
+        router.push(`/modules/bunny-ai/books/${row.id}`);
+      }
+    },
+    defaultBunnyRowAction.view,
+    defaultBunnyRowAction.edit,
+    defaultBunnyRowAction.delete,
+  ],
+  rowActionsColLength: 170,
+  modalHeaderActions: [
+    {
+      id: "enhanced_book",
+      label: "Enhance Book With AI",
+      icon: React.createElement(CircleFadingArrowUp),
+      variant: "default",
+      hide: ["view"],
+      onClick: async (context) => {
+        const { adminPanel } = context!;
+        const action: AdminPanelDialogOption = {
+          title: "Enhance Book Pitch & Chapters",
+          actionId: "enhance",
+          fields: [
+            {
+              name: "promptType",
+              label: "AI Framing Pattern",
+              type: "select",
+              defaultValue: "comprehensive",
+              options: [
+                {
+                  label: "Comprehensive (Description & Chapters)",
+                  value: "comprehensive",
+                },
+                { label: "Commercial / Marketing Pitch", value: "marketing" },
+                { label: "Academic / Thesis Abstract", value: "academic" },
+                { label: "Cinematic Plot Synopsis", value: "cinematic" },
+                { label: "Minimalist Elevator Pitch", value: "minimalist" },
+              ],
+            },
+            {
+              name: "title",
+              label: "Draft Title",
+              type: "text",
+            },
+            {
+              name: "description",
+              label: "Core Idea / Raw Concept",
+              type: "textarea",
+            },
+          ],
+          async onConfirm({ form }) {
+            adminPanel.dialog.setLoading(true);
+            const { title, description, promptType } = Object.fromEntries(
+              form,
+            ) as Record<string, string>;
+
+            if (!title || !description) {
+              adminPanel.dialog.setLoading(false);
+              return {
+                success: false,
+                message: "Both Title and Description are required to optimize.",
+              };
+            }
+
+            try {
+              // Fire request to the book module's dedicated server logic
+              const result = await buiBookServerEnhanceWithParams(
+                title,
+                description,
+                (promptType ?? "comprehensive") as BUIBookPromptType,
+              );
+
+              // Inject the formatted payload back into the active form session
+              adminPanel.form.setFormData({
+                ...adminPanel.form.formData,
+                title: result.title,
+                description: result.content, // Maps the structured payload into the rich text editor
+              });
+
+              adminPanel.dialog.setLoading(false);
+              return { success: true };
+            } catch (error) {
+              console.error("AI Book Enhancement failed:", error);
+              adminPanel.dialog.setLoading(false);
+              return {
+                success: false,
+                message:
+                  "An error occurred while processing book concept with AI.",
+              };
+            }
+          },
+        };
+        adminPanel.dialog.openDialog(action);
+      },
+    },
+  ],
   query: {
-    getAll: repository.panelGetAll,
-    getOne: repository.panelGetOne,
+    getAll: (options, overrideOptions) =>
+      repository.panelGetAll(options, overrideOptions),
+    getOne: (id) => repository.panelGetOne(id),
   },
   mutation: {
-    create: repository.panelCreate,
-    update: repository.panelUpdate,
-    delete: repository.panelDelete,
+    create: (data) => repository.panelCreate(data),
+    update: (id, data) => repository.panelUpdate(id, data),
+    delete: (id) => repository.panelDelete(id),
   },
 };

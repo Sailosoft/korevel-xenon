@@ -31,4 +31,14 @@ export class BUIRepositoryResultManager<T> {
       },
     };
   }
+
+  errorList(code: number, message: string): BuiRepositoryResult<T[]> {
+    return {
+      isSuccess: false,
+      error: {
+        code: code,
+        message: message,
+      },
+    };
+  }
 }

@@ -2,6 +2,7 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 import { BunnyKernel } from "../Bunny.Interface";
 import { useBunnyConfig } from "../context/BunnyContext";
 import { useMemo } from "react";
+import { useNextBunnyRouter } from "../router/NextBunnyRouter";
 
 export default function useBunnyKernel<TRow, TForm>(): BunnyKernel<
   TRow,
@@ -9,13 +10,15 @@ export default function useBunnyKernel<TRow, TForm>(): BunnyKernel<
 > {
   const config = useBunnyConfig<TRow, TForm>();
   const adminPanel = useAdminPanelContext<TRow, TForm>();
+  const router = useNextBunnyRouter();
 
   const kernel: BunnyKernel<TRow, TForm> = useMemo(
     () => ({
       config,
       adminPanel,
+      router,
     }),
-    [config, adminPanel],
+    [config, adminPanel, router],
   );
 
   return kernel;

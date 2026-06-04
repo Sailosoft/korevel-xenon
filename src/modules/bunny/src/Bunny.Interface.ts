@@ -11,6 +11,7 @@ import {
   BunnyHeaderActionType,
 } from "./header/BunnyHeader.Interface";
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
+import { BunnyRouter } from "./router/BunnyRouter.interface";
 import { BunnyRowDefaultActions } from "./rows/BunnyRow.Interface";
 import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
 
@@ -42,7 +43,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   query: AdminPanelQuery<TRow, TForm>;
   mutation: AdminPanelMutation<TForm>;
   rowActionsColLength?: number;
-  formConfig?: BunnyFormConfig<TForm>;
+  formConfig?: BunnyFormConfig<TForm>
+  /** Width configuration for the table's row actions column 🚀 */
+  rowActionsColWidth?: number; // 👈 Updated naming;
 
   /** Automatically pull in default platform header actions (create, refresh, etc.) */
   defaultHeaderActions?: boolean;
@@ -74,4 +77,5 @@ export interface BunnyHasId {
 export interface BunnyKernel<TRow, TForm> {
   config: BunnyConfig<TRow, TForm>;
   adminPanel: UseAdminPanel<TRow, TForm>;
+  router: BunnyRouter;
 }
