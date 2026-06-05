@@ -22,4 +22,5 @@ export interface BUIBookChapterEntity {
   /** Optional Different Author */
   authorId?: number;
   wordCount?: number;
+  status?: "done" | "empty" | "being_generated" | "pending"; // Added status
 }

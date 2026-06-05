@@ -1,7 +1,10 @@
 // bui.book.module.ts
 import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
-import { BunnyConfig, BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
+import {
+  BunnyConfig,
+  BunnyKernel,
+} from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookEntity } from "./bui.book.entity";
 
 import { BUIBookRepository } from "./bui.book.repository";
@@ -11,10 +14,10 @@ import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialo
 import { buiBookServerEnhanceWithParams } from "./bui.book.server.enhance";
 import { BUIBookPromptType } from "./bui.book.prompt";
 import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
-import { BookOpenText } from 'lucide-react';
+import { BookOpenText } from "lucide-react";
 const repository = new BUIBookRepository();
 const authorRepository = new BUIAuthorRepository();
-const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>(); 
+const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>();
 
 export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   title: "Book",
@@ -89,10 +92,13 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
       id: "chapters",
       variant: "ghost",
       icon: React.createElement(BookOpenText),
-      onClick: function (row: BUIBookEntity, context: BunnyKernel<BUIBookEntity, unknown>): void | Promise<void> {
+      onClick: function (
+        row: BUIBookEntity,
+        context: BunnyKernel<BUIBookEntity, unknown>,
+      ): void | Promise<void> {
         const { router } = context;
         router.push(`/modules/bunny-ai/books/${row.id}`);
-      }
+      },
     },
     defaultBunnyRowAction.view,
     defaultBunnyRowAction.edit,
