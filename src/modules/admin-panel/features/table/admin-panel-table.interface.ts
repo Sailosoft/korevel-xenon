@@ -1,3 +1,4 @@
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 import {
   AdminPanelFilterOption,
   AdminPanelPagination,
@@ -20,6 +21,12 @@ export interface UseAdminPanelTableProps<T> {
   pageAll?: boolean;
 }
 
+export type UseAdminPanelTablePropsWithoutQuery<T> = Omit<
+  UseAdminPanelTableProps<T>,
+  "query"
+>;
+export type AdminPanelSelectionMode = "multiple" | "single" | "none";
+export type AdminPanelSelectionKey<T> = string | number | keyof T;
 export interface UseAdminPanelTable<T> {
   rows: T[];
   isLoading: boolean;
@@ -28,8 +35,11 @@ export interface UseAdminPanelTable<T> {
   filters: AdminPanelFilterOption[];
   search: AdminPanelSearchOption;
   queryOptions: AdminPanelQueryOptions;
+  selectionMode: AdminPanelSelectionMode;
+  selection: AdminPanelId[];
+  refresh(): Promise<void>;
   fetchData: () => Promise<void>;
-  resetToDefault: () => void;
+  clearQueryOptions: () => void;
   setSorts: (sort: AdminPanelSortOption[]) => void;
   setFilters: (filters: AdminPanelFilterOption[]) => void;
   setSearch: (search: AdminPanelSearchOption) => void;
@@ -38,11 +48,11 @@ export interface UseAdminPanelTable<T> {
   setRows: (rows: T[]) => void;
   loadingOn: () => void;
   loadingOff: () => void;
-
-  clearQueryOptions: () => void;
   removeFilters(): void;
   removeSorts(): void;
   removeSearch(): void;
   setPage(page: number): void;
   setPageSize(pageSize: number): void;
+  setSelection(selection: AdminPanelId[]): void;
+  setSelectionMode(selectionMode: AdminPanelSelectionMode): void;
 }

@@ -1,0 +1,1 @@
+export type BunnyRowDefaultActions = "view" | "edit" | "delete";

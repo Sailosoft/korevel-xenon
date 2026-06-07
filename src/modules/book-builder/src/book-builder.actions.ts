@@ -8,7 +8,7 @@ import {
 } from "./book-builder.interface";
 import { BOOK_BUILDER_CONFIG } from "../config/book-builder.config";
 
-const module = new BookBuilderModule();
+const moduleBuilder = new BookBuilderModule();
 // const model = "gemma3:4b";
 // const model = "gemma4:31b-cloud";
 const model = BOOK_BUILDER_CONFIG.OPEN_AI_MODEL;
@@ -21,7 +21,7 @@ export async function bookBuilderGenerateChaptersAction(
   skills: string[],
 ): Promise<IBookBuilderChapter[]> {
   const prompt = `
-You are an expert book architect. Generate any number of chapters for the book:
+You are an expert book architect. Generate unknown number of chapters for the book:
 
 Title: "${title}"
 Description: ${description}
@@ -35,7 +35,7 @@ Return ONLY a valid JSON array (no extra text) with this structure:
 `;
 
   try {
-    const response = await module.ai.chat.completions.create({
+    const response = await moduleBuilder.ai.chat.completions.create({
       model,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
@@ -82,7 +82,7 @@ Return ONLY the Markdown content. No explanations, no JSON, no extra text.
 `;
 
   try {
-    const response = await module.ai.chat.completions.create({
+    const response = await moduleBuilder.ai.chat.completions.create({
       model,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8,
@@ -132,7 +132,7 @@ Write the full content for **Chapter ${currentChapter.number}: ${currentChapter.
 
 ### CONTEXT:
 - **Chapter Goal:** ${currentChapter.description}
-- **Placement:** This is chapter ${currentChapter.number} of ${book.chapters.length}. 
+- **Placement:** This is chapter ${currentChapter.number} of ${book.chapters.length}.
 - **Flow:** Ensure this chapter transitions naturally from the previous chapters and sets up the following chapters without repeating their specific content.
 
 ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChapter.additionalPrompt}` : ""}
@@ -146,7 +146,7 @@ ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChap
   // - **Return ONLY the Markdown content.** No conversational filler or meta-commentary.
 
   try {
-    const response = await module.ai.chat.completions.create({
+    const response = await moduleBuilder.ai.chat.completions.create({
       model,
       messages: [
         {

@@ -2,25 +2,20 @@
 import { useState, useEffect, useCallback } from "react";
 
 import type { AdminPanelMutation } from "../mutation/admin-panel-mutation.interface";
-import type { AdminPanelQuery } from "../query/admin-panel-query.interface";
 import type {
   AdminPanelFormMode,
   AdminPanelFormError,
-  AdminPanelFormPlugin,
   UseAdminPanelFormProps,
   UseAdminPanelForm,
 } from "./admin-panel-form.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
-
-export interface UseAdminPanelFormInternalProps<
-  TForm = any,
-> extends UseAdminPanelFormProps<TForm> {}
+import { adminPanelEvents } from "../event/admin-panel-event";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 // Internal mutation handler (consolidated)
 const useInternalMutation = <TForm>(
   mutation: AdminPanelMutation<TForm>,
-  mode: AdminPanelFormMode,
-  plugin?: AdminPanelFormPlugin<TForm>,
+  mode?: AdminPanelFormMode,
   onSuccess?: (data: TForm) => void,
   onError?: (error: Error) => void,
 ) => {
@@ -28,18 +23,22 @@ const useInternalMutation = <TForm>(
   const [error, setError] = useState<Error | null>(null);
 
   const submit = useCallback(
-    async (formData: TForm, id?: string | number) => {
+    async (formData: TForm, id?: AdminPanelId) => {
       if (isSubmitting) return;
       setIsSubmitting(true);
       setError(null);
 
       try {
-        let dataToSubmit = { ...formData };
+        const dataToSubmit = { ...formData };
 
         // Plugin: before submit
-        if (plugin?.onBeforeSubmit) {
-          dataToSubmit = await plugin.onBeforeSubmit(dataToSubmit, mode);
-        }
+        // if (plugin?.onBeforeSubmit) {
+        //   dataToSubmit = await plugin.onBeforeSubmit(dataToSubmit, mode);
+        // }
+        adminPanelEvents.emit("form:beforeSubmit", {
+          mode: mode,
+          payload: formData,
+        });
 
         let result: AdminPanelResult<TForm, Error | unknown> | undefined;
 
@@ -51,17 +50,24 @@ const useInternalMutation = <TForm>(
           throw new Error("Invalid mode or missing ID for update operation");
         }
 
-        const data = result?.status === "success" ? result.data : undefined;
-
-        if (data !== undefined) {
-          plugin?.onAfterSubmit?.(data, mode);
+        if (result) {
+          adminPanelEvents.emit("form:submit", {
+            mode: mode,
+            result,
+          });
         }
 
         // Plugin: after success
         if (result !== undefined && result.status == "success") {
-          onSuccess?.(result.data);
+          if (result.data) {
+            onSuccess?.(result.data);
+            adminPanelEvents.emit("form:success", {
+              mode: mode,
+              result,
+            });
+          }
         } else if (result !== undefined && result.status === "error") {
-          plugin?.onError?.(result.error as Error, mode);
+          // plugin?.onError?.(result.error as Error, mode);
           onError?.(result.error as Error);
         } else if (
           result !== undefined &&
@@ -69,6 +75,11 @@ const useInternalMutation = <TForm>(
         ) {
           // plugin?.onError?.(result.error, mode);
           // onError?.(result.error);
+          adminPanelEvents.emit("form:error", {
+            mode: mode,
+            error: result.error,
+            result,
+          });
         }
 
         return result;
@@ -76,26 +87,24 @@ const useInternalMutation = <TForm>(
         const errorObj =
           err instanceof Error ? err : new Error("Operation failed");
         setError(errorObj);
-        plugin?.onError?.(errorObj, mode);
+        // plugin?.onError?.(errorObj, mode);
         onError?.(errorObj);
         throw errorObj;
       } finally {
         setIsSubmitting(false);
       }
     },
-    [mutation, mode, plugin, onSuccess, onError, isSubmitting],
+    [mutation, mode, onSuccess, onError, isSubmitting],
   );
 
   return { submit, isSubmitting, error };
 };
 
-export function useAdminPanelForm<TForm extends object = any>({
-  mode,
+export function useAdminPanelForm<TForm = unknown>({
+  modal,
   mutation,
   query,
   initialData,
-  id,
-  plugin,
   onSuccess,
   onError,
 }: UseAdminPanelFormProps<TForm>): UseAdminPanelForm<TForm> {
@@ -103,11 +112,12 @@ export function useAdminPanelForm<TForm extends object = any>({
   const [formError, setFormErrorState] = useState<AdminPanelFormError>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const { mode, id, isOpen } = modal;
   const {
     submit: internalSubmit,
     isSubmitting,
     error: mutationError,
-  } = useInternalMutation(mutation, mode, plugin, onSuccess, onError);
+  } = useInternalMutation(mutation, mode, onSuccess, onError);
 
   // Initialize form with initialData
   useEffect(() => {
@@ -122,7 +132,7 @@ export function useAdminPanelForm<TForm extends object = any>({
 
     setIsLoading(true);
     try {
-      const data = await query.getOne(id);
+      const data = await query.getOne(id) as TForm;
       setFormDataState(data);
     } catch (err) {
       const errorObj =
@@ -134,11 +144,6 @@ export function useAdminPanelForm<TForm extends object = any>({
     }
   }, [mode, id, query]);
 
-  useEffect(() => {
-    if ((mode === "update" || mode === "view") && id) {
-      loadData();
-    }
-  }, [loadData, mode, id]);
 
   const setFormData = useCallback((data: TForm | ((prev: TForm) => TForm)) => {
     setFormDataState(data);
@@ -161,6 +166,23 @@ export function useAdminPanelForm<TForm extends object = any>({
     setFormErrorState(null);
   }, [initialData]);
 
+  const handleChange = useCallback(
+    (field: string, data: unknown) => {
+      setFormDataState((prev) => ({ ...prev, [field]: data }));
+    },
+    [setFormDataState],
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      if ((mode === "update" || mode === "view") && id) {
+        loadData();
+      } else {
+        resetForm();
+      }
+    }
+  }, [loadData, mode, id, isOpen, resetForm]);
+
   return {
     formData,
     formError,
@@ -173,5 +195,6 @@ export function useAdminPanelForm<TForm extends object = any>({
     submit,
     resetForm,
     loadData,
+    handleChange,
   };
 }

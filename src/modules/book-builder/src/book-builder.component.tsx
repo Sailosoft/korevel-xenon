@@ -65,7 +65,6 @@ import {
 
 import Markdown from "react-markdown";
 import BookBuilderExportService from "./book-builder.export.service";
-import { JSX } from "react/jsx-runtime";
 import BookBuilderEditor from "./book-builder.editor";
 import BookBuilderExportServiceInteractive from "./book-builder.export.service.interactive";
 import BookBuilderComponentRegenerate from "./components/book-builder.component.regenerate";
@@ -214,7 +213,7 @@ export default function AuthorManager() {
       const generationId = (await db.generations.add(generationData)) as number;
 
       // Save Chapters
-      const chaptersToSave = outlineChapters.map((ch: any) => ({
+      const chaptersToSave = outlineChapters.map((ch) => ({
         ...ch,
         generationId,
         content: "",

@@ -26,7 +26,7 @@ export default function useElvenDrawer(): { navs: ElvenNavigation[] } {
         },
       },
     ],
-    [],
+    [author],
   );
   return { navs };
 }

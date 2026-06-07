@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@admin-panel/*": ["./src/modules/admin-panel/*"]
     }
   },
   "include": [

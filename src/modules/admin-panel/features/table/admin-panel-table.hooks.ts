@@ -1,3 +1,4 @@
+// src/modules/admin-panel/features/table/admin-panel-table.hooks.ts
 import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   AdminPanelPagination,
@@ -7,16 +8,17 @@ import {
   AdminPanelQueryOptions,
 } from "../query/admin-panel-query.interface";
 import {
+  AdminPanelSelectionMode,
   UseAdminPanelTable,
   UseAdminPanelTableProps,
 } from "./admin-panel-table.interface";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 export function useAdminPanelTable<T>({
   query,
   initialQuery,
   defaultQuery,
 }: UseAdminPanelTableProps<T>): UseAdminPanelTable<T> {
-  // Default values
   const getDefaultPagination = (): AdminPanelPagination => ({
     page: 1,
     pageSize: 10,
@@ -27,10 +29,15 @@ export function useAdminPanelTable<T>({
   const getDefaultSearch = (): AdminPanelSearchOption => ({ search: "" });
 
   const [rows, setRows] = useState<T[]>([]);
+  const [selectionMode, setSelectionMode] =
+    useState<AdminPanelSelectionMode>("multiple");
+  const [selection, setSelection] = useState<AdminPanelId[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
   const [pagination, setPaginationState] = useState<AdminPanelPagination>(
     initialQuery?.pagination || getDefaultPagination(),
   );
+
   const [sorts, setSortsState] = useState<AdminPanelSortOption[]>(
     initialQuery?.sort || [],
   );
@@ -41,14 +48,24 @@ export function useAdminPanelTable<T>({
     initialQuery?.search || getDefaultSearch(),
   );
 
+  const queryPagination = useMemo<AdminPanelPagination>(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      total: 0,
+      totalPages: 0,
+    }),
+    [pagination.page, pagination.pageSize],
+  );
+
   const queryOptions = useMemo<AdminPanelQueryOptions>(
     () => ({
-      pagination,
+      pagination: queryPagination,
       sort: sorts.length > 0 ? sorts : undefined,
       filter: filters.length > 0 ? filters : undefined,
-      search: search.search.trim() ? search : undefined,
+      search: search.search?.trim() ? search : undefined,
     }),
-    [pagination, sorts, filters, search, initialQuery],
+    [queryPagination, sorts, filters, search],
   );
 
   const loadingOn = useCallback(() => setIsLoading(true), []);
@@ -57,15 +74,18 @@ export function useAdminPanelTable<T>({
   const fetchData = useCallback(async () => {
     if (!query?.getAll) return;
 
-    loadingOn();
+    setIsLoading(true);
     try {
       const result = await query.getAll(queryOptions);
 
       setRows(result.data || []);
+
+      const newTotal = Number(result.total) || 0;
+
       setPaginationState((prev) => ({
         ...prev,
-        total: result.total || 0,
-        totalPages: Math.ceil((result.total || 0) / prev.pageSize),
+        total: newTotal,
+        totalPages: prev.pageSize > 0 ? Math.ceil(newTotal / prev.pageSize) : 0,
       }));
     } catch (error) {
       console.error("AdminPanelTable fetch error:", error);
@@ -73,15 +93,28 @@ export function useAdminPanelTable<T>({
     } finally {
       loadingOff();
     }
-  }, [query, queryOptions, loadingOn, loadingOff]);
+  }, [query, queryOptions, loadingOff]);
 
-  // Auto fetch when query options change
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // ==================== Setters ====================
+
   const setPagination = useCallback((newPagination: AdminPanelPagination) => {
     setPaginationState(newPagination);
+  }, []);
+
+  const setPage = useCallback((page: number) => {
+    setPaginationState((prev) => ({ ...prev, page: Math.max(1, page) }));
+  }, []);
+
+  const setPageSize = useCallback((pageSize: number) => {
+    setPaginationState((prev) => ({
+      ...prev,
+      pageSize: Math.max(1, pageSize),
+      page: 1,
+    }));
   }, []);
 
   const setSorts = useCallback((newSorts: AdminPanelSortOption[]) => {
@@ -103,31 +136,17 @@ export function useAdminPanelTable<T>({
     if (newOptions.search) setSearchState(newOptions.search);
   }, []);
 
-  const setPage = useCallback((page: number) => {
-    setPaginationState((prev) => ({ ...prev, page: Math.max(1, page) }));
+  const removeFilters = useCallback(() => {
+    setFiltersState([]);
   }, []);
 
-  const setPageSize = useCallback((pageSize: number) => {
-    setPaginationState((prev) => ({
-      ...prev,
-      pageSize: Math.max(1, pageSize),
-      page: 1,
-    }));
+  const removeSorts = useCallback(() => {
+    setSortsState([]);
   }, []);
 
-  const removeFilters = useCallback(() => setFiltersState([]), []);
-  const removeSorts = useCallback(() => setSortsState([]), []);
-  const removeSearch = useCallback(
-    () => setSearchState(getDefaultSearch()),
-    [],
-  );
-
-  const resetToDefault = useCallback(() => {
-    setPaginationState(defaultQuery?.pagination || getDefaultPagination());
-    setSortsState(defaultQuery?.sort || []);
-    setFiltersState(defaultQuery?.filter || []);
-    setSearchState(defaultQuery?.search || getDefaultSearch());
-  }, [defaultQuery]);
+  const removeSearch = useCallback(() => {
+    setSearchState(getDefaultSearch());
+  }, []);
 
   const clearQueryOptions = useCallback(() => {
     setPaginationState(defaultQuery?.pagination || getDefaultPagination());
@@ -138,27 +157,31 @@ export function useAdminPanelTable<T>({
 
   return {
     rows,
+    selection,
     isLoading,
     pagination,
     sorts,
     filters,
     search,
     queryOptions,
-    clearQueryOptions,
+    selectionMode,
+    refresh: fetchData,
     fetchData,
-    resetToDefault,
+    setPagination,
+    setPage,
+    setPageSize,
     setSorts,
     setFilters,
     setSearch,
-    setPagination,
-    setQueryOptions,
-    setRows,
+    setQueryOptions, // ← Added
+    removeFilters, // ← Added
+    removeSorts, // ← Added
+    removeSearch, // ← Added
+    clearQueryOptions,
     loadingOn,
     loadingOff,
-    removeFilters,
-    removeSorts,
-    removeSearch,
-    setPage,
-    setPageSize,
+    setRows,
+    setSelectionMode,
+    setSelection,
   };
 }

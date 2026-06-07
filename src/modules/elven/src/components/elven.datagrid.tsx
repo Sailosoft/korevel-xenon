@@ -20,7 +20,7 @@ interface ElvenDataGridProps<T> {
 }
 
 export function ElvenDataGrid<
-  T extends { id?: string | number; [key: string]: any },
+  T extends { id?: string | number },
 >({ columns, data, label }: ElvenDataGridProps<T>) {
   // --- States ---
   const [filterValue, setFilterValue] = useState("");
@@ -50,8 +50,8 @@ export function ElvenDataGrid<
   // --- Logic: Sorting ---
   const sortedItems = useMemo(() => {
     return [...filteredItems].sort((a, b) => {
-      const first = a[sortDescriptor.column];
-      const second = b[sortDescriptor.column];
+      const first = String((a as Record<string, unknown>)[sortDescriptor.column]);
+      const second = String((b as Record<string, unknown>)[sortDescriptor.column]);
       const cmp = first < second ? -1 : first > second ? 1 : 0;
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
@@ -125,7 +125,7 @@ export function ElvenDataGrid<
                   >
                     {columns.map((col) => (
                       <TableCell key={`${item.id}-${col.key}`}>
-                        {col.render ? col.render(item) : item[col.key]}
+                        {col.render ? col.render(item) : ((item as Record<string, unknown>)[col.key] as React.ReactNode)}
                       </TableCell>
                     ))}
                   </TableRow>

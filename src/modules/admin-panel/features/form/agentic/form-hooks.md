@@ -43,14 +43,14 @@ export type AdminPanelFormMode = "create" | "update" | "view" | "plain";
 
 export type AdminPanelFormError = Record<string, string> | null;
 
-export interface AdminPanelFormPlugin<T = any> {
+export interface AdminPanelFormPlugin<T = unknown> {
   onSuccess?: (data: T, mode: AdminPanelFormMode) => void;
   onError?: (error: Error, mode: AdminPanelFormMode) => void;
   onBeforeSubmit?: (data: T, mode: AdminPanelFormMode) => T | Promise<T>;
   onAfterSubmit?: (data: T, mode: AdminPanelFormMode) => void;
 }
 
-export interface UseAdminPanelFormProps<TForm = any> {
+export interface UseAdminPanelFormProps<TForm = unknown> {
   mode: AdminPanelFormMode;
   mutation: AdminPanelMutation<TForm>;
   query?: Pick<AdminPanelQuery<TForm>, "getOne">;
@@ -61,7 +61,7 @@ export interface UseAdminPanelFormProps<TForm = any> {
   onError?: (error: Error) => void;
 }
 
-export interface UseAdminPanelForm<TForm = any> {
+export interface UseAdminPanelForm<TForm = unknown> {
   formData: TForm;
   formError: AdminPanelFormError;
   setFormData: (data: TForm | ((prev: TForm) => TForm)) => void;

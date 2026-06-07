@@ -56,7 +56,7 @@ You must respond with NOTHING except valid JSON in this exact format:
   ]
 }
 
-Do not add any explanation, greeting, or extra text outside the JSON.`,
+Do not add unknown explanation, greeting, or extra text outside the JSON.`,
         },
         {
           role: "user",
@@ -108,7 +108,7 @@ Rules for every chapter:
 - End with a strong summary and teaser for the next chapter
 
 You are now writing Chapter ${chapterNumber}: ${currentChapter?.title}
-Write the COMPLETE chapter content only. Do not output JSON, do not say "Chapter X", do not add any meta text. Start directly with the first sentence of the chapter.`,
+Write the COMPLETE chapter content only. Do not output JSON, do not say "Chapter X", do not add unknown meta text. Start directly with the first sentence of the chapter.`,
         },
         {
           role: "user",

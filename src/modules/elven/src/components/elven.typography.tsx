@@ -23,7 +23,7 @@ interface TypographyProps {
   as?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "span" | "div" | "label";
   children: React.ReactNode;
   className?: string;
-  [key: string]: any; // for additional props like onClick, id, etc.
+  [key: string]: unknown; // for additional props like onClick, id, etc.
 }
 
 const variantClasses: Record<TypographyVariant, string> = {

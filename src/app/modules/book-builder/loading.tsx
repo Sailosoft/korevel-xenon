@@ -1,3 +1,3 @@
-export default function () {
+export default function LoadingBookBuilder() {
   return <div>Loading...</div>;
 }

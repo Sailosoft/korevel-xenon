@@ -4,6 +4,7 @@ import {
   UseAdminPanelModal,
 } from "./admin-panel-modal.interface";
 import { AdminPanelFormMode } from "../form/admin-panel-form.interface";
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 
 export function useAdminPanelModal(
   initialMode: AdminPanelFormMode = "plain",
@@ -11,7 +12,17 @@ export function useAdminPanelModal(
   const [state, setState] = useState<AdminPanelModalState>({
     isOpen: false,
     mode: initialMode,
+    id: null,
   });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const setIsOpen = useCallback((isOpen: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      isOpen,
+    }));
+  }, []);
 
   const openModal = useCallback((mode: AdminPanelFormMode) => {
     setState({
@@ -28,8 +39,24 @@ export function useAdminPanelModal(
   }, []);
 
   const openCreate = useCallback(() => openModal("create"), [openModal]);
-  const openUpdate = useCallback(() => openModal("update"), [openModal]);
-  const openView = useCallback(() => openModal("view"), [openModal]);
+  const openUpdate = useCallback(
+    (id: AdminPanelId) =>
+      setState({
+        isOpen: true,
+        mode: "update",
+        id: id,
+      }),
+    [],
+  );
+  const openView = useCallback(
+    (id: AdminPanelId) =>
+      setState({
+        isOpen: true,
+        mode: "view",
+        id: id,
+      }),
+    [],
+  );
   const openPlain = useCallback(() => openModal("plain"), [openModal]);
 
   const resetModal = useCallback(() => {
@@ -42,10 +69,13 @@ export function useAdminPanelModal(
   return {
     isOpen: state.isOpen,
     mode: state.mode,
-
+    id: state.id,
+    isLoading,
+    setIsLoadingOn: () => setIsLoading(true),
+    setIsLoadingOff: () => setIsLoading(false),
     openModal,
     closeModal,
-
+    setIsOpen,
     openCreate,
     openUpdate,
     openView,

@@ -1,16 +1,13 @@
 // plugins/admin-panel-modal-plugin.ts
-import type {
-  AdminPanelFormPlugin,
-  AdminPanelFormMode,
-} from "./admin-panel-form.interface";
+import type { AdminPanelFormMode } from "./admin-panel-form.interface";
 import type { UseAdminPanelTable } from "../table/admin-panel-table.interface";
 import type { UseAdminPanelModal } from "../modal/admin-panel-modal.interface";
-import type { AdminPanelNotify } from "../notify/admin-panel-notify.interface";
+import type { UseAdminPanelNotify } from "../notify/admin-panel-notify.interface";
 
 export interface CreateAdminPanelModalPluginProps {
-  table: UseAdminPanelTable<any>;
+  table: UseAdminPanelTable<unknown>;
   modal: UseAdminPanelModal;
-  notify: AdminPanelNotify;
+  notify: UseAdminPanelNotify;
   successMessages?: {
     create?: string;
     update?: string;
@@ -21,7 +18,7 @@ export interface CreateAdminPanelModalPluginProps {
  * Default Plugin for Modal Forms
  * Handles: Snackbar + Close Modal + Refresh Table
  */
-export function createAdminPanelModalPlugin<T = any>({
+export function createAdminPanelModalPlugin<T = unknown>({
   table,
   modal,
   notify,
@@ -29,9 +26,9 @@ export function createAdminPanelModalPlugin<T = any>({
     create: "Record created successfully",
     update: "Record updated successfully",
   },
-}: CreateAdminPanelModalPluginProps): AdminPanelFormPlugin<T> {
+}: CreateAdminPanelModalPluginProps) {
   return {
-    onSuccess: (data: T, mode: AdminPanelFormMode) => {
+    onSuccess: (data: T, mode?: AdminPanelFormMode) => {
       // Show success notification
       if (notify?.success) {
         const message =
@@ -39,7 +36,7 @@ export function createAdminPanelModalPlugin<T = any>({
 
         notify.success(message);
       } else {
-        console.log(`✅ ${mode.toUpperCase()} successful`, data);
+        console.log(`✅ ${mode?.toUpperCase()} successful`, data);
       }
 
       // Close modal
@@ -56,22 +53,22 @@ export function createAdminPanelModalPlugin<T = any>({
       }
     },
 
-    onError: (error: Error, mode: AdminPanelFormMode) => {
+    onError: (error: Error, mode?: AdminPanelFormMode) => {
       const message = `Failed to ${mode} record`;
 
       if (notify?.error) {
         notify.error(message);
       } else {
-        console.error(`❌ ${mode.toUpperCase()} failed:`, error);
+        console.error(`❌ ${mode?.toUpperCase()} failed:`, error);
       }
     },
 
-    onBeforeSubmit: async (data: T, mode: AdminPanelFormMode) => {
-      // You can add any pre-processing logic here (e.g. formatting dates, cleaning fields)
+    onBeforeSubmit: async (data: T, _mode?: AdminPanelFormMode) => {
+      // You can add unknown pre-processing logic here (e.g. formatting dates, cleaning fields)
       return data;
     },
 
-    onAfterSubmit: (data: T | undefined, mode: AdminPanelFormMode) => {
+    onAfterSubmit: () => {
       // Runs after success or error
       // Can be used for cleanup if needed
     },

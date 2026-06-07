@@ -25,9 +25,9 @@ export default function BookBuilderComponentRegenerate({
         <DialogHeader>
           <DialogTitle>Regeneration Options</DialogTitle>
           <DialogDescription className="pt-2">
-            How would you like to proceed? Overwriting <strong>"All"</strong>{" "}
-            will reset any manual fixes (like those <strong>→</strong> arrow
-            symbols) you've made.
+            How would you like to proceed? Overwriting <strong>All</strong>
+            will reset unknown manual fixes (like those <strong>→</strong> arrow
+            symbols) you make.
           </DialogDescription>
         </DialogHeader>
 

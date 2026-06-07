@@ -18,10 +18,10 @@ export interface AdminPanelNotifyOptions {
     | "bottom-right";
   actionLabel?: string;
   onAction?: () => void;
-  [key: string]: any; // for custom options
+  [key: string]: unknown; // for custom options
 }
 
-export interface AdminPanelNotify {
+export interface UseAdminPanelNotify {
   success: (
     message: string,
     options?: Omit<AdminPanelNotifyOptions, "type">,
@@ -39,4 +39,9 @@ export interface AdminPanelNotify {
     options?: Omit<AdminPanelNotifyOptions, "type">,
   ) => void;
   show: (message: string, options?: AdminPanelNotifyOptions) => void;
+}
+
+export interface UseAdminPanelNotifyProps {
+  // Optional adapter for different toast/snackbar libraries (Sonner, React Hot Toast, Material UI, etc.)
+  adapter?: (message: string, options: AdminPanelNotifyOptions) => void;
 }

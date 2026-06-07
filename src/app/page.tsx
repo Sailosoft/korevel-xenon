@@ -1,5 +1,6 @@
 "use client";
 
+import { BookA, RabbitIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -253,16 +254,26 @@ const Icons = {
   ),
 };
 
+interface App {
+    id: number;
+    name: string;
+    url: string;
+    status: "Active" | "Maintenance" | "Inactive";
+    category: string;
+    latency: string;
+    icon: React.ReactNode;
+  }
+
 export default function AppPage() {
   const [viewMode, setViewMode] = useState("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  const [currentRoute, setCurrentRoute] = useState(null);
+  const [currentRoute, setCurrentRoute] = useState<number | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const [applications, setApplications] = useState([
+  const [applications, setApplications] = useState<App[]>([
     {
       id: 1,
       name: "Book Builder",
@@ -290,6 +301,24 @@ export default function AppPage() {
       latency: "42ms",
       icon: <Icons.Zap />,
     },
+    {
+      id: 4,
+      name: "Maiden",
+      url: "/modules/maiden",
+      status: "Active",
+      category: "Backend",
+      latency: "42ms",
+      icon: <BookA />,
+    },
+    {
+      id: 5,
+      name: "BunnyAI",
+      url: "/modules/bunny-ai",
+      status: "Active",
+      category: "AI",
+      latency: "42ms",
+      icon: <RabbitIcon />,
+    },
   ]);
 
   const categories = [
@@ -309,24 +338,24 @@ export default function AppPage() {
     });
   }, [searchQuery, activeTab, applications]);
 
-  const handleRouteClick = (app: any) => {
-    useRoute.push(app.url);
+  const handleRouteClick = (app?: App) => {
+    useRoute.push(app?.url || "/");
     if (isNavigating) return;
     setIsNavigating(true);
-    setCurrentRoute(app.id);
+    setCurrentRoute(app?.id || null);
 
     setTimeout(() => {
       setIsNavigating(false);
     }, 1200);
   };
 
-  const handleCopy = (e: any, url: string, id: number) => {
+  const handleCopy = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>, url: string, id: number) => {
     e.stopPropagation();
     const textArea = document.createElement("textarea");
     textArea.value = url;
     document.body.appendChild(textArea);
     textArea.select();
-    document.execCommand("copy");
+    // document.execCommand("copy");
     document.body.removeChild(textArea);
 
     setCopiedId(id);
@@ -334,11 +363,11 @@ export default function AppPage() {
   };
 
   const addNewApp = () => {
-    const newApp = {
+    const newApp: App = {
       id: Date.now(),
       name: "New Application",
       url: "/new-route",
-      status: "Draft",
+      status: "Active",
       category: "Internal",
       latency: "-",
       icon: <Icons.Server />,

@@ -1,15 +1,16 @@
+import { AdminPanelId } from "../id/admin-panel-id.interface";
 import { AdminPanelResult } from "../../shared/admin-panel-result";
 
 export interface AdminPanelMutation<T> {
   create: (
-    data: any,
+    data: T,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
-    id: string | number,
-    data: any,
+    id: AdminPanelId,
+    data: T,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
-    id: string | number,
+    id: AdminPanelId,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
 }
 
@@ -46,11 +47,11 @@ export interface UseAdminPanelDeleteProps<T> {
 
 export interface UseAdminPanelMutations<T> {
   create: (
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   update: (
     id: string | number,
-    data: any,
+    data: unknown,
   ) => Promise<AdminPanelResult<T, Error | unknown> | undefined>;
   delete: (
     id: string | number,

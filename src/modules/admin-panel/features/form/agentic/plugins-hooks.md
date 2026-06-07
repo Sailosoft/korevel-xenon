@@ -3,7 +3,7 @@
 ## Reference
 
 ```typescript
-export interface AdminPanelFormPlugin<T = any> {
+export interface AdminPanelFormPlugin<T = unknown> {
   onSuccess?: (data: T, mode: AdminPanelFormMode) => void;
   onError?: (error: Error, mode: AdminPanelFormMode) => void;
   onBeforeSubmit?: (data: T, mode: AdminPanelFormMode) => T | Promise<T>;

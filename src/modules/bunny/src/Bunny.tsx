@@ -1,0 +1,167 @@
+"use client";
+
+import { Card, Toast, toast } from "@heroui/react";
+import { useCallback, useEffect, useMemo, ReactNode } from "react";
+import {
+  AdminPanelProvider,
+  useAdminPanelContext,
+} from "../../admin-panel/features/provider";
+import { BunnyProvider } from "./context/BunnyContext";
+import {
+  BunnyCustomize,
+  ExtendedBunnyProps,
+  BunnyConfig,
+  BunnyHasId,
+} from "./Bunny.Interface";
+import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
+import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
+import { useBunnyRowActionDefault } from "./rows/BunnyRow.Action.Default";
+import { validateBunnyForm } from "./validator/bunny-validator.utils";
+import BunnyHeader from "./header/BunnyHeader";
+import BunnyModal from "./modal/BunnyModal";
+import BunnyDeleteModal from "./del/BunnyDelete.Modal";
+import { AdminPanelEventFormSuccessPayload } from "../../admin-panel/features/event/admin-panel-event.interface";
+import { BunnyReactiveTable } from "./table/BunnyReactiveTable";
+import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
+import { BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
+import { BunnyRowAction } from "./table/BunnyTable.Interface";
+import BunnyDialogAction from './dialog/BunnyDialogAction';
+
+export default function Bunny<TRow, TForm>({
+  children,
+  config,
+  customize,
+}: ExtendedBunnyProps<TRow, TForm>) {
+  return (
+    <AdminPanelProvider query={config.query} mutation={config.mutation}>
+      <BunnyMainPanel config={config} customize={customize}>
+        {children}
+        <Toast.Provider />
+      </BunnyMainPanel>
+    </AdminPanelProvider>
+  );
+}
+
+function BunnyMainPanel<TRow, TForm>({
+  children,
+  config,
+  customize,
+}: {
+  children: ReactNode;
+  config: BunnyConfig<TRow, TForm>;
+  customize?: BunnyCustomize<TRow, TForm>;
+}) {
+  const admin = useAdminPanelContext<TRow, TForm>() as unknown as UseAdminPanel<
+    TRow,
+    TForm
+  >;
+
+  /**
+   * Admin Panel State and Action
+   */
+  const { form, modal, table } = admin;
+
+  const defaultHeaderActions = useBunnyHeaderActions<TRow, TForm>([]);
+  const defaultRowActions = useBunnyRowActionDefault({
+    hides: config.hideRowActions || [],
+  });
+
+  const finalConfig = useMemo<BunnyConfig<TRow, TForm>>(() => {
+    let resolvedHeaders = config.headerActions || [];
+    if (config.defaultHeaderActions) {
+      const filteredDefaults = defaultHeaderActions.filter(
+        (action) =>
+          !config.hideHeaderActions?.includes(
+            action.id as BunnyHeaderActionType,
+          ),
+      );
+      resolvedHeaders = [...filteredDefaults, ...resolvedHeaders];
+    }
+
+    let resolvedRows = config.rowActions || [];
+    if (config.defaultRowActions) {
+      resolvedRows = [
+        ...(defaultRowActions as BunnyRowAction<TRow>[]),
+        ...resolvedRows,
+      ];
+    }
+
+    const baseMergedConfig: BunnyConfig<TRow, TForm> = {
+      ...config,
+      headerActions: resolvedHeaders,
+      rowActions: resolvedRows,
+      modalHeaderActions: config.modalHeaderActions || [],
+    };
+
+    const customizations = customize ? customize(admin, baseMergedConfig) : {};
+
+    return {
+      ...baseMergedConfig,
+      ...customizations,
+      rowActions: customizations.rowActions || baseMergedConfig.rowActions,
+      headerActions:
+        customizations.headerActions || baseMergedConfig.headerActions,
+      modalHeaderActions:
+        customizations.modalHeaderActions ||
+        baseMergedConfig.modalHeaderActions,
+    };
+  }, [config, customize, admin, defaultHeaderActions, defaultRowActions]);
+
+  const handlePrimaryAction = useCallback(async () => {
+    form.clearFormError();
+    if (finalConfig.formConfig?.fields) {
+      const clientErrors = validateBunnyForm(
+        finalConfig.formConfig.fields,
+        form.formData,
+      );
+      if (Object.keys(clientErrors).length > 0) {
+        form.setFormError(clientErrors);
+        return;
+      }
+    }
+    await form.submit();
+  }, [form, finalConfig]);
+
+  useEffect(() => {
+    const onFormSuccess = ({
+      mode,
+      result,
+    }: AdminPanelEventFormSuccessPayload<unknown>) => {
+      console.log("Success");
+      if (mode === "update") {
+        modal.openView(modal.id!);
+        table.fetchData();
+        toast.success("Updated successfully");
+      } else if (mode === "create" && result.status === "success") {
+        const data = result.data as unknown as BunnyHasId;
+        modal.openView(data?.id ?? "");
+        table.fetchData();
+        toast.success("Created successfully");
+      }
+    };
+
+    const onDeleteSuccess = () => toast.success("Deleted successfully");
+
+    adminPanelEvents.on("form:success", onFormSuccess);
+    adminPanelEvents.on("del:success", onDeleteSuccess);
+    return () => {
+      adminPanelEvents.off("form:success", onFormSuccess);
+      adminPanelEvents.off("del:success", onDeleteSuccess);
+    };
+  }, [modal, table]);
+
+  return (
+    <BunnyProvider config={finalConfig}>
+      <Card>
+        <BunnyHeader />
+        <BunnyReactiveTable />
+        <BunnyModal onPrimaryAction={handlePrimaryAction}>
+          {children}
+        </BunnyModal>
+        <BunnyDeleteModal />
+
+        <BunnyDialogAction />
+      </Card>
+    </BunnyProvider>
+  );
+}

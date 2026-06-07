@@ -10,7 +10,7 @@ interface StackProps {
   alignItems?: "start" | "center" | "end" | "stretch" | "baseline";
   justifyContent?: "start" | "center" | "end" | "between" | "around" | "evenly";
   wrap?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const spacingMap: Record<StackSpacing, string> = {

@@ -30,14 +30,16 @@ export interface AdminPanelQueryOptions {
   [key: string]: unknown;
 }
 
-export interface AdminPanelQuery<T> {
+export interface GetAllResponse<TRow> {
+  data: TRow[];
+  pagination: AdminPanelPagination;
+  [key: string]: unknown;
+}
+
+export interface AdminPanelQuery<TRow, TForm = unknown> {
   getAll: (
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,
-  ) => Promise<{
-    data: T[];
-    total: number;
-    [key: string]: unknown;
-  }>;
-  getOne: (id: string | number) => Promise<T>;
+  ) => Promise<GetAllResponse<TRow>>;
+  getOne: (id: string | number) => Promise<TForm | undefined>;
 }
