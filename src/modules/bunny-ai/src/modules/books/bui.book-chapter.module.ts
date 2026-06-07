@@ -1,4 +1,3 @@
-// bui.book-chapter.module.tsx
 import React from "react";
 import { Wand2, BookOpenCheck } from "lucide-react";
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
@@ -6,6 +5,8 @@ import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.generate";
+import { AdminPanelDialogOption } from '@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface';
+import BUIBookChapterComponentMobileView from './bui.book-chapter.component.mobile-view';
 
 const repository = new BUIBookChapterRepository();
 
@@ -14,6 +15,8 @@ export const buiBookChapterModule = (
 ): BunnyConfig<BUIBookChapterEntity, BUIBookChapterEntity> => ({
   title: "Chapter",
   titlePlural: "Chapters",
+  tableMode: "mobile",
+  tableMobileView: (row) => React.createElement(BUIBookChapterComponentMobileView, { row }),
   rowKey: "id",
   columns: [
     { field: "number", header: "#", width: "50px", isRowHeader: true },
@@ -21,18 +24,24 @@ export const buiBookChapterModule = (
     {
       field: "status",
       header: "Status",
-      // render: (row) => {
-      //   const mapping = {
-      //     done: { label: "Done", color: "text-success" },
-      //     empty: { label: "Empty", color: "text-default-400" },
-      //     being_generated: { label: "Generating...", color: "text-warning animate-pulse" },
-      //     pending: { label: "Pending", color: "text-primary" },
-      //   };
-      //   const current = row.status || "empty";
-      //   // return <span className={`font-medium ${mapping[current].color}`}>{mapping[current].label}</span>;
-      // }
+      render: (row) => {
+        const mapping: Record<string, { label: string; color: string }> = {
+          done: { label: "Done", color: "text-success" },
+          empty: { label: "Empty", color: "text-default-400" },
+          being_generated: { label: "Generating...", color: "text-warning animate-pulse" },
+          pending: { label: "Pending", color: "text-primary" },
+        };
+        const current = row.status || "empty";
+        return React.createElement(
+          "span",
+          { className: `font-medium ${mapping[current].color}` },
+          mapping[current].label
+        );
+      }
     },
     { field: "wordCount", header: "Words" },
+
+    { field: "description", header: "Description" },
   ],
   formConfig: {
     fields: [
@@ -63,7 +72,39 @@ export const buiBookChapterModule = (
   headerActions: [
     {
       label: "",
-      render: () => React.createElement(BUIBookChapterComponentGenerate),
+      render: () => React.createElement(BUIBookChapterComponentGenerate, { bookId }),
+    },
+    {
+      id: "delete_all",
+      label: "Delete All Chapters",
+      icon: React.createElement(BookOpenCheck),
+      variant: "danger",
+      displayMode: "collapse",
+      onClick: async (context) => {
+        const option: AdminPanelDialogOption = {
+          title: "Confirm Delete All",
+          message: "Are you sure you want to delete all chapters for this book? This action cannot be undone.",
+          actionId: 'delete',
+          onConfirm: async () => {
+            try {
+              const repo = new BUIBookChapterRepository();
+              const records = await repo.getChaptersByBook(bookId);
+
+              if (records && records.length > 0) {
+                const deletePromises = records.map((record) => repo.delete(record.id!));
+                await Promise.all(deletePromises);
+              }
+
+              // Return explicit layout expected by AdminPanelFormActionState
+              return { success: true, message: "All chapters deleted successfully." };
+            } catch (error) {
+              console.error(error);
+              return { success: false, message: "Failed to delete chapters." };
+            }
+          }
+        }
+        context?.adminPanel.dialog.openDialog(option);
+      }
     },
   ],
   defaultRowActions: true,
@@ -80,12 +121,13 @@ export const buiBookChapterModule = (
         const data = adminPanel.form.formData;
 
         try {
-          const result = await buiChapterServerGenerate({
-            title: data.title,
-            description: data.description,
-            additionalPrompt: data.additionalPrompt,
-            content: data.content,
-          });
+          const result = await buiChapterServerGenerate(
+            {
+              book: { title: data.title, description: data.description },
+            },
+            "draft",
+            false
+          );
 
           adminPanel.form.setFormData({
             ...data,
@@ -114,15 +156,15 @@ export const buiBookChapterModule = (
 
         adminPanel.dialog.setLoading(true);
         try {
-          // Calls your generator mechanism with full outline parameters
           const result = await buiChapterServerGenerate(
             {
-              title: data.title,
-              description: `Full Outline/Context Mode. ${data.description || ""}`,
-              additionalPrompt: `Follow the master book template and author voice profile guidelines. ${data.additionalPrompt || ""}`,
-              content: data.content,
+              book: {
+                title: data.title,
+                description: `Full Outline Mode. ${data.description || ""}`,
+              }
             },
             "draft",
+            true
           );
 
           adminPanel.form.setFormData({

@@ -132,7 +132,7 @@ Write the full content for **Chapter ${currentChapter.number}: ${currentChapter.
 
 ### CONTEXT:
 - **Chapter Goal:** ${currentChapter.description}
-- **Placement:** This is chapter ${currentChapter.number} of ${book.chapters.length}. 
+- **Placement:** This is chapter ${currentChapter.number} of ${book.chapters.length}.
 - **Flow:** Ensure this chapter transitions naturally from the previous chapters and sets up the following chapters without repeating their specific content.
 
 ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChapter.additionalPrompt}` : ""}

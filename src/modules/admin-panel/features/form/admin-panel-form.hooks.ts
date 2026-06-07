@@ -144,15 +144,6 @@ export function useAdminPanelForm<TForm = unknown>({
     }
   }, [mode, id, query]);
 
-  useEffect(() => {
-    if (isOpen) {
-      if ((mode === "update" || mode === "view") && id) {
-        loadData();
-      } else {
-        resetForm();
-      }
-    }
-  }, [loadData, mode, id, isOpen]);
 
   const setFormData = useCallback((data: TForm | ((prev: TForm) => TForm)) => {
     setFormDataState(data);
@@ -181,6 +172,16 @@ export function useAdminPanelForm<TForm = unknown>({
     },
     [setFormDataState],
   );
+
+  useEffect(() => {
+    if (isOpen) {
+      if ((mode === "update" || mode === "view") && id) {
+        loadData();
+      } else {
+        resetForm();
+      }
+    }
+  }, [loadData, mode, id, isOpen, resetForm]);
 
   return {
     formData,

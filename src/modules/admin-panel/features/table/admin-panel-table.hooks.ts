@@ -65,7 +65,7 @@ export function useAdminPanelTable<T>({
       filter: filters.length > 0 ? filters : undefined,
       search: search.search?.trim() ? search : undefined,
     }),
-    [queryPagination, sorts, filters, search.search],
+    [queryPagination, sorts, filters, search],
   );
 
   const loadingOn = useCallback(() => setIsLoading(true), []);
@@ -93,7 +93,7 @@ export function useAdminPanelTable<T>({
     } finally {
       loadingOff();
     }
-  }, [query, queryOptions, loadingOn, loadingOff]);
+  }, [query, queryOptions, loadingOff]);
 
   useEffect(() => {
     fetchData();
@@ -165,6 +165,7 @@ export function useAdminPanelTable<T>({
     search,
     queryOptions,
     selectionMode,
+    refresh: fetchData,
     fetchData,
     setPagination,
     setPage,

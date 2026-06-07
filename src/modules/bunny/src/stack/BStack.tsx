@@ -42,7 +42,7 @@ export const BStack = React.forwardRef<HTMLDivElement, BStackProps>(
       gap = 4,
       alignItems,
       justifyContent,
-      flexWrap,
+      flexWrap = "wrap",
       divider,
       component: Component = "div",
       className = "",
@@ -69,33 +69,31 @@ export const BStack = React.forwardRef<HTMLDivElement, BStackProps>(
 
     // Align Items
     const alignClass = alignItems
-      ? `items-${
-          alignItems === "flex-start"
-            ? "start"
-            : alignItems === "flex-end"
-              ? "end"
-              : alignItems
-        }`
+      ? `items-${alignItems === "flex-start"
+        ? "start"
+        : alignItems === "flex-end"
+          ? "end"
+          : alignItems
+      }`
       : "";
 
     // Justify Content
     const justifyClass = justifyContent
-      ? `justify-${
-          justifyContent === "flex-start"
-            ? "start"
-            : justifyContent === "flex-end"
-              ? "end"
-              : justifyContent === "space-between"
-                ? "between"
-                : justifyContent === "space-around"
-                  ? "around"
-                  : justifyContent === "space-evenly"
-                    ? "evenly"
-                    : justifyContent
-        }`
+      ? `justify-${justifyContent === "flex-start"
+        ? "start"
+        : justifyContent === "flex-end"
+          ? "end"
+          : justifyContent === "space-between"
+            ? "between"
+            : justifyContent === "space-around"
+              ? "around"
+              : justifyContent === "space-evenly"
+                ? "evenly"
+                : justifyContent
+      }`
       : "";
 
-    // Flex Wrap
+    // Current code inside BStack.tsx
     const wrapClass = flexWrap
       ? flexWrap === "nowrap"
         ? ""

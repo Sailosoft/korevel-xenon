@@ -37,6 +37,7 @@ export interface UseAdminPanelTable<T> {
   queryOptions: AdminPanelQueryOptions;
   selectionMode: AdminPanelSelectionMode;
   selection: AdminPanelId[];
+  refresh(): Promise<void>;
   fetchData: () => Promise<void>;
   clearQueryOptions: () => void;
   setSorts: (sort: AdminPanelSortOption[]) => void;

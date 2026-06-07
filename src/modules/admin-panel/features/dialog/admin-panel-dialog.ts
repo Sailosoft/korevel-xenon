@@ -18,11 +18,11 @@ const DEFAULT_STATE: AdminPanelDialogState = {
 export function useAdminPanelDialog(): UseAdminPanelDialog {
   const [state, setState] = useState<AdminPanelDialogState>(DEFAULT_STATE);
   const [activeOptions, setActiveOptions] =
-    useState<AdminPanelDialogOption<any> | null>(null);
+    useState<AdminPanelDialogOption<unknown> | null>(null);
 
   const openDialog = useCallback(
     <TContext>(option: AdminPanelDialogOption<TContext>) => {
-      setActiveOptions(option);
+      setActiveOptions(option as unknown as AdminPanelDialogOption<unknown>);
       setState({
         open: true,
         loading: false,

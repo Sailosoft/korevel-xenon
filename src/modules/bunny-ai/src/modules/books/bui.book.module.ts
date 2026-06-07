@@ -50,7 +50,7 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
         ],
       },
       {
-        name: "author_id",
+        name: "authorId",
         label: "Author",
         type: "select",
         options: async () => {

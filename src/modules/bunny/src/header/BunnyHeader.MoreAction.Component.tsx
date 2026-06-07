@@ -13,7 +13,6 @@ interface BunnyHeaderMoreActionProps {
 export default function BunnyHeaderMoreAction({
   actions,
 }: BunnyHeaderMoreActionProps) {
-  if (!actions || actions.length === 0) return null;
 
   const kernel = useBunnyKernel();
 
@@ -30,6 +29,9 @@ export default function BunnyHeaderMoreAction({
     },
     [actions, kernel],
   );
+
+
+  if (!actions || actions.length === 0) return null;
 
   return (
     <Dropdown>

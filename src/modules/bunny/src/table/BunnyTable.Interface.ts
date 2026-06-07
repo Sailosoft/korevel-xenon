@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { BunnyKernel } from "../Bunny.Interface";
 
+export type BunnyTableMode = "desktop" | "mobile";
+export type BunnyTableMobileView<TRow> = (row: TRow, columns: BunnyColumn<TRow>[]) => ReactNode;
 export interface BunnyColumn<TRow = unknown> {
   field: string;
   header: string;
@@ -9,6 +11,7 @@ export interface BunnyColumn<TRow = unknown> {
   isRowHeader?: boolean;
   render?: (row: TRow, column: BunnyColumn<TRow>) => ReactNode;
 }
+
 export interface BunnyRowAction<TRow = unknown> {
   id: string;
   label?: string;

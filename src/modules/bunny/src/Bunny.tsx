@@ -25,6 +25,7 @@ import { BunnyReactiveTable } from "./table/BunnyReactiveTable";
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import { BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
 import { BunnyRowAction } from "./table/BunnyTable.Interface";
+import BunnyDialogAction from './dialog/BunnyDialogAction';
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -157,6 +158,8 @@ function BunnyMainPanel<TRow, TForm>({
           {children}
         </BunnyModal>
         <BunnyDeleteModal />
+
+        <BunnyDialogAction />
       </Card>
     </BunnyProvider>
   );

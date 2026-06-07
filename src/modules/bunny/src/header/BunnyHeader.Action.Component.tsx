@@ -1,25 +1,14 @@
 import { Button, ButtonVariants } from "@heroui/react";
 import { BunnyHeaderAction } from "./BunnyHeader.Interface";
 import { useCallback, useMemo } from "react";
-import { useBunnyConfig } from "../context/BunnyContext";
-import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
-import { BunnyKernel } from "../Bunny.Interface";
+import { useBunnyKernel } from '../kernel';
 
 export default function BunnyHeaderActionComponent({
   action,
 }: {
   action: BunnyHeaderAction;
 }) {
-  const config = useBunnyConfig();
-  const adminPanel = useAdminPanelContext();
-
-  const kernel: BunnyKernel<unknown, unknown> = useMemo(
-    () => ({
-      config,
-      adminPanel,
-    }),
-    [config, adminPanel],
-  );
+  const kernel = useBunnyKernel();
 
   const variant = useMemo<ButtonVariants["variant"]>(() => {
     if (action.variant === "primary") return "primary";
@@ -33,6 +22,7 @@ export default function BunnyHeaderActionComponent({
   }, [action.variant]);
 
   const onClick = useCallback(() => {
+    console.log("Action kernel", kernel);
     if (action.onClick) action.onClick(kernel);
   }, [action, kernel]);
 

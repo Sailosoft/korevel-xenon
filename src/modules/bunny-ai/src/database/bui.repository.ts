@@ -54,7 +54,7 @@ export class BUIRepository<T> {
   }
 
   async delete(id: AdminPanelId): Promise<BuiRepositoryResult> {
-    await this.set.delete(id);
+    await this.set.delete(Number(id));
 
     return this.result.successType(undefined);
   }

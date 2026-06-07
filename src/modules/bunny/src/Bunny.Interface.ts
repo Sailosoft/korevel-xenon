@@ -13,7 +13,7 @@ import {
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
 import { BunnyRouter } from "./router/BunnyRouter.interface";
 import { BunnyRowDefaultActions } from "./rows/BunnyRow.Interface";
-import { BunnyColumn, BunnyRowAction } from "./table/BunnyTable.Interface";
+import { BunnyColumn, BunnyRowAction, BunnyTableMobileView, BunnyTableMode } from "./table/BunnyTable.Interface";
 
 export type BunnyCustomize<TRow, TForm> = (
   admin: UseAdminPanel<TRow, TForm>,
@@ -62,6 +62,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   rowActions?: BunnyRowAction<TRow>[];
 
   modalHeaderActions?: BunnyModalHeaderAction<TRow, TForm>[];
+
+  tableMode?: BunnyTableMode;
+  tableMobileView?: BunnyTableMobileView<TRow>;
 
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;
