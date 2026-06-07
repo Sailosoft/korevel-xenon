@@ -35,8 +35,6 @@ export async function buiBookServerEnhanceWithParams(
   // Fall back to 'comprehensive' (Option 1) if the prompt type isn't recognized
   const selectedPromptGroup =
     buiBookPrompt.enhance[promptType] || buiBookPrompt.enhance.comprehensive;
-  
-  console.log("Processing Book promptType:", promptType);
 
   // Merge the prompt patterns with explicit JSON structural guidance
   const systemPrompt = `${selectedPromptGroup.systemPrompt}
@@ -46,7 +44,7 @@ export async function buiBookServerEnhanceWithParams(
     2. Place all other requested structural pattern fields (e.g., Description, Detailed Description, Chapters, Tags, or Loglines) entirely inside the "content" field using clean text breaks.
     3. Return ONLY a valid JSON object matching the requested structure. Do not include any markdown syntax wrappers (like \`\`\`json), conversational filler, or external explanations.
     \n\n
-    PROPERTY CONSTRAINTS YOU MUST FOLLOW: 
+    PROPERTY CONSTRAINTS YOU MUST FOLLOW:
     { "title": string, "content": string }
    `;
 
@@ -54,7 +52,7 @@ export async function buiBookServerEnhanceWithParams(
   const userPrompt = template({ title, description });
 
   try {
-    const enhancedBook = await ai.doChatStructured({
+    const enhancedBook = await ai.doChatStructuredFallback({
       system: systemPrompt,
       user: userPrompt,
       schema: bookEnhancementSchema,

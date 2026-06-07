@@ -40,14 +40,14 @@ export async function buiAuthorServerEnhanceWithParams(
     \n\n
     CRITICAL: Return ONLY a valid JSON object matching the requested structure. Do not include any markdown formatting (like \`\`\`json), explanations, or introduction outside of the raw JSON code.
     \n\n
-    PROPERTY CONSTRAINTS YOU MUST FOLLOW: 
+    PROPERTY CONSTRAINTS YOU MUST FOLLOW:
     { name: string; description: string }
    `;
   const template = Handlebars.compile(selectedPromptGroup.userPrompt);
   const userPrompt = template({ name, description });
 
   try {
-    const enhancedAuthor = await ai.doChatStructured({
+    const enhancedAuthor = await ai.doChatStructuredFallback({
       system: systemPrompt,
       user: userPrompt,
       schema: authorEnhancementSchema,

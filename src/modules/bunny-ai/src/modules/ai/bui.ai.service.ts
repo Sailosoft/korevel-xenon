@@ -97,4 +97,48 @@ export default class BUIAIService implements BUIAIServiceType {
   }): Promise<BUIInferSchemaProps<S>> {
     return this.doChatJSON<BUIInferSchemaProps<S>>(options);
   }
+
+  async doChatStructuredFallback<S extends BUIAISchemaOptions>(options: {
+    system: string;
+    user: string;
+    schema: S;
+    temperature?: number;
+    type?: TemperaturePreset;
+    maxToken?: number;
+  }): Promise<BUIInferSchemaProps<S>> {
+    const compiled = this.aiSchema.compileSchema(options.schema);
+    const schemaString = JSON.stringify(compiled, null, 2);
+
+    const enhancedSystemPrompt = `${options.system}
+
+CRITICAL INSTRUCTION: You must respond ONLY with a raw JSON object matching the schema below.
+Do not wrap the response in markdown code blocks (like \`\`\`json ... \`\`\`).
+Do not include any introductory or concluding text.
+
+Required JSON Schema:
+${schemaString}`;
+
+    const rawResponse = await this.doChat({
+      system: enhancedSystemPrompt,
+      user: options.user,
+      temperature: options.temperature,
+      type: options.type,
+      maxToken: options.maxToken,
+    });
+
+    try {
+      let cleanJSON = rawResponse.trim();
+
+      if (cleanJSON.startsWith("```")) {
+        cleanJSON = cleanJSON.replace(/^```(?:json)?\n?/i, "");
+        cleanJSON = cleanJSON.replace(/\n?```$/, "");
+      }
+
+      return JSON.parse(cleanJSON.trim()) as BUIInferSchemaProps<S>;
+    } catch (error) {
+      throw new Error(
+        `Failed to parse prompt-enforced structured JSON output. Raw response was: "${rawResponse}". Error: ${error}`,
+      );
+    }
+  }
 }

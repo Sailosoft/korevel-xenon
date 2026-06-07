@@ -31,6 +31,14 @@ export interface BUIAIServiceType {
     temperature?: number;
     type?: TemperaturePreset;
   }): Promise<BUIInferSchemaProps<S>>;
+  doChatStructuredFallback<S extends BUIAISchemaOptions>(options: {
+    system: string;
+    user: string;
+    schema: S;
+    temperature?: number;
+    type?: TemperaturePreset;
+    maxToken?: number;
+  }): Promise<BUIInferSchemaProps<S>>;
 }
 
 export type TemperaturePreset =
