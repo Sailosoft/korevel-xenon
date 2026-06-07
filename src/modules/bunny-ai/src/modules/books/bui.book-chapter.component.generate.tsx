@@ -51,7 +51,7 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
       );
 
       // Raw array parse pipeline execution
-      const generatedChapters = JSON.parse(response.content);
+      const generatedChapters = JSON.parse(response);
       const chapterRepo = new BUIBookChapterRepository();
 
       if (Array.isArray(generatedChapters)) {

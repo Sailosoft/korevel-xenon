@@ -24,3 +24,9 @@ export interface BUIBookChapterEntity {
   wordCount?: number;
   status?: "done" | "empty" | "being_generated" | "pending"; // Added status
 }
+
+export interface BUIBookChapterParams {
+  author: BUIAuthor;
+  book: BUIBookEntity;
+  currentChapter: BUIBookChapterEntity;
+}

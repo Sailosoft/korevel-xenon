@@ -5,7 +5,6 @@ import { useBunnyConfig } from "../context/BunnyContext";
 import { UseAdminPanel } from "@/src/modules/admin-panel/admin-panel.interface";
 import { MoreVerticalIcon } from "lucide-react";
 import { AdminPanelFormMode } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
-import { BunnyKernel } from "../Bunny.Interface";
 import { useBunnyKernel } from "../kernel";
 
 function Label({ children }: { children: ReactNode }) {
@@ -58,7 +57,7 @@ export default function BunnyModal({
         targetedAction.onClick(kernel);
       }
     },
-    [modalHeaderActions, kernel],
+    [modalHeaderActions, isLoading, kernel],
   );
 
   // Evaluates the hide arrays or function rules safely
@@ -99,9 +98,9 @@ export default function BunnyModal({
                 <Label>Loading...</Label>
 
                 {/* FALLBACK: If HeroUI Spinner is missing, uncomment below: */}
-                {/* 
+                {/*
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm font-medium text-default-600">Processing...</span> 
+                <span className="text-sm font-medium text-default-600">Processing...</span>
                 */}
               </div>
             </div>

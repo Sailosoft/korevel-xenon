@@ -1,12 +1,23 @@
+// bui.book-chapter.module.ts
 import React from "react";
 import { Wand2, BookOpenCheck } from "lucide-react";
-import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
+import {
+  BunnyConfig,
+  BunnyKernel,
+} from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
-import { buiChapterServerGenerate } from "./bui.book-chapter.server";
+import { BUIBookRepository } from "./bui.book.repository";
+import BUIAuthorRepository from "../authors/bui.author.repository";
+
+import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
+import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
+import BUIBookChapterComponentMobileView from "./bui.book-chapter.component.mobile-view";
 import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.generate";
-import { AdminPanelDialogOption } from '@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface';
-import BUIBookChapterComponentMobileView from './bui.book-chapter.component.mobile-view';
+import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
+import { generateChapterContentAction } from "./bui.book-chapter.action.content";
+import { buiChapterServerContent } from "./bui.book-chapter.server.content";
+import BUIBookComponentExportPreview from './bui.book.export.component.chapter';
 
 const repository = new BUIBookChapterRepository();
 
@@ -16,7 +27,9 @@ export const buiBookChapterModule = (
   title: "Chapter",
   titlePlural: "Chapters",
   tableMode: "mobile",
-  tableMobileView: (row) => React.createElement(BUIBookChapterComponentMobileView, { row }),
+  modalSize: "cover",
+  tableMobileView: (row) =>
+    React.createElement(BUIBookChapterComponentMobileView, { row }),
   rowKey: "id",
   columns: [
     { field: "number", header: "#", width: "50px", isRowHeader: true },
@@ -26,21 +39,23 @@ export const buiBookChapterModule = (
       header: "Status",
       render: (row) => {
         const mapping: Record<string, { label: string; color: string }> = {
-          done: { label: "Done", color: "text-success" },
+          done: { label: "Done", color: "text-success font-semibold" },
           empty: { label: "Empty", color: "text-default-400" },
-          being_generated: { label: "Generating...", color: "text-warning animate-pulse" },
+          being_generated: {
+            label: "Generating...",
+            color: "text-warning animate-pulse font-medium",
+          },
           pending: { label: "Pending", color: "text-primary" },
         };
         const current = row.status || "empty";
         return React.createElement(
           "span",
-          { className: `font-medium ${mapping[current].color}` },
-          mapping[current].label
+          { className: mapping[current].color },
+          mapping[current].label,
         );
-      }
+      },
     },
     { field: "wordCount", header: "Words" },
-
     { field: "description", header: "Description" },
   ],
   formConfig: {
@@ -72,7 +87,24 @@ export const buiBookChapterModule = (
   headerActions: [
     {
       label: "",
-      render: () => React.createElement(BUIBookChapterComponentGenerate, { bookId }),
+      render: () =>
+        React.createElement(BUIBookChapterComponentGenerate, { bookId }),
+    },
+    // --- PIPELINE ENGINE COMPONENT HOOKED HERE ---
+    {
+      id: "bulk_pipeline_generate",
+      label: "Run AI Batch Generation",
+      render: (context) =>
+        React.createElement(BUIBookChapterComponentPipeline, {
+          bookId,
+          context: context!,
+        }),
+    },
+    {
+      id: "export_preview_modal_trigger",
+      label: "Export Preview",
+      render: () =>
+        React.createElement(BUIBookComponentExportPreview, { bookId }),
     },
     {
       id: "delete_all",
@@ -83,32 +115,100 @@ export const buiBookChapterModule = (
       onClick: async (context) => {
         const option: AdminPanelDialogOption = {
           title: "Confirm Delete All",
-          message: "Are you sure you want to delete all chapters for this book? This action cannot be undone.",
-          actionId: 'delete',
+          message:
+            "Are you sure you want to delete all chapters for this book? This action cannot be undone.",
+          actionId: "delete",
           onConfirm: async () => {
             try {
               const repo = new BUIBookChapterRepository();
               const records = await repo.getChaptersByBook(bookId);
 
               if (records && records.length > 0) {
-                const deletePromises = records.map((record) => repo.delete(record.id!));
+                const deletePromises = records.map((record) =>
+                  repo.delete(record.id!),
+                );
                 await Promise.all(deletePromises);
               }
-
-              // Return explicit layout expected by AdminPanelFormActionState
-              return { success: true, message: "All chapters deleted successfully." };
+              return {
+                success: true,
+                message: "All chapters deleted successfully.",
+              };
             } catch (error) {
               console.error(error);
               return { success: false, message: "Failed to delete chapters." };
             }
-          }
-        }
+          },
+        };
         context?.adminPanel.dialog.openDialog(option);
-      }
+      },
     },
   ],
   defaultRowActions: true,
-  rowActions: [],
+  rowActions: [
+    {
+      id: "generate_content",
+      // label: "Write with AI",
+      icon: React.createElement(Wand2),
+      variant: "primary",
+      onClick: async function (
+        row: BUIBookChapterEntity,
+        context: BunnyKernel<BUIBookChapterEntity, unknown>,
+      ) {
+        const option: AdminPanelDialogOption = {
+          title: `Generate Chapter ${row.number}`,
+          message: `Are you sure you want to run live prompt content writing for "${row.title}"?`,
+          actionId: "row_write",
+          fields: [
+            {
+              name: "promptType",
+              label: "Persona Framing",
+              type: "select",
+              defaultValue: "default",
+              options: [
+                { label: "Default Architect", value: "default" },
+                { label: "Character-Driven", value: "character_driven" },
+                {
+                  label: "Software Engineering",
+                  value: "software_engineering",
+                },
+                { label: "Technology", value: "technology" },
+                { label: "Medical", value: "medical" },
+                { label: "Motivational", value: "motivational" },
+              ],
+            },
+          ],
+          onConfirm: async ({ form }) => {
+            const { promptType } = Object.fromEntries(form) as Record<
+              string,
+              string
+            >;
+            context.adminPanel.dialog.setLoading(true);
+            try {
+              await generateChapterContentAction(
+                row.id!,
+                promptType as BUIChapterPromptContypeType,
+              );
+              context.adminPanel.table.refresh?.();
+              return {
+                success: true,
+                message: "Chapter content generated and saved successfully.",
+              };
+            } catch (err) {
+              console.error(err);
+              return {
+                success: false,
+                message: "Failed to create chapter text via pipeline.",
+              };
+            } finally {
+              context.adminPanel.table.refresh?.();
+              context.adminPanel.dialog.setLoading(false);
+            }
+          },
+        };
+        context.adminPanel.dialog.openDialog(option);
+      },
+    },
+  ],
   modalHeaderActions: [
     {
       id: "ai_write",
@@ -121,57 +221,64 @@ export const buiBookChapterModule = (
         const data = adminPanel.form.formData;
 
         try {
-          const result = await buiChapterServerGenerate(
-            {
-              book: { title: data.title, description: data.description },
-            },
-            "draft",
-            false
-          );
+          const bookRepo = new BUIBookRepository();
+          const chapterRepo = new BUIBookChapterRepository();
+          const authorRepo = new BUIAuthorRepository();
 
-          adminPanel.form.setFormData({
-            ...data,
-            content: result.content,
-            status: "done",
-          });
-        } catch (err) {
-          console.error(err);
-          adminPanel.dialog.setLoading(false);
-        }
-      },
-    },
-    {
-      id: "ai_bulk_write",
-      label: "Write Content via Full Outline",
-      icon: React.createElement(BookOpenCheck),
-      hide: ["view"],
-      onClick: async (context) => {
-        const { adminPanel } = context!;
-        const data = adminPanel.form.formData;
+          const [book, allChapters] = await Promise.all([
+            bookRepo.panelGetOne(bookId),
+            chapterRepo.getChaptersByBook(bookId),
+          ]);
 
-        const confirmWrite = confirm(
-          "Are you sure you want to run AI Generation for this content based on the full chapter outline, metadata, and author profile?",
-        );
-        if (!confirmWrite) return;
+          let authorName = "Expert Professional";
+          let authorDesc = "Experienced writer.";
 
-        adminPanel.dialog.setLoading(true);
-        try {
-          const result = await buiChapterServerGenerate(
-            {
-              book: {
-                title: data.title,
-                description: `Full Outline Mode. ${data.description || ""}`,
+          if (book?.authorId) {
+            const authorResult = await authorRepo.getList({});
+            if (authorResult.isSuccess) {
+              const matchingAuthor = authorResult.value.find(
+                (a) => a.id === book.authorId,
+              );
+              if (matchingAuthor) {
+                authorName = matchingAuthor.name;
+                authorDesc = matchingAuthor.description || "";
               }
-            },
-            "draft",
-            true
-          );
+            }
+          }
 
-          adminPanel.form.setFormData({
-            ...data,
-            content: result.content,
-            status: "done",
-          });
+          const params = {
+            author: { name: authorName, description: authorDesc },
+            book: {
+              title: book?.title || "Untitled Book",
+              chapters: allChapters.map((c) => ({
+                number: c.number,
+                title: c.title,
+                description: c.description || "",
+              })),
+            },
+            currentChapter: {
+              number: Number(data.number || 0),
+              title: data.title || "",
+              description: data.description || "",
+              additionalPrompt: data.additionalPrompt || "",
+            },
+          };
+
+          const result = await buiChapterServerContent(params, "default");
+
+          if (result && result.success) {
+            const words = result.content
+              ? result.content.split(/\s+/).filter(Boolean).length
+              : 0;
+            adminPanel.form.setFormData({
+              ...data,
+              content: result.content,
+              wordCount: words,
+              status: "done",
+            });
+          }
+        } catch (err) {
+          console.error("Modal compilation failed:", err);
         } finally {
           adminPanel.dialog.setLoading(false);
         }

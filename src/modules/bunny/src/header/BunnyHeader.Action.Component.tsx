@@ -26,7 +26,7 @@ export default function BunnyHeaderActionComponent({
     if (action.onClick) action.onClick(kernel);
   }, [action, kernel]);
 
-  if (action.render) return action.render();
+  if (action.render) return action.render(kernel);
 
   return (
     <Button

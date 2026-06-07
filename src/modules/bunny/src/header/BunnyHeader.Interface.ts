@@ -19,7 +19,7 @@ export interface BunnyHeaderAction<TRow = unknown, TForm = unknown> {
   variant?: BunnyHeaderVariants;
   onClick?: (context?: BunnyKernel<TRow, TForm>) => void;
   disable?: boolean;
-  render?: () => React.ReactNode;
+  render?: (context?: BunnyKernel<TRow, TForm>) => React.ReactNode;
   displayMode?: "always" | "collapse";
 }
 

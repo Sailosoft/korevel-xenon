@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, toast } from "@heroui/react";
+import { Card, Toast, toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, ReactNode } from "react";
 import {
   AdminPanelProvider,
@@ -36,6 +36,7 @@ export default function Bunny<TRow, TForm>({
     <AdminPanelProvider query={config.query} mutation={config.mutation}>
       <BunnyMainPanel config={config} customize={customize}>
         {children}
+        <Toast.Provider />
       </BunnyMainPanel>
     </AdminPanelProvider>
   );

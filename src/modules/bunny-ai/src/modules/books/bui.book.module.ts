@@ -1,6 +1,6 @@
 // bui.book.module.ts
 import React from "react";
-import { CircleFadingArrowUp } from "lucide-react";
+import { CircleFadingArrowUp, Download } from "lucide-react";
 import {
   BunnyConfig,
   BunnyKernel,
@@ -15,6 +15,7 @@ import { buiBookServerEnhanceWithParams } from "./bui.book.server.enhance";
 import { BUIBookPromptType } from "./bui.book.prompt";
 import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
 import { BookOpenText } from "lucide-react";
+import { buiBookExportDownload } from './bui.book.export.download';
 const repository = new BUIBookRepository();
 const authorRepository = new BUIAuthorRepository();
 const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>();
@@ -103,6 +104,21 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
     defaultBunnyRowAction.view,
     defaultBunnyRowAction.edit,
     defaultBunnyRowAction.delete,
+    {
+      id: "instant_download_export",
+      variant: "ghost",
+      icon: React.createElement(Download),
+      onClick: async function (
+        row: BUIBookEntity,
+        context: BunnyKernel<BUIBookEntity, unknown>,
+      ) {
+        if (!row.id) return;
+        context.adminPanel?.table?.loadingOn?.();
+        // Instantly triggers automatic generation via internal compilation rules using base fallback configurations
+        await buiBookExportDownload(row.id);
+        context.adminPanel?.table?.loadingOff?.();
+      },
+    },
   ],
   rowActionsColLength: 170,
   modalHeaderActions: [

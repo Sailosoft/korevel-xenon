@@ -31,5 +31,5 @@ export async function buiChapterServerGenerate(
   });
 
   // Returns raw context for structural layout processing pipelines
-  return { content: result };
+  return result;
 }
