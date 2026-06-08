@@ -1,11 +1,14 @@
 // bui.book-chapter.component.export-preview.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Modal } from "@heroui/react";
-import { Download, Eye, Settings2 } from "lucide-react";
-import { BUIBookHTMLTemplate, BUIBookTemplateState } from "./bui.book.export.types";
+import { Download, Eye, Settings2, ExternalLink } from "lucide-react";
+import {
+  BUIBookHTMLTemplate,
+  BUIBookTemplateState,
+} from "./bui.book.export.types";
 import { BUIBookExportService } from "./bui.book.export.service";
 import { BUI_AVAILABLE_BOOK_TEMPLATES } from "./bui.book.export.template";
-import { buiBookExportDownload } from './bui.book.export.download';
+import { buiBookExportDownload } from "./bui.book.export.download";
 
 interface ExportPreviewModalProps {
   bookId: number;
@@ -107,6 +110,21 @@ export default function BUIBookComponentExportPreview({
     }
   };
 
+  const openPreviewInNewTab = async () => {
+    try {
+      const activeTemplate = buildActiveTemplateConfig();
+      const compiledHtml = await exportService.exportByBookId(
+        bookId,
+        activeTemplate,
+      );
+      const blob = new Blob([compiledHtml], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Failed to open preview in a new tab:", err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       updateLivePreview();
@@ -193,7 +211,11 @@ export default function BUIBookComponentExportPreview({
                             {partKey.replace(/([A-Z])/g, " $1")}
                           </label>
                           <select
-                            value={(customParts as unknown as Record<string, string>)[partKey]}
+                            value={
+                              (
+                                customParts as unknown as Record<string, string>
+                              )[partKey]
+                            }
                             onChange={(e) =>
                               setCustomParts((prev) => ({
                                 ...prev,
@@ -222,6 +244,13 @@ export default function BUIBookComponentExportPreview({
                         Re-rendering...
                       </span>
                     )}
+                    <Button
+                      size="sm"
+                      className="font-semibold shadow-md flex items-center gap-2 text-slate-700 bg-white hover:bg-slate-100"
+                      onClick={openPreviewInNewTab}
+                    >
+                      <ExternalLink className="w-4 h-4" /> Open in New Tab
+                    </Button>
                     <Button
                       size="sm"
                       variant="primary"

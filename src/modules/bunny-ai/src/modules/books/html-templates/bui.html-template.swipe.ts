@@ -1,4 +1,4 @@
-import { BUIBookHTMLTemplate } from '../bui.book.export.types';
+import { BUIBookHTMLTemplate } from "../bui.book.export.types";
 
 export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
   name: "Swipe Template",
@@ -9,13 +9,14 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
     body { font-family: 'Lora', serif; background-color: #f4f1ea; }
     .prose { font-family: 'Crimson Pro', serif; }
     `,
-    printStyles: `@media print { .no-print { display: none !important; } }`
+    printStyles: `@media print { .no-print { display: none !important; } }`,
   },
   layout: {
     documentShell: `<!DOCTYPE html>
 <html lang="en" class="overflow-hidden h-full">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{bookTitle}}</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <style>{{{globalAssets.typographyFonts}}}{{{globalAssets.printStyles}}}</style>
@@ -48,7 +49,7 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
         <div class="grid grid-cols-1 gap-2 text-left max-h-60 overflow-y-auto pr-2">{{{mainIndexHtml}}}</div>
         <div class="mt-8"><a href="#chapter-1" class="px-6 py-2.5 bg-stone-900 text-white rounded text-sm hover:bg-stone-800 transition-colors">Open Manuscript →</a></div>
     </div>`,
-    articleContainer: `{{{chaptersHtml}}}`
+    articleContainer: `{{{chaptersHtml}}}`,
   },
   component: {
     sidebarLinkItem: `
@@ -90,6 +91,6 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
     <footer class="no-print bg-stone-900 border-t border-stone-800 py-3 px-6 flex justify-between items-center text-[11px] font-mono text-stone-400 w-full z-10">
         <span>{{bookTitle}}</span>
         <span>&copy; {{currentYear}} Folio Render</span>
-    </footer>`
-  }
+    </footer>`,
+  },
 };
