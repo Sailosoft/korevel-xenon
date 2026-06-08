@@ -41,7 +41,7 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
         {{{articleContainer}}}
     </main>`,
     mainHeaderWrapper: `
-    <div class="max-w-2xl text-center border-4 border-stone-800 p-12 bg-white shadow-xl rounded-sm">
+    <div id="bunny-quick-routing" class="max-w-2xl text-center border-4 border-stone-800 p-12 bg-white shadow-xl rounded-sm">
         <h1 class="text-5xl font-semibold tracking-wide text-stone-900 mb-6">{{bookTitle}}</h1>
         <div class="w-16 h-0.5 bg-stone-800 mx-auto my-6"></div>
         <p class="text-sm italic text-stone-500 mb-8">Table of Contents</p>
@@ -63,9 +63,15 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
         <span class="text-xs font-mono text-stone-400">Read</span>
     </a>`,
     chapterHeader: `
-    <header class="mb-8 border-b border-stone-200 pb-6 text-center">
-      <span class="font-mono text-xs uppercase tracking-widest text-stone-400 block mb-1">Chapter {{chapterNumber}}</span>
-      <h2 class="text-3xl font-medium text-stone-900 tracking-tight">{{chapterTitle}}</h2>
+    <header class="mb-8 border-b border-stone-200 pb-6">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-mono text-xs uppercase tracking-widest text-stone-400">Chapter {{chapterNumber}}</span>
+        <a href="#bunny-quick-routing" onclick="this.closest('main').scrollTo({left: 0, behavior: 'smooth'}); return false;" class="inline-flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-stone-800 hover:bg-stone-100 px-2.5 py-1 rounded-lg transition-colors no-print">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Back to Index
+        </a>
+      </div>
+      <h2 class="text-3xl font-medium text-stone-900 tracking-tight text-center">{{chapterTitle}}</h2>
     </header>`,
     chapterBodyWrapper: `
     <section id="chapter-{{chapterNumber}}" class="snap-start min-w-full flex-shrink-0 flex flex-col justify-center items-center p-6 md:p-16 overflow-y-auto bg-stone-50/70">

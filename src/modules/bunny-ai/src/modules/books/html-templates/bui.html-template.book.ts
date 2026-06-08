@@ -68,7 +68,7 @@ export const BUIHTMLTemplateBook: BUIBookHTMLTemplate = {
         </div>
     </main>`,
     mainHeaderWrapper: `
-    <header class="bg-white rounded-2xl border border-slate-100 p-6 md:p-8 shadow-xs">
+    <header id="bunny-quick-routing" class="bg-white rounded-2xl border border-slate-100 p-6 md:p-8 shadow-xs scroll-mt-24">
         <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-2">{{bookTitle}}</h1>
         <div class="h-1 w-12 bg-gradient-to-r from-[#ff2d20] to-[#f43f5e] rounded-full mb-6"></div>
         <div class="bg-slate-50/70 border border-slate-100 rounded-xl p-4">
@@ -93,7 +93,13 @@ export const BUIHTMLTemplateBook: BUIBookHTMLTemplate = {
     </a>`,
     chapterHeader: `
     <header class="mb-4">
-      <span class="inline-block text-[10px] font-bold text-[#ff2d20] bg-red-50 px-2.5 py-0.5 rounded-md mb-2">CHAPTER {{chapterNumber}}</span>
+      <div class="flex items-center justify-between mb-2">
+        <span class="inline-block text-[10px] font-bold text-[#ff2d20] bg-red-50 px-2.5 py-0.5 rounded-md">CHAPTER {{chapterNumber}}</span>
+        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-[#ff2d20] bg-slate-50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors no-print">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Back to Index
+        </a>
+      </div>
       <h2 class="text-2xl font-bold text-slate-900 tracking-tight">{{chapterTitle}}</h2>
     </header>`,
     chapterBodyWrapper: `
