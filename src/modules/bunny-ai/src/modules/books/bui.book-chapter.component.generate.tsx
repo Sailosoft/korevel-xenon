@@ -5,18 +5,24 @@ import { useCallback, useState, useEffect } from "react";
 import { BUIBookRepository } from "./bui.book.repository";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
-import { buiChapterPrompt, BUIChapterPromptType } from "./bui.book-chapter.prompt";
-import { BUIBookEntity } from './bui.book.entity';
+import {
+  buiChapterPrompt,
+  BUIChapterPromptType,
+} from "./bui.book-chapter.prompt";
+import { BUIBookEntity } from "./bui.book.entity";
 
 interface BUIBookChapterComponentGenerateProps {
   bookId: number;
 }
 
-export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapterComponentGenerateProps) {
+export default function BUIBookChapterComponentGenerate({
+  bookId,
+}: BUIBookChapterComponentGenerateProps) {
   const kernel = useBunnyKernel();
   const [bookData, setBookData] = useState<BUIBookEntity | null>(null);
   const [useAuthorProfile, setUseAuthorProfile] = useState(true);
-  const [templateType, setTemplateType] = useState<BUIChapterPromptType>("default");
+  const [templateType, setTemplateType] =
+    useState<BUIChapterPromptType>("default");
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
           author: bookData.author,
         },
         templateType,
-        useAuthorProfile
+        useAuthorProfile,
       );
 
       // Raw array parse pipeline execution
@@ -95,7 +101,8 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
             </Modal.Header>
             <Modal.Body className="flex flex-col gap-4">
               <p className="text-sm text-default-500">
-                Configure execution parameters to populate missing structural modules.
+                Configure execution parameters to populate missing structural
+                modules.
               </p>
 
               <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
@@ -116,16 +123,28 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
                 </label>
                 <select
                   value={templateType}
-                  onChange={(e) => setTemplateType(e.target.value as BUIChapterPromptType)}
+                  onChange={(e) =>
+                    setTemplateType(e.target.value as BUIChapterPromptType)
+                  }
                   className="w-full bg-default-100 p-2 rounded-md text-sm outline-none border border-transparent focus:border-primary"
                 >
                   <option value="default">Standard Chronological Layout</option>
                   <option value="draft">Detailed Blueprint Engine</option>
-                  <option value="three_act">Three-Act Narrative Blueprint</option>
-                  <option value="hero_journey">The Hero Journey Archetype</option>
-                  <option value="non_fiction">Modular Non-Fiction Blueprint</option>
-                  <option value="sci_fi_world">Sci-Fi Worldbuilding Emphasis</option>
-                  <option value="mystery_pacing">Mystery Suspense Arc Curves</option>
+                  <option value="three_act">
+                    Three-Act Narrative Blueprint
+                  </option>
+                  <option value="hero_journey">
+                    The Hero Journey Archetype
+                  </option>
+                  <option value="non_fiction">
+                    Modular Non-Fiction Blueprint
+                  </option>
+                  <option value="sci_fi_world">
+                    Sci-Fi Worldbuilding Emphasis
+                  </option>
+                  <option value="mystery_pacing">
+                    Mystery Suspense Arc Curves
+                  </option>
                 </select>
               </div>
 
@@ -134,7 +153,10 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
                   Active Prompter Directives
                 </span>
                 <p className="text-xs text-default-600 italic">
-                  {buiChapterPrompt.generateChapters[templateType]?.systemPrompt}
+                  {
+                    buiChapterPrompt.generateChapters[templateType]
+                      ?.systemPrompt
+                  }
                 </p>
               </div>
             </Modal.Body>
@@ -145,7 +167,9 @@ export default function BUIBookChapterComponentGenerate({ bookId }: BUIBookChapt
                 isDisabled={isGenerating || !bookData}
                 onClick={handleGenerate}
               >
-                {isGenerating ? "Processing Modules..." : "Confirm & Launch Engine"}
+                {isGenerating
+                  ? "Processing Modules..."
+                  : "Confirm & Launch Engine"}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

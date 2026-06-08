@@ -38,15 +38,6 @@ export default function BunnyDialog<TContext>({
     closeDialog,
     executeAction,
   } = dialog;
-
-  const handleOpenChange = useCallback(
-    (isOpen: boolean) => {
-      if (loading) return; // Matches BunnyModal loading block[cite: 8]
-      if (!isOpen) closeDialog();
-    },
-    [closeDialog, loading],
-  );
-
   const [formState, formDispatch, isPending] = useActionState(
     executeAction<TContext>,
     {
@@ -54,6 +45,13 @@ export default function BunnyDialog<TContext>({
       errors: {},
       values: {},
     },
+  );
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (loading || isPending) return; // Matches BunnyModal loading block[cite: 8]
+      if (!isOpen) closeDialog();
+    },
+    [closeDialog, loading, isPending],
   );
 
   const dialogClassName = useMemo(() => {
@@ -87,7 +85,7 @@ export default function BunnyDialog<TContext>({
       <Modal.Container>
         <Modal.Dialog className={dialogClassName}>
           {/* --- TOP LAYER LOADING OVERLAY (Mirrors BunnyModal structure) --- */}
-          {loading && (
+          {(loading || isPending) && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/70 dark:bg-black/70 backdrop-blur-[1px] transition-all animate-fade-in">
               <div className="flex flex-col items-center gap-3 p-4 rounded-xl">
                 <Spinner size="lg" color="current" />
@@ -96,7 +94,7 @@ export default function BunnyDialog<TContext>({
             </div>
           )}
 
-          <Modal.CloseTrigger isDisabled={loading} />
+          <Modal.CloseTrigger isDisabled={loading || isPending} />
 
           <Modal.Header className="w-full pr-12">
             <Modal.Heading>
@@ -134,11 +132,15 @@ export default function BunnyDialog<TContext>({
                 type="button"
                 variant="secondary"
                 onClick={closeDialog}
-                isDisabled={loading}
+                isDisabled={loading || isPending}
               >
                 {labelNegative}
               </Button>
-              <Button type="submit" variant="primary" isDisabled={loading}>
+              <Button
+                type="submit"
+                variant="primary"
+                isDisabled={loading || isPending}
+              >
                 {labelPositive}
               </Button>
             </Modal.Footer>

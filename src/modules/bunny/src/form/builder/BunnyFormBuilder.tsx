@@ -217,6 +217,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           </Label>
           <TextArea
             id={fieldId}
+            // isDisabled={field.disabled}
             placeholder={field.placeholder}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => handleChange(e.target.value)}
@@ -231,6 +232,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           <div className="flex items-center gap-3">
             <Switch
               id={fieldId}
+              isDisabled={field.disabled}
               isSelected={Boolean(value)}
               onChange={handleChange}
             />
@@ -278,6 +280,7 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           </Label>
           <Input
             id={fieldId}
+            // isDisabled={field.disabled}
             type={
               field.type === "number"
                 ? "number"
