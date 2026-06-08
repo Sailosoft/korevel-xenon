@@ -1,4 +1,4 @@
-import { BUIBookHTMLTemplate } from '../bui.book.export.types';
+import { BUIBookHTMLTemplate } from "../bui.book.export.types";
 
 export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
   name: "Swipe Template",
@@ -9,13 +9,14 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
     body { font-family: 'Lora', serif; background-color: #f4f1ea; }
     .prose { font-family: 'Crimson Pro', serif; }
     `,
-    printStyles: `@media print { .no-print { display: none !important; } }`
+    printStyles: `@media print { .no-print { display: none !important; } }`,
   },
   layout: {
     documentShell: `<!DOCTYPE html>
 <html lang="en" class="overflow-hidden h-full">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{bookTitle}}</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <style>{{{globalAssets.typographyFonts}}}{{{globalAssets.printStyles}}}</style>
@@ -41,14 +42,14 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
         {{{articleContainer}}}
     </main>`,
     mainHeaderWrapper: `
-    <div class="max-w-2xl text-center border-4 border-stone-800 p-12 bg-white shadow-xl rounded-sm">
+    <div id="bunny-quick-routing" class="max-w-2xl text-center border-4 border-stone-800 p-12 bg-white shadow-xl rounded-sm">
         <h1 class="text-5xl font-semibold tracking-wide text-stone-900 mb-6">{{bookTitle}}</h1>
         <div class="w-16 h-0.5 bg-stone-800 mx-auto my-6"></div>
         <p class="text-sm italic text-stone-500 mb-8">Table of Contents</p>
         <div class="grid grid-cols-1 gap-2 text-left max-h-60 overflow-y-auto pr-2">{{{mainIndexHtml}}}</div>
         <div class="mt-8"><a href="#chapter-1" class="px-6 py-2.5 bg-stone-900 text-white rounded text-sm hover:bg-stone-800 transition-colors">Open Manuscript →</a></div>
     </div>`,
-    articleContainer: `{{{chaptersHtml}}}`
+    articleContainer: `{{{chaptersHtml}}}`,
   },
   component: {
     sidebarLinkItem: `
@@ -63,9 +64,15 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
         <span class="text-xs font-mono text-stone-400">Read</span>
     </a>`,
     chapterHeader: `
-    <header class="mb-8 border-b border-stone-200 pb-6 text-center">
-      <span class="font-mono text-xs uppercase tracking-widest text-stone-400 block mb-1">Chapter {{chapterNumber}}</span>
-      <h2 class="text-3xl font-medium text-stone-900 tracking-tight">{{chapterTitle}}</h2>
+    <header class="mb-8 border-b border-stone-200 pb-6">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-mono text-xs uppercase tracking-widest text-stone-400">Chapter {{chapterNumber}}</span>
+        <a href="#bunny-quick-routing" onclick="this.closest('main').scrollTo({left: 0, behavior: 'smooth'}); return false;" class="inline-flex items-center gap-1 text-xs font-medium text-stone-400 hover:text-stone-800 hover:bg-stone-100 px-2.5 py-1 rounded-lg transition-colors no-print">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Back to Index
+        </a>
+      </div>
+      <h2 class="text-3xl font-medium text-stone-900 tracking-tight text-center">{{chapterTitle}}</h2>
     </header>`,
     chapterBodyWrapper: `
     <section id="chapter-{{chapterNumber}}" class="snap-start min-w-full flex-shrink-0 flex flex-col justify-center items-center p-6 md:p-16 overflow-y-auto bg-stone-50/70">
@@ -84,6 +91,6 @@ export const BUIHTMLTemplateSwipe: BUIBookHTMLTemplate = {
     <footer class="no-print bg-stone-900 border-t border-stone-800 py-3 px-6 flex justify-between items-center text-[11px] font-mono text-stone-400 w-full z-10">
         <span>{{bookTitle}}</span>
         <span>&copy; {{currentYear}} Folio Render</span>
-    </footer>`
-  }
+    </footer>`,
+  },
 };

@@ -15,6 +15,7 @@ export const BUIHTMLTemplateLaravel: BUIBookHTMLTemplate = {
 <html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{bookTitle}}</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <style>{{{globalAssets.typographyFonts}}}{{{globalAssets.printStyles}}}</style>
@@ -57,7 +58,7 @@ export const BUIHTMLTemplateLaravel: BUIBookHTMLTemplate = {
         </div>
     </main>`,
     mainHeaderWrapper: `
-    <header class="mb-16 bg-white rounded-2xl border border-slate-200/50 p-8 shadow-sm">
+    <header id="bunny-quick-routing" class="mb-16 bg-white rounded-2xl border border-slate-200/50 p-8 shadow-sm scroll-mt-24">
         <span class="text-xs font-bold text-[#ff2d20] tracking-wider uppercase">Reference Manual</span>
         <h1 class="text-4xl font-bold tracking-tight text-slate-900 mt-1 mb-4">{{bookTitle}}</h1>
         <p class="text-sm text-slate-500 leading-relaxed">Select a submodule category routing target path node below to step straight into its parsed text content block instructions.</p>
@@ -79,10 +80,16 @@ export const BUIHTMLTemplateLaravel: BUIBookHTMLTemplate = {
     </a>`,
     chapterHeader: `
     <header class="mb-6 border-b border-slate-100 pb-4">
-      <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-         <a href="#chapter-{{chapterNumber}}" class="text-[#ff2d20] font-mono text-lg font-medium opacity-80">#</a>
-         {{chapterTitle}}
-      </h2>
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <a href="#chapter-{{chapterNumber}}" class="text-[#ff2d20] font-mono text-lg font-medium opacity-80">#</a>
+          {{chapterTitle}}
+        </h2>
+        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-[#ff2d20] bg-slate-50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors no-print shrink-0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Back to Index
+        </a>
+      </div>
     </header>`,
     chapterBodyWrapper: `
     <section id="chapter-{{chapterNumber}}" class="mb-16 last:mb-0 scroll-mt-24">

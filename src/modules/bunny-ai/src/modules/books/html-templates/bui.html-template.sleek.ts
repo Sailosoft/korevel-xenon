@@ -16,6 +16,7 @@ export const BUIHTMLTemplateSleek: BUIBookHTMLTemplate = {
 <html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{bookTitle}}</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <style>{{{globalAssets.typographyFonts}}}{{{globalAssets.printStyles}}}</style>
@@ -39,7 +40,7 @@ export const BUIHTMLTemplateSleek: BUIBookHTMLTemplate = {
         {{{pageFooter}}}
     </main>`,
     mainHeaderWrapper: `
-    <header class="mb-24 border-b border-zinc-100 pb-12">
+    <header id="bunny-quick-routing" class="mb-24 border-b border-zinc-100 pb-12 scroll-mt-24">
         <h1 class="text-5xl font-light tracking-tight text-zinc-950 mb-6">{{bookTitle}}</h1>
         <div class="mt-8">
             <span class="font-mono text-xs uppercase tracking-wider text-zinc-400 block mb-4">Outline Quick Jump</span>
@@ -63,7 +64,13 @@ export const BUIHTMLTemplateSleek: BUIBookHTMLTemplate = {
     </a>`,
     chapterHeader: `
     <header class="mb-6">
-      <div class="font-mono text-xs text-zinc-400 mb-2">SECTION {{paddedChapterNumber}}</div>
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-mono text-xs text-zinc-400">SECTION {{paddedChapterNumber}}</div>
+        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-zinc-950 hover:bg-zinc-50 px-2.5 py-1 rounded-lg transition-colors no-print">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Back to Index
+        </a>
+      </div>
       <h2 class="text-3xl font-medium tracking-tight text-zinc-950">{{chapterTitle}}</h2>
     </header>`,
     chapterBodyWrapper: `

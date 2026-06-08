@@ -52,7 +52,7 @@ export const BUIHTMLTemplateMobile: BUIBookHTMLTemplate = {
         {{{pageFooter}}}
     </main>`,
     mainHeaderWrapper: `
-    <header class="bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl p-5 mb-6 text-center">
+    <header id="bunny-quick-routing" class="bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl p-5 mb-6 text-center scroll-mt-20">
         <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{bookTitle}}</h1>
         <div class="w-10 h-1 bg-slate-900 mx-auto my-3 rounded-full"></div>
         <div class="text-left mt-4">
@@ -75,7 +75,13 @@ export const BUIHTMLTemplateMobile: BUIBookHTMLTemplate = {
     </a>`,
     chapterHeader: `
     <header class="mb-3">
-      <span class="text-[10px] font-bold tracking-widest text-indigo-600 uppercase">CH. {{chapterNumber}}</span>
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-bold tracking-widest text-indigo-600 uppercase">CH. {{chapterNumber}}</span>
+        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-indigo-600 active:bg-indigo-50 px-2 py-1 rounded transition-colors no-print">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Index
+        </a>
+      </div>
       <h2 class="text-xl font-bold text-slate-900 leading-tight mt-0.5">{{chapterTitle}}</h2>
     </header>`,
     chapterBodyWrapper: `
