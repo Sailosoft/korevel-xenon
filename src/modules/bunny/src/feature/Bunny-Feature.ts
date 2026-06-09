@@ -1,11 +1,5 @@
 import { AdminPanelMutation } from "@/src/modules/admin-panel/features/mutation/admin-panel-mutation.interface";
-import {
-  AdminPanelQuery,
-  AdminPanelQueryOptions,
-  GetAllResponse,
-} from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
-import { AdminPanelResult } from "@/src/modules/admin-panel/shared/admin-panel-result";
-import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
+import { AdminPanelQuery } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { IBUIRepositoryAdminPanel } from "@/src/modules/bunny-ai/src/database/bui.repository.interface";
 import { BunnyConfig, BunnyModalSize } from "../Bunny.Interface";
 import {
