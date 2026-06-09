@@ -101,6 +101,6 @@ export function useAdminPanelDialog(): UseAdminPanelDialog {
     executeAction,
     setLoading(loading: boolean) {
       setState((prev) => ({ ...prev, loading }));
-    }
+    },
   };
 }

@@ -22,6 +22,7 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
     | (() => BunnySelectOption[] | Promise<BunnySelectOption[]>);
   defaultValue?: TForm[keyof TForm];
   required?: boolean;
+  disabled?: boolean;
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
   // validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
   rules?: BunnyValidationRule[];
