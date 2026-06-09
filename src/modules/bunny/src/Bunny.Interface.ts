@@ -39,6 +39,19 @@ export interface ExtendedBunnyProps<TRow, TForm> extends BunnyProps<
 
 export type BunnyModalSize = "xs" | "sm" | "md" | "lg" | "cover" | "full";
 
+/**
+ * Defines the behavior after a successful form submission (create/update).
+ *
+ * - `openView` (default): opens the modal in view mode with the created/updated id.
+ * - `closeOnly`: closes the modal after success without navigating.
+ * - `redirect`: navigates to a route using the router. If `route` is specified,
+ *   navigates to `/{route}/{id}`, otherwise navigates to `currentRoute/{id}`.
+ */
+export type BunnyOnSuccessBehavior =
+  | { mode: "openView" }
+  | { mode: "closeOnly" }
+  | { mode: "redirect"; route?: string };
+
 export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   title: string;
   titlePlural?: string;
@@ -69,6 +82,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   rowActions?: BunnyRowAction<TRow>[];
 
   modalHeaderActions?: BunnyModalHeaderAction<TRow, TForm>[];
+
+  /** Behavior after a successful form submission (create/update). Defaults to `{ mode: "openView" }` if not set. */
+  onSuccess?: BunnyOnSuccessBehavior;
 
   tableMode?: BunnyTableMode;
   tableMobileView?: BunnyTableMobileView<TRow>;

@@ -12,6 +12,7 @@ import {
   ExtendedBunnyProps,
   BunnyConfig,
   BunnyHasId,
+  BunnyOnSuccessBehavior,
 } from "./Bunny.Interface";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
 import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
@@ -25,7 +26,8 @@ import { BunnyReactiveTable } from "./table/BunnyReactiveTable";
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import { BunnyHeaderActionType } from "./header/BunnyHeader.Interface";
 import { BunnyRowAction } from "./table/BunnyTable.Interface";
-import BunnyDialogAction from './dialog/BunnyDialogAction';
+import BunnyDialogAction from "./dialog/BunnyDialogAction";
+import { useNextBunnyRouter } from "./router/NextBunnyRouter";
 
 export default function Bunny<TRow, TForm>({
   children,
@@ -60,6 +62,7 @@ function BunnyMainPanel<TRow, TForm>({
    * Admin Panel State and Action
    */
   const { form, modal, table } = admin;
+  const router = useNextBunnyRouter();
 
   const defaultHeaderActions = useBunnyHeaderActions<TRow, TForm>([]);
   const defaultRowActions = useBunnyRowActionDefault({
@@ -127,15 +130,35 @@ function BunnyMainPanel<TRow, TForm>({
       mode,
       result,
     }: AdminPanelEventFormSuccessPayload<unknown>) => {
-      console.log("Success");
+      const behavior: BunnyOnSuccessBehavior = finalConfig.onSuccess ?? {
+        mode: "openView",
+      };
+
+      // Resolve the entity id — narrow the discriminated union first
+      const entityId =
+        mode === "update"
+          ? ((modal.id ?? "") as string)
+          : mode === "create" && result.status === "success"
+            ? (((result.data as unknown as BunnyHasId)?.id ?? "") as string)
+            : "";
+
+      if (behavior.mode === "redirect") {
+        const baseRoute = behavior.route
+          ? `/${behavior.route.replace(/^\/+/, "")}`
+          : window.location.pathname.replace(/\/+$/, "");
+        router.push(`${baseRoute}/${entityId}`);
+      } else if (behavior.mode === "closeOnly") {
+        modal.closeModal();
+      } else {
+        // openView (default)
+        if (entityId) modal.openView(entityId);
+      }
+
+      table.fetchData();
+
       if (mode === "update") {
-        modal.openView(modal.id!);
-        table.fetchData();
         toast.success("Updated successfully");
-      } else if (mode === "create" && result.status === "success") {
-        const data = result.data as unknown as BunnyHasId;
-        modal.openView(data?.id ?? "");
-        table.fetchData();
+      } else if (mode === "create") {
         toast.success("Created successfully");
       }
     };
@@ -148,7 +171,7 @@ function BunnyMainPanel<TRow, TForm>({
       adminPanelEvents.off("form:success", onFormSuccess);
       adminPanelEvents.off("del:success", onDeleteSuccess);
     };
-  }, [modal, table]);
+  }, [modal, table, finalConfig, router]);
 
   return (
     <BunnyProvider config={finalConfig}>

@@ -1,7 +1,11 @@
 import { AdminPanelMutation } from "@/src/modules/admin-panel/features/mutation/admin-panel-mutation.interface";
 import { AdminPanelQuery } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { IBUIRepositoryAdminPanel } from "@/src/modules/bunny-ai/src/database/bui.repository.interface";
-import { BunnyConfig, BunnyModalSize } from "../Bunny.Interface";
+import {
+  BunnyConfig,
+  BunnyModalSize,
+  BunnyOnSuccessBehavior,
+} from "../Bunny.Interface";
 import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
@@ -210,6 +214,11 @@ class BunnyFormConfigurator<TRow, TForm> {
     props: NonNullable<NonNullable<BunnyConfig<TRow, TForm>["props"]>["form"]>,
   ): this {
     this.config.props!.form = { ...this.config.props!.form, ...props };
+    return this;
+  }
+
+  public setOnSuccess(onSuccess: BunnyOnSuccessBehavior): this {
+    this.config.onSuccess = onSuccess;
     return this;
   }
 }
