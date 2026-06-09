@@ -132,7 +132,7 @@ export function useAdminPanelForm<TForm = unknown>({
 
     setIsLoading(true);
     try {
-      const data = await query.getOne(id) as TForm;
+      const data = (await query.getOne(id)) as TForm;
       setFormDataState(data);
     } catch (err) {
       const errorObj =
@@ -143,7 +143,6 @@ export function useAdminPanelForm<TForm = unknown>({
       setIsLoading(false);
     }
   }, [mode, id, query]);
-
 
   const setFormData = useCallback((data: TForm | ((prev: TForm) => TForm)) => {
     setFormDataState(data);

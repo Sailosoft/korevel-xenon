@@ -1,5 +1,6 @@
 import { Table } from "dexie";
 import { BUIRepository } from "./bui.repository";
+import { IBUIRepositoryAdminPanel } from "./bui.repository.interface";
 import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 import {
   AdminPanelQueryOptions,
@@ -7,7 +8,10 @@ import {
 } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { AdminPanelResult } from "@/src/modules/admin-panel/shared/admin-panel-result";
 
-export default class BUIRepositoryAdminPanel<T> extends BUIRepository<T> {
+export default class BUIRepositoryAdminPanel<T>
+  extends BUIRepository<T>
+  implements IBUIRepositoryAdminPanel<T>
+{
   constructor(table: Table<T>) {
     super(table);
   }

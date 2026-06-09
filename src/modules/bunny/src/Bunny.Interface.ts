@@ -13,7 +13,12 @@ import {
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
 import { BunnyRouter } from "./router/BunnyRouter.interface";
 import { BunnyRowDefaultActions } from "./rows/BunnyRow.Interface";
-import { BunnyColumn, BunnyRowAction, BunnyTableMobileView, BunnyTableMode } from "./table/BunnyTable.Interface";
+import {
+  BunnyColumn,
+  BunnyRowAction,
+  BunnyTableMobileView,
+  BunnyTableMode,
+} from "./table/BunnyTable.Interface";
 
 export type BunnyCustomize<TRow, TForm> = (
   admin: UseAdminPanel<TRow, TForm>,
@@ -32,18 +37,20 @@ export interface ExtendedBunnyProps<TRow, TForm> extends BunnyProps<
   customize?: BunnyCustomize<TRow, TForm>;
 }
 
+export type BunnyModalSize = "xs" | "sm" | "md" | "lg" | "cover" | "full";
+
 export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   title: string;
   titlePlural?: string;
   modalSizeWidth?: number;
-  modalSize?: "xs" | "sm" | "md" | "lg" | "cover" | "full";
+  modalSize?: BunnyModalSize;
   columns: BunnyColumn<TRow>[];
   rowKey: keyof TRow;
   tableHeight?: number | string;
   query: AdminPanelQuery<TRow, TForm>;
   mutation: AdminPanelMutation<TForm>;
   rowActionsColLength?: number;
-  formConfig?: BunnyFormConfig<TForm>
+  formConfig?: BunnyFormConfig<TForm>;
   /** Width configuration for the table's row actions column 🚀 */
   rowActionsColWidth?: number; // 👈 Updated naming;
 
