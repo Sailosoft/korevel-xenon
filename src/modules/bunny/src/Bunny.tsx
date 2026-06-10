@@ -98,9 +98,11 @@ function BunnyMainPanel<TRow, TForm>({
 
     const customizations = customize ? customize(admin, baseMergedConfig) : {};
 
-    return {
+    const data = {
       ...baseMergedConfig,
       ...customizations,
+      // Ensure the raw formConfig (whether static or function) passes through safely
+      // formConfig: config.formConfig,
       rowActions: customizations.rowActions || baseMergedConfig.rowActions,
       headerActions:
         customizations.headerActions || baseMergedConfig.headerActions,
@@ -108,13 +110,48 @@ function BunnyMainPanel<TRow, TForm>({
         customizations.modalHeaderActions ||
         baseMergedConfig.modalHeaderActions,
     };
-  }, [config, customize, admin, defaultHeaderActions, defaultRowActions]);
 
+    // console.log(data, customizations);
+    return data;
+  }, [
+    customize,
+    admin,
+    defaultHeaderActions,
+    defaultRowActions,
+    config.title,
+    config.titlePlural,
+    config.modalSize,
+    config.modalSizeWidth,
+    config.columns,
+    config.rowKey,
+    config.tableHeight,
+    config.query,
+    config.mutation,
+    config.rowActionsColLength,
+    config.rowActionsColWidth,
+    config.defaultHeaderActions,
+    config.hideHeaderActions,
+    config.headerActions,
+    config.defaultRowActions,
+    config.hideRowActions,
+    config.rowActions,
+    config.modalHeaderActions,
+    config.onSuccess,
+    config.tableMode,
+    config.tableMobileView,
+    config.props,
+  ]);
   const handlePrimaryAction = useCallback(async () => {
     form.clearFormError();
-    if (finalConfig.formConfig?.fields) {
+
+    // Directly pull from the primary config prop
+    const rawFormConfig = config.formConfig;
+    const resolvedFormConfig =
+      typeof rawFormConfig === "function" ? rawFormConfig(form) : rawFormConfig;
+
+    if (resolvedFormConfig?.fields) {
       const clientErrors = validateBunnyForm(
-        finalConfig.formConfig.fields,
+        resolvedFormConfig.fields,
         form.formData,
       );
       if (Object.keys(clientErrors).length > 0) {
@@ -123,8 +160,7 @@ function BunnyMainPanel<TRow, TForm>({
       }
     }
     await form.submit();
-  }, [form, finalConfig]);
-
+  }, [form, config.formConfig]); // Stable and explicit dependency
   useEffect(() => {
     const onFormSuccess = ({
       mode,

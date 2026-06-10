@@ -17,7 +17,8 @@ import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.genera
 import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
-import BUIBookComponentExportPreview from './bui.book.export.component.chapter';
+import BUIBookComponentExportPreview from "./bui.book.export.component.chapter";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 
 const repository = new BUIBookChapterRepository();
 
@@ -184,9 +185,12 @@ export const buiBookChapterModule = (
             >;
             context.adminPanel.dialog.setLoading(true);
             try {
+              const settingsRepo = new BUISettingsRepository();
+              const aiConfig = await settingsRepo.getActiveAIConfig();
               await generateChapterContentAction(
                 row.id!,
                 promptType as BUIChapterPromptContypeType,
+                aiConfig,
               );
               context.adminPanel.table.refresh?.();
               return {
@@ -264,7 +268,13 @@ export const buiBookChapterModule = (
             },
           };
 
-          const result = await buiChapterServerContent(params, "default");
+          const settingsRepo = new BUISettingsRepository();
+          const aiConfig = await settingsRepo.getActiveAIConfig();
+          const result = await buiChapterServerContent(
+            params,
+            "default",
+            aiConfig,
+          );
 
           if (result && result.success) {
             const words = result.content

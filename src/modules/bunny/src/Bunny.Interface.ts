@@ -1,5 +1,8 @@
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
-import { UseAdminPanelFormPropsWithoutQueryMutation } from "../../admin-panel/features/form/admin-panel-form.interface";
+import {
+  UseAdminPanelForm,
+  UseAdminPanelFormPropsWithoutQueryMutation,
+} from "../../admin-panel/features/form/admin-panel-form.interface";
 import { AdminPanelId } from "../../admin-panel/features/id/admin-panel-id.interface";
 import { AdminPanelMutation } from "../../admin-panel/features/mutation/admin-panel-mutation.interface";
 import { UseAdminPanelNotifyProps } from "../../admin-panel/features/notify/admin-panel-notify.interface";
@@ -63,7 +66,14 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   query: AdminPanelQuery<TRow, TForm>;
   mutation: AdminPanelMutation<TForm>;
   rowActionsColLength?: number;
-  formConfig?: BunnyFormConfig<TForm>;
+  /** * Accepts a static config object or a function that receives the form context
+   * and returns a config — useful for dynamically adjusting fields based on formData.
+   * * ⚠️ PERFORMANCE TIP: If using function mode, declare the function outside the component
+   * or wrap it in React.useCallback to prevent redundant table/config recalculations.
+   */
+  formConfig?:
+    | BunnyFormConfig<TForm>
+    | ((form: UseAdminPanelForm<TForm>) => BunnyFormConfig<TForm>);
   /** Width configuration for the table's row actions column 🚀 */
   rowActionsColWidth?: number; // 👈 Updated naming;
 

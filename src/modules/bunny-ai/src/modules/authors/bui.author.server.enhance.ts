@@ -6,11 +6,13 @@ import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiAuthorPrompt } from "./bui.author.prompt";
 import { BUIAuthorPromptType } from "./bui.author.entity";
+import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 export async function buiAuthorServerEnhanceWithParams(
   name: string,
   description: string,
   promptType: BUIAuthorPromptType = "professional",
+  aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");
@@ -52,6 +54,7 @@ export async function buiAuthorServerEnhanceWithParams(
       user: userPrompt,
       schema: authorEnhancementSchema,
       temperature: promptType === "creative" ? 0.85 : 0.6, // Tweak temperature per style choice!
+      aiConfig,
     });
 
     return enhancedAuthor;

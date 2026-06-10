@@ -7,8 +7,8 @@ import {
   buiChapterPromptContent,
   BUIChapterPromptContypeType,
 } from "./bui.book-chapter.prompt.content";
-import { BUIBookChapterParams } from './bui.book.entity';
-
+import { BUIBookChapterParams } from "./bui.book.entity";
+import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 /**
  * Server Action to compile Chapter prompts and execute AI narrative generation
@@ -16,6 +16,7 @@ import { BUIBookChapterParams } from './bui.book.entity';
 export async function buiChapterServerContent(
   params: BUIBookChapterParams,
   promptType: BUIChapterPromptContypeType = "default",
+  aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");
@@ -37,6 +38,7 @@ export async function buiChapterServerContent(
       system: systemPrompt,
       user: userPrompt,
       temperature: 0.7,
+      aiConfig,
     });
 
     return {
