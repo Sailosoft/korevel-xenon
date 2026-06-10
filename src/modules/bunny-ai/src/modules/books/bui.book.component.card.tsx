@@ -1,13 +1,14 @@
 "use client";
 
+import Markdown from "react-markdown";
 import React, { useEffect, useState } from "react";
 import { Card, Separator, Disclosure } from "@heroui/react";
 import { BUIBookEntity } from "./bui.book.entity";
 import { BUIBookRepository } from "./bui.book.repository";
 import Link from "next/link";
 import { ArrowLeft, UserCircle } from "lucide-react";
-import BUIAuthorRepository from '../authors/bui.author.repository';
-import { AdminPanelId } from '@/src/modules/admin-panel/features/id/admin-panel-id.interface';
+import BUIAuthorRepository from "../authors/bui.author.repository";
+import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 
 interface BUIBookComponentCardProps {
   bookId: number;
@@ -85,7 +86,11 @@ export function BUIBookComponentCard({ bookId }: BUIBookComponentCardProps) {
       <Separator />
 
       <Card.Content className="px-6 py-4 flex flex-col gap-4">
-        <Disclosure isExpanded={isExpanded} onExpandedChange={setIsExpanded} className="w-full">
+        <Disclosure
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          className="w-full"
+        >
           <Disclosure.Heading>
             <Disclosure.Trigger className="flex items-center justify-between w-full text-xs font-medium text-default-400 uppercase tracking-wider py-1 hover:text-default-600 transition-colors cursor-pointer">
               <span>Book Description & Author Context</span>
@@ -94,16 +99,8 @@ export function BUIBookComponentCard({ bookId }: BUIBookComponentCardProps) {
           </Disclosure.Heading>
 
           <Disclosure.Content className="pt-3 flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-bold uppercase text-default-400 tracking-wide">Synopsis</span>
-              <div
-                className="text-sm text-default-700 prose dark:prose-invert max-w-none leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: book.description || "<em>No description provided.</em>" }}
-              />
-            </div>
-
-            {/* Author Profile Information Area Display Block */}
-            <div className="mt-2 p-3 bg-default-50 border border-default-200 rounded-xl flex flex-col gap-1.5">
+            {/* Author Profile Information Area Display Block — Placed first */}
+            <div className="p-3 bg-default-50 border border-default-200 rounded-xl flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-default-500 uppercase tracking-wider">
                 <UserCircle className="w-4 h-4 text-default-400" />
                 <span>Author Information Profile</span>
@@ -112,9 +109,23 @@ export function BUIBookComponentCard({ bookId }: BUIBookComponentCardProps) {
                 <span className="text-sm font-bold text-default-800">
                   {book.author?.name || "Anonymous / Unassigned Writer"}
                 </span>
-                <p className="text-xs text-default-500 italic leading-relaxed">
-                  {book.author?.description || "No biography details assigned to this creator profile matrix."}
-                </p>
+                <div className="text-xs text-default-500 italic leading-relaxed prose dark:prose-invert max-w-none">
+                  <Markdown>
+                    {book.author?.description ||
+                      "No biography details assigned to this creator profile matrix."}
+                  </Markdown>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-bold uppercase text-default-400 tracking-wide">
+                Book Description
+              </span>
+              <div className="text-sm text-default-700 prose dark:prose-invert max-w-none leading-relaxed">
+                <Markdown>
+                  {book.description || "*No description provided.*"}
+                </Markdown>
               </div>
             </div>
           </Disclosure.Content>

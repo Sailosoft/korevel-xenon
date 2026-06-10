@@ -38,7 +38,6 @@ export default function Bunny<TRow, TForm>({
     <AdminPanelProvider query={config.query} mutation={config.mutation}>
       <BunnyMainPanel config={config} customize={customize}>
         {children}
-        <Toast.Provider />
       </BunnyMainPanel>
     </AdminPanelProvider>
   );
@@ -136,7 +135,7 @@ function BunnyMainPanel<TRow, TForm>({
     config.hideRowActions,
     config.rowActions,
     config.modalHeaderActions,
-    config.onSuccess,
+    config.onFormSuccess,
     config.tableMode,
     config.tableMobileView,
     config.props,
@@ -166,7 +165,7 @@ function BunnyMainPanel<TRow, TForm>({
       mode,
       result,
     }: AdminPanelEventFormSuccessPayload<unknown>) => {
-      const behavior: BunnyOnSuccessBehavior = finalConfig.onSuccess ?? {
+      const behavior: BunnyOnSuccessBehavior = finalConfig.onFormSuccess ?? {
         mode: "openView",
       };
 
@@ -221,6 +220,8 @@ function BunnyMainPanel<TRow, TForm>({
 
         <BunnyDialogAction />
       </Card>
+
+      <Toast.Provider />
     </BunnyProvider>
   );
 }

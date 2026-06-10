@@ -1,7 +1,12 @@
 // bui.book-chapter.component.pipeline.tsx
 import React, { useState } from "react";
 import { Button, Modal } from "@heroui/react";
-import { Wand2, LoaderIcon, AlertTriangle } from "lucide-react";
+import {
+  Wand2,
+  LoaderIcon,
+  AlertTriangle,
+  NotebookPenIcon,
+} from "lucide-react";
 import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
@@ -21,7 +26,8 @@ export default function BUIBookChapterComponentPipeline({
 
   // Pipeline Processing States
   const [isProcessing, setIsProcessing] = useState(false);
-  const [promptType, setPromptType] = useState<BUIChapterPromptContypeType>("default");
+  const [promptType, setPromptType] =
+    useState<BUIChapterPromptContypeType>("default");
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
@@ -38,7 +44,7 @@ export default function BUIBookChapterComponentPipeline({
       const records = await repo.getChaptersByBook(bookId);
 
       const targetedChapters = records.filter(
-        (record) => record.status !== "done" && record.id
+        (record) => record.status !== "done" && record.id,
       );
 
       if (targetedChapters.length === 0) {
@@ -61,7 +67,6 @@ export default function BUIBookChapterComponentPipeline({
         // Mid-execution interface stream sync update
         context.adminPanel?.table?.refresh?.();
       }
-
     } catch (error) {
       console.error("Batch processing pipeline encountered errors:", error);
     } finally {
@@ -97,8 +102,8 @@ export default function BUIBookChapterComponentPipeline({
         size="sm"
         className="font-medium shadow-sm flex items-center gap-2"
       >
-        <Wand2 className="w-4 h-4" />
-        Run AI Batch Generation
+        <NotebookPenIcon className="w-4 h-4" />
+        <span className="hidden sm:inline ml-1">AI Content Writing</span>
       </Button>
 
       <Modal isOpen={isOpen}>
@@ -106,13 +111,16 @@ export default function BUIBookChapterComponentPipeline({
           <Modal.Container>
             <Modal.Dialog onClick={(e) => e.stopPropagation()}>
               <Modal.CloseTrigger onClick={() => setIsOpen(false)} />
-              <Modal.Header>
-                Sequential Writing Pipeline
-              </Modal.Header>
+              <Modal.Header>Sequential Writing Pipeline</Modal.Header>
               <Modal.Body className="gap-4">
                 <p className="text-sm text-default-500">
-                  This triggers sequential processing of all chapters under this outline layout currently marked as
-                  <span className="font-semibold text-default-700"> Empty</span> or
+                  This triggers sequential processing of all chapters under this
+                  outline layout currently marked as
+                  <span className="font-semibold text-default-700">
+                    {" "}
+                    Empty
+                  </span>{" "}
+                  or
                   <span className="font-semibold text-primary"> Pending</span>.
                 </p>
 
@@ -123,22 +131,38 @@ export default function BUIBookChapterComponentPipeline({
                   <select
                     aria-label="Select Persona"
                     value={promptType}
-                    onChange={(e) => setPromptType(e.target.value as BUIChapterPromptContypeType)}
+                    onChange={(e) =>
+                      setPromptType(
+                        e.target.value as BUIChapterPromptContypeType,
+                      )
+                    }
                     className="w-full min-h-10 px-3 py-2 rounded-xl border-2 border-default-200 bg-transparent text-sm hover:border-default-400 focus:border-primary focus:outline-none transition-colors"
                   >
                     <option value="default">Default Architect Tone</option>
-                    <option value="character_driven">Character-Driven (First Person)</option>
-                    <option value="software_engineering">Pragmatic Software Engineer</option>
-                    <option value="technology">Disruptive Technology Futurist</option>
-                    <option value="medical">Clinical & Empathetic Medical</option>
-                    <option value="motivational">High-Performance Motivational</option>
+                    <option value="character_driven">
+                      Character-Driven (First Person)
+                    </option>
+                    <option value="software_engineering">
+                      Pragmatic Software Engineer
+                    </option>
+                    <option value="technology">
+                      Disruptive Technology Futurist
+                    </option>
+                    <option value="medical">
+                      Clinical & Empathetic Medical
+                    </option>
+                    <option value="motivational">
+                      High-Performance Motivational
+                    </option>
                   </select>
                 </div>
 
                 <div className="p-3 bg-default-50 border border-default-200 rounded-lg flex gap-2.5 items-start">
                   <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
                   <p className="text-xs text-default-600 leading-relaxed">
-                    Once launched, this setup panel closes. The generation monitor hooks directly into the header toolbars layout until complete.
+                    Once launched, this setup panel closes. The generation
+                    monitor hooks directly into the header toolbars layout until
+                    complete.
                   </p>
                 </div>
               </Modal.Body>

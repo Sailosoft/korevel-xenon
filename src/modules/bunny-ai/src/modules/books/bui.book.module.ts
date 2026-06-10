@@ -27,6 +27,9 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   titlePlural: "Books",
   rowKey: "id",
   modalSize: "cover",
+  onFormSuccess: {
+    mode: "redirect",
+  },
   columns: [
     {
       field: "title",

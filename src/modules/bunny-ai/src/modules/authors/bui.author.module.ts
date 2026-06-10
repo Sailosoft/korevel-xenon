@@ -22,6 +22,9 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   title: "Author",
   titlePlural: "Authors",
   rowKey: "id",
+  onFormSuccess: {
+    mode: "closeOnly",
+  },
   columns: [
     {
       field: "id",

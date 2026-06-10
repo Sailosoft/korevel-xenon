@@ -94,7 +94,7 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   modalHeaderActions?: BunnyModalHeaderAction<TRow, TForm>[];
 
   /** Behavior after a successful form submission (create/update). Defaults to `{ mode: "openView" }` if not set. */
-  onSuccess?: BunnyOnSuccessBehavior;
+  onFormSuccess?: BunnyOnSuccessBehavior;
 
   tableMode?: BunnyTableMode;
   tableMobileView?: BunnyTableMobileView<TRow>;

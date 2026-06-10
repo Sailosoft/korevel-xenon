@@ -35,6 +35,8 @@ export default function BunnyDialog<TContext>({
     labelPositive,
     labelNegative,
     fields,
+    contentOnly,
+    children: customContent,
     closeDialog,
     executeAction,
   } = dialog;
@@ -48,16 +50,18 @@ export default function BunnyDialog<TContext>({
   );
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
-      if (loading || isPending) return; // Matches BunnyModal loading block[cite: 8]
+      if (loading || isPending) return;
       if (!isOpen) closeDialog();
     },
     [closeDialog, loading, isPending],
   );
 
   const dialogClassName = useMemo(() => {
-    // Matches BunnyModal styling rules for loading anchors and constraints[cite: 8]
+    if (contentOnly) {
+      return "relative overflow-hidden w-full sm:max-w-full h-full sm:max-h-full max-sm:h-dvh";
+    }
     return "relative overflow-hidden w-full sm:max-w-[440px]";
-  }, []);
+  }, [contentOnly]);
 
   const handleSubmit = useCallback(
     (e: React.SubmitEvent<HTMLFormElement>) => {
@@ -65,7 +69,6 @@ export default function BunnyDialog<TContext>({
       if (loading || isPending) return;
 
       const formData = new FormData(e.currentTarget);
-      // Fire dispatch tracking both the native form data and your custom dynamic context
       startTransition(() => {
         formDispatch({
           formData,
@@ -76,6 +79,40 @@ export default function BunnyDialog<TContext>({
     [loading, isPending, context, formDispatch],
   );
 
+  // ── Content-only (reader) mode ──────────────────────────────────────
+  if (contentOnly) {
+    return (
+      <Modal.Backdrop
+        isOpen={open}
+        onOpenChange={handleOpenChange}
+        isDismissable={false}
+      >
+        <Modal.Container>
+          <Modal.Dialog className={dialogClassName}>
+            <Modal.CloseTrigger isDisabled={loading || isPending} />
+
+            <Modal.Header className="w-full pr-12 border-b">
+              <Modal.Heading className="text-xl">
+                {title ?? "Reader"}
+              </Modal.Heading>
+            </Modal.Header>
+
+            <Modal.Body className="p-6 overflow-y-auto">
+              {customContent ?? children}
+            </Modal.Body>
+
+            <Modal.Footer className="border-t">
+              <Button type="button" variant="secondary" onClick={closeDialog}>
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    );
+  }
+
+  // ── Standard confirm / form dialog ──────────────────────────────────
   return (
     <Modal.Backdrop
       isOpen={open}
@@ -84,7 +121,7 @@ export default function BunnyDialog<TContext>({
     >
       <Modal.Container>
         <Modal.Dialog className={dialogClassName}>
-          {/* --- TOP LAYER LOADING OVERLAY (Mirrors BunnyModal structure) --- */}
+          {/* --- TOP LAYER LOADING OVERLAY --- */}
           {(loading || isPending) && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/70 dark:bg-black/70 backdrop-blur-[1px] transition-all animate-fade-in">
               <div className="flex flex-col items-center gap-3 p-4 rounded-xl">
@@ -111,7 +148,6 @@ export default function BunnyDialog<TContext>({
                       {message}
                     </p>
                   )}
-              {/* Integrates your updated HeroUI Field Builder mapping with formState validation feedback loop */}
               {fields && (
                 <BunnyDialogFieldBuilder
                   fields={fields}
@@ -119,7 +155,6 @@ export default function BunnyDialog<TContext>({
                 />
               )}
 
-              {/* General API error banner presentation */}
               {formState?.message && (
                 <div className="p-3 text-xs font-medium text-danger bg-danger-50 rounded-lg border border-danger-100">
                   {formState.message}

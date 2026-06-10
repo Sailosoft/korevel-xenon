@@ -13,6 +13,7 @@ const DEFAULT_STATE: AdminPanelDialogState = {
   labelPositive: undefined,
   labelNegative: undefined,
   title: undefined,
+  contentOnly: false,
 };
 
 export function useAdminPanelDialog(): UseAdminPanelDialog {
@@ -31,6 +32,8 @@ export function useAdminPanelDialog(): UseAdminPanelDialog {
         labelPositive: option.labelPositive ?? "Confirm",
         labelNegative: option.labelNegative ?? "Cancel",
         fields: option.fields,
+        contentOnly: option.contentOnly ?? false,
+        children: option.children,
       });
     },
     [],
