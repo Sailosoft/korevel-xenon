@@ -107,7 +107,7 @@ export default function BUIAuthorSkillAttach({
 }
 
 /** Self-contained skill selector with search — meant for admin dialog contentOnly */
-export function SkillSelectorDialogContent({
+export function BUISkillSelectorDialogContent({
   allSkills,
   initialSelectedIds,
   onSave,

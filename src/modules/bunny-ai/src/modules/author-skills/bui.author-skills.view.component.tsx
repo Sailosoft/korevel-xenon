@@ -3,7 +3,7 @@
 import React, { useCallback } from "react";
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
 import BUIAuthorSkillAttach, {
-  SkillSelectorDialogContent,
+  BUISkillSelectorDialogContent,
 } from "./bui.author-skills.attach.component";
 import BUIAuthorSkillRelationRepository from "./bui.author-skills.relation.repository";
 import { buiDatabase } from "../../database/bui.database";
@@ -32,7 +32,10 @@ export default function BUIAuthorViewSkills() {
         title: "Select Skills to Attach",
         actionId: "attach-skills",
         contentOnly: true,
-        children: React.createElement(SkillSelectorDialogContent, {
+        hideFooter: true,
+        size: "xl",
+        fullHeight: false,
+        children: React.createElement(BUISkillSelectorDialogContent, {
           allSkills,
           initialSelectedIds: currentSkillIds,
           onSave: async (selectedIds) => {
