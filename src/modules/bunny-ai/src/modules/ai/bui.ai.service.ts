@@ -52,9 +52,17 @@ function resolveConfig(
 
   assertApiKey(found);
 
+  // When provider is "default", always use OPEN_AI_MODEL from env
+  const model =
+    found.provider === "default"
+      ? (process.env.OPEN_AI_MODEL ?? found.model)
+      : override?.provider === "default"
+        ? override.model
+        : found.model;
+
   return {
     provider: found.provider,
-    model: override.model || found.model,
+    model,
     apiKey: found.apiKey,
     endpoint: found.endpoint,
   };

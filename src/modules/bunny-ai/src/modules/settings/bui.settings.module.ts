@@ -16,13 +16,13 @@ const PREDEFINED_SETTINGS: BUISetting[] = [
   {
     id: "ai_provider",
     label: "AI Provider",
-    value: "google",
+    value: "default",
     description: "The primary AI provider to use for text generation.",
   },
   {
     id: "default_ai_model",
     label: "Default AI Model",
-    value: "gemini-1.5-flash",
+    value: "default",
     description:
       "The default model identifier used for executing prompt templates.",
   },
