@@ -216,8 +216,12 @@ const Sidebar = ({
           </Link>
 
           <Link
-            href="#"
-            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${THEME.navHover}`}
+            href="/modules/bunny-ai/author-skills"
+            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${
+              pathname === "/modules/bunny-ai/author-skills"
+                ? THEME.navActive
+                : THEME.navHover
+            }`}
           >
             <Zap className="w-5 h-5" />
             <span className="font-medium">Skills</span>
