@@ -10,6 +10,8 @@ import {
   BUIChapterPromptType,
 } from "./bui.book-chapter.prompt";
 import { BUIBookEntity } from "./bui.book.entity";
+import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
+import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 interface BUIBookChapterComponentGenerateProps {
   bookId: number;
@@ -21,6 +23,7 @@ export default function BUIBookChapterComponentGenerate({
   const kernel = useBunnyKernel();
   const [bookData, setBookData] = useState<BUIBookEntity | null>(null);
   const [useAuthorProfile, setUseAuthorProfile] = useState(true);
+  const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [templateType, setTemplateType] =
     useState<BUIChapterPromptType>("default");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -47,6 +50,13 @@ export default function BUIBookChapterComponentGenerate({
     kernel.adminPanel.table.loadingOn();
 
     try {
+      // Fetch author skills if requested
+      let skills: BUIAuthorSkill[] | undefined;
+      if (useAuthorSkills && bookData.authorId) {
+        const skillRelationRepo = new BUIAuthorSkillRelationRepository();
+        skills = await skillRelationRepo.getSkillsByAuthor(bookData.authorId);
+      }
+
       const response = await buiChapterServerGenerate(
         {
           book: bookData,
@@ -54,6 +64,8 @@ export default function BUIBookChapterComponentGenerate({
         },
         templateType,
         useAuthorProfile,
+        undefined,
+        skills,
       );
 
       // Raw array parse pipeline execution
@@ -79,7 +91,14 @@ export default function BUIBookChapterComponentGenerate({
       setIsGenerating(false);
       kernel.adminPanel.table.loadingOff();
     }
-  }, [kernel, bookId, bookData, useAuthorProfile, templateType]);
+  }, [
+    kernel,
+    bookId,
+    bookData,
+    useAuthorProfile,
+    useAuthorSkills,
+    templateType,
+  ]);
 
   return (
     <Modal>
@@ -114,6 +133,15 @@ export default function BUIBookChapterComponentGenerate({
                     className="rounded border-default-300 accent-primary"
                   />
                   Align logic structure based on Author Profile
+                </label>
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useAuthorSkills}
+                    onChange={(e) => setUseAuthorSkills(e.target.checked)}
+                    className="rounded border-default-300 accent-primary"
+                  />
+                  Include Author Skills in chapter generation
                 </label>
               </div>
 

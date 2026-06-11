@@ -28,6 +28,7 @@ export default function BUIBookChapterComponentPipeline({
   const [isProcessing, setIsProcessing] = useState(false);
   const [promptType, setPromptType] =
     useState<BUIChapterPromptContypeType>("default");
+  const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
@@ -62,7 +63,12 @@ export default function BUIBookChapterComponentPipeline({
         setCurrentChapterTitle(`Ch.${chapter.number} - ${chapter.title}`);
         setProgress((prev) => ({ ...prev, current: i + 1 }));
 
-        await generateChapterContentAction(chapter.id!, promptType);
+        await generateChapterContentAction(
+          chapter.id!,
+          promptType,
+          undefined,
+          useAuthorSkills,
+        );
 
         // Mid-execution interface stream sync update
         context.adminPanel?.table?.refresh?.();
@@ -155,6 +161,18 @@ export default function BUIBookChapterComponentPipeline({
                       High-Performance Motivational
                     </option>
                   </select>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useAuthorSkills}
+                      onChange={(e) => setUseAuthorSkills(e.target.checked)}
+                      className="rounded border-default-300 accent-primary"
+                    />
+                    Include Author Skills in chapter content
+                  </label>
                 </div>
 
                 <div className="p-3 bg-default-50 border border-default-200 rounded-lg flex gap-2.5 items-start">
