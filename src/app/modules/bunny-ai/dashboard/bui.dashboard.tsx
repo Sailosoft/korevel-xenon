@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { buiDatabase } from "@/src/modules/bunny-ai/src/database/bui.database";
 import { BUIAuthor } from "@/src/modules/bunny-ai/src/modules/authors/bui.author.entity";
 import { BUIBookEntity } from "@/src/modules/bunny-ai/src/modules/books/bui.book.entity";
-import { BUIAuthorSkill } from "@/src/modules/bunny-ai/src/modules/author-skills/bui.author-skills.entity";
-import BUIAuthorSkillRelationRepository from "@/src/modules/bunny-ai/src/modules/author-skills/bui.author-skills.relation.repository";
 import {
   Users,
   BookOpen,
@@ -226,11 +224,6 @@ export default function BUIDashboard() {
     useLiveQuery(() => buiDatabase.authorSkillRelations.toArray()) ?? [];
 
   // ── Derived stats ──
-  const authorsWithBooks = useMemo(
-    () => new Set(books.map((b) => b.authorId).filter(Boolean)),
-    [books],
-  );
-
   const totalChapters = chapters.length;
   const totalChaptersDone = chapters.filter((c) => c.status === "done").length;
 

@@ -14,6 +14,7 @@ import {
   BookOpen,
   Zap,
   Layers,
+  FileText,
 } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -225,6 +226,18 @@ const Sidebar = ({
           >
             <Zap className="w-5 h-5" />
             <span className="font-medium">Skills</span>
+          </Link>
+
+          <Link
+            href="/modules/bunny-ai/prompt-viewer"
+            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${
+              pathname === "/modules/bunny-ai/prompt-viewer"
+                ? THEME.navActive
+                : THEME.navHover
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span className="font-medium">Prompts</span>
           </Link>
 
           <div

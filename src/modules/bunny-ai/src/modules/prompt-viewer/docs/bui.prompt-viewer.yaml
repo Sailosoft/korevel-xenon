@@ -1,0 +1,32 @@
+title: "PromptViewer"
+description: "Seemless Display of Prompts for Constant AI Prompt Used in all bunny ai project"
+directory: "src/modules/bunny-ai/src/modules/prompt-viewer"
+# {namespace}.{feature}.{types}
+fileNameBase: "bui.prompt-viewer"
+# true or false
+addDocsReadMe: true
+# true or false
+autoDecideProperties: true
+properties:
+  - name:
+  - description:
+useCase:
+  - It does not have its own repository it just constant value viewer
+    - src\modules\bunny-ai\src\modules\author-skills\bui.author-skills.prompt.ts
+    - src\modules\bunny-ai\src\modules\authors\bui.author.prompt.ts
+    - src\modules\bunny-ai\src\modules\books\bui.book-chapter.prompt.ts
+    - src\modules\bunny-ai\src\modules\books\bui.book-chapter.prompt.content.ts
+    - src\modules\bunny-ai\src\modules\books\bui.book.prompt.ts
+  - This page should be flexible when i add more prompt reader
+rules:
+  -
+  -
+functionalities:
+  -
+  -
+  -
+  -
+  -
+
+instructions:
+  - Then add routes to src\app\modules\bunny-ai
