@@ -7,6 +7,8 @@ import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
+import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 /**
  * Reusable client/shared operational script to gather context,
@@ -16,10 +18,12 @@ export async function generateChapterContentAction(
   chapterId: number,
   promptType: BUIChapterPromptContypeType = "default",
   aiConfig?: BUIAIOption,
+  useAuthorSkills: boolean = false,
 ) {
   const chapterRepo = new BUIBookChapterRepository();
   const bookRepo = new BUIBookRepository();
   const authorRepo = new BUIAuthorRepository();
+  const skillRelationRepo = new BUIAuthorSkillRelationRepository();
 
   // 1. Fetch current chapter details
   const chapter = await chapterRepo.panelGetOne(chapterId);
@@ -44,6 +48,7 @@ export async function generateChapterContentAction(
 
     let authorName = "Expert Professional";
     let authorDesc = "Experienced writer.";
+    let authorId: number | undefined;
 
     if (book?.authorId) {
       const authorResult = await authorRepo.getList({});
@@ -54,11 +59,18 @@ export async function generateChapterContentAction(
         if (matchingAuthor) {
           authorName = matchingAuthor.name;
           authorDesc = matchingAuthor.description || "";
+          authorId = matchingAuthor.id;
         }
       }
     }
 
-    // 4. Transform into prompt-ready properties
+    // 4a. Fetch author skills if requested
+    let skills: BUIAuthorSkill[] = [];
+    if (useAuthorSkills && authorId) {
+      skills = await skillRelationRepo.getSkillsByAuthor(authorId);
+    }
+
+    // 4b. Transform into prompt-ready properties
     const promptPayload: BUIBookChapterParams = {
       author: { name: authorName, description: authorDesc },
       book: {
@@ -75,6 +87,7 @@ export async function generateChapterContentAction(
         description: chapter.description || "",
         additionalPrompt: chapter.additionalPrompt || "",
       },
+      skills: skills.length > 0 ? skills : undefined,
     };
 
     // 5. Invoke Server Action

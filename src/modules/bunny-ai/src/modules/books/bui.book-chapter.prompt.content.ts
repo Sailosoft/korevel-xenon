@@ -26,6 +26,14 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
 
         you are writing a book titled "{{book.title}}".
 
+        {{#if skills.length}}
+        ### AUTHOR SKILLS:
+        {{#each skills}}
+        - {{this.name}}: {{this.description}}
+        {{/each}}
+        Leverage these skills throughout the chapter content to showcase the author's expertise.
+        {{/if}}
+
         ### FULL BOOK OUTLINE:
         {{#each book.chapters}}
         Chapter {{this.number}}: {{this.title}} - {{this.description}}

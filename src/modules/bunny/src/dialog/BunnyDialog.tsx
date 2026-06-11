@@ -1,4 +1,7 @@
-import { UseAdminPanelDialog } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
+import {
+  DialogSize,
+  UseAdminPanelDialog,
+} from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import { Button, Modal, Spinner } from "@heroui/react";
 import {
   ReactNode,
@@ -8,6 +11,18 @@ import {
   useMemo,
 } from "react";
 import BunnyDialogFieldBuilder from "../form/builder/BunnyDialogFieldBuilder";
+
+const SIZE_CLASSES: Record<DialogSize, string> = {
+  sm: "sm:max-w-sm",
+  md: "sm:max-w-md",
+  lg: "sm:max-w-lg",
+  xl: "sm:max-w-xl",
+  "2xl": "sm:max-w-2xl",
+  "3xl": "sm:max-w-3xl",
+  "4xl": "sm:max-w-4xl",
+  "5xl": "sm:max-w-5xl",
+  full: "sm:max-w-full",
+};
 
 function Label({ children }: { children: ReactNode }) {
   return <span className="text-sm font-medium">{children}</span>;
@@ -36,6 +51,9 @@ export default function BunnyDialog<TContext>({
     labelNegative,
     fields,
     contentOnly,
+    hideFooter,
+    size,
+    fullHeight,
     children: customContent,
     closeDialog,
     executeAction,
@@ -57,11 +75,20 @@ export default function BunnyDialog<TContext>({
   );
 
   const dialogClassName = useMemo(() => {
+    const base = "relative overflow-hidden w-full";
+    const sizeClass = size
+      ? SIZE_CLASSES[size]
+      : contentOnly
+        ? "sm:max-w-full"
+        : "sm:max-w-[440px]";
+    const heightClass =
+      contentOnly && fullHeight ? "h-full sm:max-h-full max-sm:h-dvh" : "";
+
     if (contentOnly) {
-      return "relative overflow-hidden w-full sm:max-w-full h-full sm:max-h-full max-sm:h-dvh";
+      return `${base} ${heightClass} ${sizeClass}`;
     }
-    return "relative overflow-hidden w-full sm:max-w-[440px]";
-  }, [contentOnly]);
+    return `${base} ${sizeClass}`;
+  }, [contentOnly, size, fullHeight]);
 
   const handleSubmit = useCallback(
     (e: React.SubmitEvent<HTMLFormElement>) => {
@@ -101,11 +128,13 @@ export default function BunnyDialog<TContext>({
               {customContent ?? children}
             </Modal.Body>
 
-            <Modal.Footer className="border-t">
-              <Button type="button" variant="secondary" onClick={closeDialog}>
-                Close
-              </Button>
-            </Modal.Footer>
+            {!hideFooter && (
+              <Modal.Footer className="border-t">
+                <Button type="button" variant="secondary" onClick={closeDialog}>
+                  Close
+                </Button>
+              </Modal.Footer>
+            )}
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -162,23 +191,25 @@ export default function BunnyDialog<TContext>({
               )}
             </Modal.Body>
 
-            <Modal.Footer>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={closeDialog}
-                isDisabled={loading || isPending}
-              >
-                {labelNegative}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                isDisabled={loading || isPending}
-              >
-                {labelPositive}
-              </Button>
-            </Modal.Footer>
+            {!hideFooter && (
+              <Modal.Footer>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={closeDialog}
+                  isDisabled={loading || isPending}
+                >
+                  {labelNegative}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isDisabled={loading || isPending}
+                >
+                  {labelPositive}
+                </Button>
+              </Modal.Footer>
+            )}
           </form>
         </Modal.Dialog>
       </Modal.Container>

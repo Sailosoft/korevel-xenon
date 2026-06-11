@@ -1,4 +1,5 @@
 import { BUIAuthor } from "../authors/bui.author.entity";
+import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 export interface BUIBookEntity {
   id?: number;
@@ -29,4 +30,5 @@ export interface BUIBookChapterParams {
   author: BUIAuthor;
   book: BUIBookEntity;
   currentChapter: BUIBookChapterEntity;
+  skills?: BUIAuthorSkill[];
 }

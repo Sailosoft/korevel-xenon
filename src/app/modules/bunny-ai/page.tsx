@@ -1,7 +1,5 @@
-export default function BunnyAI() {
-  return (
-    <div>
-      <h1>Bunny AI</h1>
-    </div>
-  );
+import BUIDashboard from "./dashboard/bui.dashboard";
+
+export default function BunnyAIPage() {
+  return <BUIDashboard />;
 }

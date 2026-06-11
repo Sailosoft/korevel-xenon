@@ -14,6 +14,9 @@ const DEFAULT_STATE: AdminPanelDialogState = {
   labelNegative: undefined,
   title: undefined,
   contentOnly: false,
+  hideFooter: false,
+  size: undefined,
+  fullHeight: true,
 };
 
 export function useAdminPanelDialog(): UseAdminPanelDialog {
@@ -33,6 +36,9 @@ export function useAdminPanelDialog(): UseAdminPanelDialog {
         labelNegative: option.labelNegative ?? "Cancel",
         fields: option.fields,
         contentOnly: option.contentOnly ?? false,
+        hideFooter: option.hideFooter ?? false,
+        size: option.size,
+        fullHeight: option.fullHeight ?? true,
         children: option.children,
       });
     },

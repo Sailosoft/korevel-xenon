@@ -1,0 +1,27 @@
+title: "AuthorSkill"
+description: "This author skill that uses on author to attach certain skills, this will uses on also ai prompting to be attach or book chapter making"
+directory: "src/modules/bunny-ai/src/modules/author-skills"
+# {namespace}.{feature}.{types}
+fileNameBase: "bui.author-skills"
+# true or false
+addDocsReadMe: true
+# true or false
+autoDecideProperties: true
+properties:
+  - name:
+  - description:
+useCase:
+  - in author module view page , attach author skills on authors
+  - an author could have multiple author skills
+dependency:
+  - src\modules\bunny-ai\src\modules\authors
+  - src\modules\bunny-ai\src\modules\books
+rules:
+  -
+functionalities:
+  - on view of author, it can attach skills or create new skills
+  - skills where reusable that can attach on multiple authors
+  - on writing chapters you can attach that skills to the chapter
+  -
+  -
+  -
