@@ -1,0 +1,22 @@
+title: ""
+description: ""
+directory: ""
+# {namespace}.{feature}.{types}
+fileNameBase: ""
+# true or false
+addDocsReadMe:
+# true or false
+autoDecideProperties:
+properties:
+  - name:
+  - description:
+useCase:
+rules:
+  -
+  -
+functionalities:
+  -
+  -
+  -
+  -
+  -

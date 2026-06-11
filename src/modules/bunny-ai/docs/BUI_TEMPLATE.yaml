@@ -1,0 +1,147 @@
+# ============================================================
+# BUI Feature Definition Form
+# Fill in the fields below to define your new feature.
+# Remove sections you don't need (e.g. ai: if no AI).
+# ============================================================
+
+# ── General ──────────────────────────────────────────────────
+title: "" # e.g. "Product"
+description: "" # e.g. "Manage product catalog entries"
+components:
+  - Bunny
+  - BunnyForm # Add more if needed
+
+# ── Entity / Data Model ──────────────────────────────────────
+entity:
+  name: "" # e.g. "BUIProduct"
+  fileName: "bui..entity" # e.g. "bui.product.entity"
+  tableName: "" # e.g. "products"
+  tableKey: "++id, name" # Dexie index schema
+
+  # Define all properties for the interface
+  properties:
+    - name: "id"
+      type: "number"
+      optional: true
+      primaryKey: true
+      description: "Auto-generated primary key"
+    - name: "name"
+      type: "string"
+      description: ""
+    - name: "description"
+      type: "string"
+      optional: true
+      description: ""
+    # ── Add more properties below ──
+    # - name: ""
+    #   type: "string"
+    #   description: ""
+    # - name: ""
+    #   type: "number"
+    #   optional: true
+    #   description: ""
+
+# ── Module / BunnyConfig ─────────────────────────────────────
+module:
+  fileName: "bui..module" # e.g. "bui.product.module"
+  variableName: "buiModule" # e.g. "buiProductModule"
+  title: "" # Display title (singular)
+  titlePlural: "" # Display title (plural)
+  rowKey: "id" # Primary key field
+
+  onFormSuccess:
+    mode: "closeOnly" # "openView" | "closeOnly" | "redirect"
+
+  # ── Table Columns ──
+  columns:
+    - field: "id"
+      header: "Id"
+      sortable: true
+      isRowHeader: true
+    - field: "name"
+      header: "Name"
+      sortable: true
+    # ── Add more columns below ──
+    # - field: ""
+    #   header: ""
+    #   sortable: false
+    # - field: ""
+    #   header: ""
+    #   sortable: true
+
+  # ── Form Fields ──
+  formConfig:
+    fields:
+      - name: "name"
+        label: "Name"
+        type: "text" # "text" | "editor" | "textarea" | "select" | "number"
+        rules:
+          - rule: "required"
+            message: "Name is required"
+      # ── Add more fields below ──
+      # - name: ""
+      #   label: ""
+      #   type: "text"
+      #   rules:
+      #     - rule: "required"
+      #       message: ""
+
+  defaultHeaderActions: true # Auto-include Create, Refresh buttons
+  defaultRowActions: true # Auto-include View, Edit, Delete row buttons
+
+# ── Repository & Data Layer ──────────────────────────────────
+repository:
+  fileName: "bui..repository" # e.g. "bui.product.repository"
+  className: "BUIRepository" # e.g. "BUIProductRepository"
+  extends: "BUIRepositoryAdminPanel"
+  table: "buiDatabase." # e.g. "buiDatabase.products"
+
+# ── AI Enhancement (Optional) ────────────────────────────────
+# Delete this entire section if AI enhancement is not needed.
+ai:
+  enabled: false # Set to true to enable
+
+  enhance:
+    title: "Enhance  with AI" # e.g. "Enhance Product with AI"
+    actionId: "enhance"
+    fields:
+      - name: "promptType"
+        label: "AI Tone Style"
+        type: "select"
+        defaultValue: "professional"
+        options:
+          - label: "Professional"
+            value: "professional"
+          - label: "Creative"
+            value: "creative"
+      # ── Add custom dialog fields below ──
+      # - name: ""
+      #   label: ""
+      #   type: "text"
+
+  prompt:
+    fileName: "bui..prompt" # e.g. "bui.product.prompt"
+    variableName: "buiPrompt" # e.g. "buiProductPrompt"
+    types:
+      - name: "professional"
+        systemPrompt: |
+          You are an expert assistant specializing in .
+        userPrompt: " Name: {{name}} \n Description: {{description}}"
+      - name: "creative"
+        systemPrompt: |
+          You are a creative copywriter for  content.
+        userPrompt: " Name: {{name}} \n Description: {{description}}"
+      # ── Add more prompt types below ──
+      # - name: "short"
+      #   systemPrompt: |
+      #     ...
+      #   userPrompt: "..."
+
+  serverEnhance:
+    fileName: "bui..server.enhance" # e.g. "bui.product.server.enhance"
+    functionName: "buiServerEnhanceWithParams" # e.g. "buiProductServerEnhanceWithParams"
+    schemaName: "_enhancement" # e.g. "product_enhancement"
+
+# ── Workflow Steps ───────────────────────────────────────────
+# This is use case for the feature
+workflow:
