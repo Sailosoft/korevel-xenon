@@ -227,14 +227,6 @@ const Sidebar = ({
             <span className="font-medium">Skills</span>
           </Link>
 
-          <Link
-            href="#"
-            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${THEME.navHover}`}
-          >
-            <Layers className="w-5 h-5" />
-            <span className="font-medium">Book Chapters</span>
-          </Link>
-
           <div
             className={`text-xs font-semibold uppercase tracking-wider px-4 mt-8 mb-2 ${THEME.textMuted}`}
           >
