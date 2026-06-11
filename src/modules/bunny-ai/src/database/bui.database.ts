@@ -26,6 +26,14 @@ export class BUIDatabase extends Dexie {
     this.version(3).stores({
       settings: "key",
     });
+
+    this.version(4).stores({
+      settings: null,
+    });
+
+    this.version(5).stores({
+      settings: "id",
+    });
   }
 }
 

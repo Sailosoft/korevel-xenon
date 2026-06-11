@@ -1,15 +1,23 @@
-import { useAdminPanelContext } from '@/src/modules/admin-panel/features/provider';
-import { useBunnyConfig } from '../context/BunnyContext';
-import { BunnyFormBuilder } from './builder/BunnyFormBuilder';
+import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
+import { useBunnyConfig } from "../context/BunnyContext";
+import { BunnyFormBuilder } from "./builder/BunnyFormBuilder";
 
 export default function BunnyForm<TRow, TForm>() {
-  const { formConfig } = useBunnyConfig<TRow, TForm>();
+  const config = useBunnyConfig<TRow, TForm>();
   const { form } = useAdminPanelContext<TRow, TForm>();
-  const { formData } = form;
+
+  const resolvedConfig = !config.formConfig
+    ? undefined
+    : typeof config.formConfig === "function"
+      ? config.formConfig(form)
+      : config.formConfig;
+
+  // console.log(resolvedConfig, config, config.formConfig);
+
   return (
     <BunnyFormBuilder<TForm>
-      config={formConfig!}
-      formData={formData}
+      config={resolvedConfig!}
+      formData={form.formData}
       onChange={form.handleChange}
     />
   );

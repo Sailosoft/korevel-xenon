@@ -16,11 +16,15 @@ import { CircleFadingArrowUp } from "lucide-react";
 import { buiAuthorServerEnhanceWithParams } from "./bui.author.server.enhance";
 import { buiContainer } from "../../container/bui.container";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 
 export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   title: "Author",
   titlePlural: "Authors",
   rowKey: "id",
+  onFormSuccess: {
+    mode: "closeOnly",
+  },
   columns: [
     {
       field: "id",
@@ -124,13 +128,17 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
                 message: "Name and Description are required.",
               };
             }
-            console.log(promptType);
+
+            // Fetch the persisted AI provider/model settings
+            const settingsRepo = new BUISettingsRepository();
+            const aiConfig = await settingsRepo.getActiveAIConfig();
 
             // Pass promptType to your updated server enhancement action
             const result = await buiAuthorServerEnhanceWithParams(
               name,
               description,
               (promptType ?? "professional") as BUIAuthorPromptType,
+              aiConfig,
             );
 
             adminPanel.form.setFormData({

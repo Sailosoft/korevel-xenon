@@ -2,6 +2,7 @@ import {
   AdminPanelFormActionState,
   AdminPanelFormFieldDefinition,
 } from "../form-fields/admin-panel-form-field.interface";
+import { ReactNode } from "react";
 
 /**
  * Core UI state for managing the Admin Panel Dialog visibility and basic messaging.
@@ -21,6 +22,10 @@ export interface AdminPanelDialogState {
   title?: string;
   /** Headless fields layout injected on-demand */
   fields?: AdminPanelFormFieldDefinition[];
+  /** When true, renders a full-cover content-only dialog without form/buttons */
+  contentOnly?: boolean;
+  /** Custom React content rendered inside the dialog body (used when contentOnly is true) */
+  children?: ReactNode;
 }
 
 /**
@@ -46,6 +51,9 @@ export type AdminPanelDialogOption<TContext = unknown> = Omit<
 
   /** Optional cleanup hook executed when the user explicitly dismisses or cancels the dialog. */
   onCancel?: () => void;
+
+  /** Custom React content rendered inside the dialog body (used when contentOnly is true) */
+  children?: ReactNode;
 };
 
 export interface UseAdminPanelDialog extends AdminPanelDialogState {

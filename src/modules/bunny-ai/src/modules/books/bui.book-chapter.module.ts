@@ -1,6 +1,7 @@
 // bui.book-chapter.module.ts
 import React from "react";
-import { Wand2, BookOpenCheck } from "lucide-react";
+import { Wand2, BookOpenCheck, BookOpenText } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import {
   BunnyConfig,
   BunnyKernel,
@@ -17,7 +18,8 @@ import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.genera
 import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
-import BUIBookComponentExportPreview from './bui.book.export.component.chapter';
+import BUIBookComponentExportPreview from "./bui.book.export.component.chapter";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 
 const repository = new BUIBookChapterRepository();
 
@@ -184,9 +186,12 @@ export const buiBookChapterModule = (
             >;
             context.adminPanel.dialog.setLoading(true);
             try {
+              const settingsRepo = new BUISettingsRepository();
+              const aiConfig = await settingsRepo.getActiveAIConfig();
               await generateChapterContentAction(
                 row.id!,
                 promptType as BUIChapterPromptContypeType,
+                aiConfig,
               );
               context.adminPanel.table.refresh?.();
               return {
@@ -204,6 +209,32 @@ export const buiBookChapterModule = (
               context.adminPanel.dialog.setLoading(false);
             }
           },
+        };
+        context.adminPanel.dialog.openDialog(option);
+      },
+    },
+    {
+      id: "read_content",
+      icon: React.createElement(BookOpenText),
+      variant: "ghost",
+      onClick: async function (
+        row: BUIBookChapterEntity,
+        context: BunnyKernel<BUIBookChapterEntity, unknown>,
+      ) {
+        const content = row.content || "_No content available._";
+        const option: AdminPanelDialogOption = {
+          title: `Chapter ${row.number}: ${row.title}`,
+          actionId: "read_content",
+          contentOnly: true,
+          children: React.createElement(
+            "div",
+            {
+              className:
+                "text-sm leading-relaxed space-y-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-4 [&_blockquote]:border-default-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-default-600 [&_code]:bg-default-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-default-100 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-primary [&_a]:underline [&_img]:rounded-lg [&_img]:max-w-full [&_hr]:my-6 [&_hr]:border-default-200",
+            },
+            React.createElement(ReactMarkdown, { children: content }),
+          ),
+          onConfirm: async () => ({ success: true }),
         };
         context.adminPanel.dialog.openDialog(option);
       },
@@ -264,7 +295,13 @@ export const buiBookChapterModule = (
             },
           };
 
-          const result = await buiChapterServerContent(params, "default");
+          const settingsRepo = new BUISettingsRepository();
+          const aiConfig = await settingsRepo.getActiveAIConfig();
+          const result = await buiChapterServerContent(
+            params,
+            "default",
+            aiConfig,
+          );
 
           if (result && result.success) {
             const words = result.content

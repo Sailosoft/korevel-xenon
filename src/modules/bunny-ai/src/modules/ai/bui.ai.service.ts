@@ -1,5 +1,10 @@
 import OpenAI from "openai";
-import { BUIAIServiceType, TemperaturePreset } from "./bui.ai.interface";
+import {
+  BUIAIOption,
+  BUIAIProviderConfig,
+  BUIAIServiceType,
+  BUITemperaturePreset,
+} from "./bui.ai.interface";
 import {
   BUIAISchema,
   BUIAISchemaOptions,
@@ -7,16 +12,81 @@ import {
 } from "../ai-schema/bui.ai-schema.types";
 import { BUIContainer } from "../../container/bui.container";
 
+/** Placeholder sentinel used when no real API key has been configured. */
+const ENCRYPTION_KEY_PLACEHOLDER = "[ENCRYPTION_KEY]";
+
+/** Check if the given API key is usable (not empty and not a placeholder). */
+function isValidApiKey(key: string): boolean {
+  return key !== "" && key !== ENCRYPTION_KEY_PLACEHOLDER;
+}
+
+/** Assert the provider config has a valid API key, throwing a descriptive error if not. */
+function assertApiKey(config: { provider: string; apiKey: string }): void {
+  if (!isValidApiKey(config.apiKey)) {
+    throw new Error(
+      `[BUIAIService] No valid API key configured for provider "${config.provider}". ` +
+        `Set the API key in your environment variables or provider configuration.`,
+    );
+  }
+}
+
+/**
+ * Resolve the effective provider config in priority order:
+ *   1. aiConfig DTO  (looks up the provider config by name)
+ *   2. nothing       (uses the constructor-initialized default)
+ */
+function resolveConfig(
+  defaults: { provider: string; configs: BUIAIProviderConfig[] },
+  override?: BUIAIOption,
+): { provider: string; model: string; apiKey: string; endpoint?: string } {
+  if (!override)
+    return defaults.configs.find((p) => p.provider === defaults.provider)!;
+
+  const found = defaults.configs.find((p) => p.provider === override.provider);
+  if (!found) {
+    console.warn(
+      `[BUIAIService] Unknown provider "${override.provider}", falling back to "${defaults.provider}"`,
+    );
+    return defaults.configs.find((p) => p.provider === defaults.provider)!;
+  }
+
+  assertApiKey(found);
+
+  return {
+    provider: found.provider,
+    model: override.model || found.model,
+    apiKey: found.apiKey,
+    endpoint: found.endpoint,
+  };
+}
+
 export default class BUIAIService implements BUIAIServiceType {
   private readonly ai: OpenAI;
   private readonly model: string;
+  private readonly provider: string;
   private readonly aiSchema: BUIAISchema;
+  private readonly providerConfigs: BUIAIProviderConfig[];
+
   constructor({ config: { ai }, aiSchema }: BUIContainer) {
-    this.model = ai.model;
-    console.log("AI Config in BUIAIService constructor:", ai);
+    const active = ai.providers.find((p) => p.provider === ai.activeProvider);
+    if (!active) {
+      throw new Error(
+        `No configuration found for active AI provider "${ai.activeProvider}". Available providers: ${ai.providers.map((p) => p.provider).join(", ")}`,
+      );
+    }
+    this.providerConfigs = ai.providers;
+    this.model = active.model;
+    this.provider = active.provider;
+
+    // Validate the active provider has a usable API key at construction time
+    assertApiKey(active);
+
+    console.log(
+      `AI Service initialized — provider: ${active.provider}, model: ${active.model}`,
+    );
     this.ai = new OpenAI({
-      apiKey: ai.apiKey,
-      baseURL: ai.endpoint,
+      apiKey: active.apiKey,
+      baseURL: active.endpoint,
     });
     this.aiSchema = aiSchema;
   }
@@ -37,15 +107,29 @@ export default class BUIAIService implements BUIAIServiceType {
     system: string;
     user: string;
     model?: string;
-    provider?: string; // Kept for interface alignment
+    provider?: string;
+    aiConfig?: BUIAIOption;
     temperature?: number;
-    type?: TemperaturePreset; // Kept for interface alignment
+    type?: BUITemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
+    const resolved = resolveConfig(
+      { provider: this.provider, configs: this.providerConfigs },
+      option.aiConfig,
+    );
+    const client =
+      option.aiConfig || option.provider
+        ? new OpenAI({
+            apiKey: resolved.apiKey,
+            baseURL: resolved.endpoint,
+          })
+        : this.ai;
+    const effectiveModel =
+      option.aiConfig?.model || option.model || resolved.model;
+
     try {
-      const response = await this.ai.chat.completions.create({
-        // Fallback hierarchy: explicit runtime override -> constructor configuration default
-        model: option.model || this.getModel(),
+      const response = await client.chat.completions.create({
+        model: effectiveModel,
         messages: [
           { role: "system", content: option.system },
           { role: "user", content: option.user },
@@ -65,17 +149,36 @@ export default class BUIAIService implements BUIAIServiceType {
     system,
     user,
     temperature,
+    type,
+    model,
+    provider,
+    aiConfig,
   }: {
     system: string;
     user: string;
     schema: BUIAISchemaOptions;
+    model?: string;
+    provider?: string;
+    aiConfig?: BUIAIOption;
     temperature?: number;
-    type?: TemperaturePreset;
+    type?: BUITemperaturePreset;
   }): Promise<T> {
+    const resolved = resolveConfig(
+      { provider: this.provider, configs: this.providerConfigs },
+      aiConfig,
+    );
+    const client =
+      aiConfig || provider
+        ? new OpenAI({
+            apiKey: resolved.apiKey,
+            baseURL: resolved.endpoint,
+          })
+        : this.ai;
+    const effectiveModel = aiConfig?.model || model || resolved.model;
     const responseFormat = this.aiSchema.compileSchema(schema);
 
-    const response = await this.ai.chat.completions.create({
-      model: this.model,
+    const response = await client.chat.completions.create({
+      model: effectiveModel,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -92,8 +195,11 @@ export default class BUIAIService implements BUIAIServiceType {
     system: string;
     user: string;
     schema: S;
+    model?: string;
+    provider?: string;
+    aiConfig?: BUIAIOption;
     temperature?: number;
-    type?: TemperaturePreset;
+    type?: BUITemperaturePreset;
   }): Promise<BUIInferSchemaProps<S>> {
     return this.doChatJSON<BUIInferSchemaProps<S>>(options);
   }
@@ -102,8 +208,11 @@ export default class BUIAIService implements BUIAIServiceType {
     system: string;
     user: string;
     schema: S;
+    model?: string;
+    provider?: string;
+    aiConfig?: BUIAIOption;
     temperature?: number;
-    type?: TemperaturePreset;
+    type?: BUITemperaturePreset;
     maxToken?: number;
   }): Promise<BUIInferSchemaProps<S>> {
     const compiled = this.aiSchema.compileSchema(options.schema);
@@ -124,6 +233,7 @@ ${schemaString}`;
       temperature: options.temperature,
       type: options.type,
       maxToken: options.maxToken,
+      aiConfig: options.aiConfig,
     });
 
     try {

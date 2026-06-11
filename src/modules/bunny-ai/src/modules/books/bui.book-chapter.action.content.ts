@@ -4,8 +4,9 @@ import { BUIBookRepository } from "./bui.book.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
-import { BUIBookChapterParams } from './bui.book.entity';
-import { buiChapterServerContent } from './bui.book-chapter.server.content';
+import { BUIBookChapterParams } from "./bui.book.entity";
+import { buiChapterServerContent } from "./bui.book-chapter.server.content";
+import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 /**
  * Reusable client/shared operational script to gather context,
@@ -13,7 +14,8 @@ import { buiChapterServerContent } from './bui.book-chapter.server.content';
  */
 export async function generateChapterContentAction(
   chapterId: number,
-  promptType: BUIChapterPromptContypeType = "default"
+  promptType: BUIChapterPromptContypeType = "default",
+  aiConfig?: BUIAIOption,
 ) {
   const chapterRepo = new BUIBookChapterRepository();
   const bookRepo = new BUIBookRepository();
@@ -22,7 +24,9 @@ export async function generateChapterContentAction(
   // 1. Fetch current chapter details
   const chapter = await chapterRepo.panelGetOne(chapterId);
   if (!chapter || !chapter.bookId) {
-    throw new Error(`Chapter matching ID ${chapterId} or its Book relationship does not exist.`);
+    throw new Error(
+      `Chapter matching ID ${chapterId} or its Book relationship does not exist.`,
+    );
   }
 
   // 2. Optimistic UI update: Set status to triggering transition
@@ -44,7 +48,9 @@ export async function generateChapterContentAction(
     if (book?.authorId) {
       const authorResult = await authorRepo.getList({});
       if (authorResult.isSuccess) {
-        const matchingAuthor = authorResult.value.find((auth) => auth.id === book.authorId);
+        const matchingAuthor = authorResult.value.find(
+          (auth) => auth.id === book.authorId,
+        );
         if (matchingAuthor) {
           authorName = matchingAuthor.name;
           authorDesc = matchingAuthor.description || "";
@@ -72,12 +78,18 @@ export async function generateChapterContentAction(
     };
 
     // 5. Invoke Server Action
-    const result = await buiChapterServerContent(promptPayload, promptType);
+    const result = await buiChapterServerContent(
+      promptPayload,
+      promptType,
+      aiConfig,
+    );
 
     if (result && result.success) {
       // Compute accurate absolute word total
       const rawText = result.content;
-      const computedWordCount = rawText ? rawText.split(/\s+/).filter(Boolean).length : 0;
+      const computedWordCount = rawText
+        ? rawText.split(/\s+/).filter(Boolean).length
+        : 0;
 
       // 6. Finalize transaction into the collection
       const finalRecord = {
@@ -93,7 +105,10 @@ export async function generateChapterContentAction(
       throw new Error("Empty payload returned from AI context pipeline.");
     }
   } catch (error) {
-    console.error(`Pipeline failure handling Chapter ${chapter.number}:`, error);
+    console.error(
+      `Pipeline failure handling Chapter ${chapter.number}:`,
+      error,
+    );
 
     // Fallback status reset on unexpected breakdown
     await chapterRepo.panelUpdate(chapterId, {

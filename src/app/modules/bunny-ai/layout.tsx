@@ -237,8 +237,12 @@ const Sidebar = ({
             Settings
           </div>
           <Link
-            href="#"
-            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${THEME.navHover}`}
+            href="/modules/bunny-ai/settings"
+            className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${
+              pathname === "/modules/bunny-ai/settings"
+                ? THEME.navActive
+                : THEME.navHover
+            }`}
           >
             <Settings className="w-5 h-5" />
             <span className="font-medium">Preferences</span>

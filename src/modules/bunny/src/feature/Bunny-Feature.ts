@@ -218,7 +218,7 @@ class BunnyFormConfigurator<TRow, TForm> {
   }
 
   public setOnSuccess(onSuccess: BunnyOnSuccessBehavior): this {
-    this.config.onSuccess = onSuccess;
+    this.config.onFormSuccess = onSuccess;
     return this;
   }
 }

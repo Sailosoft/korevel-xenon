@@ -1,5 +1,5 @@
 export interface BUISetting {
-  key: string;
+  id: string;
   value: string;
   description?: string;
   label?: string;

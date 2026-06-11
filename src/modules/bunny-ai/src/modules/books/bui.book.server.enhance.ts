@@ -5,11 +5,13 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiBookPrompt, BUIBookPromptType } from "./bui.book.prompt";
+import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 export async function buiBookServerEnhanceWithParams(
   title: string,
   description: string,
   promptType: BUIBookPromptType = "comprehensive",
+  aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");
@@ -58,6 +60,7 @@ export async function buiBookServerEnhanceWithParams(
       schema: bookEnhancementSchema,
       // Give creative and marketing templates a slightly higher temperature for flair!
       temperature: ["marketing", "cinematic"].includes(promptType) ? 0.85 : 0.6,
+      aiConfig,
     });
 
     return enhancedBook;

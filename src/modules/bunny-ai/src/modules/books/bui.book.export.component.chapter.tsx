@@ -1,7 +1,13 @@
 // bui.book-chapter.component.export-preview.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Modal } from "@heroui/react";
-import { Download, Eye, Settings2, ExternalLink } from "lucide-react";
+import {
+  Download,
+  Eye,
+  Settings2,
+  ExternalLink,
+  MonitorDownIcon,
+} from "lucide-react";
 import {
   BUIBookHTMLTemplate,
   BUIBookTemplateState,
@@ -138,7 +144,8 @@ export default function BUIBookComponentExportPreview({
         size="sm"
         className="font-medium shadow-sm flex items-center gap-2"
       >
-        <Eye className="w-4 h-4" /> Export & Preview
+        <MonitorDownIcon className="w-4 h-4" />
+        <span className="hidden sm:inline ml-1">Export To HTML</span>
       </Button>
 
       <Modal isOpen={isOpen}>

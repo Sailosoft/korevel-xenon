@@ -14,23 +14,24 @@ import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/que
 
 const PREDEFINED_SETTINGS: BUISetting[] = [
   {
-    key: "ai_provider",
+    id: "ai_provider",
     label: "AI Provider",
     value: "google",
     description: "The primary AI provider to use for text generation.",
   },
   {
-    key: "default_ai_model",
+    id: "default_ai_model",
     label: "Default AI Model",
     value: "gemini-1.5-flash",
-    description: "The default model identifier used for executing prompt templates.",
+    description:
+      "The default model identifier used for executing prompt templates.",
   },
 ];
 
 export const buiSettingsModule: BunnyConfig<BUISetting, BUISetting> = {
   title: "Setting",
   titlePlural: "Settings",
-  rowKey: "key",
+  rowKey: "id",
   columns: [
     {
       field: "label",
@@ -48,27 +49,31 @@ export const buiSettingsModule: BunnyConfig<BUISetting, BUISetting> = {
       header: "Description",
     },
   ],
-  formConfig: {
-    fields: [
-      {
-        name: "label",
-        label: "Setting Name",
-        type: "text",
-        disabled: true,
-      },
-      {
-        name: "value",
-        label: "Value",
-        type: "text",
-        rules: [
-          {
-            rule: "required",
-            message: "Value is required",
-          },
-        ],
-      },
-    ],
-  },
+  // formConfig: {
+  //   fields: [
+  //     {
+  //       name: "key",
+  //       label: "Key",
+  //       type: "text",
+  //     },
+  //     {
+  //       name: "label",
+  //       label: "Label",
+  //       type: "text",
+  //     },
+  //     {
+  //       name: "description",
+  //       label: "Description",
+  //       type: "text",
+  //     },
+  //     {
+  //       name: "value",
+  //       label: "Value",
+  //       type: "text",
+  //     },
+  //   ],
+  //   gridCols: 1,
+  // },
   defaultHeaderActions: false,
   defaultRowActions: true,
   hideRowActions: ["delete"],
@@ -78,13 +83,13 @@ export const buiSettingsModule: BunnyConfig<BUISetting, BUISetting> = {
       _overrideOptions?: AdminPanelQueryOptions,
     ): Promise<GetAllResponse<BUISetting>> {
       const existing = await buiDatabase.settings.toArray();
-      const existingMap = new Map(existing.map((s) => [s.key, s]));
+      const existingMap = new Map(existing.map((s) => [s.id, s]));
 
       for (const preset of PREDEFINED_SETTINGS) {
-        if (!existingMap.has(preset.key)) {
+        if (!existingMap.has(preset.id)) {
           await buiDatabase.settings.add(preset);
           existing.push(preset);
-          existingMap.set(preset.key, preset);
+          existingMap.set(preset.id, preset);
         }
       }
 
@@ -95,7 +100,8 @@ export const buiSettingsModule: BunnyConfig<BUISetting, BUISetting> = {
     getOne: async function (
       key: string | number,
     ): Promise<BUISetting | undefined> {
-      return await buiDatabase.settings.get(String(key));
+      const data = await buiDatabase.settings.get(String(key));
+      return data;
     },
   },
   mutation: {
@@ -104,7 +110,7 @@ export const buiSettingsModule: BunnyConfig<BUISetting, BUISetting> = {
     ): Promise<AdminPanelResult<BUISetting, unknown>> {
       await buiDatabase.settings.add(data);
       return adminPanelResultSuccess<BUISetting>(
-        (await buiDatabase.settings.get(data.key)) as BUISetting,
+        (await buiDatabase.settings.get(data.id)) as BUISetting,
       );
     },
     update: async function (

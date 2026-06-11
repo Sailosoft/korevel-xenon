@@ -16,15 +16,20 @@ import { BUIBookPromptType } from "./bui.book.prompt";
 import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
 import { BookOpenText } from "lucide-react";
 import { buiBookExportDownload } from "./bui.book.export.download";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 const repository = new BUIBookRepository();
 const authorRepository = new BUIAuthorRepository();
 const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>();
+const settingsRepo = new BUISettingsRepository();
 
 export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
   title: "Book",
   titlePlural: "Books",
   rowKey: "id",
   modalSize: "cover",
+  onFormSuccess: {
+    mode: "redirect",
+  },
   columns: [
     {
       field: "title",
@@ -176,11 +181,15 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
             }
 
             try {
+              // Fetch the persisted AI provider/model settings
+              const aiConfig = await settingsRepo.getActiveAIConfig();
+
               // Fire request to the book module's dedicated server logic
               const result = await buiBookServerEnhanceWithParams(
                 title,
                 description,
                 (promptType ?? "comprehensive") as BUIBookPromptType,
+                aiConfig,
               );
 
               // Inject the formatted payload back into the active form session
