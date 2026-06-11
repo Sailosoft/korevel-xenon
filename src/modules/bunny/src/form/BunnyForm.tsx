@@ -19,6 +19,7 @@ export default function BunnyForm<TRow, TForm>() {
       config={resolvedConfig!}
       formData={form.formData}
       onChange={form.handleChange}
+      errors={form.formError || {}}
     />
   );
 }
