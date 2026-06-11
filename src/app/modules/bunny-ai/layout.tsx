@@ -18,6 +18,10 @@ import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/
 const BUNNY_AI_SHELL_CONFIG: BUIDocumentShellConfig = {
   title: "Bunny AI - Book Builder",
   brand: "Bunny AI",
+  wizard: {
+    label: "Open Wizard",
+    href: "/modules/bunny-ai/wizard",
+  },
   profile: {
     initials: "BA",
     name: "Bunny Author",

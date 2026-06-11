@@ -69,6 +69,7 @@ export default function BUIDocumentShell({
         isOpen={sidebarOpen}
         onClose={closeSidebar}
         profile={config.profile}
+        wizard={config.wizard}
       />
 
       {/* Main content area */}
