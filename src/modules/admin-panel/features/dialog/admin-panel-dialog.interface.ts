@@ -5,6 +5,29 @@ import {
 import { ReactNode } from "react";
 
 /**
+ * Preset size options for the dialog width.
+ * - `"sm"`  → 384px  (sm:max-w-sm)
+ * - `"md"`  → 448px  (sm:max-w-md)
+ * - `"lg"`  → 512px  (sm:max-w-lg)
+ * - `"xl"`  → 576px  (sm:max-w-xl)
+ * - `"2xl"` → 672px  (sm:max-w-2xl)
+ * - `"3xl"` → 768px  (sm:max-w-3xl)
+ * - `"4xl"` → 896px  (sm:max-w-4xl)
+ * - `"5xl"` → 1024px (sm:max-w-5xl)
+ * - `"full"` → 100%  (sm:max-w-full)
+ */
+export type DialogSize =
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl"
+  | "2xl"
+  | "3xl"
+  | "4xl"
+  | "5xl"
+  | "full";
+
+/**
  * Core UI state for managing the Admin Panel Dialog visibility and basic messaging.
  */
 export interface AdminPanelDialogState {
@@ -24,6 +47,12 @@ export interface AdminPanelDialogState {
   fields?: AdminPanelFormFieldDefinition[];
   /** When true, renders a full-cover content-only dialog without form/buttons */
   contentOnly?: boolean;
+  /** When true, hides the modal footer entirely */
+  hideFooter?: boolean;
+  /** Optional preset controlling the dialog width. Defaults to ~440px (sm:max-w-[440px]) for standard dialogs. */
+  size?: DialogSize;
+  /** When true (content-only mode), stretches the dialog to full viewport height. Defaults to true. */
+  fullHeight?: boolean;
   /** Custom React content rendered inside the dialog body (used when contentOnly is true) */
   children?: ReactNode;
 }
