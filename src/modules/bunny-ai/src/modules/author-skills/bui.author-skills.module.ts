@@ -26,20 +26,15 @@ export const buiAuthorSkillModule: BunnyConfig<BUIAuthorSkill, BUIAuthorSkill> =
   {
     title: "Author Skill",
     titlePlural: "Author Skills",
-    rowKey: "id",
+    rowKey: "name",
     onFormSuccess: {
       mode: "closeOnly",
     },
     columns: [
       {
-        field: "id",
-        header: "Id",
-        sortable: true,
-        isRowHeader: true,
-      },
-      {
         field: "name",
         header: "Name",
+        isRowHeader: true,
         sortable: true,
       },
       {

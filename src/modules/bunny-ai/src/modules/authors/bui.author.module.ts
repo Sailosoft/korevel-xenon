@@ -27,15 +27,10 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   },
   columns: [
     {
-      field: "id",
-      header: "Id",
-      sortable: true,
-      isRowHeader: true,
-    },
-    {
       field: "name",
       header: "Name",
       sortable: true,
+      isRowHeader: true,
     },
     {
       field: "description",
