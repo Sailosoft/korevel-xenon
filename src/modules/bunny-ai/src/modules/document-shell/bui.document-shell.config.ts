@@ -55,6 +55,15 @@ export interface BUINavItem {
   section?: string;
 }
 
+// ── Wizard ─────────────────────────────────────────────────────────────────────
+
+export interface BUIWizardConfig {
+  /** Display label on the call-to-action button (e.g. "Open Wizard"). */
+  label: string;
+  /** Route to navigate to when clicked. */
+  href: string;
+}
+
 // ── Profile ────────────────────────────────────────────────────────────────────
 
 export interface BUIProfile {
@@ -74,6 +83,8 @@ export interface BUIDocumentShellConfig {
   theme?: Partial<BUIDocumentShellTheme>;
   /** Navigation items (in display order). */
   navItems: BUINavItem[];
+  /** Optional call-to-action wizard button rendered at the top of the nav. */
+  wizard?: BUIWizardConfig;
   /** Optional user profile widget in the sidebar footer. */
   profile?: BUIProfile;
 }

@@ -1,19 +1,21 @@
 // bui.document-shell.sidebar.tsx
 //
 // Sidebar component — uses `useState` for mobile open/close (no query params).
-// Renders brand header, grouped navigation links, and an optional profile footer.
+// Renders brand header, optional wizard CTA, grouped navigation links,
+// and an optional profile footer.
 
 "use client";
 
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, LucideIcon, LucideRabbit } from "lucide-react";
+import { X, Plus, LucideRabbit } from "lucide-react";
 import { Button } from "@heroui/react";
 import {
   type BUIDocumentShellTheme,
   type BUINavItem,
   type BUIProfile,
+  type BUIWizardConfig,
 } from "./bui.document-shell.config";
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ export interface BUISidebarProps {
   isOpen: boolean;
   onClose: () => void;
   profile?: BUIProfile;
+  wizard?: BUIWizardConfig;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────────
@@ -36,6 +39,7 @@ export default function BUISidebar({
   isOpen,
   onClose,
   profile,
+  wizard,
 }: BUISidebarProps) {
   const pathname = usePathname();
 
@@ -73,6 +77,18 @@ export default function BUISidebar({
 
         {/* ── Navigation ────────────────────────────────────────── */}
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          {/* Wizard CTA button */}
+          {wizard && (
+            <Link
+              href={wizard.href}
+              onClick={onClose}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-2xl transition-all shadow-md ${theme.btnPrimary} ${theme.shadow} mb-6 group cursor-pointer`}
+            >
+              <Plus />
+              <span className="font-medium">{wizard.label}</span>
+            </Link>
+          )}
+
           {sections.map(
             (section, idx) =>
               section.items.length > 0 && (

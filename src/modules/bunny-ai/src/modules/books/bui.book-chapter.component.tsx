@@ -8,10 +8,12 @@ import { BUIBookComponentCard } from "./bui.book.component.card";
 
 interface BUIBookChapterComponentProps {
   bookId: number;
+  hideBookDetail?: boolean;
 }
 
 export default function BUIBookChapterComponent({
   bookId,
+  hideBookDetail,
 }: BUIBookChapterComponentProps) {
   // const params = useParams();
   // const bookId = Number(params.id);
@@ -21,7 +23,7 @@ export default function BUIBookChapterComponent({
   return (
     <div className="flex flex-col gap-6 p-6 w-full max-w-7xl mx-auto">
       {/* Upper HeroUI Context Layer showcasing Book details */}
-      <BUIBookComponentCard bookId={bookId} />
+      {!hideBookDetail && <BUIBookComponentCard bookId={bookId} />}
 
       {/* Structured Chapters Workplace */}
       <Bunny config={buiBookChapterModule(bookId)}>
