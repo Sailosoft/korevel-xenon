@@ -11,7 +11,6 @@ import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
-import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
 
 interface BUIBookChapterComponentPipelineProps {
   bookId: number;
@@ -26,8 +25,7 @@ export default function BUIBookChapterComponentPipeline({
 
   // Pipeline Processing States
   const [isProcessing, setIsProcessing] = useState(false);
-  const [promptType, setPromptType] =
-    useState<BUIChapterPromptContypeType>("default");
+  const [promptType, setPromptType] = useState<string>("default");
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -137,11 +135,7 @@ export default function BUIBookChapterComponentPipeline({
                   <select
                     aria-label="Select Persona"
                     value={promptType}
-                    onChange={(e) =>
-                      setPromptType(
-                        e.target.value as BUIChapterPromptContypeType,
-                      )
-                    }
+                    onChange={(e) => setPromptType(e.target.value)}
                     className="w-full min-h-10 px-3 py-2 rounded-xl border-2 border-default-200 bg-transparent text-sm hover:border-default-400 focus:border-primary focus:outline-none transition-colors"
                   >
                     <option value="default">Default Architect Tone</option>

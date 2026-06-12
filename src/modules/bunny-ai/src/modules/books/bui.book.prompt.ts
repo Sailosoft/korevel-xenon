@@ -1,28 +1,20 @@
-export type BUIBookPromptType =
-  | "comprehensive"
-  | "marketing"
-  | "academic"
-  | "cinematic"
-  | "minimalist";
-
-interface BUIBookPrompt {
+export interface BUIBookPromptEntry {
+  key: string;
+  name: string;
   systemPrompt: string;
   userPrompt: string;
 }
 
-type BUIBookPromptGroup = {
-  [key in BUIBookPromptType]: BUIBookPrompt;
-};
-
 export const buiBookPrompt: {
-  enhance: BUIBookPromptGroup;
+  enhance: BUIBookPromptEntry[];
 } = {
-  enhance: {
-    // OPTION 1: Comprehensive (Strictly follows the requested pattern)
-    comprehensive: {
+  enhance: [
+    {
+      key: "comprehensive",
+      name: "Comprehensive",
       systemPrompt: `
-        You are an expert developmental editor. Your task is to analyze the user's draft title and book idea, 
-        and enhance the title to be more engaging. 
+        You are an expert developmental editor. Your task is to analyze the user's draft title and book idea,
+        and enhance the title to be more engaging.
         
         You MUST format your response exactly using this structure:
         
@@ -34,9 +26,9 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
-
-    // OPTION 2: Marketing/Commercial (Focuses on hooks and selling points)
-    marketing: {
+    {
+      key: "marketing",
+      name: "Marketing",
       systemPrompt: `
         You are a top-tier book publicist. Your goal is to maximize the commercial appeal of the user's book idea.
         Enhance the title to make it a bestseller.
@@ -52,11 +44,11 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
-
-    // OPTION 3: Academic/Non-Fiction (Focuses on thesis and arguments)
-    academic: {
+    {
+      key: "academic",
+      name: "Academic",
       systemPrompt: `
-        You are an academic publisher and non-fiction acquisitions editor. Enhance the user's title 
+        You are an academic publisher and non-fiction acquisitions editor. Enhance the user's title
         to sound authoritative, usually utilizing a 'Main Title: Subtitle' format.
         
         Format your response using this pattern:
@@ -69,11 +61,11 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
-
-    // OPTION 4: Cinematic/Narrative (Focuses on story, perfect for fiction/adaptations)
-    cinematic: {
+    {
+      key: "cinematic",
+      name: "Cinematic",
       systemPrompt: `
-        You are a cinematic storyteller and literary agent. Enhance the title to sound like a blockbuster movie 
+        You are a cinematic storyteller and literary agent. Enhance the title to sound like a blockbuster movie
         or an award-winning novel. Transform the idea into a dramatic narrative pitch.
         
         Format your response using this pattern:
@@ -86,11 +78,11 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
-
-    // OPTION 5: Minimalist/Elevator Pitch (Focuses on brevity and high concept)
-    minimalist: {
+    {
+      key: "minimalist",
+      name: "Minimalist",
       systemPrompt: `
-        You are a minimalist editor who loves brevity and high-impact concepts. Condense the user's idea 
+        You are a minimalist editor who loves brevity and high-impact concepts. Condense the user's idea
         into a rapid elevator pitch. Enhance the title to be short, punchy, and memorable.
         
         Format your response using this pattern:
@@ -103,5 +95,5 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
-  },
+  ],
 };

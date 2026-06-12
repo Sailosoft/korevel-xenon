@@ -12,7 +12,6 @@ import BUIAuthorRepository from "../authors/bui.author.repository";
 import { BunnySelectOption } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import { buiBookServerEnhanceWithParams } from "./bui.book.server.enhance";
-import { BUIBookPromptType } from "./bui.book.prompt";
 import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
 import { BookOpenText } from "lucide-react";
 import { buiBookExportDownload } from "./bui.book.export.download";
@@ -188,7 +187,7 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
               const result = await buiBookServerEnhanceWithParams(
                 title,
                 description,
-                (promptType ?? "comprehensive") as BUIBookPromptType,
+                promptType ?? "comprehensive",
                 aiConfig,
               );
 

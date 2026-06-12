@@ -5,10 +5,7 @@ import { useCallback, useState, useEffect } from "react";
 import { BUIBookRepository } from "./bui.book.repository";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
-import {
-  buiChapterPrompt,
-  BUIChapterPromptType,
-} from "./bui.book-chapter.prompt";
+import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import { BUIBookEntity } from "./bui.book.entity";
 import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
@@ -24,8 +21,7 @@ export default function BUIBookChapterComponentGenerate({
   const [bookData, setBookData] = useState<BUIBookEntity | null>(null);
   const [useAuthorProfile, setUseAuthorProfile] = useState(true);
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
-  const [templateType, setTemplateType] =
-    useState<BUIChapterPromptType>("default");
+  const [templateType, setTemplateType] = useState<string>("default");
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -151,9 +147,7 @@ export default function BUIBookChapterComponentGenerate({
                 </label>
                 <select
                   value={templateType}
-                  onChange={(e) =>
-                    setTemplateType(e.target.value as BUIChapterPromptType)
-                  }
+                  onChange={(e) => setTemplateType(e.target.value)}
                   className="w-full bg-default-100 p-2 rounded-md text-sm outline-none border border-transparent focus:border-primary"
                 >
                   <option value="default">Standard Chronological Layout</option>
@@ -182,8 +176,9 @@ export default function BUIBookChapterComponentGenerate({
                 </span>
                 <p className="text-xs text-default-600 italic">
                   {
-                    buiChapterPrompt.generateChapters[templateType]
-                      ?.systemPrompt
+                    buiChapterPrompt.generateChapters.find(
+                      (p) => p.key === templateType,
+                    )?.systemPrompt
                   }
                 </p>
               </div>

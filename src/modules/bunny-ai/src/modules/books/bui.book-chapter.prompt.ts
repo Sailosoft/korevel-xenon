@@ -1,17 +1,12 @@
-export type BUIChapterPromptType =
-  | "default"
-  | "draft"
-  | "three_act"
-  | "hero_journey"
-  | "non_fiction"
-  | "sci_fi_world"
-  | "mystery_pacing";
+export interface BUIChapterPromptEntry {
+  key: string;
+  name: string;
+  systemPrompt: string;
+  userPrompt: string;
+}
 
 export const buiChapterPrompt: {
-  generateChapters: Record<
-    BUIChapterPromptType,
-    { systemPrompt: string; userPrompt: string }
-  >;
+  generateChapters: BUIChapterPromptEntry[];
   generateChaptersExtraPrompt: string;
   generateUserPrompt: string;
   generateUserPromptWithoutAuthor: string;
@@ -44,47 +39,61 @@ Author Skills:
 {{/each}}
 {{/if}}
   `,
-  generateChapters: {
-    default: {
+  generateChapters: [
+    {
+      key: "default",
+      name: "Default",
       systemPrompt:
         "You are an expert book architect. Generate structured chapter frameworks matching the provided thematic metadata.",
       userPrompt:
         "Analyze the provided profile context and outline a multi-chapter layout.",
     },
-    draft: {
+    {
+      key: "draft",
+      name: "Draft",
       systemPrompt:
         "You are a professional ghostwriter. Draft detailed multi-chapter breakdowns with strong structural outlines.",
       userPrompt:
         "Build a highly comprehensive plot setup matching the target description layout.",
     },
-    three_act: {
+    {
+      key: "three_act",
+      name: "Three Act",
       systemPrompt:
         "You are an expert narrative theorist. Break down the outline strictly into a Classic Three-Act Structure (Setup, Confrontation, Resolution).",
       userPrompt: "Build a balanced act framework matching this book profile.",
     },
-    hero_journey: {
+    {
+      key: "hero_journey",
+      name: "Hero Journey",
       systemPrompt:
         "You are a master of mythic structures. Generate chapters conforming sequentially to the 12 stages of The Hero's Journey archetype.",
       userPrompt:
         "Outline an epic journey blueprint matching this conceptual summary.",
     },
-    non_fiction: {
+    {
+      key: "non_fiction",
+      name: "Non Fiction",
       systemPrompt:
         "You are an educational copywriter. Draft a clean, modular, and non-fiction educational curriculum chapter breakdown.",
       userPrompt:
         "Deconstruct the core topics into actionable, step-by-step modular chapters.",
     },
-    sci_fi_world: {
+    {
+      key: "sci_fi_world",
+      name: "Sci-Fi World",
       systemPrompt:
         "You are a science fiction worldbuilder. Generate chapters focusing heavily on macro-worldbuilding principles, technological impact, and setting environments.",
       userPrompt:
         "Draft a high-concept universe chapter schema matching these constraints.",
     },
-    mystery_pacing: {
+    {
+      key: "mystery_pacing",
+      name: "Mystery Pacing",
       systemPrompt:
         "You are a thriller and mystery plotting expert. Structure the chapters to emphasize suspense curves, information drops, and investigative progression.",
       userPrompt:
         "Outline a tightly-paced psychological blueprint from this target concept.",
     },
-  },
+  ],
 };

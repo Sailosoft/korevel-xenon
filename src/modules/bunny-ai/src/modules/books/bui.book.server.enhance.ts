@@ -4,13 +4,13 @@
 import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
-import { buiBookPrompt, BUIBookPromptType } from "./bui.book.prompt";
+import { buiBookPrompt } from "./bui.book.prompt";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 export async function buiBookServerEnhanceWithParams(
   title: string,
   description: string,
-  promptType: BUIBookPromptType = "comprehensive",
+  promptType: string = "comprehensive",
   aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
@@ -36,7 +36,8 @@ export async function buiBookServerEnhanceWithParams(
 
   // Fall back to 'comprehensive' (Option 1) if the prompt type isn't recognized
   const selectedPromptGroup =
-    buiBookPrompt.enhance[promptType] || buiBookPrompt.enhance.comprehensive;
+    buiBookPrompt.enhance.find((p) => p.key === promptType) ||
+    buiBookPrompt.enhance[0];
 
   // Merge the prompt patterns with explicit JSON structural guidance
   const systemPrompt = `${selectedPromptGroup.systemPrompt}

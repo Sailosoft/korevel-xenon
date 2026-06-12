@@ -1,5 +1,5 @@
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
-import { BUIAuthor, BUIAuthorPromptType } from "./bui.author.entity";
+import { BUIAuthor } from "./bui.author.entity";
 import {
   AdminPanelQueryOptions,
   GetAllResponse,
@@ -132,7 +132,7 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
             const result = await buiAuthorServerEnhanceWithParams(
               name,
               description,
-              (promptType ?? "professional") as BUIAuthorPromptType,
+              promptType ?? "professional",
               aiConfig,
             );
 
