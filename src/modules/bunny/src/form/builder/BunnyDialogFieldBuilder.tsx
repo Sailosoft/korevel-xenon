@@ -146,6 +146,8 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
             defaultValue={
               typeof fallbackValue === "string" ? fallbackValue : ""
             }
+            className="min-h-[120px]"
+            style={{ height: "6rem" }}
           />
           {showError && (
             <p className="text-sm text-red-500 mt-1">{errorText}</p>
