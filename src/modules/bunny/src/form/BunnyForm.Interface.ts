@@ -24,6 +24,8 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   required?: boolean;
   disabled?: boolean;
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
+  // Number of visible text rows for textarea fields (default: 4)
+  rows?: number;
   // validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
   rules?: BunnyValidationRule[];
 }

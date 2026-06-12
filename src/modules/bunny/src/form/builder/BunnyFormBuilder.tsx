@@ -9,23 +9,14 @@ import {
   Switch,
   cn,
 } from "@heroui/react";
-import {
-  MDXEditor,
-  headingsPlugin,
-  listsPlugin,
-  quotePlugin,
-  thematicBreakPlugin,
-  markdownShortcutPlugin,
-  MDXEditorMethods,
-} from "@mdxeditor/editor";
-import "@mdxeditor/editor/style.css";
 
-import { useEffect, useRef, useState } from "react"; // Added useState for async options
+import { useEffect, useState } from "react";
 import {
   BunnyFormConfig,
   BunnyFormField,
   BunnySelectOption,
 } from "../BunnyForm.Interface";
+import BunnyMDXEditor from "./BunnyMDXEditor";
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -92,23 +83,11 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
   const showError = !!error;
   const isRequired = !!field.required;
 
-  const editorRef = useRef<MDXEditorMethods>(null);
-
   // States to manage asynchronous mapping cleanly
   const [computedOptions, setComputedOptions] = useState<BunnySelectOption[]>(
     [],
   );
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
-
-  // Sync external changes into the editor
-  useEffect(() => {
-    if (field.type === "editor") {
-      const currentMarkdown = editorRef.current?.getMarkdown();
-      if (value !== currentMarkdown) {
-        editorRef.current?.setMarkdown((value as string) || "");
-      }
-    }
-  }, [value, field.type]);
 
   // Sync and resolve options configuration (runs explicitly for select fields)
   useEffect(() => {
@@ -221,6 +200,10 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
             placeholder={field.placeholder}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => handleChange(e.target.value)}
+            className="min-h-[120px]"
+            style={{
+              height: `${Math.max(4, (field as BunnyFormField<Record<string, unknown>>).rows ?? 4) * 1.5}rem`,
+            }}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
         </div>
@@ -247,28 +230,15 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
 
     case "editor":
       return (
-        <div className="flex flex-col gap-1 w-full mdx-editor-wrapper">
-          <Label htmlFor={fieldId}>
-            {field.label}
-            {isRequired && <span className="text-red-500 ml-1">*</span>}
-          </Label>
-          <div className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert">
-            <MDXEditor
-              ref={editorRef}
-              markdown={typeof value === "string" ? value : ""}
-              onChange={handleChange}
-              placeholder={field.placeholder}
-              plugins={[
-                headingsPlugin(),
-                listsPlugin(),
-                quotePlugin(),
-                thematicBreakPlugin(),
-                markdownShortcutPlugin(),
-              ]}
-            />
-          </div>
-          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
-        </div>
+        <BunnyMDXEditor
+          id={fieldId}
+          label={field.label}
+          required={isRequired}
+          value={typeof value === "string" ? value : ""}
+          onChange={(val: string) => handleChange(val)}
+          placeholder={field.placeholder}
+          error={error}
+        />
       );
 
     default: // text, email, password, number
