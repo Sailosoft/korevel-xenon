@@ -11,7 +11,6 @@ import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { BUIBookRepository } from "./bui.book.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
 
-import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import BUIBookChapterComponentMobileView from "./bui.book-chapter.component.mobile-view";
 import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.generate";
@@ -188,11 +187,7 @@ export const buiBookChapterModule = (
             try {
               const settingsRepo = new BUISettingsRepository();
               const aiConfig = await settingsRepo.getActiveAIConfig();
-              await generateChapterContentAction(
-                row.id!,
-                promptType as BUIChapterPromptContypeType,
-                aiConfig,
-              );
+              await generateChapterContentAction(row.id!, promptType, aiConfig);
               context.adminPanel.table.refresh?.();
               return {
                 success: true,

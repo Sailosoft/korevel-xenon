@@ -3,10 +3,7 @@
 
 import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
-import {
-  buiChapterPromptContent,
-  BUIChapterPromptContypeType,
-} from "./bui.book-chapter.prompt.content";
+import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
@@ -15,7 +12,7 @@ import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
  */
 export async function buiChapterServerContent(
   params: BUIBookChapterParams,
-  promptType: BUIChapterPromptContypeType = "default",
+  promptType: string = "default",
   aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
@@ -23,8 +20,8 @@ export async function buiChapterServerContent(
 
   // Pick the specified pattern variant or fallback safely to default
   const selectedPromptGroup =
-    buiChapterPromptContent.prompt[promptType] ||
-    buiChapterPromptContent.prompt.default;
+    buiChapterPromptContent.prompt.find((p) => p.key === promptType) ||
+    buiChapterPromptContent.prompt[0];
 
   // Compile Handlebars templates
   const systemTemplate = Handlebars.compile(selectedPromptGroup.systemPrompt);

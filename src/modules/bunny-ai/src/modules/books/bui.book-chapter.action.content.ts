@@ -3,7 +3,6 @@ import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { BUIBookRepository } from "./bui.book.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
-import { BUIChapterPromptContypeType } from "./bui.book-chapter.prompt.content";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
@@ -16,7 +15,7 @@ import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
  */
 export async function generateChapterContentAction(
   chapterId: number,
-  promptType: BUIChapterPromptContypeType = "default",
+  promptType: string = "default",
   aiConfig?: BUIAIOption,
   useAuthorSkills: boolean = false,
 ) {

@@ -79,10 +79,10 @@ export const promptViewerRegistry: PromptViewerEntry[] = [
     label: "buiAuthorPrompt.enhance",
     description:
       "Prompts used to enhance author biographies and metadata (professional, creative, short, basic).",
-    prompts: Object.entries(buiAuthorPrompt.enhance).map(([type, value]) => ({
-      type,
-      systemPrompt: value.systemPrompt,
-      userPrompt: value.userPrompt,
+    prompts: buiAuthorPrompt.enhance.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: entry.userPrompt,
     })),
   },
 
@@ -92,10 +92,10 @@ export const promptViewerRegistry: PromptViewerEntry[] = [
     label: "buiBookPrompt.enhance",
     description:
       "Prompts used to enhance book titles & descriptions (comprehensive, marketing, academic, cinematic, minimalist).",
-    prompts: Object.entries(buiBookPrompt.enhance).map(([type, value]) => ({
-      type,
-      systemPrompt: value.systemPrompt,
-      userPrompt: value.userPrompt,
+    prompts: buiBookPrompt.enhance.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: entry.userPrompt,
     })),
   },
 
@@ -105,13 +105,11 @@ export const promptViewerRegistry: PromptViewerEntry[] = [
     label: "buiChapterPrompt.generateChapters",
     description:
       "Prompts used to generate chapter outlines / structures based on a book profile.",
-    prompts: Object.entries(buiChapterPrompt.generateChapters).map(
-      ([type, value]) => ({
-        type,
-        systemPrompt: value.systemPrompt,
-        userPrompt: value.userPrompt,
-      }),
-    ),
+    prompts: buiChapterPrompt.generateChapters.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: entry.userPrompt,
+    })),
     // Include the shared extra prompt as an extra variant
   },
 
@@ -121,13 +119,11 @@ export const promptViewerRegistry: PromptViewerEntry[] = [
     label: "buiChapterPromptContent.prompt",
     description:
       "Prompts used to write full chapter content, each with a distinct narrative voice (default, character_driven, software_engineering, technology, medical, motivational).",
-    prompts: Object.entries(buiChapterPromptContent.prompt).map(
-      ([type, value]) => ({
-        type,
-        systemPrompt: value.systemPrompt,
-        userPrompt: value.userPrompt,
-      }),
-    ),
+    prompts: buiChapterPromptContent.prompt.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: entry.userPrompt,
+    })),
   },
 ];
 

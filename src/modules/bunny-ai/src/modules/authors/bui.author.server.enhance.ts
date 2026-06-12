@@ -5,13 +5,12 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiAuthorPrompt } from "./bui.author.prompt";
-import { BUIAuthorPromptType } from "./bui.author.entity";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
 
 export async function buiAuthorServerEnhanceWithParams(
   name: string,
   description: string,
-  promptType: BUIAuthorPromptType = "professional",
+  promptType: string = "professional",
   aiConfig?: BUIAIOption,
 ) {
   const container = buiContainer.createScope();
@@ -36,8 +35,8 @@ export async function buiAuthorServerEnhanceWithParams(
 
   // Select the prompts dynamically based on promptType
   const selectedPromptGroup =
-    buiAuthorPrompt.enhance[promptType] || buiAuthorPrompt.enhance.professional;
-  console.log("promptType", promptType);
+    buiAuthorPrompt.enhance.find((p) => p.key === promptType) ||
+    buiAuthorPrompt.enhance[0];
   const systemPrompt = `${selectedPromptGroup.systemPrompt}
     \n\n
     CRITICAL: Return ONLY a valid JSON object matching the requested structure. Do not include any markdown formatting (like \`\`\`json), explanations, or introduction outside of the raw JSON code.

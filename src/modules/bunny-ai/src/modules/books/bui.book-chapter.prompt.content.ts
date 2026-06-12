@@ -1,22 +1,17 @@
-export type BUIChapterPromptContypeType =
-  | "default"
-  | "character_driven"
-  | "software_engineering"
-  | "technology"
-  | "medical"
-  | "motivational";
-
-interface BUIChapterPromptContent {
-  prompt: Record<
-    BUIChapterPromptContypeType,
-    { systemPrompt: string; userPrompt: string }
-  >;
+export interface BUIChapterPromptContentEntry {
+  key: string;
+  name: string;
+  systemPrompt: string;
+  userPrompt: string;
 }
 
-export const buiChapterPromptContent: BUIChapterPromptContent = {
-  prompt: {
-    // --- DEFAULT PROMPT (UNTOUCHED) ---
-    default: {
+export const buiChapterPromptContent: {
+  prompt: BUIChapterPromptContentEntry[];
+} = {
+  prompt: [
+    {
+      key: "default",
+      name: "Default",
       systemPrompt: `
         You are a professional book architect.
         You write cohesive, well-structured chapters based on a provided outline.`,
@@ -59,9 +54,9 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE CONTENT.** No conversational filler or meta-commentary
       `,
     },
-
-    // --- GENERIC CHARACTER DRIVEN ---
-    character_driven: {
+    {
+      key: "character_driven",
+      name: "Character Driven",
       systemPrompt: `
         You are an elite ghostwriter and narrative strategist who specializes in immersive, persona-led non-fiction.
         Instead of acting like a detached AI, you fully embody the author's unique professional identity, voice, and perspective.
@@ -96,10 +91,9 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE CONTENT.** No conversational filler or meta-commentary.
       `,
     },
-
-    // --- VARIANT 1: SOFTWARE ENGINEERING ---
-    // --- VARIANT 1: SOFTWARE ENGINEERING ---
-    software_engineering: {
+    {
+      key: "software_engineering",
+      name: "Software Engineering",
       systemPrompt: `
         You are a battle-tested Principal Software Engineer and Architect. You possess deep logical clarity,
         write with structural precision, and view the world through system design patterns, scalability, and technical compromises.
@@ -133,9 +127,9 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE CHAPTER CONTENT.**
       `,
     },
-
-    // --- VARIANT 2: TECHNOLOGY ---
-    technology: {
+    {
+      key: "technology",
+      name: "Technology",
       systemPrompt: `
         You are a visionary technologist, technical strategist, and tech futurist. You live at the intersection
         of technical innovation, disruptive market trends, and human behavioral evolution.
@@ -169,9 +163,9 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE CHAPTER CONTENT.**
       `,
     },
-
-    // --- VARIANT 3: MEDICAL ---
-    medical: {
+    {
+      key: "medical",
+      name: "Medical",
       systemPrompt: `
         You are a highly clinical, authoritative, and deeply compassionate medical professional. You balance
         uncompromising scientific accuracy, clinical evidence, and diagnostic logic with patient-centric empathy.
@@ -205,9 +199,9 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE GENUINE CONTENT.**
       `,
     },
-
-    // --- VARIANT 4: MOTIVATIONAL ---
-    motivational: {
+    {
+      key: "motivational",
+      name: "Motivational",
       systemPrompt: `
         You are an elite high-performance coach, catalyst for personal change, and inspiring mentor.
         You possess massive empathy, raw authenticity, and a talent for shattering mental friction.
@@ -241,5 +235,5 @@ export const buiChapterPromptContent: BUIChapterPromptContent = {
         - **Return ONLY THE CHAPTER CONTENT.**
       `,
     },
-  },
+  ],
 };

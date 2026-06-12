@@ -2,10 +2,7 @@
 
 import { buiContainer } from "../../container/bui.container";
 import { BUIAuthor } from "../authors/bui.author.entity";
-import {
-  buiChapterPrompt,
-  BUIChapterPromptType,
-} from "./bui.book-chapter.prompt";
+import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import Handlebars from "handlebars";
 import { BUIBookEntity } from "./bui.book.entity";
 import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
@@ -13,7 +10,7 @@ import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 export async function buiChapterServerGenerate(
   params: { book: BUIBookEntity; author?: BUIAuthor },
-  type: BUIChapterPromptType = "draft",
+  type: string = "draft",
   useAuthorProfile: boolean = true,
   aiConfig?: BUIAIOption,
   skills?: BUIAuthorSkill[],
@@ -22,8 +19,8 @@ export async function buiChapterServerGenerate(
   const ai = container.resolve("ai");
 
   const selected =
-    buiChapterPrompt.generateChapters[type] ||
-    buiChapterPrompt.generateChapters.default;
+    buiChapterPrompt.generateChapters.find((p) => p.key === type) ||
+    buiChapterPrompt.generateChapters[0];
 
   // Augment params with skills if provided
   const promptParams = {

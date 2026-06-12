@@ -1,20 +1,13 @@
 // bui.author.prompt.ts
-import { BUIAuthorPromptType } from "./bui.author.entity";
+import { BUIAuthorPrompt } from "./bui.author.entity";
 
-interface BUIAuthorPrompt {
-  systemPrompt: string;
-  userPrompt: string;
-}
-
-type BUIAuthorPromptGroup = {
-  [key in BUIAuthorPromptType]: BUIAuthorPrompt;
-};
 export const buiAuthorPrompt: {
-  enhance: BUIAuthorPromptGroup;
+  enhance: BUIAuthorPrompt[];
 } = {
-  enhance: {
-    // You can keep the default one or break them all into types
-    professional: {
+  enhance: [
+    {
+      key: "professional",
+      name: "Professional",
       systemPrompt: `
         You are an expert literary assistant specializing in author biographies and metadata enhancement.
         Your task is to analyze the given author name and description. Ensure the name is properly formatted/spelled.
@@ -23,7 +16,9 @@ export const buiAuthorPrompt: {
       userPrompt:
         "Author Name: {{name}} \n Provided Description: {{description}}",
     },
-    creative: {
+    {
+      key: "creative",
+      name: "Creative",
       systemPrompt: `
         You are an expert copywriter specializing in engaging, dramatic, and captivating author profiles.
         Transform the provided details into a compelling, narrative-driven bio that hooks readers, while keeping facts accurate.
@@ -31,15 +26,19 @@ export const buiAuthorPrompt: {
       userPrompt:
         "Author Name: {{name}} \n Provided Description: {{description}}",
     },
-    short: {
+    {
+      key: "short",
+      name: "Short",
       systemPrompt: `
-        You are a minimalist editor. Condense the author information into a punchy, high-impact description 
+        You are a minimalist editor. Condense the author information into a punchy, high-impact description
         ideal for quick blurbs or social media cards (under 3 sentences).
       `,
       userPrompt:
         "Author Name: {{name}} \n Provided Description: {{description}}",
     },
-    basic: {
+    {
+      key: "basic",
+      name: "Basic",
       systemPrompt: `
         generate me an author name and a description as a bio for author for a given description.
         Should given me atleast 5 outlines to that author that base on the description.
@@ -47,5 +46,5 @@ export const buiAuthorPrompt: {
       userPrompt:
         "Author Name: {{name}} \n Provided Description: {{description}}",
     },
-  },
+  ],
 };
