@@ -16,26 +16,26 @@ export const buiConfig: BUIConfig = {
       },
       {
         provider: "ollamaLocal",
-        apiKey: process.env.OLLAMA_API_KEY || "",
+        apiKey: "ollama",
         model: process.env.OPEN_AI_MODEL || "gemma4:31b",
         endpoint: "http://localhost:11434/v1",
       },
       {
         provider: "ollamaCloud",
         apiKey: process.env.OLLAMA_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "gemma4:31b-cloud",
+        model: "gemma4:31b-cloud",
         endpoint: "https://ollama.cloud/v1",
       },
       {
         provider: "deepseek",
         apiKey: process.env.DEEPSEEK_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "deepseek-chat",
+        model: "deepseek-v4-pro",
         endpoint: "https://api.deepseek.com/v1",
       },
       {
         provider: "groq",
         apiKey: process.env.GROQ_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "mixtral-8x7b-32768",
+        model: "openai/gpt-oss-120b",
         endpoint: "https://api.groq.com/openai/v1",
       },
       {
@@ -47,19 +47,19 @@ export const buiConfig: BUIConfig = {
       {
         provider: "openRouter",
         apiKey: process.env.OPEN_ROUTER_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "mixtral-8x7b-32768",
+        model: "openrouter/free",
         endpoint: "https://openrouter.ai/api/v1",
       },
       {
         provider: "deepinfra",
         apiKey: process.env.DEEP_INFRA_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "google/gemini-3.1-flash-lite",
+        model: "google/gemma-4-31B-it",
         endpoint: "https://api.deepinfra.com/v1",
       },
       {
         provider: "googleAIStudio",
         apiKey: process.env.GOOGLE_AI_STUDIO_API_KEY || "",
-        model: process.env.OPEN_AI_MODEL || "gemini-2.0-flash",
+        model: "gemini-3.1-flash-lite",
         endpoint: "https://generativelanguage.googleapis.com/v1beta/openai",
       },
     ],
