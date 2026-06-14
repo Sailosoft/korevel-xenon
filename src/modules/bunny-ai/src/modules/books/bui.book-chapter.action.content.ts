@@ -5,7 +5,7 @@ import BUIAuthorRepository from "../authors/bui.author.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
-import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import { BUIAIOption } from "../../configs/bui.config.interface";
 import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 

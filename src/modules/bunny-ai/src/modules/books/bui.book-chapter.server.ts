@@ -5,7 +5,7 @@ import { BUIAuthor } from "../authors/bui.author.entity";
 import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import Handlebars from "handlebars";
 import { BUIBookEntity } from "./bui.book.entity";
-import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import { BUIAIOption } from "../../configs/bui.config.interface";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 export async function buiChapterServerGenerate(

@@ -1,4 +1,4 @@
-import { BUIAIProvider } from "../modules/ai/bui.ai.interface";
+import { BUIAIProvider } from "./bui.config.interface";
 import { BUIConfig } from "./bui.config.interface";
 
 const activeProvider =

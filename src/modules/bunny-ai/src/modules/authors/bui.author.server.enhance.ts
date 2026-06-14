@@ -5,7 +5,7 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiAuthorPrompt } from "./bui.author.prompt";
-import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import { BUIAIOption } from "../../configs/bui.config.interface";
 
 export async function buiAuthorServerEnhanceWithParams(
   name: string,
