@@ -2,9 +2,9 @@ import OpenAI from "openai";
 import {
   BUIAIOption,
   BUIAIProviderConfig,
-  BUIAIServiceType,
   BUITemperaturePreset,
-} from "./bui.ai.interface";
+} from "../../configs/bui.config.interface";
+import { BUIAIServiceType } from "./bui.ai.interface";
 import {
   BUIAISchema,
   BUIAISchemaOptions,

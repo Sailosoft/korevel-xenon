@@ -1,4 +1,27 @@
-import { BUIAIProvider } from "../modules/ai/bui.ai.interface";
+import { BUIAIProvider } from "./bui.config.interface";
+
+// ── Human-readable labels for each provider ───────────────────────────────────
+
+export const PROVIDER_LABELS: Record<BUIAIProvider, string> = {
+  default: "Default (OpenAI-compatible)",
+  ollamaLocal: "Ollama (Local)",
+  ollamaCloud: "Ollama Cloud",
+  deepseek: "DeepSeek",
+  groq: "Groq",
+  openai: "OpenAI",
+  openRouter: "OpenRouter",
+  deepinfra: "DeepInfra",
+  googleAIStudio: "Google AI Studio",
+};
+
+// ── Type guard ────────────────────────────────────────────────────────────────
+
+/** Checks whether an arbitrary string is a known BUIAIProvider */
+export function isProvider(value: string): value is BUIAIProvider {
+  return (Object.keys(PROVIDER_MODELS) as BUIAIProvider[]).includes(
+    value as BUIAIProvider,
+  );
+}
 
 // ── Provider-specific model lists ─────────────────────────────────────────────
 // Add or remove models here per provider. The "default" key is auto-computed
@@ -28,7 +51,7 @@ const PROVIDER_MODELS: Record<
 
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-3-flash-preview"
+    "gemini-3-flash-preview",
   ] as const,
   deepinfra: [
     "google/gemini-3.1-flash-lite",
@@ -58,7 +81,7 @@ const PROVIDER_MODELS: Record<
     "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
     "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
   ],
   ollamaLocal: [
     "gemma4:31b",
@@ -74,7 +97,7 @@ const PROVIDER_MODELS: Record<
     "deepseek-v4-pro:cloud",
     "deepseek-v4-flash:cloud",
     "devstral-small-2:24b-cloud",
-    "devstral-2:123b-cloud"
+    "devstral-2:123b-cloud",
   ] as const,
   deepseek: [
     "deepseek-chat",
@@ -83,34 +106,34 @@ const PROVIDER_MODELS: Record<
     "deepseek-v4-pro",
   ] as const,
   groq: [
-// Alibaba Cloud
-  "qwen/qwen3-32b",
+    // Alibaba Cloud
+    "qwen/qwen3-32b",
 
-  // Canopy Labs
-  "canopylabs/orpheus-arabic-saudi",
-  "canopylabs/orpheus-v1-english",
+    // Canopy Labs
+    "canopylabs/orpheus-arabic-saudi",
+    "canopylabs/orpheus-v1-english",
 
-  // Groq
-  "groq/compound",
-  "groq/compound-mini",
-  "mixtral-8x7b-32768",
-  "llama3-70b-8192",
-  "llama3-8b-8192",
-  "gemma2-9b-it",
+    // Groq
+    "groq/compound",
+    "groq/compound-mini",
+    "mixtral-8x7b-32768",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "gemma2-9b-it",
 
-  // Meta
-  "llama-3.1-8b-instant",
-  "llama-3.3-70b-versatile",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-prompt-guard-2-22m",
-  "meta-llama/llama-prompt-guard-2-86m",
+    // Meta
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "meta-llama/llama-prompt-guard-2-22m",
+    "meta-llama/llama-prompt-guard-2-86m",
 
-  // OpenAI
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
-  "openai/gpt-oss-safeguard-20b",
-  "whisper-large-v3",
-  "whisper-large-v3-turbo"
+    // OpenAI
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-safeguard-20b",
+    "whisper-large-v3",
+    "whisper-large-v3-turbo",
   ] as const,
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"] as const,
   openRouter: [
@@ -168,7 +191,7 @@ const PROVIDER_MODELS: Record<
     "bytedance-seed/seed-1.6-flash",
     "qwen/qwen3-32b",
     "deepseek/deepseek-v4-flash",
-    "stepfun/step-3.5-flash"
+    "stepfun/step-3.5-flash",
   ] as const,
 };
 

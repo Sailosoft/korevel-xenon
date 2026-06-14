@@ -1,33 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Input, Select, ListBox, Label } from "@heroui/react";
 import Bunny from "@/src/modules/bunny/src/Bunny";
 import { buiSettingsModule } from "./bui.settings.module";
 import { BUISetting } from "./bui.settings.entity";
-import { BUIAIProvider } from "@/src/modules/bunny-ai/src/modules/ai/bui.ai.interface";
-import { BUI_AI_MODELS } from "@/src/modules/bunny-ai/src/configs/bui.config.ai";
+import { BUIAIProvider } from "@/src/modules/bunny-ai/src/configs/bui.config.interface";
+import {
+  BUI_AI_MODELS,
+  PROVIDER_LABELS,
+  isProvider,
+} from "@/src/modules/bunny-ai/src/configs/bui.config.ai";
 import { buiDatabase } from "../../database/bui.database";
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
-
-/** Human-readable labels for each provider */
-const PROVIDER_LABELS: Record<BUIAIProvider, string> = {
-  default: "Default (OpenAI-compatible)",
-  ollamaLocal: "Ollama (Local)",
-  ollamaCloud: "Ollama Cloud",
-  deepseek: "DeepSeek",
-  groq: "Groq",
-  openai: "OpenAI",
-  openRouter: "OpenRouter",
-  deepinfra: "DeepInfra",
-};
-
-/** Type guard to check if a string is a valid BUIAIProvider */
-function isProvider(value: string): value is BUIAIProvider {
-  return (Object.keys(BUI_AI_MODELS) as BUIAIProvider[]).includes(
-    value as BUIAIProvider,
-  );
-}
 
 /**
  * Custom form for BUI Settings built with HeroUI Input & Select components.

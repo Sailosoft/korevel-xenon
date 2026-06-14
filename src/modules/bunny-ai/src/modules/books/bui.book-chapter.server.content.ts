@@ -5,7 +5,7 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import { BUIBookChapterParams } from "./bui.book.entity";
-import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import { BUIAIOption } from "../../configs/bui.config.interface";
 
 /**
  * Server Action to compile Chapter prompts and execute AI narrative generation

@@ -1,7 +1,7 @@
 import { buiDatabase } from "../../database/bui.database";
 import BUIRepositoryAdminPanel from "../../database/bui.repository.admin-panel";
 import { BUISetting } from "./bui.settings.entity";
-import { BUIAIOption } from "../../modules/ai/bui.ai.interface";
+import { BUIAIOption } from "../../configs/bui.config.interface";
 
 export default class BUISettingsRepository extends BUIRepositoryAdminPanel<BUISetting> {
   constructor() {
