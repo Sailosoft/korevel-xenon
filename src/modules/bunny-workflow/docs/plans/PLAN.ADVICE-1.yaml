@@ -1,0 +1,112 @@
+# ==============================================================================
+# Bunny AI Workflow Configuration
+# ==============================================================================
+name: Content Generation Pipeline
+group: staging # Default environment group to execute against
+
+# Global workflow-level variables (Defaults)
+variables:
+  - name: target_audience
+    value: "tech professionals"
+    description: "The primary demographic targeting parameter"
+    type: text
+  - name: model_temperature
+    value: 0.7
+    description: "Creativity threshold for the AI agents"
+    type: number
+
+agentPool: marketing-cluster
+agents:
+  - copywriter-agent
+  - SEO-optimizer-agent
+  - reviewer-agent
+
+# ==============================================================================
+# Jobs Execution Sequence
+# ==============================================================================
+jobs:
+  # Job 1: Generates the initial draft using global variables
+  - name: generate_draft
+    agent: copywriter-agent
+    group: staging
+    variables:
+      - name: tone_of_voice
+        value: "professional yet engaging"
+        description: "Local job override for writing style"
+        type: text
+    steps:
+      - name: create_article
+        prompts:
+          - "Write a short blog post targeting {{vars.target_audience}} using a {{vars.tone_of_voice}} tone. Focus on AI automation."
+        generate_mode: text
+        output:
+          - name: raw_draft
+            description: "The unoptimized first iteration of the text article"
+
+  # Job 2: Optimizes the output generated from Job 1
+  - name: optimize_seo
+    needs: generate_draft # Ensures this job waits for generate_draft to complete
+    agent: SEO-optimizer-agent
+    variables:
+      - name: keywords
+        value: "AI workflow, GitHub actions for AI, automation"
+        description: "Target search terms to inject"
+        type: textarea
+    steps:
+      # Step 1: Ingests the output of Job 1, Step 1, and applies SEO optimization
+      - name: apply_keywords
+        inputs:
+          - name: baseline_text
+            source: generate_draft.create_article.outputs.raw_draft
+        prompts:
+          - "Inject the following keywords: {{vars.keywords}} into this baseline article without disrupting its natural readability:\n\n{{inputs.baseline_text}}"
+        generate_mode: text
+        output:
+          - name: optimized_draft
+            description: "The copy containing high-value search terms"
+
+      # Step 2: Generates a summary fallback output to demonstrate 'plain' or 'default' usage
+      - name: generate_meta_summary
+        inputs:
+          - name: final_copy
+            source: optimize_seo.apply_keywords.outputs.optimized_draft
+        prompts:
+          - "Create a one-sentence meta-description for search engines based on this text:\n\n{{inputs.final_copy}}"
+        generate_mode: flat
+        output: "plain" # Forces data into the fallback 'default' pipeline key
+
+# ==============================================================================
+# Environment Variations (Overrides Global Context)
+# ==============================================================================
+groups:
+  - group: production
+    variables:
+      - name: target_audience
+        value: "enterprise executives"
+        description: "Production shift toward corporate enterprise level scale"
+        type: text
+      - name: model_temperature
+        value: 0.3
+        description: "Lower temperature for strict factual compliance in production"
+        type: number
+
+  - group: staging
+    variables:
+      - name: target_audience
+        value: "tech startups and early adopters"
+        description: "A loose tech demographic alignment for testing environments"
+        type: text
+
+# ==============================================================================
+# Aggregated Outputs & File Export Management
+# ==============================================================================
+Reports:
+  type: per_job
+  filename: marketing_campaign_report.md
+  exports:
+    - name: "Initial Drafting Result"
+      value: generate_draft.create_article.outputs.raw_draft
+    - name: "SEO Optimized Article Body"
+      value: optimize_seo.apply_keywords.outputs.optimized_draft
+    - name: "Search Engine Snippet Summary"
+      value: optimize_seo.generate_meta_summary.outputs.default

@@ -1,0 +1,62 @@
+# ==============================================================================
+# Persistent Workflow Execution Record (Stored in DB as a 'WorkflowRun')
+# ==============================================================================
+runId: "run_9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+workflowName: "Content Generation Pipeline"
+status: "completed" # completed | failed | running
+environmentGroup: "staging"
+initiatedAt: "2026-06-13T07:00:00Z"
+completedAt: "2026-06-13T07:02:15Z"
+
+# 1. Snapshot of the resolved Global Variables used for this specific run
+resolvedVariables:
+  target_audience: "tech startups and early adopters"
+  model_temperature: 0.7
+
+# 2. Persistent Pipeline Store (The core execution data matrix)
+pipelineStore:
+  jobs:
+    generate_draft:
+      status: "completed"
+      duration_ms: 45000
+      jobVariables:
+        tone_of_voice: "professional yet engaging"
+      steps:
+        create_article:
+          status: "completed"
+          inputs: {}
+          # This is where downstream jobs or the UI look to grab output values
+          outputs:
+            raw_draft: "AI automation is revolutionizing how software teams handle operations..."
+
+    optimize_seo:
+      status: "completed"
+      duration_ms: 32000
+      jobVariables:
+        keywords: "AI workflow, GitHub actions for AI"
+      steps:
+        apply_keywords:
+          status: "completed"
+          inputs:
+            baseline_text: "AI automation is revolutionizing how software teams handle operations..."
+          outputs:
+            optimized_draft: "Integrating an AI workflow mirror-linked with GitHub actions for AI tools fundamentally changes..."
+
+        generate_meta_summary:
+          status: "completed"
+          inputs:
+            final_copy: "Integrating an AI workflow mirror-linked with GitHub actions for AI tools fundamentally changes..."
+          outputs:
+            default: "Discover how establishing an integrated AI workflow transforms modern software engineering pipelines."
+
+# 3. Generated Artifacts and Reports extracted post-run
+reports:
+  filename: "marketing_campaign_report.md"
+  type: "per_job"
+  exports:
+    - name: "Initial Drafting Result"
+      value: "AI automation is revolutionizing how software teams handle operations..."
+    - name: "SEO Optimized Article Body"
+      value: "Integrating an AI workflow mirror-linked with GitHub actions for AI tools fundamentally changes..."
+    - name: "Search Engine Snippet Summary"
+      value: "Discover how establishing an integrated AI workflow transforms modern software engineering pipelines."

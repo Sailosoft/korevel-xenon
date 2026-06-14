@@ -1,0 +1,102 @@
+# ==============================================================================
+# Ephemeral In-Memory Pipeline Store (Generic Execution Graph Context Object)
+# ==============================================================================
+runId: "run_uuid_here"
+workflowName: "Custom User Defined Workflow"
+status: "running" # pending | running | completed | failed
+activeGroup: "staging"
+
+# Globally resolved environment values computed on launch
+globalVariables:
+  arbitrary_global_key: "resolved_value"
+
+# Runtime isolation matrix using dynamic user-defined keys
+pipelineStore:
+  jobs:
+    # Keyed dynamically by whatever the user named their job block
+    any_custom_job_id_1:
+      status: "completed"
+      jobVariables:
+        local_key: "local_value"
+      steps:
+        # Keyed dynamically by the step's user-defined name
+        any_custom_step_name_1:
+          status: "completed"
+          inputs:
+            input_param_1: "ingested_value"
+          outputs:
+            output_field_1: "generated_agent_response"
+            default: "fallback_plain_text_response"
+
+    # Next independent or dependent job block down the line
+    any_custom_job_id_2:
+      status: "running"
+      jobVariables: {}
+      steps:
+        any_custom_step_name_1:
+          status: "pending"
+          inputs:
+            # Token resolver binds this right before execution via cross-job navigation:
+            # {{any_custom_job_id_1.any_custom_step_name_1.outputs.output_field_1}}
+            dependent_input: ""
+          outputs: {}
+
+
+# ==============================================================================
+# Persistent Storage Template (Generic Historical Audit Log File Schema)
+# ==============================================================================
+runId: "run_8c2def5e-4c8d-5cbd-0cee-3c1e8c4ecb7d"
+workflowName: "User Dynamic Pipeline Execution"
+status: "completed" # completed | failed
+environmentGroup: "production"
+initiatedAt: "2026-06-13T07:00:00Z"
+completedAt: "2026-06-13T07:01:45Z"
+
+resolvedVariables:
+  global_param: "enterprise_value"
+
+pipelineStore:
+  jobs:
+    # Example Job 1 (User-defined unique slug)
+    ingest_data_job:
+      status: "completed"
+      duration_ms: 12400
+      jobVariables: {}
+      steps:
+        fetch_records_step:
+          status: "completed"
+          inputs: {}
+          outputs:
+            raw_payload: "[{'id': 101, 'status': 'active'}]"
+
+    # Example Job 2 (User-defined unique slug)
+    process_data_job:
+      status: "completed"
+      duration_ms: 25100
+      jobVariables:
+        strict_mode: "true"
+      steps:
+        transform_step:
+          status: "completed"
+          inputs:
+            source_data: "[{'id': 101, 'status': 'active'}]"
+          outputs:
+            transformed_payload: "processed: id 101 status verified"
+        
+        notify_step:
+          status: "completed"
+          inputs:
+            message: "processed: id 101 status verified"
+          outputs:
+            default: "Notification sent successfully."
+
+reports:
+  filename: "execution_summary.md"
+  type: "per_job"
+  exports:
+    - name: "Raw Extracted Data"
+      value: "ingest_data_job.fetch_records_step.outputs.raw_payload"
+    - name: "Final Transformation Output"
+      value: "process_data_job.transform_step.outputs.transformed_payload"
+    - name: "Status Log"
+      value: "process_data_job.notify_step.outputs.default"
