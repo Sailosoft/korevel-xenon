@@ -5,8 +5,6 @@ import { Input, Select, ListBox, Label } from "@heroui/react";
 import Bunny from "@/src/modules/bunny/src/Bunny";
 import { buiSettingsModule } from "./bui.settings.module";
 import { BUISetting } from "./bui.settings.entity";
-import { UseAdminPanel } from "@/src/modules/admin-panel/admin-panel.interface";
-import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIAIProvider } from "@/src/modules/bunny-ai/src/modules/ai/bui.ai.interface";
 import { BUI_AI_MODELS } from "@/src/modules/bunny-ai/src/configs/bui.config.ai";
 import { buiDatabase } from "../../database/bui.database";
@@ -21,6 +19,7 @@ const PROVIDER_LABELS: Record<BUIAIProvider, string> = {
   groq: "Groq",
   openai: "OpenAI",
   openRouter: "OpenRouter",
+  deepinfra: "DeepInfra",
 };
 
 /** Type guard to check if a string is a valid BUIAIProvider */

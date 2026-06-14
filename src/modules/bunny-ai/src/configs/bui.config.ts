@@ -50,6 +50,12 @@ export const buiConfig: BUIConfig = {
         model: process.env.OPEN_AI_MODEL || "mixtral-8x7b-32768",
         endpoint: "https://openrouter.ai/api/v1",
       },
+      {
+        provider: "deepinfra",
+        apiKey: process.env.OPEN_AI_API_KEY || "",
+        model: process.env.OPEN_AI_MODEL || "google/gemini-3.1-flash-lite",
+        endpoint: "https://api.deepinfra.com/v1",
+      },
     ],
   },
 };

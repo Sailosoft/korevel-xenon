@@ -8,6 +8,10 @@ const PROVIDER_MODELS: Record<
   Exclude<BUIAIProvider, "default">,
   readonly string[]
 > = {
+  deepinfra: [
+    "google/gemini-3.1-flash-lite",
+    "google/gemma-4-31B-it"
+  ],
   ollamaLocal: [
     "gemma4:31b",
     "llama3.2:8b",
