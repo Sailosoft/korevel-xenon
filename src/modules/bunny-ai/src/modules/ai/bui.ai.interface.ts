@@ -75,7 +75,8 @@ export type BUIAIProvider =
   | "groq"
   | "openai"
   | "deepinfra"
-  | "openRouter";
+  | "openRouter"
+  | "googleAIStudio";
 
 export interface BUIAIOption {
   provider: BUIAIProvider;
