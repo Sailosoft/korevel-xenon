@@ -1,10 +1,14 @@
 import { asClass, asValue, AwilixContainer, createContainer } from "awilix";
-import BUIAIService from "../modules/ai/bui.ai.service";
-import { BUIAIServiceType } from "../modules/ai/bui.ai.interface";
-import type { HelixAIConfig } from "@/src/modules/helix";
-import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
-import BUISchemaService from "../modules/ai-schema/bui.ai-schema";
-import { BUIAISchema } from "../modules/ai-schema/bui.ai-schema.types";
+import type {
+  HelixAIConfig,
+  HelixAIServiceType,
+  HelixAISchema,
+} from "@/src/modules/helix";
+import {
+  HELIX_AI_PROVIDERS,
+  HelixAIService,
+  HelixAISchemaService,
+} from "@/src/modules/helix";
 
 // ── Build the Helix AI config ──────────────────────────────────────────────
 const activeProvider = (process.env.BUI_ACTIVE_PROVIDER as string) || "default";
@@ -15,18 +19,18 @@ const helixAIConfig: HelixAIConfig = {
 };
 
 export interface BUIContainer {
-  ai: BUIAIServiceType;
+  ai: HelixAIServiceType;
   config: { ai: HelixAIConfig };
-  aiSchema: BUIAISchema;
+  aiSchema: HelixAISchema;
 }
 
 const container: AwilixContainer<BUIContainer> =
   createContainer<BUIContainer>();
 
 container.register({
-  ai: asClass(BUIAIService).scoped(),
+  ai: asClass(HelixAIService).scoped(),
   config: asValue({ ai: helixAIConfig }),
-  aiSchema: asClass(BUISchemaService).scoped(),
+  aiSchema: asClass(HelixAISchemaService).scoped(),
 });
 
 export { container as buiContainer };

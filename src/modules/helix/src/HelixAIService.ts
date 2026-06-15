@@ -4,13 +4,13 @@ import type {
   HelixAIProviderConfig,
   HelixTemperaturePreset,
   HelixAIConfig,
-} from "@/src/modules/helix";
-import { BUIAIServiceType } from "./bui.ai.interface";
+} from "./HelixConfig";
+import { HelixAIServiceType } from "./HelixAIServiceInterface";
 import {
-  BUIAISchema,
-  BUIAISchemaOptions,
-  BUIInferSchemaProps,
-} from "../ai-schema/bui.ai-schema.types";
+  HelixAISchema,
+  HelixAISchemaOptions,
+  HelixInferSchemaProps,
+} from "./HelixAISchemaTypes";
 
 /** Placeholder sentinel used when no real API key has been configured. */
 const ENCRYPTION_KEY_PLACEHOLDER = "[ENCRYPTION_KEY]";
@@ -24,7 +24,7 @@ function isValidApiKey(key: string): boolean {
 function assertApiKey(config: { provider: string; apiKey: string }): void {
   if (!isValidApiKey(config.apiKey)) {
     throw new Error(
-      `[BUIAIService] No valid API key configured for provider "${config.provider}". ` +
+      `[HelixAIService] No valid API key configured for provider "${config.provider}". ` +
         `Set the API key in your environment variables or provider configuration.`,
     );
   }
@@ -45,7 +45,7 @@ function resolveConfig(
   const found = defaults.configs.find((p) => p.provider === override.provider);
   if (!found) {
     console.warn(
-      `[BUIAIService] Unknown provider "${override.provider}", falling back to "${defaults.provider}"`,
+      `[HelixAIService] Unknown provider "${override.provider}", falling back to "${defaults.provider}"`,
     );
     return defaults.configs.find((p) => p.provider === defaults.provider)!;
   }
@@ -68,11 +68,11 @@ function resolveConfig(
   };
 }
 
-export default class BUIAIService implements BUIAIServiceType {
+export default class HelixAIService implements HelixAIServiceType {
   private readonly ai: OpenAI;
   private readonly model: string;
   private readonly provider: string;
-  private readonly aiSchema: BUIAISchema;
+  private readonly aiSchema: HelixAISchema;
   private readonly providerConfigs: HelixAIProviderConfig[];
 
   constructor({
@@ -80,7 +80,7 @@ export default class BUIAIService implements BUIAIServiceType {
     aiSchema,
   }: {
     config: { ai: HelixAIConfig };
-    aiSchema: BUIAISchema;
+    aiSchema: HelixAISchema;
   }) {
     const active = ai.providers.find((p) => p.provider === ai.activeProvider);
     if (!active) {
@@ -170,7 +170,7 @@ export default class BUIAIService implements BUIAIServiceType {
   }: {
     system: string;
     user: string;
-    schema: BUIAISchemaOptions;
+    schema: HelixAISchemaOptions;
     model?: string;
     provider?: string;
     aiConfig?: HelixAIOption;
@@ -205,7 +205,7 @@ export default class BUIAIService implements BUIAIServiceType {
     return JSON.parse(response.choices[0]?.message?.content || "{}");
   }
 
-  doChatStructured<S extends BUIAISchemaOptions>(options: {
+  doChatStructured<S extends HelixAISchemaOptions>(options: {
     system: string;
     user: string;
     schema: S;
@@ -214,11 +214,11 @@ export default class BUIAIService implements BUIAIServiceType {
     aiConfig?: HelixAIOption;
     temperature?: number;
     type?: HelixTemperaturePreset;
-  }): Promise<BUIInferSchemaProps<S>> {
-    return this.doChatJSON<BUIInferSchemaProps<S>>(options);
+  }): Promise<HelixInferSchemaProps<S>> {
+    return this.doChatJSON<HelixInferSchemaProps<S>>(options);
   }
 
-  async doChatStructuredFallback<S extends BUIAISchemaOptions>(options: {
+  async doChatStructuredFallback<S extends HelixAISchemaOptions>(options: {
     system: string;
     user: string;
     schema: S;
@@ -228,7 +228,7 @@ export default class BUIAIService implements BUIAIServiceType {
     temperature?: number;
     type?: HelixTemperaturePreset;
     maxToken?: number;
-  }): Promise<BUIInferSchemaProps<S>> {
+  }): Promise<HelixInferSchemaProps<S>> {
     const compiled = this.aiSchema.compileSchema(options.schema);
     const schemaString = JSON.stringify(compiled, null, 2);
 
@@ -258,7 +258,7 @@ ${schemaString}`;
         cleanJSON = cleanJSON.replace(/\n?```$/, "");
       }
 
-      return JSON.parse(cleanJSON.trim()) as BUIInferSchemaProps<S>;
+      return JSON.parse(cleanJSON.trim()) as HelixInferSchemaProps<S>;
     } catch (error) {
       throw new Error(
         `Failed to parse prompt-enforced structured JSON output. Raw response was: "${rawResponse}". Error: ${error}`,

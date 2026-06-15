@@ -1,15 +1,16 @@
 import { OpenAI } from "openai";
 import {
-  BUIAISchema,
-  BUIAISchemaOptions,
-  BUIStrictPropertyDefinition,
-} from "./bui.ai-schema.types";
-export default class BUIAISchemaService implements BUIAISchema {
+  HelixAISchema,
+  HelixAISchemaOptions,
+  HelixStrictPropertyDefinition,
+} from "./HelixAISchemaTypes";
+
+export default class HelixAISchemaService implements HelixAISchema {
   public compileSchema({
     name,
     properties,
     description,
-  }: BUIAISchemaOptions): OpenAI.ResponseFormatJSONSchema {
+  }: HelixAISchemaOptions): OpenAI.ResponseFormatJSONSchema {
     const requiredFields = properties ? Object.keys(properties) : [];
 
     return {
@@ -29,7 +30,7 @@ export default class BUIAISchemaService implements BUIAISchema {
   }
 
   private cleanProperties(
-    props: Record<string, BUIStrictPropertyDefinition>,
+    props: Record<string, HelixStrictPropertyDefinition>,
   ): Record<string, Record<string, unknown>> {
     const cleaned: Record<string, Record<string, unknown>> = {};
 
@@ -56,7 +57,7 @@ export default class BUIAISchemaService implements BUIAISchema {
   }
 
   private cleanSingleNode(
-    value: BUIStrictPropertyDefinition,
+    value: HelixStrictPropertyDefinition,
   ): Record<string, unknown> {
     const node: Record<string, unknown> = {
       type: value.type,
