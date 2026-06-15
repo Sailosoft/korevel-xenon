@@ -6,7 +6,8 @@ export type BunnyFieldType =
   | "select"
   | "textarea"
   | "switch"
-  | "editor";
+  | "editor"
+  | "code-editor";
 export interface BunnySelectOption {
   label: string;
   value: string | number;
@@ -26,6 +27,8 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
   // Number of visible text rows for textarea fields (default: 4)
   rows?: number;
+  // Programming language for code-editor syntax highlighting (default: "typescript")
+  language?: string;
   // validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
   rules?: BunnyValidationRule[];
 }

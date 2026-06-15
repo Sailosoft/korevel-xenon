@@ -17,6 +17,7 @@ import {
   BunnySelectOption,
 } from "../BunnyForm.Interface";
 import BunnyMDXEditor from "./BunnyMDXEditor";
+import BunnyCodeEditor from "./BunnyCodeEditor";
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -238,6 +239,23 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
           onChange={(val: string) => handleChange(val)}
           placeholder={field.placeholder}
           error={error}
+        />
+      );
+
+    case "code-editor":
+      return (
+        <BunnyCodeEditor
+          id={fieldId}
+          label={field.label}
+          required={isRequired}
+          value={typeof value === "string" ? value : ""}
+          onChange={(val: string) => handleChange(val)}
+          placeholder={field.placeholder}
+          error={error}
+          language={
+            (field as BunnyFormField<Record<string, unknown>>).language ??
+            "typescript"
+          }
         />
       );
 
