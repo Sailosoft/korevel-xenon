@@ -12,13 +12,16 @@ export default abstract class PhazeDB {
     const orchestrator = new PhazeCore.PhazeSchemaOrchestrator(this.db);
 
     this.onModelCreating(orchestrator);
-
   }
 
   protected abstract dbName(): string;
 
   public set<TEntity, TKey>(table: string): () => Table<TEntity, TKey> {
     return () => this.db.table<TEntity, TKey>(table);
+  }
+
+  public table<TEntity, TKey>(table: string) {
+    return this.set<TEntity, TKey>(table)();
   }
 
   protected abstract onModelCreating(model: IPhazeModelBuilder): void;

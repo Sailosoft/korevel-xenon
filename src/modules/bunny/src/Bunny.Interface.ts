@@ -57,6 +57,10 @@ export type BunnyOnSuccessBehavior =
 
 export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   title: string;
+  /** URL pattern that this module handles — matched against `window.location.pathname`
+   *  during Next.js inference to determine which BunnyPackage to activate.
+   *  Supports exact paths (`/books`), prefix wildcards (`/books/*`), and regex patterns (`/^\/books\//`). */
+  module_url?: string;
   titlePlural?: string;
   modalSizeWidth?: number;
   modalSize?: BunnyModalSize;

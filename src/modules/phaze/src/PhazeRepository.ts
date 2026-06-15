@@ -6,7 +6,11 @@ import {
   GetAllResponse,
 } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { AdminPanelResult } from "@/src/modules/admin-panel/shared/admin-panel-result";
-import { IPhazeRepository, IPhazeRepositoryQueries, IPhazeRepositoryMutations } from "./types/PhazeRepository.Types";
+import {
+  IPhazeRepository,
+  IPhazeRepositoryQueries,
+  IPhazeRepositoryMutations,
+} from "./types/PhazeRepository.Types";
 import { PhazeRepositoryResult } from "./types/PhazeResult.Types";
 import { PhazeRepositoryResultManager } from "./PhazeResultManager";
 
@@ -18,6 +22,11 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
   public query: IPhazeRepositoryQueries<T>;
   public mutation: IPhazeRepositoryMutations<T>;
 
+  public dataLayer: {
+    query: IPhazeRepositoryQueries<T>;
+    mutation: IPhazeRepositoryMutations<T>;
+  };
+
   constructor(table: Table<T>) {
     this.set = table;
     this.result = new PhazeRepositoryResultManager<T>();
@@ -25,11 +34,18 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
     // Bind namespaces to maintain correct 'this' context effortlessly
     this.query = this.initQueries();
     this.mutation = this.initMutations();
+
+    this.dataLayer = {
+      query: this.initQueries(),
+      mutation: this.initMutations(),
+    };
   }
 
   // --- INTERNAL CORE OPERATIONS (Merged from base bui.repository) ---
 
-  public async getList(_options: AdminPanelQueryOptions): Promise<PhazeRepositoryResult<T[]>> {
+  public async getList(
+    _options: AdminPanelQueryOptions,
+  ): Promise<PhazeRepositoryResult<T[]>> {
     const data = await this.set.toArray(); //
     return this.result.successList(data); //
   }
@@ -47,7 +63,10 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
     return await this.get(id); //
   }
 
-  public async update(id: AdminPanelId, data: T): Promise<PhazeRepositoryResult<T>> {
+  public async update(
+    id: AdminPanelId,
+    data: T,
+  ): Promise<PhazeRepositoryResult<T>> {
     const result = await this.get(id); //
     if (result.isSuccess) {
       const payload = { ...result.value, ...data }; //
@@ -66,15 +85,15 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
 
   private initQueries(): IPhazeRepositoryQueries<T> {
     return {
-      panelGetOne: async (id: AdminPanelId): Promise<T> => {
+      getOne: async (id: AdminPanelId): Promise<T> => {
         const result = await this.get(id); //
         if (result.isSuccess) return result.value; //
         throw new Error(result.error.message); //
       },
 
-      panelGetAll: async (
+      getAll: async (
         options: AdminPanelQueryOptions,
-        overrideOptions?: AdminPanelQueryOptions
+        overrideOptions?: AdminPanelQueryOptions,
       ): Promise<GetAllResponse<T>> => {
         const opt = options; //
         if (overrideOptions) {
@@ -94,13 +113,13 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
           };
         }
         throw new Error(result.error.message); //
-      }
+      },
     };
   }
 
   private initMutations(): IPhazeRepositoryMutations<T> {
     return {
-      panelCreate: async (data: T): Promise<AdminPanelResult<T, unknown>> => {
+      create: async (data: T): Promise<AdminPanelResult<T, unknown>> => {
         const result = await this.create(data); //
         if (result.isSuccess) {
           return { status: "success", data: result.value }; //
@@ -108,7 +127,10 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
         throw new Error(result.error.message); //
       },
 
-      panelUpdate: async (id: AdminPanelId, data: T): Promise<AdminPanelResult<T, unknown>> => {
+      update: async (
+        id: AdminPanelId,
+        data: T,
+      ): Promise<AdminPanelResult<T, unknown>> => {
         const result = await this.update(id, data); //
         if (result.isSuccess) {
           return { status: "success", data: result.value }; //
@@ -116,13 +138,15 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
         throw new Error(result.error.message); //
       },
 
-      panelDelete: async (id: AdminPanelId): Promise<AdminPanelResult<T, unknown>> => {
+      delete: async (
+        id: AdminPanelId,
+      ): Promise<AdminPanelResult<T, unknown>> => {
         const result = await this.delete(id); //
         if (result.isSuccess) {
           return { status: "success" }; //
         }
         throw new Error(result.error.message); //
-      }
+      },
     };
   }
 }

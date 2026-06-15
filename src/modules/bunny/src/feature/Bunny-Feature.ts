@@ -50,6 +50,24 @@ export class BunnyFeature<TRow, TForm> {
     return this;
   }
 
+  /**
+   * Set the URL pattern that this module handles.
+   *
+   * When used with `BunnyPackage` / `BunnyNextPackage`, the matching logic
+   * activates this module when `window.location.pathname` matches `moduleUrl`.
+   *
+   * Supports:
+   * - Exact paths: `"/modules/books"`
+   * - Prefix wildcards: `"/modules/books/*"`
+   * - Regex patterns: `"/^\\/modules\\/books/"`
+   *
+   * @see BunnyPackage
+   */
+  public setModuleUrl(moduleUrl: string): this {
+    this.config.module_url = moduleUrl;
+    return this;
+  }
+
   public setModalSize(size: BunnyConfig<TRow, TForm>["modalSize"]): this {
     this.config.modalSize = size;
     return this;
@@ -60,10 +78,13 @@ export class BunnyFeature<TRow, TForm> {
     return this;
   }
 
-  public useDataLayer(
-    query: AdminPanelQuery<TRow, TForm>,
-    mutation: AdminPanelMutation<TForm>,
-  ): this {
+  public useDataLayer({
+    query,
+    mutation,
+  }: {
+    query: AdminPanelQuery<TRow, TForm>;
+    mutation: AdminPanelMutation<TForm>;
+  }): this {
     this.config.query = query;
     this.config.mutation = mutation;
     return this;
