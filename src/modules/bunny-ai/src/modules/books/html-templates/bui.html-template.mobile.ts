@@ -6,7 +6,8 @@ export const BUIHTMLTemplateMobile: BUIBookHTMLTemplate = {
   globalAsset: {
     typographyFonts: `
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&display=swap');
-    body { font-family: 'Sora', sans-serif; background-color: #f1f5f9; }
+    body { font-family: 'Sora', sans-serif; background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
+    * { -webkit-tap-highlight-color: transparent; }
     `,
     printStyles: `@media print { .no-print { display: none !important; } }`,
   },
@@ -52,12 +53,12 @@ export const BUIHTMLTemplateMobile: BUIBookHTMLTemplate = {
         {{{pageFooter}}}
     </main>`,
     mainHeaderWrapper: `
-    <header id="bunny-quick-routing" class="bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl p-5 mb-6 text-center scroll-mt-20">
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{bookTitle}}</h1>
+    <header id="bunny-quick-routing" class="bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/60 rounded-xl p-5 mb-6 text-center scroll-mt-24">
+        <h1 class="text-lg font-bold tracking-tight text-slate-900">{{bookTitle}}</h1>
         <div class="w-10 h-1 bg-slate-900 mx-auto my-3 rounded-full"></div>
         <div class="text-left mt-4">
             <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-2">Quick Access Nav</span>
-            <div class="flex flex-col gap-1 max-h-40 overflow-y-auto">{{{mainIndexHtml}}}</div>
+            <div class="flex flex-col gap-2 max-h-60 overflow-y-auto overscroll-contain" id="mobile-quick-index">{{{mainIndexHtml}}}</div>
         </div>
     </header>`,
     articleContainer: `<article class="space-y-8">{{{chaptersHtml}}}</article>`,
@@ -70,15 +71,17 @@ export const BUIHTMLTemplateMobile: BUIBookHTMLTemplate = {
       </a>
     </li>`,
     mainIndexLinkItem: `
-    <a href="#chapter-{{chapterNumber}}" class="block p-2 text-xs font-medium rounded-lg bg-white border border-slate-200 truncate active:bg-slate-50">
-        {{chapterNumber}}. {{chapterTitle}}
+    <a href="#chapter-{{chapterNumber}}" class="flex items-center gap-2 w-full p-3.5 text-sm font-semibold rounded-xl bg-white border border-slate-200/80 shadow-sm hover:bg-indigo-50 hover:border-indigo-200 active:bg-indigo-100 active:scale-[0.98] transition-all duration-150 ease-in-out tap-highlight-transparent cursor-pointer select-none">
+        <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold shrink-0">{{chapterNumber}}</span>
+        <span class="flex-1 text-slate-800 leading-snug line-clamp-2">{{chapterTitle}}</span>
+        <svg class="w-4 h-4 text-slate-400 shrink-0 -mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
     </a>`,
     chapterHeader: `
     <header class="mb-3">
       <div class="flex items-center justify-between">
         <span class="text-[10px] font-bold tracking-widest text-indigo-600 uppercase">CH. {{chapterNumber}}</span>
-        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 hover:text-indigo-600 active:bg-indigo-50 px-2 py-1 rounded transition-colors no-print">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <a href="#bunny-quick-routing" class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 px-3 py-2 rounded-lg transition-all no-print min-h-[36px]">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
           Index
         </a>
       </div>
