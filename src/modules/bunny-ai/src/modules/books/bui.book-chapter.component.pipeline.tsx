@@ -11,6 +11,7 @@ import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
+import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 
 interface BUIBookChapterComponentPipelineProps {
   bookId: number;
@@ -28,6 +29,9 @@ export default function BUIBookChapterComponentPipeline({
   const [promptType, setPromptType] = useState<string>("default");
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
+  const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<
+    string | null
+  >(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   const handleStartPipeline = async () => {
@@ -37,6 +41,7 @@ export default function BUIBookChapterComponentPipeline({
     // 2. Set processing state and refresh the target data grid module
     setIsProcessing(true);
     context.adminPanel?.table?.refresh?.();
+    setSelectedSystemPrompt(null);
 
     try {
       const repo = new BUIBookChapterRepository();
@@ -135,26 +140,35 @@ export default function BUIBookChapterComponentPipeline({
                   <select
                     aria-label="Select Persona"
                     value={promptType}
-                    onChange={(e) => setPromptType(e.target.value)}
+                    onChange={(e) => {
+                      const key = e.target.value;
+                      setPromptType(key);
+                      const entry = buiChapterPromptContent.prompt.find(
+                        (p) => p.key === key,
+                      );
+                      setSelectedSystemPrompt(
+                        entry?.systemPrompt?.trim() ?? null,
+                      );
+                    }}
                     className="w-full min-h-10 px-3 py-2 rounded-xl border-2 border-default-200 bg-transparent text-sm hover:border-default-400 focus:border-primary focus:outline-none transition-colors"
                   >
-                    <option value="default">Default Architect Tone</option>
-                    <option value="character_driven">
-                      Character-Driven (First Person)
-                    </option>
-                    <option value="software_engineering">
-                      Pragmatic Software Engineer
-                    </option>
-                    <option value="technology">
-                      Disruptive Technology Futurist
-                    </option>
-                    <option value="medical">
-                      Clinical & Empathetic Medical
-                    </option>
-                    <option value="motivational">
-                      High-Performance Motivational
-                    </option>
+                    {buiChapterPromptContent.prompt.map((entry) => (
+                      <option key={entry.key} value={entry.key}>
+                        {entry.label}
+                      </option>
+                    ))}
                   </select>
+
+                  {selectedSystemPrompt && (
+                    <div className="mt-1 p-2 rounded-lg bg-primary-50 border border-primary-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600 block mb-1">
+                        System Prompt Preview
+                      </span>
+                      <pre className="text-[11px] text-primary-800 leading-relaxed whitespace-pre-wrap font-sans">
+                        {selectedSystemPrompt}
+                      </pre>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
