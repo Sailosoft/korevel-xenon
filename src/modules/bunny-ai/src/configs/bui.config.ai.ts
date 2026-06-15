@@ -20,7 +20,7 @@ export const BUI_AI_PROVIDERS: BUIAIProviderConfig[] = [
     provider: "ollamaCloud",
     apiKey: process.env.OLLAMA_API_KEY || "",
     model: "gemma4:31b-cloud",
-    endpoint: "https://ollama.com",
+    endpoint: "https://ollama.com/v1",
   },
   {
     provider: "deepseek",
