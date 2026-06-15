@@ -5,14 +5,14 @@ import { BUIAuthor } from "../authors/bui.author.entity";
 import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import Handlebars from "handlebars";
 import { BUIBookEntity } from "./bui.book.entity";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 export async function buiChapterServerGenerate(
   params: { book: BUIBookEntity; author?: BUIAuthor },
   type: string = "draft",
   useAuthorProfile: boolean = true,
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
   skills?: BUIAuthorSkill[],
 ) {
   const container = buiContainer.createScope();

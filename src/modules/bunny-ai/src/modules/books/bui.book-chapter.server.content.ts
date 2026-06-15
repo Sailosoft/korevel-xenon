@@ -5,7 +5,7 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import { BUIBookChapterParams } from "./bui.book.entity";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 /**
  * Server Action to compile Chapter prompts and execute AI narrative generation
@@ -13,7 +13,7 @@ import { BUIAIOption } from "../../configs/bui.config.interface";
 export async function buiChapterServerContent(
   params: BUIBookChapterParams,
   promptType: string = "default",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");

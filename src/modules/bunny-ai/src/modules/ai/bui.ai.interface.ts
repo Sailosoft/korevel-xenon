@@ -1,8 +1,8 @@
 import OpenAI from "openai";
-import {
-  BUIAIOption,
-  BUITemperaturePreset,
-} from "../../configs/bui.config.interface";
+import type {
+  HelixAIOption,
+  HelixTemperaturePreset,
+} from "@/src/modules/helix";
 import {
   BUIAISchemaOptions,
   BUIInferSchemaProps,
@@ -18,9 +18,9 @@ export interface BUIAIServiceType {
     model?: string;
     provider?: string;
     /** Override the default provider+model with a custom DTO */
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string>;
   doChatJSON<T>(option: {
@@ -30,9 +30,9 @@ export interface BUIAIServiceType {
     model?: string;
     provider?: string;
     /** Override the default provider+model with a custom DTO */
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
   }): Promise<T>;
   doChatStructured<S extends BUIAISchemaOptions>(options: {
     system: string;
@@ -41,9 +41,9 @@ export interface BUIAIServiceType {
     model?: string;
     provider?: string;
     /** Override the default provider+model with a custom DTO */
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
   }): Promise<BUIInferSchemaProps<S>>;
   doChatStructuredFallback<S extends BUIAISchemaOptions>(options: {
     system: string;
@@ -52,9 +52,9 @@ export interface BUIAIServiceType {
     model?: string;
     provider?: string;
     /** Override the default provider+model with a custom DTO */
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<BUIInferSchemaProps<S>>;
 }

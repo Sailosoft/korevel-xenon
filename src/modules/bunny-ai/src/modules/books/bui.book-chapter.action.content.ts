@@ -5,7 +5,7 @@ import BUIAuthorRepository from "../authors/bui.author.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
@@ -16,7 +16,7 @@ import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 export async function generateChapterContentAction(
   chapterId: number,
   promptType: string = "default",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
   useAuthorSkills: boolean = false,
 ) {
   const chapterRepo = new BUIBookChapterRepository();

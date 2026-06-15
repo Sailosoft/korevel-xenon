@@ -6,13 +6,13 @@ import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiAuthorSkillPrompt } from "./bui.author-skills.prompt";
 import { BUIAuthorSkillPromptType } from "./bui.author-skills.entity";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 export async function buiAuthorSkillServerEnhanceWithParams(
   name: string,
   description: string,
   promptType: BUIAuthorSkillPromptType = "professional",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");

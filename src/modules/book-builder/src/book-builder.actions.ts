@@ -6,12 +6,13 @@ import {
   IBookBuilderChapter,
   IBookBuilderGeneration,
 } from "./book-builder.interface";
-import { BOOK_BUILDER_CONFIG } from "../config/book-builder.config";
+import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 
 const moduleBuilder = new BookBuilderModule();
-// const model = "gemma3:4b";
-// const model = "gemma4:31b-cloud";
-const model = BOOK_BUILDER_CONFIG.OPEN_AI_MODEL;
+const defaultProvider = HELIX_AI_PROVIDERS.find(
+  (p) => p.provider === "default",
+)!;
+const model = defaultProvider.model;
 
 // You are an expert book architect. Generate exactly 5 chapters for the book:
 export async function bookBuilderGenerateChaptersAction(

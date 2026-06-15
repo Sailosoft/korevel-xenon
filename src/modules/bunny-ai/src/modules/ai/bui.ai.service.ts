@@ -1,16 +1,16 @@
 import OpenAI from "openai";
-import {
-  BUIAIOption,
-  BUIAIProviderConfig,
-  BUITemperaturePreset,
-} from "../../configs/bui.config.interface";
+import type {
+  HelixAIOption,
+  HelixAIProviderConfig,
+  HelixTemperaturePreset,
+  HelixAIConfig,
+} from "@/src/modules/helix";
 import { BUIAIServiceType } from "./bui.ai.interface";
 import {
   BUIAISchema,
   BUIAISchemaOptions,
   BUIInferSchemaProps,
 } from "../ai-schema/bui.ai-schema.types";
-import { BUIContainer } from "../../container/bui.container";
 
 /** Placeholder sentinel used when no real API key has been configured. */
 const ENCRYPTION_KEY_PLACEHOLDER = "[ENCRYPTION_KEY]";
@@ -36,8 +36,8 @@ function assertApiKey(config: { provider: string; apiKey: string }): void {
  *   2. nothing       (uses the constructor-initialized default)
  */
 function resolveConfig(
-  defaults: { provider: string; configs: BUIAIProviderConfig[] },
-  override?: BUIAIOption,
+  defaults: { provider: string; configs: HelixAIProviderConfig[] },
+  override?: HelixAIOption,
 ): { provider: string; model: string; apiKey: string; endpoint?: string } {
   if (!override)
     return defaults.configs.find((p) => p.provider === defaults.provider)!;
@@ -73,9 +73,15 @@ export default class BUIAIService implements BUIAIServiceType {
   private readonly model: string;
   private readonly provider: string;
   private readonly aiSchema: BUIAISchema;
-  private readonly providerConfigs: BUIAIProviderConfig[];
+  private readonly providerConfigs: HelixAIProviderConfig[];
 
-  constructor({ config: { ai }, aiSchema }: BUIContainer) {
+  constructor({
+    config: { ai },
+    aiSchema,
+  }: {
+    config: { ai: HelixAIConfig };
+    aiSchema: BUIAISchema;
+  }) {
     const active = ai.providers.find((p) => p.provider === ai.activeProvider);
     if (!active) {
       throw new Error(
@@ -116,9 +122,9 @@ export default class BUIAIService implements BUIAIServiceType {
     user: string;
     model?: string;
     provider?: string;
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
     const resolved = resolveConfig(
@@ -167,9 +173,9 @@ export default class BUIAIService implements BUIAIServiceType {
     schema: BUIAISchemaOptions;
     model?: string;
     provider?: string;
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
   }): Promise<T> {
     const resolved = resolveConfig(
       { provider: this.provider, configs: this.providerConfigs },
@@ -205,9 +211,9 @@ export default class BUIAIService implements BUIAIServiceType {
     schema: S;
     model?: string;
     provider?: string;
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
   }): Promise<BUIInferSchemaProps<S>> {
     return this.doChatJSON<BUIInferSchemaProps<S>>(options);
   }
@@ -218,9 +224,9 @@ export default class BUIAIService implements BUIAIServiceType {
     schema: S;
     model?: string;
     provider?: string;
-    aiConfig?: BUIAIOption;
+    aiConfig?: HelixAIOption;
     temperature?: number;
-    type?: BUITemperaturePreset;
+    type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<BUIInferSchemaProps<S>> {
     const compiled = this.aiSchema.compileSchema(options.schema);

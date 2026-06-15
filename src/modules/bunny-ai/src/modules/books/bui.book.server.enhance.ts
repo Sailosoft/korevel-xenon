@@ -5,13 +5,13 @@ import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
 import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
 import { buiBookPrompt } from "./bui.book.prompt";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 export async function buiBookServerEnhanceWithParams(
   title: string,
   description: string,
   promptType: string = "comprehensive",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");

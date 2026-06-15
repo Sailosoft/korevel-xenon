@@ -5,12 +5,12 @@ import { Input, Select, ListBox, Label } from "@heroui/react";
 import Bunny from "@/src/modules/bunny/src/Bunny";
 import { buiSettingsModule } from "./bui.settings.module";
 import { BUISetting } from "./bui.settings.entity";
-import { BUIAIProvider } from "@/src/modules/bunny-ai/src/configs/bui.config.interface";
+import type { HelixAIProvider } from "@/src/modules/helix";
 import {
-  BUI_AI_MODELS,
-  PROVIDER_LABELS,
-  isProvider,
-} from "@/src/modules/bunny-ai/src/configs/bui.config.ai";
+  HELIX_AI_MODELS,
+  HELIX_PROVIDER_LABELS,
+  isHelixProvider,
+} from "@/src/modules/helix";
 import { buiDatabase } from "../../database/bui.database";
 import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provider";
 
@@ -21,21 +21,24 @@ import { useAdminPanelContext } from "@/src/modules/admin-panel/features/provide
 function BUISettingsForm() {
   const { form, modal } = useAdminPanelContext<BUISetting, BUISetting>();
   const [currentProvider, setCurrentProvider] =
-    useState<BUIAIProvider>("default");
+    useState<HelixAIProvider>("default");
 
   // Load the persisted provider setting so the model dropdown stays in sync
   useEffect(() => {
     buiDatabase.settings.get("ai_provider").then((setting) => {
-      if (setting?.value && isProvider(setting.value)) {
-        setCurrentProvider(setting.value as BUIAIProvider);
+      if (setting?.value && isHelixProvider(setting.value)) {
+        setCurrentProvider(setting.value as HelixAIProvider);
       }
     });
   }, []);
 
   // Sync currentProvider when the form's ai_provider value changes
   useEffect(() => {
-    if (form.formData?.value && isProvider(form.formData.value as string)) {
-      setCurrentProvider(form.formData.value as BUIAIProvider);
+    if (
+      form.formData?.value &&
+      isHelixProvider(form.formData.value as string)
+    ) {
+      setCurrentProvider(form.formData.value as HelixAIProvider);
     }
   }, [form.formData?.value]);
 
@@ -43,7 +46,7 @@ function BUISettingsForm() {
   const loadedId = form.formData?.id as string | undefined;
   const canRender = !editingId || loadedId === editingId;
   const activeKey = loadedId;
-  const models = BUI_AI_MODELS[currentProvider] ?? BUI_AI_MODELS.default;
+  const models = HELIX_AI_MODELS[currentProvider] ?? HELIX_AI_MODELS.default;
 
   // If the saved model doesn't belong to the current provider, reset to the first model
   useEffect(() => {
@@ -74,12 +77,12 @@ function BUISettingsForm() {
     );
   }
 
-  const providerOptions = (Object.keys(BUI_AI_MODELS) as BUIAIProvider[]).map(
-    (p) => ({
-      label: PROVIDER_LABELS[p] ?? p,
-      value: p,
-    }),
-  );
+  const providerOptions = (
+    Object.keys(HELIX_AI_MODELS) as HelixAIProvider[]
+  ).map((p) => ({
+    label: HELIX_PROVIDER_LABELS[p] ?? p,
+    value: p,
+  }));
 
   return (
     <div className="flex flex-col gap-4">

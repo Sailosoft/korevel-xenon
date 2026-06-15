@@ -1,9 +1,73 @@
-import { BUIAIProvider } from "./bui.config.interface";
-import type { BUIAIProviderConfig } from "./bui.config.interface";
+/**
+ * ───────────────────────────────────────────────────────────────────────────────
+ * Helix — AI Provider & Configuration Types — Single source of truth
+ * ───────────────────────────────────────────────────────────────────────────────
+ * All AI provider identity, options, config shapes, provider data, and model
+ * lists live here.  Consumers (BunnyAI, book-builder, etc.) subscribe to
+ * Helix for their AI configuration needs rather than defining their own.
+ */
+
+// ── Provider identity ─────────────────────────────────────────────────────────
+
+export type HelixAIProvider =
+  | "default"
+  | "ollamaLocal"
+  | "ollamaCloud"
+  | "deepseek"
+  | "groq"
+  | "openai"
+  | "deepinfra"
+  | "openRouter"
+  | "googleAIStudio";
+
+// ── Temperature presets ───────────────────────────────────────────────────────
+
+/**
+ * Precise: 0.2
+ * Balanced: 0.75
+ * Creative: 1.0
+ * Exploratory: 2.0
+ */
+export type HelixTemperaturePreset =
+  | "precise"
+  | "balanced"
+  | "creative"
+  | "exploratory";
+
+// ── Provider DTOs ─────────────────────────────────────────────────────────────
+
+/** Override DTO to swap the default provider+model at call-site */
+export interface HelixAIOption {
+  provider: HelixAIProvider;
+  model: string;
+}
+
+/** Configuration for a single AI provider (API key, endpoint, model) */
+export interface HelixAIProviderConfig {
+  provider: HelixAIProvider;
+  apiKey: string;
+  /** The model identifier — must be one of the predefined models for this provider */
+  model: string;
+  /** Custom base URL override (required for ollama-local) */
+  endpoint?: string;
+}
+
+// ── Top-level config shapes ───────────────────────────────────────────────────
+
+export interface HelixAIConfig {
+  /** All configured providers */
+  providers: HelixAIProviderConfig[];
+  /** The currently active provider key */
+  activeProvider: HelixAIProvider;
+}
+
+export interface HelixConfig {
+  ai: HelixAIConfig;
+}
 
 // ── Provider configurations ──────────────────────────────────────────────────
 
-export const BUI_AI_PROVIDERS: BUIAIProviderConfig[] = [
+export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
   {
     provider: "default",
     apiKey: process.env.OPEN_AI_API_KEY || "[ENCRYPTION_KEY]",
@@ -62,7 +126,7 @@ export const BUI_AI_PROVIDERS: BUIAIProviderConfig[] = [
 
 // ── Human-readable labels for each provider ───────────────────────────────────
 
-export const PROVIDER_LABELS: Record<BUIAIProvider, string> = {
+export const HELIX_PROVIDER_LABELS: Record<HelixAIProvider, string> = {
   default: "Default (OpenAI-compatible)",
   ollamaLocal: "Ollama (Local)",
   ollamaCloud: "Ollama Cloud",
@@ -76,10 +140,10 @@ export const PROVIDER_LABELS: Record<BUIAIProvider, string> = {
 
 // ── Type guard ────────────────────────────────────────────────────────────────
 
-/** Checks whether an arbitrary string is a known BUIAIProvider */
-export function isProvider(value: string): value is BUIAIProvider {
-  return (Object.keys(PROVIDER_MODELS) as BUIAIProvider[]).includes(
-    value as BUIAIProvider,
+/** Checks whether an arbitrary string is a known HelixAIProvider */
+export function isHelixProvider(value: string): value is HelixAIProvider {
+  return (Object.keys(HELIX_PROVIDER_MODELS) as HelixAIProvider[]).includes(
+    value as HelixAIProvider,
   );
 }
 
@@ -87,8 +151,8 @@ export function isProvider(value: string): value is BUIAIProvider {
 // Add or remove models here per provider. The "default" key is auto-computed
 // by merging all other providers — no manual duplication needed.
 
-const PROVIDER_MODELS: Record<
-  Exclude<BUIAIProvider, "default">,
+const HELIX_PROVIDER_MODELS: Record<
+  Exclude<HelixAIProvider, "default">,
   readonly string[]
 > = {
   googleAIStudio: [
@@ -97,13 +161,13 @@ const PROVIDER_MODELS: Record<
     "gemini-2.5-flash",
 
     // Gemini 2.0 Generation
-    "gemini-2.0-pro-exp-02-05", // Main 2.0 Pro option
+    "gemini-2.0-pro-exp-02-05",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite-preview-02-05", // Lite remains under preview flags
+    "gemini-2.0-flash-lite-preview-02-05",
 
     // Experimental / Specialized Reasoning Models
-    "gemini-2.0-flash-thinking-exp-01-21", // 2.0 thinking model
-    "learnlm-1.5-pro-experimental", // Specialized learning model
+    "gemini-2.0-flash-thinking-exp-01-21",
+    "learnlm-1.5-pro-experimental",
 
     // Legacy 1.5 Stable Generation
     "gemini-1.5-pro",
@@ -257,9 +321,9 @@ const PROVIDER_MODELS: Record<
 
 // ── Default: auto-merge all provider models ────────────────────────────────────
 // Dynamically aggregates every model from all other providers into one flat list.
-// No need to manually copy models — just add them to PROVIDER_MODELS above.
+// No need to manually copy models — just add them to HELIX_PROVIDER_MODELS above.
 
-export const BUI_AI_MODELS: Record<BUIAIProvider, readonly string[]> = {
-  default: ["default", ...Object.values(PROVIDER_MODELS).flat()],
-  ...PROVIDER_MODELS,
+export const HELIX_AI_MODELS: Record<HelixAIProvider, readonly string[]> = {
+  default: ["default", ...Object.values(HELIX_PROVIDER_MODELS).flat()],
+  ...HELIX_PROVIDER_MODELS,
 };
