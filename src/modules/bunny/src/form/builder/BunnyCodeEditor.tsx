@@ -47,7 +47,7 @@ export interface BunnyCodeEditorProps {
 /*  Default settings                                                   */
 /* ------------------------------------------------------------------ */
 const DEFAULT_LANGUAGE = "typescript";
-const DEFAULT_THEME = "vs-dark";
+const DEFAULT_THEME = "light";
 const DEFAULT_MIN_HEIGHT = 120;
 const DEFAULT_EXPANDED_HEIGHT = 500;
 
@@ -74,7 +74,7 @@ export default function BunnyCodeEditor({
 
   /* ---------- Shared editor element (avoids code duplication) -------- */
   const renderEditor = (
-    editorRef: React.MutableRefObject<Parameters<OnMount>[0] | null>,
+    editorRef: React.RefObject<Parameters<OnMount>[0] | null>,
     height: number | string,
   ) => (
     <MonacoEditor
