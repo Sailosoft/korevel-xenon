@@ -106,10 +106,17 @@ export default function BUISidebar({
 
                   {/* Nav links */}
                   {section.items.map((item) => {
+                    // Only use startsWith for nav items that have 3+ path segments
+                    // (e.g. "/modules/bunny-flow/definitions"). Root items with only 2
+                    // segments (e.g. "/modules/bunny-flow") use exact match only,
+                    // preventing the dashboard link from staying highlighted when
+                    // visiting child routes.
+                    const segments = item.href
+                      .split("/")
+                      .filter(Boolean).length;
                     const isActive =
                       pathname === item.href ||
-                      (item.href !== "/modules/bunny-ai" &&
-                        pathname.startsWith(item.href));
+                      (segments >= 3 && pathname.startsWith(item.href + "/"));
                     return (
                       <Link
                         key={item.href}

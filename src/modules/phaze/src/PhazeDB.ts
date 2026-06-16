@@ -12,6 +12,10 @@ export default abstract class PhazeDB {
     const orchestrator = new PhazeCore.PhazeSchemaOrchestrator(this.db);
 
     this.onModelCreating(orchestrator);
+
+    // Compile all registered schemas into Dexie version/stores configuration.
+    // Without this call, no tables are registered and Dexie throws InvalidTableError.
+    orchestrator.compile();
   }
 
   protected abstract dbName(): string;
