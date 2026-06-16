@@ -1,12 +1,12 @@
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
-import { BFlowProjectEntity } from "./BFlowProject.Types";
+import { BFlowDefinitionEntity } from "./BFlowDefinition.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 
-export const bflowProject = BunnyFeature.create<
-  BFlowProjectEntity,
-  BFlowProjectEntity
->("projects", "id", (builder) => {
+export const bflowDefinition = BunnyFeature.create<
+  BFlowDefinitionEntity,
+  BFlowDefinitionEntity
+>("definitions", "id", (builder) => {
   const { projectsRepo } = bflowDB;
   builder.useDataLayer({
     query: projectsRepo.query,
