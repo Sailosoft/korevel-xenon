@@ -19,7 +19,11 @@ import BunnyTableEmpty from "./BunnyTable.Empty";
 import BunnyTableLoading from "./BunnyTable.Loading";
 import { useBunnyRowActionCallback } from "../rows/BunnyRow.Action.Callback";
 import { BunnyHasId } from "../Bunny.Interface";
-import { BunnyColumn, BunnyRowAction, BunnyTableMobileView } from "./BunnyTable.Interface";
+import {
+  BunnyColumn,
+  BunnyRowAction,
+  BunnyTableMobileView,
+} from "./BunnyTable.Interface";
 
 // ============================================================================
 // SUB-COMPONENTS & HOOKS
@@ -96,9 +100,9 @@ function TableHeadings<TRow>({
         </Table.Column>
       )}
 
-      {columns.map((col) => (
+      {columns.map((col, index) => (
         <Table.Column
-          key={String(col.field)}
+          key={`col-${String(col.field)}-${index}`}
           id={String(col.field)}
           allowsSorting={col.sortable}
           isRowHeader={col.isRowHeader}
@@ -152,7 +156,11 @@ function MobileCardCell<TRow>({
         <div className="flex items-center justify-between border-b border-default-100 pb-2">
           <div className="flex items-center gap-2">
             {selectionMode !== "none" && (
-              <Checkbox aria-label="Select row" slot="selection" variant="secondary">
+              <Checkbox
+                aria-label="Select row"
+                slot="selection"
+                variant="secondary"
+              >
                 <Checkbox.Control>
                   <Checkbox.Indicator />
                 </Checkbox.Control>
@@ -192,8 +200,11 @@ function MobileCardCell<TRow>({
         ) : (
           /* Default Value Grid mapping fallback */
           <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-            {columns.map((col) => (
-              <div key={String(col.field)} className="contents">
+            {columns.map((col, index) => (
+              <div
+                key={`cell-${String(col.field)}-${index}`}
+                className="contents"
+              >
                 <span className="text-default-500 font-medium">
                   {String(col.header)}:
                 </span>
@@ -222,7 +233,11 @@ function DesktopRowCells<TRow>({
     <>
       {selectionMode !== "none" && (
         <Table.Cell className="pr-0">
-          <Checkbox aria-label="Select row" slot="selection" variant="secondary">
+          <Checkbox
+            aria-label="Select row"
+            slot="selection"
+            variant="secondary"
+          >
             <Checkbox.Control>
               <Checkbox.Indicator />
             </Checkbox.Control>
@@ -230,8 +245,8 @@ function DesktopRowCells<TRow>({
         </Table.Cell>
       )}
 
-      {columns.map((col) => (
-        <Table.Cell key={String(col.field)}>
+      {columns.map((col, index) => (
+        <Table.Cell key={`cell-${String(col.field)}-${index}`}>
           {col.render
             ? col.render(row, col)
             : String(row[col.field as keyof TRow] ?? "").slice(0, 50)}
@@ -286,7 +301,9 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
     tableMobileView,
   } = useBunnyConfig();
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor | undefined>();
+  const [sortDescriptor, setSortDescriptor] = useState<
+    SortDescriptor | undefined
+  >();
 
   const { table } = useAdminPanelContext<TRow, unknown>();
   const { rows, setSelection, selectionMode, isLoading } = table;
@@ -324,7 +341,9 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
     if (selectedKeys === "all") {
       selectedArray = rows.map((row) => String(row[rowKey]));
     } else {
-      selectedArray = Array.from(selectedKeys as Set<string | number>).map(String);
+      selectedArray = Array.from(selectedKeys as Set<string | number>).map(
+        String,
+      );
     }
 
     setSelection(selectedArray);
@@ -382,30 +401,30 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
               {isLoading
                 ? undefined
                 : sortedItems.map((row) => (
-                  <Table.Row
-                    key={String(row[rowKey])}
-                    id={String(row[rowKey])}
-                  >
-                    {isMobile ? (
-                      <MobileCardCell
-                        row={row}
-                        columns={columns}
-                        selectionMode={selectionMode}
-                        actions={actions}
-                        callAction={callAction}
-                        tableMobileView={tableMobileView}
-                      />
-                    ) : (
-                      <DesktopRowCells
-                        row={row}
-                        columns={columns}
-                        selectionMode={selectionMode}
-                        actions={actions}
-                        callAction={callAction}
-                      />
-                    )}
-                  </Table.Row>
-                ))}
+                    <Table.Row
+                      key={String(row[rowKey])}
+                      id={String(row[rowKey])}
+                    >
+                      {isMobile ? (
+                        <MobileCardCell
+                          row={row}
+                          columns={columns}
+                          selectionMode={selectionMode}
+                          actions={actions}
+                          callAction={callAction}
+                          tableMobileView={tableMobileView}
+                        />
+                      ) : (
+                        <DesktopRowCells
+                          row={row}
+                          columns={columns}
+                          selectionMode={selectionMode}
+                          actions={actions}
+                          callAction={callAction}
+                        />
+                      )}
+                    </Table.Row>
+                  ))}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>

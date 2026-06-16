@@ -208,7 +208,9 @@ class BunnyTableConfigurator<TRow, TForm> {
   }
 
   public addColumns(columns: BunnyColumn<TRow>[]): this {
-    this.config.columns = [...this.config.columns, ...columns];
+    const existingFields = new Set(this.config.columns.map((c) => c.field));
+    const deduped = columns.filter((c) => !existingFields.has(c.field));
+    this.config.columns = [...this.config.columns, ...deduped];
     return this;
   }
 

@@ -139,9 +139,9 @@ export function BunnyTable<TRow extends Record<string, unknown>>({
               )}
 
               {/* Dynamic Columns */}
-              {columns.map((col) => (
+              {columns.map((col, index) => (
                 <Table.Column
-                  key={String(col.field)}
+                  key={`col-${String(col.field)}-${index}`}
                   id={String(col.field)}
                   allowsSorting={col.sortable}
                   isRowHeader={col.isRowHeader}
@@ -194,8 +194,8 @@ export function BunnyTable<TRow extends Record<string, unknown>>({
                       )}
 
                       {/* Data Cells */}
-                      {columns.map((col) => (
-                        <Table.Cell key={String(col.field)}>
+                      {columns.map((col, index) => (
+                        <Table.Cell key={`cell-${String(col.field)}-${index}`}>
                           {col.render
                             ? col.render(row, col)
                             : (row[col.field] as React.ReactNode)}
