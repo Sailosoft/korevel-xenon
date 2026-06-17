@@ -1,5 +1,6 @@
 import { AdminPanelMutation } from "@/src/modules/admin-panel/features/mutation/admin-panel-mutation.interface";
 import { AdminPanelQuery } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
+import { UseAdminPanelForm } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
 import { IBUIRepositoryAdminPanel } from "@/src/modules/bunny-ai/src/database/bui.repository.interface";
 import {
   BunnyConfig,
@@ -12,6 +13,7 @@ import {
 } from "../header/BunnyHeader.Interface";
 import { BunnyRowDefaultActions } from "../rows/BunnyRow.Interface";
 import { BunnyRowAction, BunnyColumn } from "../table/BunnyTable.Interface";
+import { BunnyFormConfig, BunnyFormField } from "../form/BunnyForm.Interface";
 import { BunnyFeatureConstant } from "./Bunny-Feature.Constant";
 import BunnyFeatureUtil from "./Bunny-Feature.Util";
 
@@ -75,6 +77,15 @@ export class BunnyFeature<TRow, TForm> {
 
   public setModalWidth(width: number): this {
     this.config.modalSizeWidth = width;
+    return this;
+  }
+
+  /**
+   * Enable default header and row actions
+   */
+  public useDefault() {
+    this.config.defaultHeaderActions = true;
+    this.config.defaultRowActions = true;
     return this;
   }
 
@@ -231,6 +242,7 @@ class BunnyFormConfigurator<TRow, TForm> {
   constructor(private config: BunnyConfig<TRow, TForm>) {
     if (!this.config.props) this.config.props = {};
     if (!this.config.props.form) this.config.props.form = {};
+    this.setGridCols(1);
   }
 
   public configureProps(
@@ -242,6 +254,36 @@ class BunnyFormConfigurator<TRow, TForm> {
 
   public setOnSuccess(onSuccess: BunnyOnSuccessBehavior): this {
     this.config.onFormSuccess = onSuccess;
+    return this;
+  }
+
+  /**
+   * Define the form fields that will be rendered by BunnyFormBuilder.
+   * Accepts an array of BunnyFormField objects — the primary way to
+   * configure form controls through the fluent API.
+   */
+  public addFields(fields: BunnyFormField<TForm>[]): this {
+    const raw = this.config.formConfig;
+    if (!raw) {
+      // Initialize as a plain config object (not a function)
+      this.config.formConfig = { fields: [...fields] };
+    } else if (typeof raw !== "function") {
+      // Already a plain config object — append fields
+      (this.config.formConfig as BunnyFormConfig<TForm>).fields.push(...fields);
+    }
+    return this;
+  }
+
+  /**
+   * Set the number of grid columns for the form layout (default: 1).
+   */
+  public setGridCols(cols: number): this {
+    const raw = this.config.formConfig;
+    if (!raw) {
+      this.config.formConfig = { fields: [], gridCols: cols };
+    } else if (typeof raw !== "function") {
+      (this.config.formConfig as BunnyFormConfig<TForm>).gridCols = cols;
+    }
     return this;
   }
 }

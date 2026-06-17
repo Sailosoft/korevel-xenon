@@ -15,6 +15,7 @@ export const bflowWorkflowModule = BunnyFeature.create<
   });
 
   feature.setModuleUrl("/modules/bunny-flow/*");
+  feature.useDefault();
 
   feature.configureTable((table) => {
     table.addColumns([

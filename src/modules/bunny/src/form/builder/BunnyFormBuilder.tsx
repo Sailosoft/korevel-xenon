@@ -32,6 +32,9 @@ export function BunnyFormBuilder<T>({
   onChange,
   errors = {},
 }: BunnyFormBuilderProps<T>) {
+  // Defensive guard: if config is somehow undefined, render nothing
+  if (!config) return null;
+
   return (
     <div className="space-y-6 w-full">
       <div
