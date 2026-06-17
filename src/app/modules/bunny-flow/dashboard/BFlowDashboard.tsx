@@ -3,7 +3,6 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { getBFlowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 import {
   GitBranch,
   Workflow,
@@ -19,6 +18,7 @@ import {
   Sparkles,
   Rabbit,
 } from "lucide-react";
+import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 
 // ─── Theme — matches the layout's Laravel crimson ───
 const THEME = {
@@ -181,15 +181,13 @@ function SectionHeader({
 export default function BFlowDashboard() {
   // ── Reactive Dexie queries (only runs in browser) ──
   const definitions =
-    useLiveQuery(() => getBFlowDB()!.definitions.toArray()) ?? ([] as any[]);
+    useLiveQuery(() => bflowDB.definitions.toArray()) ?? ([] as any[]);
   const workflows =
-    useLiveQuery(() => getBFlowDB()!.workflowTemplates.toArray()) ??
-    ([] as any[]);
+    useLiveQuery(() => bflowDB.workflowTemplates.toArray()) ?? ([] as any[]);
   const pipelines =
-    useLiveQuery(() => getBFlowDB()!.pipelines.toArray()) ?? ([] as any[]);
+    useLiveQuery(() => bflowDB.pipelines.toArray()) ?? ([] as any[]);
   const reports =
-    useLiveQuery(() => getBFlowDB()!.reportTemplates.toArray()) ??
-    ([] as any[]);
+    useLiveQuery(() => bflowDB.reportTemplates.toArray()) ?? ([] as any[]);
 
   // ── Derived stats ──
   const activeDefinitions = definitions.filter(
@@ -231,14 +229,14 @@ export default function BFlowDashboard() {
           className={`hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold ${THEME.btnPrimary} shadow-md ${THEME.shadow}`}
         >
           <Plus className="w-4 h-4" />
-          New Definition
+          New Flow
         </Link>
       </div>
 
       {/* ── Stats Grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Definitions"
+          label="Flows"
           value={definitions.length}
           icon={<GitBranch className="w-5 h-5 text-white" />}
           href="/modules/bunny-flow/definitions"
@@ -279,21 +277,19 @@ export default function BFlowDashboard() {
         <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
           <SectionHeader
             icon={<GitBranch className="w-5 h-5" />}
-            title="Recent Definitions"
+            title="Recent Flows"
             href="/modules/bunny-flow/definitions"
           />
 
           {recentDefinitions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <Layers className="w-10 h-10 text-slate-200 mb-3" />
-              <p className="text-sm font-medium text-slate-400">
-                No definitions yet
-              </p>
+              <p className="text-sm font-medium text-slate-400">No flows yet</p>
               <Link
                 href="/modules/bunny-flow/definitions"
                 className={`mt-3 text-xs font-semibold ${THEME.textPrimary} hover:text-red-600 transition-colors`}
               >
-                Create your first definition &rarr;
+                Create your first flow &rarr;
               </Link>
             </div>
           ) : (
@@ -371,7 +367,7 @@ export default function BFlowDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
-            label="New Definition"
+            label="New Flow"
             description="Create a flow definition to start managing workflows"
             icon={<GitBranch className="w-5 h-5 text-white" />}
             href="/modules/bunny-flow/definitions"
@@ -407,11 +403,11 @@ export default function BFlowDashboard() {
               <h3 className="text-lg font-bold">Workspace Summary</h3>
               <p className="text-sm text-white/80">
                 {definitions.length}{" "}
-                {pluralize(definitions.length, "definition")} &middot;{" "}
-                {workflows.length} {pluralize(workflows.length, "workflow")}{" "}
-                &middot; {pipelines.length}{" "}
-                {pluralize(pipelines.length, "pipeline")} &middot;{" "}
-                {reports.length} {pluralize(reports.length, "report")}
+                {pluralize(definitions.length, "definition", "definitions")}{" "}
+                &middot; {workflows.length}{" "}
+                {pluralize(workflows.length, "workflow")} &middot;{" "}
+                {pipelines.length} {pluralize(pipelines.length, "pipeline")}{" "}
+                &middot; {reports.length} {pluralize(reports.length, "report")}
               </p>
             </div>
           </div>
@@ -420,7 +416,7 @@ export default function BFlowDashboard() {
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm text-sm font-semibold transition-colors"
           >
             <GitBranch className="w-4 h-4" />
-            Browse Definitions
+            Browse Flows
           </Link>
         </div>
       </div>

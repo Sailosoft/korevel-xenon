@@ -1,21 +1,14 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowReportTemplateEntity } from "./BFlowReport.Types";
-import { getBFlowDB } from "../database/BFlowDatabase";
+import { bflowDB } from "../database/BFlowDatabase";
 
 export const bflowReportModule = BunnyFeature.create<
   BFlowReportTemplateEntity,
   BFlowReportTemplateEntity
 >("Report", "id", (feature) => {
-  const db = getBFlowDB();
-  if (!db) return;
-
-  feature.useDataLayer({
-    query: db.reportTemplatesRepo.query,
-    mutation: db.reportTemplatesRepo.mutation,
-  });
-
+  // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
-
+  feature.useDefault();
   feature.configureTable((table) => {
     table.addColumns([
       { field: "id", header: "ID", sortable: true, isRowHeader: true },
@@ -26,5 +19,33 @@ export const bflowReportModule = BunnyFeature.create<
 
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
+    form.addFields([
+      {
+        name: "workflowId",
+        label: "Workflow Template",
+        placeholder: "Select workflow template",
+        type: "select",
+        required: true,
+        options: () => bflowDB.workflowTemplatesRepo.toSelectOptions(),
+      },
+      {
+        name: "flowId",
+        label: "Flow Definition",
+        placeholder: "Select flow definition",
+        type: "select",
+        required: true,
+        options: () => bflowDB.definitionsRepo.toSelectOptions(),
+      },
+      {
+        name: "filename",
+        label: "Filename",
+        placeholder: "e.g. report-output.html",
+        type: "text",
+        required: true,
+      },
+    ]);
+    form.setGridCols(2);
   });
+
+  feature.useDataLayer(bflowDB.reportTemplatesRepo.dataLayer);
 });

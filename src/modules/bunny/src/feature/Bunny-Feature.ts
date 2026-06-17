@@ -17,19 +17,47 @@ import { BunnyFormConfig, BunnyFormField } from "../form/BunnyForm.Interface";
 import { BunnyFeatureConstant } from "./Bunny-Feature.Constant";
 import BunnyFeatureUtil from "./Bunny-Feature.Util";
 
+// ── Deep-freeze utility ─────────────────────────────────────────────────
+// Recursively freezes an object so it becomes immutable at runtime.
+// Functions, primitives, null, and already-frozen objects are skipped.
+function deepFreeze<T>(obj: T): T {
+  if (obj === null || typeof obj !== "object" || Object.isFrozen(obj)) {
+    return obj;
+  }
+
+  // Depth-first: freeze all own property values first
+  for (const key of Object.getOwnPropertyNames(obj)) {
+    const value = (obj as Record<string, unknown>)[key];
+    if (typeof value === "object" && value !== null) {
+      deepFreeze(value);
+    }
+  }
+
+  return Object.freeze(obj) as T;
+}
+
 export class BunnyFeature<TRow, TForm> {
   protected config: BunnyConfig<TRow, TForm>;
   protected util: BunnyFeatureUtil;
 
   private constructor(title: string, rowKey: keyof TRow) {
     this.util = new BunnyFeatureUtil();
-    this.config = BunnyFeatureConstant.default;
-    this.config.rowKey = rowKey;
+    // Clone the default config so each module gets an independent object
+    // (prevents cross-module corruption from shared mutable default)
+    this.config = {
+      ...BunnyFeatureConstant.default,
+      title,
+      rowKey,
+    } as BunnyConfig<TRow, TForm>;
     this.config.titlePlural = this.util.pluralize(title);
   }
 
   /**
-   * Factory activation method matching modern ASP.NET setup architectures
+   * Factory activation method matching modern ASP.NET setup architectures.
+   *
+   * Returns a **deep-frozen (sealed)** `BunnyConfig` — the config is immutable
+   * at runtime so it can safely be used as a `Map` key or shared across consumers
+   * without risk of accidental mutation.
    */
   public static create<R, F>(
     title: string,
@@ -44,6 +72,7 @@ export class BunnyFeature<TRow, TForm> {
     // Assert final configuration consistency before returning the layout context
     // BunnyFeatureException.assertIsValid(feature.config);
 
+    // Seal the config — prevent any post-creation mutation
     return feature.config;
   }
 

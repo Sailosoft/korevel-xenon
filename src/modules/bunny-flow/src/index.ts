@@ -29,7 +29,7 @@ export type {
 export type { BFlowVariableGroupEntity } from "./variable/BFlowVariableGroup.Types";
 
 // DB
-export { getBFlowDB, BFlowDatabase } from "./database/BFlowDatabase";
+export { BFlowDatabase } from "./database/BFlowDatabase";
 
 // Modules (BunnyConfig)
 export { bflowDefinitionModule } from "./definition/BFlowDefinition";
@@ -44,3 +44,10 @@ export { default as BFlowWorkflowComponent } from "./workflow/BFlowWorkflow.Comp
 export { default as BFlowPipelineComponent } from "./pipeline/BFlowPipeline.Component";
 export { default as BFlowReportComponent } from "./report/BFlowReport.Component";
 export { default as BFlowVariableGroupComponent } from "./variable/BFlowVariableGroup.Component";
+
+// Repositories
+export { BFlowDefinitionRepository } from "./definition/BFlowDefinition.Repository";
+export { BFlowWorkflowRepository } from "./workflow/BFlowWorkflow.Repository";
+export { BFlowPipelineRepository } from "./pipeline/BFlowPipeline.Repository";
+export { BFlowReportRepository } from "./report/BFlowReport.Repository";
+export { BFlowVariableGroupRepository } from "./variable/BFlowVariableGroup.Repository";

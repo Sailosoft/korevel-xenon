@@ -1,20 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
-import {
-  LayoutDashboard,
-  GitBranch,
-  Workflow,
-  Container,
-  Users,
-  Play,
-  FileBarChart,
-  Settings,
-} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, GitBranch } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
 
-// ── Shell Configuration ───────────────────────────────────────────
+// ── Shell Configuration (outer) ────────────────────────────────────
 
 const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
   title: "Bunny Flow - Pipeline Manager",
@@ -32,39 +24,8 @@ const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
     },
     {
       href: "/modules/bunny-flow/definitions",
-      label: "Definitions",
+      label: "Flows",
       icon: GitBranch,
-    },
-    {
-      href: "/modules/bunny-flow/workflows",
-      label: "Workflows",
-      icon: Workflow,
-    },
-    {
-      href: "/modules/bunny-flow/pipelines",
-      label: "Pipelines",
-      icon: Container,
-    },
-    {
-      href: "/modules/bunny-flow/agent-pools",
-      label: "Agent Pools",
-      icon: Users,
-    },
-    {
-      href: "/modules/bunny-flow/runs",
-      label: "Runs",
-      icon: Play,
-    },
-    {
-      href: "/modules/bunny-flow/reports",
-      label: "Reports",
-      icon: FileBarChart,
-    },
-    {
-      href: "/modules/bunny-flow/settings",
-      label: "Settings",
-      icon: Settings,
-      section: "Settings",
     },
   ],
 };
@@ -76,9 +37,29 @@ export default function BFlowLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // 🔍 DEBUG: Track layout re-renders and children changes
-  console.log("[BFlowLayout] RE-RENDER at", Date.now());
+  const pathname = usePathname();
 
+  // Detect if we're inside a flow-detail route (/modules/bunny-flow/{id}/...)
+  // In that case the INNER layout (in [id]/layout.tsx) already provides its own
+  // BUIDocumentShell — we must NOT render the outer shell here to avoid nesting.
+  const isInnerRoute =
+    /^\/modules\/bunny-flow\/[^/]+(\/|$)/.test(pathname) &&
+    !pathname.startsWith("/modules/bunny-flow/definitions");
+
+  // 🔍 DEBUG
+  console.log(
+    "[BFlowLayout] pathname:",
+    pathname,
+    "isInnerRoute:",
+    isInnerRoute,
+  );
+
+  // Inner routes get a bare wrapper — the [id]/layout.tsx provides its own shell.
+  if (isInnerRoute) {
+    return <Suspense fallback={null}>{children}</Suspense>;
+  }
+
+  // Outer routes (Dashboard, Definitions) get the document shell.
   return (
     <Suspense
       fallback={

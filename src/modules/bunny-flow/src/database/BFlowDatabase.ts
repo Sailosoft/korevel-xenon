@@ -1,35 +1,42 @@
 import PhazeDB, { IPhazeModelBuilder } from "@/src/modules/phaze/src/PhazeDB";
 import { PhazeRepository } from "@/src/modules/phaze/src/PhazeRepository";
 import { BFlowDefinitionEntity } from "../definition/BFlowDefinition.Types";
+import { BFlowDefinitionRepository } from "../definition/BFlowDefinition.Repository";
 import { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Types";
+import { BFlowWorkflowRepository } from "../workflow/BFlowWorkflow.Repository";
 import {
   BFlowPipelineEntity,
   BFlowPipelineStoreEntity,
   BFlowPipelineStoreDataEntity,
 } from "../pipeline/BFlowPipeline.Types";
+import { BFlowPipelineRepository } from "../pipeline/BFlowPipeline.Repository";
 import {
   BFlowReportTemplateEntity,
   BFlowPipelineReportEntity,
   BFlowReportSnapshotEntity,
 } from "../report/BFlowReport.Types";
+import { BFlowReportRepository } from "../report/BFlowReport.Repository";
 import { BFlowVariableGroupEntity } from "../variable/BFlowVariableGroup.Types";
+import { BFlowVariableGroupRepository } from "../variable/BFlowVariableGroup.Repository";
 
 export class BFlowDatabase extends PhazeDB {
   // ─── Tables ─────────────────────────────────────────────────────
 
   /** Flow Definitions */
   public definitions = this.table<BFlowDefinitionEntity, string>("definitions");
-  public definitionsRepo = new PhazeRepository(this.definitions);
+  public definitionsRepo = new BFlowDefinitionRepository(this.definitions);
 
   /** Workflow Templates */
   public workflowTemplates = this.table<BFlowWorkflowTemplateEntity, string>(
     "workflowTemplates",
   );
-  public workflowTemplatesRepo = new PhazeRepository(this.workflowTemplates);
+  public workflowTemplatesRepo = new BFlowWorkflowRepository(
+    this.workflowTemplates,
+  );
 
   /** Pipelines */
   public pipelines = this.table<BFlowPipelineEntity, string>("pipelines");
-  public pipelinesRepo = new PhazeRepository(this.pipelines);
+  public pipelinesRepo = new BFlowPipelineRepository(this.pipelines);
 
   /** Pipeline Stores */
   public pipelineStores = this.table<BFlowPipelineStoreEntity, string>(
@@ -47,7 +54,7 @@ export class BFlowDatabase extends PhazeDB {
   public reportTemplates = this.table<BFlowReportTemplateEntity, string>(
     "reportTemplates",
   );
-  public reportTemplatesRepo = new PhazeRepository(this.reportTemplates);
+  public reportTemplatesRepo = new BFlowReportRepository(this.reportTemplates);
 
   /** Pipeline Reports */
   public pipelineReports = this.table<BFlowPipelineReportEntity, string>(
@@ -65,7 +72,9 @@ export class BFlowDatabase extends PhazeDB {
   public variableGroups = this.table<BFlowVariableGroupEntity, string>(
     "variableGroups",
   );
-  public variableGroupsRepo = new PhazeRepository(this.variableGroups);
+  public variableGroupsRepo = new BFlowVariableGroupRepository(
+    this.variableGroups,
+  );
 
   protected dbName(): string {
     return "BunnyFlowDB";
@@ -142,22 +151,24 @@ export class BFlowDatabase extends PhazeDB {
   }
 }
 
-let _instance: BFlowDatabase | null = null;
+// let _instance: BFlowDatabase | null = null;
 
 /**
  * Lazily-initialised singleton — safe to call during SSR/build.
  * Returns undefined on the server so modules can guard against it.
  */
-export function getBFlowDB(): BFlowDatabase | undefined {
-  if (typeof window === "undefined") return undefined;
-  if (!_instance) {
-    _instance = new BFlowDatabase();
-  }
-  return _instance;
-}
+// export function getBFlowDB(): BFlowDatabase | undefined {
+//   if (typeof window === "undefined") return undefined;
+//   if (!_instance) {
+//     _instance = new BFlowDatabase();
+//   }
+//   return _instance;
+// }
 
-/**
- * Database accessor — returns the singleton or undefined if not in a browser context.
- */
-export const bflowDB: BFlowDatabase | undefined =
-  typeof window !== "undefined" ? getBFlowDB() : undefined;
+// /**
+//  * Database accessor — returns the singleton or undefined if not in a browser context.
+//  */
+// export const bflowDB: BFlowDatabase | undefined =
+//   typeof window !== "undefined" ? getBFlowDB() : undefined;
+
+export const bflowDB = new BFlowDatabase();

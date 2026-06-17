@@ -1,133 +1,72 @@
 "use client";
 
-import { use, useMemo } from "react";
-import Link from "next/link";
+import { use } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { getBFlowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
+import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 import {
-  LayoutDashboard,
+  GitBranch,
   Workflow,
   Container,
-  Users,
-  Play,
   FileBarChart,
-  Settings,
   ArrowLeft,
-  GitBranch,
 } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
+
+// ─── Props ────────────────────────────────────────────────────────
+
+interface FlowDashboardPageProps {
+  params: Promise<{ id: string }>;
+}
+
+// ─── Theme ─────────────────────────────────────────────────────────
 
 const THEME = {
   textPrimary: "text-[#ff2d20]",
   border: "border-slate-100",
 };
 
-// ─── Tab configuration ────────────────────────────────────────────
+// ─── Page ──────────────────────────────────────────────────────────
 
-interface FlowTab {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  href: string;
-}
-
-function getFlowTabs(flowId: string): FlowTab[] {
-  return [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: <LayoutDashboard className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=dashboard`,
-    },
-    {
-      id: "workspaces",
-      label: "Workspaces",
-      icon: <Workflow className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=workspaces`,
-    },
-    {
-      id: "pipelines",
-      label: "Pipelines",
-      icon: <Container className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=pipelines`,
-    },
-    {
-      id: "agent-pools",
-      label: "Agent Pools",
-      icon: <Users className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=agent-pools`,
-    },
-    {
-      id: "runs",
-      label: "Runs",
-      icon: <Play className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=runs`,
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      icon: <FileBarChart className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=reports`,
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      icon: <Settings className="w-4 h-4" />,
-      href: `/modules/bunny-flow/${flowId}?tab=settings`,
-    },
-  ];
-}
-
-// ─── Props ────────────────────────────────────────────────────────
-
-interface FlowDetailPageProps {
-  params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tab?: string }>;
-}
-
-// ─── Page ─────────────────────────────────────────────────────────
-
-export default function BFlowDetailPage({
-  params,
-  searchParams,
-}: FlowDetailPageProps) {
+export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
   const { id } = use(params);
-  const resolvedSearch = use(
-    searchParams ?? Promise.resolve({} as Record<string, string | undefined>),
-  );
-  const activeTab = resolvedSearch.tab ?? "dashboard";
 
-  const db = getBFlowDB();
+  // Fetch the flow definition and related counts
+  const definition = useLiveQuery(() => bflowDB.definitions.get(id), [id]);
 
-  // Fetch the flow definition
-  const definition = useLiveQuery(() => db?.definitions.get(id), [id, db]);
-
-  // Fetch related entities
   const workflows =
     useLiveQuery(
       () =>
-        db
-          ? db.workflowTemplates.filter((w) => w.definitionId === id).toArray()
-          : Promise.resolve([] as any[]),
-      [id, db],
+        bflowDB.workflowTemplates
+          .filter((w) => w.definitionId === id)
+          .toArray(),
+      [id],
     ) ?? [];
 
   const pipelines =
     useLiveQuery(
-      () =>
-        db
-          ? db.pipelines.filter((p) => p.flowId === id).toArray()
-          : Promise.resolve([] as any[]),
-      [id, db],
+      () => bflowDB.pipelines.filter((p) => p.flowId === id).toArray(),
+      [id],
     ) ?? [];
 
-  const activePipelines = pipelines.filter((p: any) => p.status === "running");
-  const completedPipelines = pipelines.filter(
-    (p: any) => p.status === "completed",
-  );
+  const reports =
+    useLiveQuery(
+      () => bflowDB.reportTemplates.filter((r) => r.flowId === id).toArray(),
+      [id],
+    ) ?? [];
 
-  const tabs = getFlowTabs(id);
+  const isLoading = definition === undefined;
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-2 border-[#ff2d20] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const activePipelines = pipelines.filter((p: any) => p.status === "running");
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -137,7 +76,7 @@ export default function BFlowDetailPage({
         className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-[#ff2d20] transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to Definitions
+        Back to Flows
       </Link>
 
       {/* ── Flow Header ── */}
@@ -169,224 +108,90 @@ export default function BFlowDetailPage({
         )}
       </div>
 
-      {/* ── Tabs ── */}
-      <div className="flex flex-wrap gap-1 border-b border-slate-100 pb-0">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <Link
-              key={tab.id}
-              href={tab.href}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
-                isActive
-                  ? `${THEME.textPrimary} border-[#ff2d20] bg-red-50/30`
-                  : "text-slate-500 border-transparent hover:text-slate-700 hover:border-slate-200"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </Link>
-          );
-        })}
+      {/* ── Stats Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Workflow className="w-4 h-4 text-blue-500" />
+            <h3 className="text-sm font-semibold text-slate-500">Workflows</h3>
+          </div>
+          <p className="text-3xl font-bold text-slate-800">
+            {workflows.length}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Container className="w-4 h-4 text-emerald-500" />
+            <h3 className="text-sm font-semibold text-slate-500">
+              Total Pipelines
+            </h3>
+          </div>
+          <p className="text-3xl font-bold text-slate-800">
+            {pipelines.length}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <FileBarChart className="w-4 h-4 text-rose-500" />
+            <h3 className="text-sm font-semibold text-slate-500">Reports</h3>
+          </div>
+          <p className="text-3xl font-bold text-slate-800">{reports.length}</p>
+        </div>
       </div>
 
-      {/* ── Tab Content ── */}
-      <div className="min-h-[400px]">
-        {activeTab === "dashboard" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-              <h3 className="text-sm font-semibold text-slate-500 mb-2">
-                Workflows
-              </h3>
-              <p className="text-3xl font-bold text-slate-800">
-                {workflows.length}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-              <h3 className="text-sm font-semibold text-slate-500 mb-2">
-                Total Pipelines
-              </h3>
-              <p className="text-3xl font-bold text-slate-800">
-                {pipelines.length}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-              <h3 className="text-sm font-semibold text-slate-500 mb-2">
-                Active Runs
-              </h3>
-              <p className="text-3xl font-bold text-slate-800">
-                {activePipelines.length}
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-5 col-span-full">
-              <h3 className="text-sm font-semibold text-slate-500 mb-4">
-                Recent Pipelines
-              </h3>
-              {pipelines.length > 0 ? (
-                <div className="divide-y divide-slate-50">
-                  {pipelines.slice(0, 5).map((p: any) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between py-2"
-                    >
-                      <span className="text-sm font-medium text-slate-700">
-                        {p.name}
-                      </span>
-                      <span
-                        className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          p.status === "completed"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : p.status === "running"
-                              ? "bg-amber-50 text-amber-600"
-                              : p.status === "failed"
-                                ? "bg-red-50 text-red-600"
-                                : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        {p.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-400">No pipelines yet.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "workspaces" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">
-              Workspaces
-            </h3>
-            {workflows.length > 0 ? (
-              <div className="divide-y divide-slate-50">
-                {workflows.map((w: any) => (
-                  <div
-                    key={w.id}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {w.name}
-                      </p>
-                      <p className="text-xs text-slate-400">{w.slug}</p>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
-                      {w.status}
-                    </span>
-                  </div>
-                ))}
+      {/* ── Recent Pipelines ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
+        <h3 className="text-sm font-semibold text-slate-500 mb-4">
+          Recent Pipelines
+        </h3>
+        {pipelines.length > 0 ? (
+          <div className="divide-y divide-slate-50">
+            {pipelines.slice(0, 5).map((p: any) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between py-2"
+              >
+                <span className="text-sm font-medium text-slate-700">
+                  {p.name}
+                </span>
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    p.status === "completed"
+                      ? "bg-emerald-50 text-emerald-600"
+                      : p.status === "running"
+                        ? "bg-amber-50 text-amber-600"
+                        : p.status === "failed"
+                          ? "bg-red-50 text-red-600"
+                          : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {p.status}
+                </span>
               </div>
-            ) : (
-              <p className="text-sm text-slate-400">No workspaces yet.</p>
-            )}
+            ))}
           </div>
-        )}
-
-        {activeTab === "pipelines" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">
-              Pipelines
-            </h3>
-            {pipelines.length > 0 ? (
-              <div className="divide-y divide-slate-50">
-                {pipelines.map((p: any) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {p.name}
-                      </p>
-                      <p className="text-xs text-slate-400">v{p.version}</p>
-                    </div>
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        p.status === "completed"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : p.status === "running"
-                            ? "bg-amber-50 text-amber-600"
-                            : p.status === "failed"
-                              ? "bg-red-50 text-red-600"
-                              : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {p.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">No pipelines yet.</p>
-            )}
-          </div>
-        )}
-
-        {activeTab === "agent-pools" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">
-              Agent Pools
-            </h3>
-            <p className="text-sm text-slate-400">
-              Agent pools allow you to group agents that can be assigned to
-              workflows. Configure agent pools via the workflow template YAML.
-            </p>
-          </div>
-        )}
-
-        {activeTab === "runs" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">
-              Pipeline Runs
-            </h3>
-            <p className="text-sm text-slate-400">
-              View the execution history and status of pipeline runs.
-            </p>
-          </div>
-        )}
-
-        {activeTab === "reports" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">Reports</h3>
-            <p className="text-sm text-slate-400">
-              Generate and export reports for pipeline executions.
-            </p>
-          </div>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6">
-            <h3 className="text-base font-bold text-slate-800 mb-4">
-              Flow Settings
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-slate-700">
-                  Flow Code
-                </label>
-                <p className="text-sm text-slate-400">{definition?.code}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-slate-700">
-                  Slug
-                </label>
-                <p className="text-sm text-slate-400">{definition?.slug}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-slate-700">
-                  Version
-                </label>
-                <p className="text-sm text-slate-400">
-                  {definition?.version ?? "—"}
-                </p>
-              </div>
-            </div>
-          </div>
+        ) : (
+          <p className="text-sm text-slate-400">No pipelines yet.</p>
         )}
       </div>
+
+      {/* ── Active Runs Summary ── */}
+      {activePipelines.length > 0 && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-100 p-5 md:p-6">
+          <h3 className="text-sm font-semibold text-amber-700 mb-2">
+            Active Runs
+          </h3>
+          <p className="text-3xl font-bold text-amber-600">
+            {activePipelines.length}
+          </p>
+          <p className="text-sm text-amber-500 mt-1">
+            {activePipelines.length} pipeline
+            {activePipelines.length !== 1 ? "s are" : " is"} currently running.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
