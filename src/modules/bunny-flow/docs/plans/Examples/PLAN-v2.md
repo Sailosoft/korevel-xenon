@@ -414,39 +414,191 @@ interface BFlowReportSnapshot {
 
 ### Feature: Variable Management
 
-- Variable Management is where you can manage your variable
+- Variable Management is where you can manage your variable across four scopes/levels.
+- Each level inherits from the level below it, and a higher-priority level overrides a lower one.
 
-#### Schema
+#### Variable Priority Chain (Highest → Lowest)
+
+```
+Workflow YAML Variable  (Priority 1 - Highest)
+        ↑ overrides
+Pipeline Variable       (Priority 2)
+        ↑ overrides
+Flow Variable           (Priority 3)
+        ↑ overrides
+Global Variable         (Priority 4 - Lowest / Default)
+```
+
+**Resolution rule:** When a variable `{name}` is referenced at runtime, the system resolves it by
+walking up the chain from **Priority 4 → Priority 1**, returning the first match found.
+This means a Workflow YAML variable with the same name will always win over all others.
+
+---
+
+#### Level 1: Global Variable (Priority 4 — Lowest / Default)
+
+- Global Variables sit at the top of the entire application, **above any flow**.
+- They provide **default values** shared across all flow definitions.
+- Any flow can reference a global variable; no explicit linking required.
+- They can be overridden by Flow, Pipeline, or Workflow YAML variables of the same name.
+
+##### Schema
 
 ```typescript
-interface BFlowVariableGroup {
+interface BFlowGlobalVariable {
   // GUIDv7
   id: string;
-  // GUIDv7 reference to BFlowDefinition
-  flowId: string;
-  // Name of the group
+  // Name of the variable
   name: string;
-  // Slug
-  slug: string;
-  // Description of the group
+  // Default value (used when no override exists at any higher level)
+  value: string;
+  // Type of the variable
+  type: "text" | "number" | "boolean" | "select" | "textarea";
+  // Description of the variable
   description?: string;
-  // Metadata of the group
+  // Variable group tag for organisation (e.g. "system", "env", "custom")
+  group?: string;
+  // Metadata for extensibility
   metadata?: Record<string, unknown>;
   // Created and Updated timestamps
   createdAt: Date;
   updatedAt: Date;
 }
+```
 
-interface BFlowVariable {
-  id: string; // guid
-  // guid of group
-  groupId: string;
+##### UI
+
+- Managed from a global admin page outside any specific flow (e.g. `/modules/bunny-flow/global-variables`).
+- Table with CRUD: name, value, type, group, description.
+
+---
+
+#### Level 2: Flow Variable (Priority 3)
+
+- Flow Variables sit **on the flow definition** itself (not in a separate group entity).
+- They are scoped to a single `BFlowDefinition` and are inherited by all pipelines and
+  workflow executions inside that flow.
+- A Flow Variable overrides any Global Variable with the same name.
+
+##### Schema
+
+```typescript
+interface BFlowFlowVariable {
+  // GUIDv7
+  id: string;
+  // GUIDv7 reference to BFlowDefinition
+  flowId: string;
+  // Name of the variable
+  name: string;
+  // Value (default for the flow — pipelines/workflows may override)
+  value: string;
+  // Type of the variable
+  type: "text" | "number" | "boolean" | "select" | "textarea";
+  // Description of the variable
+  description?: string;
+  // Metadata for extensibility
+  metadata?: Record<string, unknown>;
+  // Created and Updated timestamps
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+##### UI
+
+- Managed inside the flow detail page under the **Variables** tab (already implemented via `BFlowScopedVariables` / variable groups).
+- The existing `BFlowVariableGroup` entity maps to this concept — a collection of flow-level
+  variables grouped logically (e.g. "Database", "API Keys").
+
+---
+
+#### Level 3: Pipeline Variable (Priority 2)
+
+- Pipeline Variables are directly correlated to a **specific pipeline instance**.
+- They override both Flow Variables and Global Variables of the same name.
+- Defined as an array on the `BFlowPipeline` entity itself.
+
+##### Schema
+
+```typescript
+// Embedded inside BFlowPipelineEntity
+interface BFlowPipelineVariable {
+  // GUIDv7
+  id: string;
   name: string;
   value: string;
   type: "text" | "number" | "boolean" | "select" | "textarea";
   description?: string;
 }
 ```
+
+##### Reference
+
+- `BFlowPipelineEntity.variableGroupId` — links to a `BFlowVariableGroup` (Flow-level variable group) for pre-population.
+- `BFlowPipelineEntity.variables` — array of `BFlowPipelineVariable` for direct pipeline-level overrides.
+
+---
+
+#### Level 4: Workflow YAML Variable (Priority 1 — Highest)
+
+- Workflow YAML Variables are **temporary variables defined inside the workflow YAML template**.
+- They have the **highest priority** and override all other levels.
+- These variables are not persisted in a separate table; they are part of the workflow's
+  YAML definition (`BFlowWorkflow.variables`).
+
+##### Schema
+
+```typescript
+// Embedded inside BFlowWorkflow (parsed from YAML template)
+interface BFlowVariable {
+  // GUIDv7
+  id: string;
+  name: string;
+  defaultValue: string;
+  type: "text" | "number" | "boolean" | "select" | "textarea";
+  description?: string;
+}
+```
+
+##### Reference
+
+- Defined in `BFlowWorkflow.variables` within the workflow YAML.
+- At runtime these values are resolved first; then pipeline overrides are applied,
+  followed by flow variables, and finally global variables as the fallback.
+
+---
+
+#### Runtime Resolution Service
+
+A helper service `BFlowVariableResolver` will be used to resolve any variable by name
+against all four levels with the correct priority:
+
+```typescript
+interface BFlowVariableResolver {
+  /**
+   * Resolve a variable by name across all 4 levels.
+   * Returns the value from the highest-priority level that has a match,
+   * or `undefined` if not found at any level.
+   */
+  resolve(params: {
+    variableName: string;
+    flowId: string;
+    pipelineId: string;
+    workflowYamlVariables: BFlowVariable[];
+    pipelineVariables: BFlowPipelineVariable[];
+    flowVariables: BFlowFlowVariable[];
+    globalVariables: BFlowGlobalVariable[];
+  }): string | undefined;
+}
+```
+
+Resolution order internally:
+
+1. Search `workflowYamlVariables` — if found, return value (Priority 1)
+2. Search `pipelineVariables` — if found, return value (Priority 2)
+3. Search `flowVariables` — if found, return value (Priority 3)
+4. Search `globalVariables` — if found, return value (Priority 4)
+5. Return `undefined` (not found)
 
 ## Rules
 

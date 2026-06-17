@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 import {
@@ -12,28 +12,32 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
-
 // ─── Props ────────────────────────────────────────────────────────
 
 interface FlowDashboardPageProps {
   params: Promise<{ id: string }>;
 }
 
-// ─── Theme ─────────────────────────────────────────────────────────
-
-const THEME = {
-  textPrimary: "text-[#ff2d20]",
-  border: "border-slate-100",
-};
-
 // ─── Page ──────────────────────────────────────────────────────────
 
 export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
   const { id } = use(params);
 
+  // ── Track query completion separately from data ──
+  // useLiveQuery returns undefined for BOTH "loading" and "not found".
+  // Without this flag the page would spin forever when get(id) resolves
+  // to undefined (i.e. the record doesn't exist).
+  const [loaded, setLoaded] = useState(false);
+
   // Fetch the flow definition and related counts
-  const definition = useLiveQuery(() => bflowDB.definitions.get(id), [id]);
+  const definition = useLiveQuery(
+    () =>
+      bflowDB.definitions.get(id).then((result) => {
+        setLoaded(true);
+        return result;
+      }),
+    [id],
+  );
 
   const workflows =
     useLiveQuery(
@@ -56,9 +60,7 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
       [id],
     ) ?? [];
 
-  const isLoading = definition === undefined;
-
-  if (isLoading) {
+  if (!loaded) {
     return (
       <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
         <div className="w-8 h-8 border-2 border-[#ff2d20] border-t-transparent rounded-full animate-spin" />

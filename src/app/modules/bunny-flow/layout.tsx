@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, GitBranch } from "lucide-react";
+import { LayoutDashboard, GitBranch, Globe } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
 
@@ -27,6 +27,11 @@ const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
       label: "Flows",
       icon: GitBranch,
     },
+    {
+      href: "/modules/bunny-flow/global-variables",
+      label: "Global Variables",
+      icon: Globe,
+    },
   ],
 };
 
@@ -39,11 +44,11 @@ export default function BFlowLayout({
 }) {
   const pathname = usePathname();
 
-  // Detect if we're inside a flow-detail route (/modules/bunny-flow/{id}/...)
-  // In that case the INNER layout (in [id]/layout.tsx) already provides its own
+  // Detect if we're inside a flow-detail route (/modules/bunny-flow/flow/{id}/...)
+  // In that case the INNER layout (in flow/[id]/layout.tsx) already provides its own
   // BUIDocumentShell — we must NOT render the outer shell here to avoid nesting.
   const isInnerRoute =
-    /^\/modules\/bunny-flow\/[^/]+(\/|$)/.test(pathname) &&
+    /^\/modules\/bunny-flow\/flow\/[^/]+(\/|$)/.test(pathname) &&
     !pathname.startsWith("/modules/bunny-flow/definitions");
 
   // 🔍 DEBUG

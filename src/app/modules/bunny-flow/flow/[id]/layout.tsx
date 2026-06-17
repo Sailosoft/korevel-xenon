@@ -9,6 +9,8 @@ import {
   Play,
   FileBarChart,
   Settings,
+  Database,
+  ArrowLeft,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
@@ -40,37 +42,48 @@ export default function BFlowInnerLayout({
     },
     navItems: [
       {
-        href: `/modules/bunny-flow/${id}`,
+        href: `/modules/bunny-flow/definitions`,
+        label: "Back to Flows",
+        icon: ArrowLeft,
+        section: "Navigation",
+      },
+      {
+        href: `/modules/bunny-flow/flow/${id}`,
         label: "Dashboard",
         icon: LayoutDashboard,
       },
       {
-        href: `/modules/bunny-flow/${id}/workflows`,
+        href: `/modules/bunny-flow/flow/${id}/workflows`,
         label: "Workflows",
         icon: Workflow,
       },
       {
-        href: `/modules/bunny-flow/${id}/pipelines`,
+        href: `/modules/bunny-flow/flow/${id}/pipelines`,
         label: "Pipelines",
         icon: Container,
       },
       {
-        href: `/modules/bunny-flow/${id}/agent-pools`,
+        href: `/modules/bunny-flow/flow/${id}/variables`,
+        label: "Variables",
+        icon: Database,
+      },
+      {
+        href: `/modules/bunny-flow/flow/${id}/agent-pools`,
         label: "Agent Pools",
         icon: Users,
       },
       {
-        href: `/modules/bunny-flow/${id}/runs`,
+        href: `/modules/bunny-flow/flow/${id}/runs`,
         label: "Runs",
         icon: Play,
       },
       {
-        href: `/modules/bunny-flow/${id}/reports`,
+        href: `/modules/bunny-flow/flow/${id}/reports`,
         label: "Reports",
         icon: FileBarChart,
       },
       {
-        href: `/modules/bunny-flow/${id}/settings`,
+        href: `/modules/bunny-flow/flow/${id}/settings`,
         label: "Settings",
         icon: Settings,
         section: "Settings",

@@ -1,6 +1,8 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowVariableGroupEntity } from "./BFlowVariableGroup.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { List } from "lucide-react";
+import { createElement } from "react";
 
 export const bflowVariableGroupModule = BunnyFeature.create<
   BFlowVariableGroupEntity,
@@ -17,6 +19,18 @@ export const bflowVariableGroupModule = BunnyFeature.create<
       { field: "description", header: "Description", sortable: true },
       { field: "createdAt", header: "Created", sortable: true },
     ]);
+  });
+
+  feature.configureRow((row) => {
+    row.addAction({
+      id: "open-group",
+      icon: createElement(List),
+      onClick(row, context) {
+        context.router.push(
+          `/modules/bunny-flow/flow/${row.flowId}/variables/groups/${row.id}`,
+        );
+      },
+    });
   });
 
   feature.configureForm((form) => {

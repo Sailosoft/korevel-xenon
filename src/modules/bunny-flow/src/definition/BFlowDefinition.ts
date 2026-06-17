@@ -1,6 +1,8 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowDefinitionEntity } from "./BFlowDefinition.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { GitBranch } from "lucide-react";
+import { createElement } from "react";
 
 export const bflowDefinitionModule = BunnyFeature.create<
   BFlowDefinitionEntity,
@@ -20,8 +22,17 @@ export const bflowDefinitionModule = BunnyFeature.create<
     ]);
   });
 
+  feature.configureRow((row) => {
+    row.addAction({
+      id: "open-flow",
+      icon: createElement(GitBranch),
+      onClick(row, context) {
+        context.router.push(`/modules/bunny-flow/flow/${row.id}`);
+      },
+    });
+  });
   feature.configureForm((form) => {
-    form.setOnSuccess({ mode: "closeOnly" });
+    form.setOnSuccess({ mode: "redirect", route: "/modules/bunny-flow/flow" });
     form.addFields([
       {
         name: "code",

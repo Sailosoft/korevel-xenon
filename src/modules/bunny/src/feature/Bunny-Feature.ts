@@ -52,6 +52,13 @@ export class BunnyFeature<TRow, TForm> {
     this.config.titlePlural = this.util.pluralize(title);
   }
 
+  public build(
+    configure: (config: BunnyConfig<TRow, TForm>) => void,
+  ): BunnyConfig<TRow, TForm> {
+    configure(this.config);
+    return this.config;
+  }
+
   /**
    * Factory activation method matching modern ASP.NET setup architectures.
    *
