@@ -42,6 +42,8 @@ export default function BUISidebar({
   wizard,
 }: BUISidebarProps) {
   const pathname = usePathname();
+  // 🔍 DEBUG: Track pathname changes
+  console.log("[BUISidebar] pathname:", pathname);
 
   // Group nav items by section
   const sections = groupBySection(navItems);

@@ -76,6 +76,9 @@ export default function BFlowLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // 🔍 DEBUG: Track layout re-renders and children changes
+  console.log("[BFlowLayout] RE-RENDER at", Date.now());
+
   return (
     <Suspense
       fallback={
