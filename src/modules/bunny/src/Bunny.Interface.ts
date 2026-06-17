@@ -12,6 +12,7 @@ import { BunnyFormConfig } from "./form/BunnyForm.Interface";
 import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
+  BunnyHeaderConfig,
 } from "./header/BunnyHeader.Interface";
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
 import { BunnyRouter } from "./router/BunnyRouter.interface";
@@ -87,6 +88,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   hideHeaderActions?: BunnyHeaderActionType[];
   /** Manually appended custom header items */
   headerActions?: BunnyHeaderAction<TRow, TForm>[];
+
+  /** Header display configuration (icon, description, variant) */
+  header?: BunnyHeaderConfig;
 
   /** Automatically pull in default row actions (view, edit, delete) */
   defaultRowActions?: boolean;
