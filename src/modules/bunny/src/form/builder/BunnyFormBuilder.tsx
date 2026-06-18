@@ -10,7 +10,7 @@ import {
   cn,
 } from "@heroui/react";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   BunnyFormConfig,
   BunnyFormField,
@@ -54,6 +54,7 @@ export function BunnyFormBuilder<T>({
             <FieldRenderer
               field={field as BunnyFormField<Record<string, unknown>>}
               value={(formData as Record<string, unknown>)[field.name]}
+              formData={formData as Record<string, unknown>}
               onChange={onChange}
               error={errors[field.name]}
             />
@@ -64,16 +65,23 @@ export function BunnyFormBuilder<T>({
   );
 }
 
-/* ====================== Field Renderer ====================== */
+/* ====================== Field Renderer (memoized) ====================== */
 
 interface FieldRendererProps {
   field: BunnyFormField<Record<string, unknown>>;
   value: unknown;
+  formData: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
   error?: string;
 }
 
-function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
+const FieldRenderer = memo(function FieldRenderer({
+  field,
+  value,
+  formData,
+  onChange,
+  error,
+}: FieldRendererProps) {
   const handleChange = (val: unknown) => {
     // Safely cast numeric string IDs back to integers for form configuration
     const sanitizedValue =
@@ -262,6 +270,64 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
         />
       );
 
+    /* ====================== Custom / Render Fields ====================== */
+
+    case "custom": {
+      const CustomComponent = field.component;
+      if (!CustomComponent) {
+        console.warn(
+          `Field "${field.name}" has type "custom" but no "component" prop provided.`,
+        );
+        return null;
+      }
+      return (
+        <div className="flex flex-col gap-1 w-full">
+          {field.label && (
+            <Label htmlFor={fieldId}>
+              {field.label}
+              {isRequired && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+          )}
+          <CustomComponent
+            field={field as BunnyFormField<Record<string, unknown>>}
+            value={value}
+            formData={formData}
+            onChange={onChange}
+            error={error}
+          />
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
+        </div>
+      );
+    }
+
+    case "render": {
+      const renderFn = field.render;
+      if (!renderFn) {
+        console.warn(
+          `Field "${field.name}" has type "render" but no "render" prop provided.`,
+        );
+        return null;
+      }
+      return (
+        <div className="flex flex-col gap-1 w-full">
+          {field.label && (
+            <Label htmlFor={fieldId}>
+              {field.label}
+              {isRequired && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+          )}
+          {renderFn({
+            field: field as BunnyFormField<Record<string, unknown>>,
+            value,
+            formData,
+            onChange,
+            error,
+          })}
+          {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
+        </div>
+      );
+    }
+
     default: // text, email, password, number
       return (
         <div className="flex flex-col gap-1 w-full">
@@ -293,4 +359,4 @@ function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
         </div>
       );
   }
-}
+});
