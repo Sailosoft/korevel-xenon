@@ -9,7 +9,6 @@
 
 import Bunny from "@/src/modules/bunny/src/Bunny";
 import BunnyForm from "@/src/modules/bunny/src/form/BunnyForm";
-import type { BunnyFormConfig } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
 import { bflowDB } from "../database/BFlowDatabase";
 import { bflowPipelineModule } from "../pipeline/BFlowPipeline";
 import { useBFlowFlow } from "../context/BFlowFlowContext";
@@ -28,27 +27,25 @@ export default function BFlowScopedPipelines() {
   const rawForm = scopedConfig.formConfig;
   if (rawForm && typeof rawForm !== "function") {
     scopedConfig.formConfig = {
-      ...(rawForm as BunnyFormConfig<Record<string, unknown>>),
-      fields: (rawForm as BunnyFormConfig<Record<string, unknown>>).fields.map(
-        (field) => {
-          if (field.name === "variableGroupId") {
-            return {
-              ...field,
-              options: () =>
-                bflowDB.variableGroups
-                  .filter((vg) => vg.flowId === flowId)
-                  .toArray()
-                  .then((items) =>
-                    items.map((item) => ({
-                      label: item.name,
-                      value: item.id,
-                    })),
-                  ),
-            };
-          }
-          return field;
-        },
-      ),
+      ...rawForm,
+      fields: rawForm.fields.map((field) => {
+        if (field.name === "variableGroupId") {
+          return {
+            ...field,
+            options: () =>
+              bflowDB.variableGroups
+                .filter((vg) => vg.flowId === flowId)
+                .toArray()
+                .then((items) =>
+                  items.map((item) => ({
+                    label: item.name,
+                    value: item.id,
+                  })),
+                ),
+          };
+        }
+        return field;
+      }),
     };
   }
 

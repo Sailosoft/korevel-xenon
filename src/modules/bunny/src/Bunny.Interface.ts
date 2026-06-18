@@ -24,6 +24,42 @@ import {
   BunnyTableMode,
 } from "./table/BunnyTable.Interface";
 
+/**
+ * A validation adapter decouples Bunny from any specific validation library (Zod, Yup, Joi, etc.).
+ *
+ * - Implement this interface in your **consumer project** where your validation library lives.
+ * - Bunny imports **only this interface** — zero foreign dependencies.
+ * - The adapter's `validate()` returns `Record<string, string>` (field → error message),
+ *   which maps directly to `form.setFormError()`.
+ *
+ * @example
+ * ```ts
+ * // Zod adapter in your project
+ * const adapter: BunnyValidationAdapter<MyForm> = {
+ *   validate(formData) {
+ *     const r = myZodSchema.safeParse(formData);
+ *     if (r.success) return {};
+ *     // flatten Zod issues into field → message
+ *     const errors: Record<string, string> = {};
+ *     for (const issue of r.error.issues) {
+ *       const path = issue.path.join(".");
+ *       if (!errors[path]) errors[path] = issue.message;
+ *     }
+ *     return errors;
+ *   },
+ * };
+ * ```
+ */
+export interface BunnyValidationAdapter<TForm = Record<string, unknown>> {
+  /**
+   * Validates `formData` and returns field-level error messages.
+   * Return an **empty object** `{}` when validation passes.
+   * Each key is a field path (e.g. `"title"`, `"address.city"`),
+   * each value is a human-readable error message.
+   */
+  validate: (formData: TForm) => Record<string, string>;
+}
+
 export type BunnyCustomize<TRow, TForm> = (
   admin: UseAdminPanel<TRow, TForm>,
   config: BunnyConfig<TRow, TForm>,
@@ -79,6 +115,32 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   formConfig?:
     | BunnyFormConfig<TForm>
     | ((form: UseAdminPanelForm<TForm>) => BunnyFormConfig<TForm>);
+
+  /**
+   * Optional validation adapter.
+   *
+   * When provided, this takes **precedence** over the built-in field-level rules
+   * (`BunnyValidationRule`). Use this to plug in Zod, Yup, Joi, or any custom
+   * validation logic without adding those libraries as Bunny dependencies.
+   *
+   * The adapter must be implemented in your **consumer project** where your
+   * validation library lives.
+   *
+   * @example
+   * ```ts
+   * import { useBunnyZodAdapter } from "@/modules/bunny/adapters/BunnyZodAdapter";
+   * import { z } from "zod";
+   *
+   * const schema = z.object({ title: z.string().min(1) });
+   *
+   * <Bunny config={{
+   *   formConfig: myFormConfig,
+   *   validationAdapter: useBunnyZodAdapter(schema),
+   * }} />
+   * ```
+   */
+  validationAdapter?: BunnyValidationAdapter<TForm>;
+
   /** Width configuration for the table's row actions column 🚀 */
   rowActionsColWidth?: number; // 👈 Updated naming;
 

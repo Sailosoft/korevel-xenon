@@ -143,23 +143,35 @@ function BunnyMainPanel<TRow, TForm>({
   const handlePrimaryAction = useCallback(async () => {
     form.clearFormError();
 
-    // Directly pull from the primary config prop
-    const rawFormConfig = config.formConfig;
-    const resolvedFormConfig =
-      typeof rawFormConfig === "function" ? rawFormConfig(form) : rawFormConfig;
-
-    if (resolvedFormConfig?.fields) {
-      const clientErrors = validateBunnyForm(
-        resolvedFormConfig.fields,
-        form.formData,
-      );
-      if (Object.keys(clientErrors).length > 0) {
-        form.setFormError(clientErrors);
+    // --- Validation: adapter takes precedence over built-in rules ---
+    if (finalConfig.validationAdapter) {
+      const errors = finalConfig.validationAdapter.validate(form.formData);
+      if (Object.keys(errors).length > 0) {
+        form.setFormError(errors);
         return;
       }
+    } else {
+      // Fallback to built-in field-level rules
+      const rawFormConfig = config.formConfig;
+      const resolvedFormConfig =
+        typeof rawFormConfig === "function"
+          ? rawFormConfig(form)
+          : rawFormConfig;
+
+      if (resolvedFormConfig?.fields) {
+        const clientErrors = validateBunnyForm(
+          resolvedFormConfig.fields,
+          form.formData,
+        );
+        if (Object.keys(clientErrors).length > 0) {
+          form.setFormError(clientErrors);
+          return;
+        }
+      }
     }
+
     await form.submit();
-  }, [form, config.formConfig]); // Stable and explicit dependency
+  }, [form, config.formConfig, finalConfig.validationAdapter]); // Stable and explicit dependency
   useEffect(() => {
     const onFormSuccess = ({
       mode,
