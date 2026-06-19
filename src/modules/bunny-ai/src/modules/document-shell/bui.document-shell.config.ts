@@ -53,6 +53,8 @@ export interface BUINavItem {
   icon: LucideIcon;
   /** Optional section group label (e.g. "Main Menu", "Settings"). */
   section?: string;
+  /** Optional variant to alter the appearance (e.g. "danger"). */
+  variant?: string;
 }
 
 // ── Wizard ─────────────────────────────────────────────────────────────────────

@@ -4,11 +4,23 @@ export namespace PhazeDBBuilders {
   import Contracts = PhazeDBContracts;
 
   export class PhazeTableBuilder implements Contracts.IPhazeTableBuilder {
-    public primaryKey = "++id"; 
+    public primaryKey = "++id";
     public indexes: string[] = [];
 
     public id(propertyName: string = "++id"): this {
       this.primaryKey = propertyName;
+      return this;
+    }
+
+    /**
+     * Switch the table to use a plain (non-auto-increment) string primary key.
+     * Dexie will store whatever value is already on the entity's `id` field —
+     * the caller must supply a UUID v7 before calling `table.add()`.
+     *
+     * @param propertyName - The entity property that holds the key (default: "id").
+     */
+    public uuid(propertyName: string = "id"): this {
+      this.primaryKey = propertyName; // no "++" prefix → Dexie uses the supplied value
       return this;
     }
 
@@ -24,7 +36,7 @@ export namespace PhazeDBBuilders {
     }
 
     public removeIndex(propertyName: string): this {
-      this.indexes = this.indexes.filter(idx => idx !== propertyName);
+      this.indexes = this.indexes.filter((idx) => idx !== propertyName);
       return this;
     }
   }
@@ -42,16 +54,25 @@ export namespace PhazeDBBuilders {
       }
     }
 
-    public create(tableName: string, configure: (table: Contracts.IPhazeTableBuilder) => void): this {
+    public create(
+      tableName: string,
+      configure: (table: Contracts.IPhazeTableBuilder) => void,
+    ): this {
       const table = new PhazeTableBuilder();
       configure(table);
       this.currentTables[tableName] = table;
       return this;
     }
 
-    public update(tableName: string, configure: (table: Contracts.IPhazeTableBuilder) => void, upgrade?: Contracts.PhazeUpgradeHook): this {
+    public update(
+      tableName: string,
+      configure: (table: Contracts.IPhazeTableBuilder) => void,
+      upgrade?: Contracts.PhazeUpgradeHook,
+    ): this {
       if (!this.currentTables[tableName]) {
-        throw new Error(`PhazeDB Error: Table "${tableName}" does not exist to update.`);
+        throw new Error(
+          `PhazeDB Error: Table "${tableName}" does not exist to update.`,
+        );
       }
       configure(this.currentTables[tableName]);
       if (upgrade) this.upgradeHook = upgrade;

@@ -8,10 +8,15 @@ import { IPhazeModelBuilder } from "@/src/modules/phaze/src/PhazeDB";
 
 export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
   // ── Version 1 — initial schema ──────────────────────────────────
+  //
+  // All tables use a plain string primary key ("id") so that UUID v7 values
+  // supplied by PhazeRepository.create() are stored as-is.  The "uuid()"
+  // helper sets the Dexie primary-key expression to "id" (no "++" prefix),
+  // which tells Dexie to use the value already present on the entity object.
   model.schema((config) => {
     // Flow Definitions
     config.create("definitions", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("code");
       table.index("slug");
       table.index("status");
@@ -19,7 +24,7 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
 
     // Workflow Templates
     config.create("workflowTemplates", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("definitionId");
       table.index("slug");
       table.index("status");
@@ -27,7 +32,7 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
 
     // Pipelines
     config.create("pipelines", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("templateId");
       table.index("flowId");
       table.index("slug");
@@ -36,27 +41,27 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
 
     // Pipeline Stores
     config.create("pipelineStores", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("pipelineId");
     });
 
     // Pipeline Store Data
     config.create("pipelineStoreData", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("storeId");
       table.index("key");
     });
 
     // Report Templates
     config.create("reportTemplates", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("workflowId");
       table.index("flowId");
     });
 
     // Pipeline Reports
     config.create("pipelineReports", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("pipelineId");
       table.index("templateId");
       table.index("flowId");
@@ -64,13 +69,13 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
 
     // Report Snapshots
     config.create("reportSnapshots", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("pipelineId");
     });
 
     // Variable Groups
     config.create("variableGroups", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("flowId");
       table.index("slug");
     });
@@ -79,7 +84,7 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
   // ── Version 2 — add global variables ───────────────────────────
   model.schema((config) => {
     config.create("globalVariables", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("name");
       table.index("group");
     });
@@ -88,7 +93,7 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
   // ── Version 3 — add flow variables (individual vars in groups) ─
   model.schema((config) => {
     config.create("flowVariables", (table) => {
-      table.index("id");
+      table.uuid();
       table.index("groupId");
       table.index("name");
     });

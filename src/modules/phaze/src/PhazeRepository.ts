@@ -1,4 +1,5 @@
 // phaze.repository.ts
+import { v7 as uuidv7 } from "uuid";
 import { Table } from "dexie";
 import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 import {
@@ -59,6 +60,17 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
   }
 
   public async create(data: T): Promise<PhazeRepositoryResult<T>> {
+    // Only inject UUID v7 for tables that use a manual (non-auto-increment) primary key.
+    // Dexie's IndexSpec.auto indicates whether the primary key is auto-incremented ("++id").
+    const isAutoIncrement = this.set.schema.primKey.auto === true;
+
+    if (!isAutoIncrement) {
+      const entity = data as Record<string, unknown>;
+      if (entity["id"] === undefined || entity["id"] === null) {
+        entity["id"] = uuidv7();
+      }
+    }
+
     const id = await this.set.add(data); //
     return await this.get(id); //
   }
@@ -77,7 +89,7 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
   }
 
   public async delete(id: AdminPanelId): Promise<PhazeRepositoryResult> {
-    await this.set.delete(Number(id)); //
+    await this.set.delete(id as string); //
     return this.result.successType(undefined); //
   }
 

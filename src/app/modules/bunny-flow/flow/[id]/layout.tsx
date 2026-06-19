@@ -40,13 +40,11 @@ export default function BFlowInnerLayout({
       name: "Flow Manager",
       subtitle: "Enterprise Tier",
     },
+    wizard: {
+      label: "Back to Flows",
+      href: "/modules/bunny-flow/definitions",
+    },
     navItems: [
-      {
-        href: `/modules/bunny-flow/definitions`,
-        label: "Back to Flows",
-        icon: ArrowLeft,
-        section: "Navigation",
-      },
       {
         href: `/modules/bunny-flow/flow/${id}`,
         label: "Dashboard",

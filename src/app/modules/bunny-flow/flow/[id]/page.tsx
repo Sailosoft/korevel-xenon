@@ -1,15 +1,12 @@
 "use client";
 
-import { use, useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { use, useState, useEffect } from "react";
 import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
-import {
-  GitBranch,
-  Workflow,
-  Container,
-  FileBarChart,
-  ArrowLeft,
-} from "lucide-react";
+import type { BFlowDefinitionEntity } from "@/src/modules/bunny-flow/src/definition/BFlowDefinition.Types";
+import type { BFlowWorkflowTemplateEntity } from "@/src/modules/bunny-flow/src/workflow/BFlowWorkflow.Types";
+import type { BFlowPipelineEntity } from "@/src/modules/bunny-flow/src/pipeline/BFlowPipeline.Types";
+import type { BFlowReportTemplateEntity } from "@/src/modules/bunny-flow/src/report/BFlowReport.Types";
+import { GitBranch, Workflow, Container, FileBarChart } from "lucide-react";
 import Link from "next/link";
 
 // ─── Props ────────────────────────────────────────────────────────
@@ -23,42 +20,41 @@ interface FlowDashboardPageProps {
 export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
   const { id } = use(params);
 
-  // ── Track query completion separately from data ──
-  // useLiveQuery returns undefined for BOTH "loading" and "not found".
-  // Without this flag the page would spin forever when get(id) resolves
-  // to undefined (i.e. the record doesn't exist).
   const [loaded, setLoaded] = useState(false);
+  const [definition, setDefinition] = useState<
+    BFlowDefinitionEntity | undefined
+  >(undefined);
+  const [workflows, setWorkflows] = useState<BFlowWorkflowTemplateEntity[]>([]);
+  const [pipelines, setPipelines] = useState<BFlowPipelineEntity[]>([]);
+  const [reports, setReports] = useState<BFlowReportTemplateEntity[]>([]);
 
-  // Fetch the flow definition and related counts
-  const definition = useLiveQuery(
-    () =>
-      bflowDB.definitions.get(id).then((result) => {
-        setLoaded(true);
-        return result;
-      }),
-    [id],
-  );
+  // ── Load data from Bunny Flow database on mount / id change ──
+  useEffect(() => {
+    let cancelled = false;
 
-  const workflows =
-    useLiveQuery(
-      () =>
-        bflowDB.workflowTemplates
-          .filter((w) => w.definitionId === id)
-          .toArray(),
-      [id],
-    ) ?? [];
+    const loadData = async () => {
+      const [def, wfs, pipes, rpts] = await Promise.all([
+        bflowDB.definitions.get(id),
+        bflowDB.workflowTemplates.where("definitionId").equals(id).toArray(),
+        bflowDB.pipelines.where("flowId").equals(id).toArray(),
+        bflowDB.reportTemplates.where("flowId").equals(id).toArray(),
+      ]);
 
-  const pipelines =
-    useLiveQuery(
-      () => bflowDB.pipelines.filter((p) => p.flowId === id).toArray(),
-      [id],
-    ) ?? [];
+      if (cancelled) return;
 
-  const reports =
-    useLiveQuery(
-      () => bflowDB.reportTemplates.filter((r) => r.flowId === id).toArray(),
-      [id],
-    ) ?? [];
+      setDefinition(def);
+      setWorkflows(wfs);
+      setPipelines(pipes);
+      setReports(rpts);
+      setLoaded(true);
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (!loaded) {
     return (
@@ -68,19 +64,32 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
     );
   }
 
-  const activePipelines = pipelines.filter((p: any) => p.status === "running");
+  // Handle case where definition is not found
+  if (loaded && !definition) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <h1 className="text-2xl font-bold text-red-800 mb-2">
+            Flow Not Found
+          </h1>
+          <p className="text-red-600">
+            The requested flow definition with ID "{id}" could not be found.
+          </p>
+          <Link
+            href="/modules/bunny-flow/definitions"
+            className="mt-4 inline-block text-red-600 hover:text-red-800 underline"
+          >
+            Back to Flows
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const activePipelines = pipelines.filter((p) => p.status === "running");
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* ── Back navigation ── */}
-      <Link
-        href="/modules/bunny-flow"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-[#ff2d20] transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Flows
-      </Link>
-
       {/* ── Flow Header ── */}
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-100">
@@ -88,7 +97,7 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
-            {definition?.name ?? "Loading..."}
+            {definition?.name || "Untitled Flow"}
           </h1>
           <p className="text-sm text-slate-400">
             {definition?.code ?? ""}
@@ -150,7 +159,7 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
         </h3>
         {pipelines.length > 0 ? (
           <div className="divide-y divide-slate-50">
-            {pipelines.slice(0, 5).map((p: any) => (
+            {pipelines.slice(0, 5).map((p) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between py-2"
