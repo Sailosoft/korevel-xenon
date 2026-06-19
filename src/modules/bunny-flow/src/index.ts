@@ -1,5 +1,33 @@
 // ─── BFlow Module Barrel Export ─────────────────────────────────
 
+// Adapters
+export {
+  createBFlowZodAdapter,
+  BFlowDefinitionFormSchema,
+  BFlowWorkflowTemplateFormSchema,
+  BFlowPipelineFormSchema,
+  BFlowVariableGroupFormSchema,
+  BFlowGlobalVariableFormSchema,
+  BFlowFlowVariableFormSchema,
+  BFlowReportTemplateFormSchema,
+  useBFlowDefinitionFormValidation,
+  useBFlowWorkflowFormValidation,
+  useBFlowPipelineFormValidation,
+  useBFlowVariableGroupFormValidation,
+  useBFlowGlobalVariableFormValidation,
+  useBFlowFlowVariableFormValidation,
+  useBFlowReportTemplateFormValidation,
+} from "./adapters";
+export type {
+  BFlowDefinitionForm,
+  BFlowWorkflowTemplateForm,
+  BFlowPipelineForm,
+  BFlowVariableGroupForm,
+  BFlowGlobalVariableForm,
+  BFlowFlowVariableForm,
+  BFlowReportTemplateForm,
+} from "./adapters";
+
 // Types
 export type { BFlowDefinitionEntity } from "./definition/BFlowDefinition.Types";
 export type {

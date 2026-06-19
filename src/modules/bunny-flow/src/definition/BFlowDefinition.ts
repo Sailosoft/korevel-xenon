@@ -1,6 +1,7 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowDefinitionEntity } from "./BFlowDefinition.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { useBFlowDefinitionFormValidation } from "../adapters/BFlowZodAdapter";
 import { GitBranch } from "lucide-react";
 import { createElement } from "react";
 
@@ -11,6 +12,9 @@ export const bflowDefinitionModule = BunnyFeature.create<
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow");
   feature.useDefault();
+
+  // ── Validation adapter ─────────────────────────────────────────────────
+  feature.setValidationAdapter(useBFlowDefinitionFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
       { field: "id", header: "ID", sortable: true, isRowHeader: true },
@@ -35,13 +39,6 @@ export const bflowDefinitionModule = BunnyFeature.create<
     form.setOnSuccess({ mode: "redirect", route: "/modules/bunny-flow/flow" });
     form.addFields([
       {
-        name: "code",
-        label: "Code",
-        placeholder: "Enter unique flow code",
-        type: "text",
-        required: true,
-      },
-      {
         name: "name",
         label: "Name",
         placeholder: "Enter flow name",
@@ -49,11 +46,18 @@ export const bflowDefinitionModule = BunnyFeature.create<
         required: true,
       },
       {
+        name: "code",
+        label: "Code",
+        type: "slug",
+        required: true,
+        slug: { sourceField: "name", prefix: "FLOW-" },
+      },
+      {
         name: "slug",
         label: "Slug",
-        placeholder: "Enter URL-safe slug",
-        type: "text",
+        type: "slug",
         required: true,
+        slug: { sourceField: "name" },
       },
       {
         name: "description",

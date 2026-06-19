@@ -18,6 +18,7 @@ import {
 } from "../BunnyForm.Interface";
 import BunnyMDXEditor from "./BunnyMDXEditor";
 import BunnyCodeEditor from "./BunnyCodeEditor";
+import { BunnyFormSlugField } from "./BunnyFormSlugField";
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -238,6 +239,17 @@ const FieldRenderer = memo(function FieldRenderer({
           </div>
           {showError && <p className="text-sm text-red-500">{error}</p>}
         </div>
+      );
+
+    case "slug":
+      return (
+        <BunnyFormSlugField
+          field={field as BunnyFormField<Record<string, unknown>>}
+          value={value}
+          formData={formData}
+          onChange={onChange}
+          error={error}
+        />
       );
 
     case "editor":

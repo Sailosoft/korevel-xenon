@@ -47,3 +47,21 @@ export const BFlowVariableGroupSchema = z.object({
   updatedAt: z.date(),
 });
 export type BFlowVariableGroupEntity = z.infer<typeof BFlowVariableGroupSchema>;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a variable group.
+ * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
+ */
+export const BFlowVariableGroupFormSchema = z.object({
+  flowId: z.string().min(1, "Flow definition is required"),
+  name: z.string().min(1, "Name must not be empty").max(256),
+  slug: z.string().min(1, "Slug must not be empty").max(128),
+  description: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type BFlowVariableGroupForm = z.infer<
+  typeof BFlowVariableGroupFormSchema
+>;

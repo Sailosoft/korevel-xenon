@@ -101,3 +101,24 @@ export const BFlowPipelineStoreDataSchema = z.object({
 export type BFlowPipelineStoreDataEntity = z.infer<
   typeof BFlowPipelineStoreDataSchema
 >;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a pipeline.
+ * Excludes auto-generated fields: `id`, `version`, `createdAt`, `updatedAt`.
+ */
+export const BFlowPipelineFormSchema = z.object({
+  templateId: z.string().min(1, "Workflow template is required"),
+  flowId: z.string().min(1, "Flow definition is required"),
+  variableGroupId: z.string().min(1, "Variable group is required"),
+  name: z.string().min(1, "Name must not be empty").max(256),
+  slug: z.string().min(1, "Slug must not be empty").max(128),
+  description: z.string().optional(),
+  prompt: z.string().optional(),
+  versionLabel: z.string().optional(),
+  status: BFlowPipelineStatusSchema.optional().default("running"),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type BFlowPipelineForm = z.infer<typeof BFlowPipelineFormSchema>;

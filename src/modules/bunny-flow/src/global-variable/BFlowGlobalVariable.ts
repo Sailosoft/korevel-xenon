@@ -1,6 +1,7 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowGlobalVariableEntity } from "./BFlowGlobalVariable.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { useBFlowGlobalVariableFormValidation } from "../adapters/BFlowZodAdapter";
 import { Eye } from "lucide-react";
 import { createElement } from "react";
 
@@ -11,6 +12,9 @@ export const bflowGlobalVariableModule = BunnyFeature.create<
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
   feature.useDefault();
+
+  // ── Validation adapter ─────────────────────────────────────────────────
+  feature.setValidationAdapter(useBFlowGlobalVariableFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
       { field: "id", header: "ID", sortable: true, isRowHeader: true },

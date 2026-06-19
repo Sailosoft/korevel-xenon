@@ -1,6 +1,7 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowWorkflowTemplateEntity } from "./BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
 
 export const bflowWorkflowModule = BunnyFeature.create<
   BFlowWorkflowTemplateEntity,
@@ -9,6 +10,10 @@ export const bflowWorkflowModule = BunnyFeature.create<
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
   feature.useDefault();
+
+  // ── Validation adapter ─────────────────────────────────────────────────
+  feature.setValidationAdapter(useBFlowWorkflowFormValidation());
+  feature.setModalSize("lg");
 
   feature.configureTable((table) => {
     table.addColumns([
@@ -29,7 +34,7 @@ export const bflowWorkflowModule = BunnyFeature.create<
         label: "Flow Definition",
         placeholder: "Select flow definition",
         type: "select",
-        required: true,
+        // required: true,
         options: () => bflowDB.definitionsRepo.toSelectOptions(),
       },
       {
@@ -37,14 +42,14 @@ export const bflowWorkflowModule = BunnyFeature.create<
         label: "Name",
         placeholder: "Enter workflow name",
         type: "text",
-        required: true,
+        // required: true,
       },
       {
         name: "slug",
         label: "Slug",
-        placeholder: "Enter URL-safe slug",
-        type: "text",
-        required: true,
+        type: "slug",
+        // required: true,
+        slug: { sourceField: "name" },
       },
       {
         name: "description",
@@ -78,7 +83,7 @@ export const bflowWorkflowModule = BunnyFeature.create<
         rows: 12,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.workflowTemplatesRepo.dataLayer);

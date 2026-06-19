@@ -38,3 +38,22 @@ export const BFlowGlobalVariableSchema = z.object({
 export type BFlowGlobalVariableEntity = z.infer<
   typeof BFlowGlobalVariableSchema
 >;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a global variable.
+ * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
+ */
+export const BFlowGlobalVariableFormSchema = z.object({
+  name: z.string().min(1, "Name must not be empty").max(256),
+  value: z.string().min(1, "Default value is required"),
+  type: BFlowVariableTypeSchema,
+  description: z.string().optional(),
+  group: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type BFlowGlobalVariableForm = z.infer<
+  typeof BFlowGlobalVariableFormSchema
+>;

@@ -31,3 +31,24 @@ export const BFlowDefinitionSchema = z.object({
 });
 
 export type BFlowDefinitionEntity = z.infer<typeof BFlowDefinitionSchema>;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a flow definition.
+ * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
+ */
+export const BFlowDefinitionFormSchema = z.object({
+  code: z.string().min(1, "Code is required"),
+  name: z.string().min(1, "Name must not be empty").max(256),
+  slug: z.string().min(1, "Slug must not be empty").max(128),
+  description: z.string().optional(),
+  version: z.string().optional(),
+  status: z
+    .enum(["draft", "published", "archived"])
+    .optional()
+    .default("draft"),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type BFlowDefinitionForm = z.infer<typeof BFlowDefinitionFormSchema>;

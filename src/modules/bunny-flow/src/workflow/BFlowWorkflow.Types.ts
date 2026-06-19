@@ -191,3 +191,24 @@ export const BFlowWorkflowTemplateSchema = z.object({
 export type BFlowWorkflowTemplateEntity = z.infer<
   typeof BFlowWorkflowTemplateSchema
 >;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a workflow template.
+ * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
+ */
+export const BFlowWorkflowTemplateFormSchema = z.object({
+  definitionId: z.string().min(1, "Flow definition is required"),
+  name: NameSchema,
+  slug: SlugSchema,
+  description: z.string().optional(),
+  version: z.string().optional(),
+  status: BFlowWorkflowStatusSchema.optional().default("draft"),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  templateYaml: z.string().optional(),
+});
+
+export type BFlowWorkflowTemplateForm = z.infer<
+  typeof BFlowWorkflowTemplateFormSchema
+>;

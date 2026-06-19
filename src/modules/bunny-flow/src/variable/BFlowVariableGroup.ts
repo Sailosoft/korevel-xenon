@@ -1,6 +1,7 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowVariableGroupEntity } from "./BFlowVariableGroup.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { useBFlowVariableGroupFormValidation } from "../adapters/BFlowZodAdapter";
 import { List } from "lucide-react";
 import { createElement } from "react";
 
@@ -11,6 +12,9 @@ export const bflowVariableGroupModule = BunnyFeature.create<
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
   feature.useDefault();
+
+  // ── Validation adapter ─────────────────────────────────────────────────
+  feature.setValidationAdapter(useBFlowVariableGroupFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
       { field: "id", header: "ID", sortable: true, isRowHeader: true },
@@ -54,9 +58,9 @@ export const bflowVariableGroupModule = BunnyFeature.create<
       {
         name: "slug",
         label: "Slug",
-        placeholder: "Enter URL-safe slug",
-        type: "text",
+        type: "slug",
         required: true,
+        slug: { sourceField: "name" },
       },
       {
         name: "description",

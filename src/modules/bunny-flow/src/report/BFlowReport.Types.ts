@@ -96,3 +96,27 @@ export const BFlowReportSnapshotSchema = z.object({
 export type BFlowReportSnapshotEntity = z.infer<
   typeof BFlowReportSnapshotSchema
 >;
+
+// ─── Form Schema (user-editable fields only) ─────────────────────────
+
+/**
+ * Form schema for creating/updating a report template.
+ * Excludes auto-generated fields: `id`.
+ */
+export const BFlowReportTemplateFormSchema = z.object({
+  workflowId: z.string().min(1, "Workflow is required"),
+  flowId: z.string().min(1, "Flow definition is required"),
+  filename: z.string().min(1, "Filename is required"),
+  reports: z
+    .array(
+      z.object({
+        mode: z.enum(["default", "plain", "html", "markdown"]),
+        title: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+export type BFlowReportTemplateForm = z.infer<
+  typeof BFlowReportTemplateFormSchema
+>;

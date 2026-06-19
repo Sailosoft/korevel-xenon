@@ -1,6 +1,7 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
 import { BFlowFlowVariableEntity } from "./BFlowFlowVariable.Types";
 import { bflowDB } from "../database/BFlowDatabase";
+import { useBFlowFlowVariableFormValidation } from "../adapters/BFlowZodAdapter";
 
 export const bflowFlowVariableModule = BunnyFeature.create<
   BFlowFlowVariableEntity,
@@ -9,6 +10,9 @@ export const bflowFlowVariableModule = BunnyFeature.create<
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
   feature.useDefault();
+
+  // ── Validation adapter ─────────────────────────────────────────────────
+  feature.setValidationAdapter(useBFlowFlowVariableFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
       { field: "id", header: "ID", sortable: true, isRowHeader: true },

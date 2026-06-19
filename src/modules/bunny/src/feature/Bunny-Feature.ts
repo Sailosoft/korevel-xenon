@@ -6,6 +6,7 @@ import {
   BunnyConfig,
   BunnyModalSize,
   BunnyOnSuccessBehavior,
+  BunnyValidationAdapter,
 } from "../Bunny.Interface";
 import {
   BunnyHeaderAction,
@@ -113,6 +114,27 @@ export class BunnyFeature<TRow, TForm> {
 
   public setModalWidth(width: number): this {
     this.config.modalSizeWidth = width;
+    return this;
+  }
+
+  /**
+   * Set a validation adapter to replace the built-in field-level rules.
+   *
+   * The adapter takes **precedence** over `BunnyValidationRule` entries on fields.
+   * Use this to plug in Zod, Yup, Joi, or any custom validation logic without
+   * adding those libraries as Bunny dependencies.
+   *
+   * @example
+   * ```ts
+   * BunnyFeature.create("Books", "id", (feature) => {
+   *   feature.setValidationAdapter(useBunnyZodAdapter(myZodSchema));
+   * });
+   * ```
+   *
+   * @see BunnyValidationAdapter
+   */
+  public setValidationAdapter(adapter: BunnyValidationAdapter<TForm>): this {
+    this.config.validationAdapter = adapter;
     return this;
   }
 

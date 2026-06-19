@@ -148,6 +148,22 @@ function BunnyMainPanel<TRow, TForm>({
       const errors = finalConfig.validationAdapter.validate(form.formData);
       if (Object.keys(errors).length > 0) {
         form.setFormError(errors);
+        console.error("There is form error", errors);
+        toast.danger(
+          <div className="space-y-2">
+            <p className="font-medium">Please fix the following errors:</p>
+            <ul className="list-disc pl-5 text-sm">
+              {Object.entries(errors).map(
+                ([field, message]: [string, string]) => (
+                  <li key={field}>
+                    <strong>{field}</strong>: {message}
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>,
+          {},
+        );
         return;
       }
     } else {

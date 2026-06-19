@@ -8,6 +8,7 @@ export type BunnyFieldType =
   | "switch"
   | "editor"
   | "code-editor"
+  | "slug"
   | "custom"
   | "render";
 
@@ -79,6 +80,24 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
    * Receives {@link BunnyFieldRendererProps} including formData.
    */
   render?: BunnyRenderFieldFn<TForm>;
+  /**
+   * Configuration for "slug" field type.
+   * Automatically generates a URL-safe slug from a watched source field.
+   */
+  slug?: {
+    /** Name of the source field to watch for generating the slug */
+    sourceField: string;
+    /** Optional prefix added before the generated slug (e.g., "prod-") */
+    prefix?: string;
+    /** Optional suffix added after the generated slug (e.g., "-v2") */
+    suffix?: string;
+    /**
+     * Custom transformation function.
+     * Default transform: lowercase, trim, replace spaces/special chars with hyphens,
+     * collapse multiple hyphens, strip leading/trailing hyphens.
+     */
+    transform?: (value: string) => string;
+  };
 }
 
 export interface BunnyValidationRule {
