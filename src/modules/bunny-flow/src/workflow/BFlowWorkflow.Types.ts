@@ -180,9 +180,9 @@ export const BFlowWorkflowTemplateSchema = z.object({
   /** Metadata of the workflow */
   metadata: z.record(z.string(), z.unknown()).optional(),
   /** Template YAML string */
-  templateYaml: z.string().optional(),
+  templateYaml: z.string(),
   /** Actual workflow data (parsed from YAML) */
-  template: BFlowWorkflowSchema.optional(),
+  template: BFlowWorkflowSchema,
   /** Created timestamp */
   createdAt: z.date(),
   /** Updated timestamp */
@@ -206,7 +206,7 @@ export const BFlowWorkflowTemplateFormSchema = z.object({
   version: z.string().optional(),
   status: BFlowWorkflowStatusSchema.optional().default("draft"),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  templateYaml: z.string().optional(),
+  templateYaml: z.string().min(1, "Template YAML is required"),
 });
 
 export type BFlowWorkflowTemplateForm = z.infer<

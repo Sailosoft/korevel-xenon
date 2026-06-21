@@ -18,8 +18,14 @@ import {
 import { BunnyRowDefaultActions } from "../rows/BunnyRow.Interface";
 import { BunnyRowAction, BunnyColumn } from "../table/BunnyTable.Interface";
 import { BunnyFormConfig, BunnyFormField } from "../form/BunnyForm.Interface";
-import { BunnyFeatureConstant } from "./Bunny-Feature.Constant";
-import BunnyFeatureUtil from "./Bunny-Feature.Util";
+import { BunnyFeatureConstant } from "./BunnyFeature.Constant";
+import BunnyFeatureUtil from "./BunnyFeature.Util";
+import { BunnyModalConfigurator } from "./BunnyFeature.ModalConf";
+import { BunnyHeaderConfigurator } from "./BunnyFeature.HeaderConf";
+import { BunnyRowConfigurator } from "./BunnyFeature.RowConf";
+import { BunnyTableConfigurator } from "./BunnyFeature.TableConf";
+import { BunnyFormConfigurator } from "./BunnyFeature.FormConf";
+import { BunnyDataLayerConfigurator } from "./BunnyFeature.DataLayerConf";
 
 // ── Deep-freeze utility ─────────────────────────────────────────────────
 // Recursively freezes an object so it becomes immutable at runtime.
@@ -201,189 +207,6 @@ export class BunnyFeature<TRow, TForm> {
     configure: (configurator: BunnyModalConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyModalConfigurator(this.config));
-    return this;
-  }
-}
-
-class BunnyModalConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {}
-
-  public setSize(size: BunnyModalSize | number): this {
-    if (typeof size === "string") {
-      this.config.modalSize = size;
-    } else if (typeof size === "number") {
-      this.config.modalSizeWidth = size;
-    }
-    return this;
-  }
-}
-
-class BunnyHeaderConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {}
-
-  public disableDefaults(): this {
-    this.config.defaultHeaderActions = false;
-    return this;
-  }
-
-  public hide(actions: BunnyHeaderActionType[]): this {
-    this.config.hideHeaderActions = actions;
-    return this;
-  }
-
-  public addAction(action: BunnyHeaderAction<TRow, TForm>): this {
-    if (!this.config.headerActions) this.config.headerActions = [];
-    this.config.headerActions.push(action);
-    return this;
-  }
-}
-
-class BunnyRowConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {}
-
-  public disableDefaults(): this {
-    this.config.defaultRowActions = false;
-    return this;
-  }
-
-  public hide(actions: BunnyRowDefaultActions[]): this {
-    this.config.hideRowActions = actions;
-    return this;
-  }
-
-  public addAction(action: BunnyRowAction<TRow>): this {
-    if (!this.config.rowActions) this.config.rowActions = [];
-    this.config.rowActions.push(action);
-    return this;
-  }
-
-  public setColumnWidth(width: number): this {
-    this.config.rowActionsColWidth = width;
-    return this;
-  }
-
-  public setMaxVisibleLength(length: number): this {
-    this.config.rowActionsColLength = length;
-    return this;
-  }
-}
-
-class BunnyTableConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {
-    if (!this.config.props) this.config.props = {};
-    if (!this.config.props.table) this.config.props.table = {};
-  }
-
-  public setHeight(height: string | number): this {
-    this.config.tableHeight = height;
-    return this;
-  }
-
-  public addColumns(columns: BunnyColumn<TRow>[]): this {
-    const existingFields = new Set(this.config.columns.map((c) => c.field));
-    const deduped = columns.filter((c) => !existingFields.has(c.field));
-    this.config.columns = [...this.config.columns, ...deduped];
-    return this;
-  }
-
-  public setMode(mode: BunnyConfig<TRow, TForm>["tableMode"]): this {
-    this.config.tableMode = mode;
-    return this;
-  }
-
-  public configureProps(
-    props: NonNullable<NonNullable<BunnyConfig<TRow, TForm>["props"]>["table"]>,
-  ): this {
-    this.config.props!.table = { ...this.config.props!.table, ...props };
-    return this;
-  }
-}
-
-class BunnyFormConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {
-    if (!this.config.props) this.config.props = {};
-    if (!this.config.props.form) this.config.props.form = {};
-    this.setGridCols(1);
-  }
-
-  public configureProps(
-    props: NonNullable<NonNullable<BunnyConfig<TRow, TForm>["props"]>["form"]>,
-  ): this {
-    this.config.props!.form = { ...this.config.props!.form, ...props };
-    return this;
-  }
-
-  public setOnSuccess(onSuccess: BunnyOnSuccessBehavior): this {
-    this.config.onFormSuccess = onSuccess;
-    return this;
-  }
-
-  public setBeforeSubmit(
-    beforeSubmit: (form: Partial<TForm>, mode: AdminPanelFormMode) => TForm,
-  ): this {
-    this.config.beforeFormSubmit = beforeSubmit;
-    return this;
-  }
-
-  /**
-   * Define the form fields that will be rendered by BunnyFormBuilder.
-   * Accepts an array of BunnyFormField objects — the primary way to
-   * configure form controls through the fluent API.
-   */
-  public addFields(fields: BunnyFormField<TForm>[]): this {
-    const raw = this.config.formConfig;
-    if (!raw) {
-      // Initialize as a plain config object (not a function)
-      this.config.formConfig = { fields: [...fields] };
-    } else if (typeof raw !== "function") {
-      // Already a plain config object — append fields
-      (this.config.formConfig as BunnyFormConfig<TForm>).fields.push(...fields);
-    }
-    return this;
-  }
-
-  /**
-   * Set the number of grid columns for the form layout (default: 1).
-   */
-  public setGridCols(cols: number): this {
-    const raw = this.config.formConfig;
-    if (!raw) {
-      this.config.formConfig = { fields: [], gridCols: cols };
-    } else if (typeof raw !== "function") {
-      (this.config.formConfig as BunnyFormConfig<TForm>).gridCols = cols;
-    }
-    return this;
-  }
-}
-
-class BunnyDataLayerConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {}
-
-  public useQuery(query: AdminPanelQuery<TRow, TForm>): this {
-    this.config.query = query;
-    return this;
-  }
-
-  public useMutation(mutation: AdminPanelMutation<TForm>): this {
-    this.config.mutation = mutation;
-    return this;
-  }
-
-  public useRepository(repository: IBUIRepositoryAdminPanel<TRow>): this {
-    this.config.query = {
-      getAll: repository.panelGetAll,
-      getOne: repository.panelGetOne as AdminPanelQuery<TRow, TForm>["getOne"],
-    };
-
-    this.config.mutation = {
-      create:
-        repository.panelCreate as unknown as AdminPanelMutation<TForm>["create"],
-      update:
-        repository.panelUpdate as unknown as AdminPanelMutation<TForm>["update"],
-      delete:
-        repository.panelDelete as unknown as AdminPanelMutation<TForm>["delete"],
-    };
-
     return this;
   }
 }

@@ -1,4 +1,4 @@
-import { BunnyFeature } from "@/src/modules/bunny/src/feature/Bunny-Feature";
+import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowDefinitionEntity } from "./BFlowDefinition.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowDefinitionFormValidation } from "../adapters/BFlowZodAdapter";

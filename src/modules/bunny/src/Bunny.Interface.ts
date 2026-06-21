@@ -120,25 +120,6 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   /**
    * Optional validation adapter.
    *
-   * When provided, this takes **precedence** over the built-in field-level rules
-   * (`BunnyValidationRule`). Use this to plug in Zod, Yup, Joi, or any custom
-   * validation logic without adding those libraries as Bunny dependencies.
-   *
-   * The adapter must be implemented in your **consumer project** where your
-   * validation library lives.
-   *
-   * @example
-   * ```ts
-   * import { useBunnyZodAdapter } from "@/modules/bunny/adapters/BunnyZodAdapter";
-   * import { z } from "zod";
-   *
-   * const schema = z.object({ title: z.string().min(1) });
-   *
-   * <Bunny config={{
-   *   formConfig: myFormConfig,
-   *   validationAdapter: useBunnyZodAdapter(schema),
-   * }} />
-   * ```
    */
   validationAdapter?: BunnyValidationAdapter<TForm>;
 
