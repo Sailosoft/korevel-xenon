@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, GitBranch, Globe } from "lucide-react";
+import { LayoutDashboard, GitBranch, Globe, Brain } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
 
@@ -31,6 +31,11 @@ const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
       href: "/modules/bunny-flow/global-variables",
       label: "Global Variables",
       icon: Globe,
+    },
+    {
+      href: "/modules/bunny-flow/ai-config",
+      label: "AI Config",
+      icon: Brain,
     },
   ],
 };

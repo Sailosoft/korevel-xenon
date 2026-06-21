@@ -9,6 +9,9 @@ export {
   useBFlowGlobalVariableFormValidation,
   useBFlowFlowVariableFormValidation,
   useBFlowReportTemplateFormValidation,
+  useBFlowGlobalAIConfigFormValidation,
+  useBFlowFlowAIConfigFormValidation,
+  useBFlowPipelineAIConfigFormValidation,
 } from "./BFlowZodAdapter";
 
 // Re-export form schemas from their respective domain modules
@@ -32,3 +35,15 @@ export type { BFlowFlowVariableForm } from "../flow-variable/BFlowFlowVariable.T
 
 export { BFlowReportTemplateFormSchema } from "../report/BFlowReport.Types";
 export type { BFlowReportTemplateForm } from "../report/BFlowReport.Types";
+
+// AI Config form schemas
+export {
+  BFlowGlobalAIConfigFormSchema,
+  BFlowFlowAIConfigFormSchema,
+  BFlowPipelineAIConfigFormSchema,
+} from "../ai-config/BFlowAIConfig.Types";
+export type {
+  BFlowGlobalAIConfigForm,
+  BFlowFlowAIConfigForm,
+  BFlowPipelineAIConfigForm,
+} from "../ai-config/BFlowAIConfig.Types";

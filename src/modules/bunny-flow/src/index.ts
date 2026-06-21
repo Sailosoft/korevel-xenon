@@ -58,6 +58,25 @@ export type { BFlowVariableGroupEntity } from "./variable/BFlowVariableGroup.Typ
 export type { BFlowGlobalVariableEntity } from "./global-variable/BFlowGlobalVariable.Types";
 export type { BFlowFlowVariableEntity } from "./flow-variable/BFlowFlowVariable.Types";
 
+// AI Config Types
+export type {
+  BFlowGlobalAIConfigEntity,
+  BFlowFlowAIConfigEntity,
+  BFlowPipelineAIConfigEntity,
+  BFlowAIConfigValue,
+  BFlowJobAIConfig,
+  BFlowResolvedAIConfig,
+  BFlowAnyAIConfigEntity,
+  BFlowGlobalAIConfigForm,
+  BFlowFlowAIConfigForm,
+  BFlowPipelineAIConfigForm,
+} from "./ai-config/BFlowAIConfig.Types";
+export {
+  BFlowGlobalAIConfigFormSchema,
+  BFlowFlowAIConfigFormSchema,
+  BFlowPipelineAIConfigFormSchema,
+} from "./ai-config/BFlowAIConfig.Types";
+
 // DB
 export { BFlowDatabase } from "./database/BFlowDatabase";
 
@@ -70,6 +89,11 @@ export { bflowVariableGroupModule } from "./variable/BFlowVariableGroup";
 export { bflowGlobalVariableModule } from "./global-variable/BFlowGlobalVariable";
 export { bflowFlowVariableModule } from "./flow-variable/BFlowFlowVariable";
 
+// AI Config Modules
+export { bflowGlobalAIConfigModule } from "./ai-config/BFlowGlobalAIConfig";
+export { bflowFlowAIConfigModule } from "./ai-config/BFlowFlowAIConfig";
+export { bflowPipelineAIConfigModule } from "./ai-config/BFlowPipelineAIConfig";
+
 // Components
 export { default as BFlowDefinitionComponent } from "./definition/BFlowDefinition.Component";
 export { default as BFlowWorkflowComponent } from "./workflow/BFlowWorkflow.Component";
@@ -79,6 +103,23 @@ export { default as BFlowVariableGroupComponent } from "./variable/BFlowVariable
 export { default as BFlowGlobalVariableComponent } from "./global-variable/BFlowGlobalVariable.Component";
 export { default as BFlowFlowVariableComponent } from "./flow-variable/BFlowFlowVariable.Component";
 export { default as BFlowScopedFlowVariables } from "./flow-variable/BFlowScopedFlowVariables";
+
+// AI Config Components
+export {
+  BFlowGlobalAIConfigComponent,
+  BFlowFlowAIConfigComponent,
+  BFlowPipelineAIConfigComponent,
+} from "./ai-config/BFlowAIConfig.Component";
+
+// Scoped AI Config Components
+export { default as BFlowScopedFlowAIConfig } from "./ai-config/BFlowScopedFlowAIConfig";
+export { default as BFlowScopedPipelineAIConfig } from "./ai-config/BFlowScopedPipelineAIConfig";
+
+// Helix Integration
+export {
+  createHelixFromBFlow,
+  resolveBFlowAIOption,
+} from "./ai-config/BFlowHelixIntegration";
 
 // Scoped flow components (Bunny-backed, auto-filtered by definitionId)
 export { default as BFlowScopedWorkflows } from "./flow/BFlowScopedWorkflows";
@@ -98,3 +139,11 @@ export { BFlowReportRepository } from "./report/BFlowReport.Repository";
 export { BFlowVariableGroupRepository } from "./variable/BFlowVariableGroup.Repository";
 export { BFlowGlobalVariableRepository } from "./global-variable/BFlowGlobalVariable.Repository";
 export { BFlowFlowVariableRepository } from "./flow-variable/BFlowFlowVariable.Repository";
+
+// AI Config Repositories
+export {
+  BFlowGlobalAIConfigRepository,
+  BFlowFlowAIConfigRepository,
+  BFlowPipelineAIConfigRepository,
+  BFlowAIConfigResolver,
+} from "./ai-config/BFlowAIConfig.Repository";

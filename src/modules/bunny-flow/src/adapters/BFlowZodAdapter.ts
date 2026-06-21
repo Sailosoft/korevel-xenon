@@ -21,6 +21,12 @@ import { BFlowFlowVariableFormSchema } from "../flow-variable/BFlowFlowVariable.
 
 import { BFlowReportTemplateFormSchema } from "../report/BFlowReport.Types";
 
+import {
+  BFlowGlobalAIConfigFormSchema,
+  BFlowFlowAIConfigFormSchema,
+  BFlowPipelineAIConfigFormSchema,
+} from "../ai-config/BFlowAIConfig.Types";
+
 // ─── Inferred Form Types ─────────────────────────────────────────
 
 type BFlowDefinitionForm = z.infer<typeof BFlowDefinitionFormSchema>;
@@ -30,6 +36,10 @@ type BFlowVariableGroupForm = z.infer<typeof BFlowVariableGroupFormSchema>;
 type BFlowGlobalVariableForm = z.infer<typeof BFlowGlobalVariableFormSchema>;
 type BFlowFlowVariableForm = z.infer<typeof BFlowFlowVariableFormSchema>;
 type BFlowReportTemplateForm = z.infer<typeof BFlowReportTemplateFormSchema>;
+
+type BFlowGlobalAIConfigForm = z.infer<typeof BFlowGlobalAIConfigFormSchema>;
+type BFlowFlowAIConfigForm = z.infer<typeof BFlowFlowAIConfigFormSchema>;
+type BFlowPipelineAIConfigForm = z.infer<typeof BFlowPipelineAIConfigFormSchema>;
 
 // ─── Generic Adapter Factory ───────────────────────────────────────
 
@@ -268,4 +278,46 @@ export function useBFlowReportTemplateFormValidation(
   schema?: z.ZodSchema<BFlowReportTemplateForm>,
 ): BunnyValidationAdapter<BFlowReportTemplateForm> {
   return createBFlowZodAdapter(schema ?? BFlowReportTemplateFormSchema);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BFlowGlobalAIConfig – Form Validation
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Returns a validation adapter for the global AI config form.
+ * Uses {@link BFlowGlobalAIConfigFormSchema} from the ai-config domain by default.
+ */
+export function useBFlowGlobalAIConfigFormValidation(
+  schema?: z.ZodSchema<BFlowGlobalAIConfigForm>,
+): BunnyValidationAdapter<BFlowGlobalAIConfigForm> {
+  return createBFlowZodAdapter(schema ?? BFlowGlobalAIConfigFormSchema);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BFlowFlowAIConfig – Form Validation
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Returns a validation adapter for the flow-level AI config form.
+ * Uses {@link BFlowFlowAIConfigFormSchema} from the ai-config domain by default.
+ */
+export function useBFlowFlowAIConfigFormValidation(
+  schema?: z.ZodSchema<BFlowFlowAIConfigForm>,
+): BunnyValidationAdapter<BFlowFlowAIConfigForm> {
+  return createBFlowZodAdapter(schema ?? BFlowFlowAIConfigFormSchema);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BFlowPipelineAIConfig – Form Validation
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Returns a validation adapter for the pipeline-level AI config form.
+ * Uses {@link BFlowPipelineAIConfigFormSchema} from the ai-config domain by default.
+ */
+export function useBFlowPipelineAIConfigFormValidation(
+  schema?: z.ZodSchema<BFlowPipelineAIConfigForm>,
+): BunnyValidationAdapter<BFlowPipelineAIConfigForm> {
+  return createBFlowZodAdapter(schema ?? BFlowPipelineAIConfigFormSchema);
 }

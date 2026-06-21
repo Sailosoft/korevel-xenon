@@ -22,6 +22,19 @@ import { BFlowGlobalVariableEntity } from "../global-variable/BFlowGlobalVariabl
 import { BFlowGlobalVariableRepository } from "../global-variable/BFlowGlobalVariable.Repository";
 import { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
 import { BFlowFlowVariableRepository } from "../flow-variable/BFlowFlowVariable.Repository";
+
+// AI Config imports
+import {
+  BFlowGlobalAIConfigEntity,
+  BFlowFlowAIConfigEntity,
+  BFlowPipelineAIConfigEntity,
+} from "../ai-config/BFlowAIConfig.Types";
+import {
+  BFlowGlobalAIConfigRepository,
+  BFlowFlowAIConfigRepository,
+  BFlowPipelineAIConfigRepository,
+} from "../ai-config/BFlowAIConfig.Repository";
+
 import { configureBFlowMigrations } from "./BFlowMigration";
 
 export class BFlowDatabase extends PhazeDB {
@@ -95,6 +108,32 @@ export class BFlowDatabase extends PhazeDB {
   );
   public flowVariablesRepo = new BFlowFlowVariableRepository(
     this.flowVariables,
+  );
+
+  // ─── AI Config Tables ──────────────────────────────────────────────
+
+  /** Global AI Config (single record with id="global") */
+  public globalAIConfig = this.table<BFlowGlobalAIConfigEntity, string>(
+    "globalAIConfig",
+  );
+  public globalAIConfigRepo = new BFlowGlobalAIConfigRepository(
+    this.globalAIConfig,
+  );
+
+  /** Flow-level AI Config (per definition flow) */
+  public flowAIConfig = this.table<BFlowFlowAIConfigEntity, string>(
+    "flowAIConfig",
+  );
+  public flowAIConfigRepo = new BFlowFlowAIConfigRepository(
+    this.flowAIConfig,
+  );
+
+  /** Pipeline-level AI Config (per pipeline, with job overrides) */
+  public pipelineAIConfig = this.table<BFlowPipelineAIConfigEntity, string>(
+    "pipelineAIConfig",
+  );
+  public pipelineAIConfigRepo = new BFlowPipelineAIConfigRepository(
+    this.pipelineAIConfig,
   );
 
   protected dbName(): string {

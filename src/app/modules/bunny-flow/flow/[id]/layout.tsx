@@ -10,7 +10,7 @@ import {
   FileBarChart,
   Settings,
   Database,
-  ArrowLeft,
+  Brain,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
@@ -79,6 +79,11 @@ export default function BFlowInnerLayout({
         href: `/modules/bunny-flow/flow/${id}/reports`,
         label: "Reports",
         icon: FileBarChart,
+      },
+      {
+        href: `/modules/bunny-flow/flow/${id}/ai-config`,
+        label: "AI Config",
+        icon: Brain,
       },
       {
         href: `/modules/bunny-flow/flow/${id}/settings`,

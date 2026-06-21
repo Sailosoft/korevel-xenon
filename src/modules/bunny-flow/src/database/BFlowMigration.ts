@@ -98,4 +98,27 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
       table.index("name");
     });
   });
+
+  // ── Version 4 — add AI config tables ───────────────────────────
+  model.schema((config) => {
+    // Global AI Config (single record with fixed id "global")
+    config.create("globalAIConfig", (table) => {
+      table.uuid("id");
+      table.index("active");
+    });
+
+    // Flow-level AI Config (one per definition flow)
+    config.create("flowAIConfig", (table) => {
+      table.uuid();
+      table.index("flowId");
+      table.index("active");
+    });
+
+    // Pipeline-level AI Config (one per pipeline, with job overrides)
+    config.create("pipelineAIConfig", (table) => {
+      table.uuid();
+      table.index("pipelineId");
+      table.index("active");
+    });
+  });
 }
