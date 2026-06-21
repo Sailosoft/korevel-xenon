@@ -35,7 +35,7 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
     const loadData = async () => {
       const [def, wfs, pipes, rpts] = await Promise.all([
         bflowDB.definitions.get(id),
-        bflowDB.workflowTemplates.where("definitionId").equals(id).toArray(),
+        bflowDB.workflowTemplates.where("flowId").equals(id).toArray(),
         bflowDB.pipelines.where("flowId").equals(id).toArray(),
         bflowDB.reportTemplates.where("flowId").equals(id).toArray(),
       ]);
