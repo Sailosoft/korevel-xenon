@@ -30,7 +30,7 @@ export const bflowWorkflowModule = BunnyFeature.create<
     form.setOnSuccess({ mode: "closeOnly" });
     form.addFields([
       {
-        name: "definitionId",
+        name: "flowId",
         label: "Flow Definition",
         placeholder: "Select flow definition",
         type: "select",

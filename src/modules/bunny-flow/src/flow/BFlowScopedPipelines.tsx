@@ -23,6 +23,10 @@ export default function BFlowScopedPipelines() {
     flowId,
   );
 
+  scopedConfig.beforeFormSubmit = () => ({
+    flowId,
+  });
+
   // ── Also scope the variableGroupId dropdown to this flow ─────────
   const rawForm = scopedConfig.formConfig;
   if (rawForm && typeof rawForm !== "function") {

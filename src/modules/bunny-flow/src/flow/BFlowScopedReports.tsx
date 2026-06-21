@@ -21,6 +21,10 @@ export default function BFlowScopedReports() {
     flowId,
   );
 
+  scopedConfig.beforeFormSubmit = () => ({
+    flowId,
+  });
+
   return (
     <div className="p-0">
       <Bunny config={scopedConfig}>

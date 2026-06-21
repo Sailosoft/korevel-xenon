@@ -1,6 +1,9 @@
 import { AdminPanelMutation } from "@/src/modules/admin-panel/features/mutation/admin-panel-mutation.interface";
 import { AdminPanelQuery } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
-import { UseAdminPanelForm } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
+import {
+  AdminPanelFormMode,
+  UseAdminPanelForm,
+} from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
 import { IBUIRepositoryAdminPanel } from "@/src/modules/bunny-ai/src/database/bui.repository.interface";
 import {
   BunnyConfig,
@@ -312,6 +315,13 @@ class BunnyFormConfigurator<TRow, TForm> {
 
   public setOnSuccess(onSuccess: BunnyOnSuccessBehavior): this {
     this.config.onFormSuccess = onSuccess;
+    return this;
+  }
+
+  public setBeforeSubmit(
+    beforeSubmit: (form: Partial<TForm>, mode: AdminPanelFormMode) => TForm,
+  ): this {
+    this.config.beforeFormSubmit = beforeSubmit;
     return this;
   }
 

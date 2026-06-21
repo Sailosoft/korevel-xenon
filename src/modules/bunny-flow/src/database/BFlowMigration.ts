@@ -25,7 +25,7 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
     // Workflow Templates
     config.create("workflowTemplates", (table) => {
       table.uuid();
-      table.index("definitionId");
+      table.index("flowId");
       table.index("slug");
       table.index("status");
     });

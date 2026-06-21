@@ -14,6 +14,7 @@ import {
   BunnyHasId,
   BunnyOnSuccessBehavior,
 } from "./Bunny.Interface";
+import { AdminPanelFormMode } from "../../admin-panel/features/form/admin-panel-form.interface";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
 import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
 import { useBunnyRowActionDefault } from "./rows/BunnyRow.Action.Default";
@@ -143,9 +144,20 @@ function BunnyMainPanel<TRow, TForm>({
   const handlePrimaryAction = useCallback(async () => {
     form.clearFormError();
 
+    let formData = form.formData;
+
+    // --- Before Form Submit ---
+    if (finalConfig.beforeFormSubmit) {
+      formData = {
+        ...formData,
+        ...finalConfig.beforeFormSubmit(formData, modal.mode || "create"),
+      };
+      form.setFormData(formData);
+    }
+
     // --- Validation: adapter takes precedence over built-in rules ---
     if (finalConfig.validationAdapter) {
-      const errors = finalConfig.validationAdapter.validate(form.formData);
+      const errors = finalConfig.validationAdapter.validate(formData);
       if (Object.keys(errors).length > 0) {
         form.setFormError(errors);
         console.error("There is form error", errors);
@@ -177,7 +189,7 @@ function BunnyMainPanel<TRow, TForm>({
       if (resolvedFormConfig?.fields) {
         const clientErrors = validateBunnyForm(
           resolvedFormConfig.fields,
-          form.formData,
+          formData,
         );
         if (Object.keys(clientErrors).length > 0) {
           form.setFormError(clientErrors);
@@ -187,7 +199,7 @@ function BunnyMainPanel<TRow, TForm>({
     }
 
     await form.submit();
-  }, [form, config.formConfig, finalConfig.validationAdapter]); // Stable and explicit dependency
+  }, [form, modal.mode, config.formConfig, finalConfig.validationAdapter, finalConfig.beforeFormSubmit]); // Stable and explicit dependency
   useEffect(() => {
     const onFormSuccess = ({
       mode,

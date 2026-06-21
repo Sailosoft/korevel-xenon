@@ -1,5 +1,6 @@
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import {
+  AdminPanelFormMode,
   UseAdminPanelForm,
   UseAdminPanelFormPropsWithoutQueryMutation,
 } from "../../admin-panel/features/form/admin-panel-form.interface";
@@ -168,6 +169,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
 
   tableMode?: BunnyTableMode;
   tableMobileView?: BunnyTableMobileView<TRow>;
+
+  /** Before Form Submit */
+  beforeFormSubmit?: (form: Partial<TForm>, mode: AdminPanelFormMode) => Partial<TForm>;
 
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;

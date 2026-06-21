@@ -17,9 +17,15 @@ export default function BFlowScopedWorkflows() {
 
   const scopedConfig = createScopedBunnyConfig(
     bflowWorkflowModule,
-    "definitionId",
+    "flowId",
     flowId,
   );
+
+  scopedConfig.beforeFormSubmit = (data, mode) => {
+    return {
+      flowId: flowId,
+    };
+  };
 
   return (
     <div className="p-0">

@@ -166,7 +166,7 @@ export const BFlowWorkflowTemplateSchema = z.object({
   /** GUIDv7 */
   id: z.string(),
   /** GUIDv7 reference to BFlowDefinition */
-  definitionId: z.string(),
+  flowId: z.string(),
   /** Name of the workflow */
   name: z.string().min(1),
   /** Slug */
@@ -199,7 +199,7 @@ export type BFlowWorkflowTemplateEntity = z.infer<
  * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
  */
 export const BFlowWorkflowTemplateFormSchema = z.object({
-  definitionId: z.string().min(1, "Flow definition is required"),
+  flowId: z.string().min(1, "Flow definition is required"),
   name: NameSchema,
   slug: SlugSchema,
   description: z.string().optional(),
