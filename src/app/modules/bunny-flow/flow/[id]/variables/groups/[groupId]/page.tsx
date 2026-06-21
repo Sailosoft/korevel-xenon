@@ -7,8 +7,6 @@ import Link from "next/link";
 import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 import BFlowScopedFlowVariables from "@/src/modules/bunny-flow/src/flow-variable/BFlowScopedFlowVariables";
 
-export const dynamic = "force-dynamic";
-
 interface FlowVariableGroupDetailPageProps {
   params: Promise<{ id: string; groupId: string }>;
 }

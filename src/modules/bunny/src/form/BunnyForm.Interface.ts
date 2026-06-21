@@ -73,13 +73,13 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
    * Only used when `type === "custom"`.
    * Receives {@link BunnyFieldRendererProps} including formData.
    */
-  component?: BunnyCustomFieldComponent<TForm>;
+  component?: BunnyCustomFieldComponent;
   /**
    * Render function to render this field inline.
    * Only used when `type === "render"`.
    * Receives {@link BunnyFieldRendererProps} including formData.
    */
-  render?: BunnyRenderFieldFn<TForm>;
+  render?: BunnyRenderFieldFn;
   /**
    * Configuration for "slug" field type.
    * Automatically generates a URL-safe slug from a watched source field.

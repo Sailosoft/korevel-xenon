@@ -1,4 +1,6 @@
 import { PhazeRepository } from "@/src/modules/phaze/src/PhazeRepository";
+import type { PhazeRepositoryResult } from "@/src/modules/phaze/src/types/PhazeResult.Types";
+import type { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import {
   BFlowGlobalAIConfigEntity,
@@ -32,6 +34,36 @@ export class BFlowGlobalAIConfigRepository extends PhazeRepository<BFlowGlobalAI
   }
 
   /**
+   * Override create to ensure only one active config globally.
+   */
+  async create(
+    data: BFlowGlobalAIConfigEntity,
+  ): Promise<PhazeRepositoryResult<BFlowGlobalAIConfigEntity>> {
+    // If active is not explicitly false, auto-activate and deactivate others
+    if (data.active !== false) {
+      await this.deactivateAll();
+      data.active = true;
+    }
+
+    return super.create(data);
+  }
+
+  /**
+   * Override update to ensure only one active config globally.
+   */
+  async update(
+    id: AdminPanelId,
+    data: BFlowGlobalAIConfigEntity,
+  ): Promise<PhazeRepositoryResult<BFlowGlobalAIConfigEntity>> {
+    // If setting active, deactivate all others first
+    if (data.active === true) {
+      await this.deactivateAll();
+    }
+
+    return super.update(id, data);
+  }
+
+  /**
    * Upsert the global AI config (always uses id="global").
    */
   async upsert(
@@ -42,10 +74,17 @@ export class BFlowGlobalAIConfigRepository extends PhazeRepository<BFlowGlobalAI
   ): Promise<BFlowGlobalAIConfigEntity> {
     const existing = await this.set.get("global");
     const now = new Date();
+    const isActive = data.active ?? true;
+
+    // If this config is being set active, deactivate all others first
+    if (isActive) {
+      await this.deactivateAll();
+    }
 
     if (existing) {
       await this.set.update("global", {
         ...data,
+        active: isActive,
         updatedAt: now,
       });
       return (await this.set.get("global")) as BFlowGlobalAIConfigEntity;
@@ -55,12 +94,24 @@ export class BFlowGlobalAIConfigRepository extends PhazeRepository<BFlowGlobalAI
       id: "global",
       provider: data.provider,
       model: data.model,
-      active: data.active ?? true,
+      active: isActive,
       createdAt: now,
       updatedAt: now,
     };
     await this.set.add(entity);
     return entity;
+  }
+
+  /**
+   * Deactivate all global AI configs.
+   */
+  async deactivateAll(): Promise<void> {
+    const all = await this.set.toArray();
+    await Promise.all(
+      all.map((c) =>
+        this.set.update(c.id, { active: false, updatedAt: new Date() }),
+      ),
+    );
   }
 }
 
@@ -74,9 +125,7 @@ export class BFlowFlowAIConfigRepository extends PhazeRepository<BFlowFlowAIConf
     flowId: string,
   ): Promise<BFlowFlowAIConfigEntity | undefined> {
     const all = await this.set.toArray();
-    return all.find(
-      (c) => c.flowId === flowId && c.active !== false,
-    );
+    return all.find((c) => c.flowId === flowId && c.active !== false);
   }
 
   /**
@@ -85,6 +134,36 @@ export class BFlowFlowAIConfigRepository extends PhazeRepository<BFlowFlowAIConf
   async getAllActive(): Promise<BFlowFlowAIConfigEntity[]> {
     const all = await this.set.toArray();
     return all.filter((c) => c.active !== false);
+  }
+
+  /**
+   * Deactivate all flow AI configs for a specific flow.
+   * Ensures only one active config per flow.
+   */
+  async deactivateAllForFlow(flowId: string): Promise<void> {
+    const all = await this.set.toArray();
+    const forFlow = all.filter(
+      (c) => c.flowId === flowId && c.active !== false,
+    );
+    await Promise.all(
+      forFlow.map((c) =>
+        this.set.update(c.id, { active: false, updatedAt: new Date() }),
+      ),
+    );
+  }
+
+  /**
+   * Set a specific config as the only active one for its flow.
+   */
+  async setActive(configId: string): Promise<void> {
+    const config = await this.set.get(configId);
+    if (!config) return;
+
+    // Deactivate all others for the same flow
+    await this.deactivateAllForFlow(config.flowId);
+
+    // Activate the target config
+    await this.set.update(configId, { active: true, updatedAt: new Date() });
   }
 }
 
@@ -101,6 +180,36 @@ export class BFlowPipelineAIConfigRepository extends PhazeRepository<BFlowPipeli
     return all.find(
       (c) => c.pipelineId === pipelineId && c.active !== false,
     );
+  }
+
+  /**
+   * Deactivate all pipeline AI configs for a specific pipeline.
+   * Ensures only one active config per pipeline.
+   */
+  async deactivateAllForPipeline(pipelineId: string): Promise<void> {
+    const all = await this.set.toArray();
+    const forPipeline = all.filter(
+      (c) => c.pipelineId === pipelineId && c.active !== false,
+    );
+    await Promise.all(
+      forPipeline.map((c) =>
+        this.set.update(c.id, { active: false, updatedAt: new Date() }),
+      ),
+    );
+  }
+
+  /**
+   * Set a specific config as the only active one for its pipeline.
+   */
+  async setActive(configId: string): Promise<void> {
+    const config = await this.set.get(configId);
+    if (!config) return;
+
+    // Deactivate all others for the same pipeline
+    await this.deactivateAllForPipeline(config.pipelineId);
+
+    // Activate the target config
+    await this.set.update(configId, { active: true, updatedAt: new Date() });
   }
 }
 

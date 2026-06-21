@@ -178,7 +178,6 @@ const HELIX_PROVIDER_MODELS: Record<
     "gemini-3-flash-preview",
   ] as const,
   deepinfra: [
-    "google/gemini-3.1-flash-lite",
     "google/gemma-4-31B-it",
     "deepseek-ai/DeepSeek-V4-Flash",
     "deepseek-ai/DeepSeek-V4-Pro",
@@ -319,11 +318,16 @@ const HELIX_PROVIDER_MODELS: Record<
   ] as const,
 };
 
-// ── Default: auto-merge all provider models ────────────────────────────────────
+// ── Default: auto-merge all provider models (deduplicated) ─────────────────────
 // Dynamically aggregates every model from all other providers into one flat list.
-// No need to manually copy models — just add them to HELIX_PROVIDER_MODELS above.
+// Duplicates across providers are removed so the "default" list is clean.
+
+const ALL_PROVIDER_MODELS = Object.values(HELIX_PROVIDER_MODELS).flat();
+const UNIQUE_DEFAULT_MODELS = Array.from(
+  new Set(["default", ...ALL_PROVIDER_MODELS])
+).sort();
 
 export const HELIX_AI_MODELS: Record<HelixAIProvider, readonly string[]> = {
-  default: ["default", ...Object.values(HELIX_PROVIDER_MODELS).flat()],
+  default: UNIQUE_DEFAULT_MODELS,
   ...HELIX_PROVIDER_MODELS,
 };

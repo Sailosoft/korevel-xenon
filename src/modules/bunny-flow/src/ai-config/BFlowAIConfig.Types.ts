@@ -58,7 +58,7 @@ export type BFlowGlobalAIConfigEntity = z.infer<
 
 /**
  * Form schema for global AI config.
- * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`, `active`.
+ * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
  */
 export const BFlowGlobalAIConfigFormSchema = z.object({
   provider: z.string().min(1, "Provider is required"),

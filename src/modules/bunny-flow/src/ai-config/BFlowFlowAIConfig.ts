@@ -2,6 +2,7 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowFlowAIConfigEntity } from "./BFlowAIConfig.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowFlowAIConfigFormValidation } from "../adapters/BFlowZodAdapter";
+import { BFlowAIModelSelector, BFlowActiveToggle } from "./BFlowAIConfigFields";
 
 export const bflowFlowAIConfigModule = BunnyFeature.create<
   BFlowFlowAIConfigEntity,
@@ -55,18 +56,21 @@ export const bflowFlowAIConfigModule = BunnyFeature.create<
       {
         name: "model",
         label: "AI Model",
-        placeholder: "Enter model name",
-        type: "text",
+        type: "custom",
         required: true,
+        component: BFlowAIModelSelector,
       },
       {
         name: "active",
-        label: "Active",
-        type: "switch",
+        label: "",
+        type: "render",
+        render: BFlowActiveToggle,
+        defaultValue: true,
       },
     ]);
     form.setGridCols(2);
   });
 
+  // Active-only-one logic is handled in the repository (create/update overrides)
   feature.useDataLayer(bflowDB.flowAIConfigRepo.dataLayer);
 });

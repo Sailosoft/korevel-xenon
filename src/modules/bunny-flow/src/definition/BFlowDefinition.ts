@@ -17,12 +17,12 @@ export const bflowDefinitionModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowDefinitionFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "code", header: "Code", sortable: true },
-      { field: "name", header: "Name", sortable: true },
+      // { field: "id", header: "ID", sortable: true, isRowHeader: true },
+      // { field: "code", header: "Code", sortable: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
       { field: "status", header: "Status", sortable: true },
-      { field: "version", header: "Version", sortable: true },
+      // { field: "version", header: "Version", sortable: true },
     ]);
   });
 

@@ -2,6 +2,7 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowPipelineAIConfigEntity } from "./BFlowAIConfig.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowPipelineAIConfigFormValidation } from "../adapters/BFlowZodAdapter";
+import { BFlowAIModelSelector, BFlowActiveToggle } from "./BFlowAIConfigFields";
 
 export const bflowPipelineAIConfigModule = BunnyFeature.create<
   BFlowPipelineAIConfigEntity,
@@ -55,14 +56,16 @@ export const bflowPipelineAIConfigModule = BunnyFeature.create<
       {
         name: "model",
         label: "AI Model",
-        placeholder: "Enter model name",
-        type: "text",
+        type: "custom",
         required: true,
+        component: BFlowAIModelSelector,
       },
       {
         name: "active",
         label: "Active",
-        type: "switch",
+        type: "render",
+        render: BFlowActiveToggle,
+        defaultValue: true,
       },
       // Job overrides are handled via a custom component,
       // not the standard form. See BFlowPipelineAIConfigComponent.
@@ -70,5 +73,6 @@ export const bflowPipelineAIConfigModule = BunnyFeature.create<
     form.setGridCols(2);
   });
 
+  // Active-only-one logic is handled in the repository (create/update overrides)
   feature.useDataLayer(bflowDB.pipelineAIConfigRepo.dataLayer);
 });

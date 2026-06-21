@@ -3,8 +3,6 @@
 import { Play } from "lucide-react";
 import { useBFlowFlow } from "@/src/modules/bunny-flow/src/context/BFlowFlowContext";
 
-export const dynamic = "force-dynamic";
-
 export default function FlowRunsPage() {
   const { flow } = useBFlowFlow();
 
