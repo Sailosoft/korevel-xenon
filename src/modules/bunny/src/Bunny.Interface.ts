@@ -154,6 +154,21 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   /** Before Form Submit */
   beforeFormSubmit?: (form: Partial<TForm>, mode: AdminPanelFormMode) => Partial<TForm>;
 
+  /**
+   * Default form data to pre-populate when opening the modal in "create" mode.
+   * This is applied after the form resets, ensuring fresh default values
+   * compatible with the workflow schema are available on every new creation.
+   *
+   * @example
+   * ```ts
+   * form.setFormDefaultData({
+   *   templateYaml: "name: my-workflow\nversion: 1.0.0",
+   *   status: "draft",
+   * });
+   * ```
+   */
+  formDefaultData?: Partial<TForm>;
+
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;
     form?: Partial<UseAdminPanelFormPropsWithoutQueryMutation<TForm>>;

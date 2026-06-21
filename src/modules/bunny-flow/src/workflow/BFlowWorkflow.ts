@@ -1,11 +1,14 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
-import { BFlowWorkflowTemplateEntity } from "./BFlowWorkflow.Types";
+import {
+  BFlowWorkflowTemplateEntity,
+  BFlowWorkflowTemplateForm,
+} from "./BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
 
 export const bflowWorkflowModule = BunnyFeature.create<
   BFlowWorkflowTemplateEntity,
-  BFlowWorkflowTemplateEntity
+  BFlowWorkflowTemplateForm
 >("Workflow", "id", (feature) => {
   // ── SSR-safe configuration (runs on both server and client) ──────────
   feature.setModuleUrl("/modules/bunny-flow/*");
@@ -17,8 +20,8 @@ export const bflowWorkflowModule = BunnyFeature.create<
 
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      // { field: "id", header: "ID", sortable: true, isRowHeader: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
       { field: "version", header: "Version", sortable: true },
       { field: "status", header: "Status", sortable: true },
@@ -28,6 +31,25 @@ export const bflowWorkflowModule = BunnyFeature.create<
 
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
+    form.setFormDefaultData({
+      status: "draft",
+      templateYaml: `# v{{VERSION_PLACEHOLDER}}
+name: ""
+description: ""
+semanticVersion: 1.0.0
+variables: []
+agentPools: []
+agents: []
+jobs:
+  - id: job-001
+    name: job-1
+    prompt: ""
+    steps:
+      - id: step-001
+        name: step-1
+        prompts: ""
+`,
+    });
     form.addFields([
       {
         name: "flowId",

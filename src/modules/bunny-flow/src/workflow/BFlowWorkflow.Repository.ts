@@ -3,9 +3,9 @@ import { PhazeRepository } from "@/src/modules/phaze/src/PhazeRepository";
 import { parse as parseYaml } from "yaml";
 import { AdminPanelId } from "@/src/modules/admin-panel/features/id/admin-panel-id.interface";
 import { PhazeRepositoryResult } from "@/src/modules/phaze/src/types/PhazeResult.Types";
-import { BFlowWorkflowSchema, BFlowWorkflowTemplateEntity } from "./BFlowWorkflow.Types";
+import { BFlowWorkflowSchema, BFlowWorkflowTemplateEntity, BFlowWorkflowTemplateForm } from "./BFlowWorkflow.Types";
 
-export class BFlowWorkflowRepository extends PhazeRepository<BFlowWorkflowTemplateEntity> {
+export class BFlowWorkflowRepository extends PhazeRepository<BFlowWorkflowTemplateEntity, BFlowWorkflowTemplateForm> {
   async toSelectOptions(): Promise<BunnySelectOption[]> {
     const items = await this.set.toArray();
     return items.map((item) => ({ label: item.name, value: item.id }));

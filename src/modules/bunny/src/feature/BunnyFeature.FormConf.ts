@@ -60,4 +60,32 @@ export class BunnyFormConfigurator<TRow, TForm> {
     }
     return this;
   }
+
+  /**
+   * Pre-populate default form data when the modal opens in "create" mode.
+   *
+   * Call this to provide sensible defaults that match the workflow schema,
+   * reducing manual input for repetitive fields. The data is applied every
+   * time a new create modal is opened.
+   *
+   * @param data Partial form data with default values for one or more fields.
+   *
+   * @example
+   * ```ts
+   * form.setFormDefaultData({
+   *   status: "draft",
+   *   templateYaml: `name: my-workflow\nversion: 1.0.0\n`,
+   * });
+   * ```
+   */
+  public setFormDefaultData(data: Partial<TForm>): this {
+    this.config.formDefaultData = data;
+    // Also pipe through the existing initialData mechanism so the admin panel
+    // form hook picks it up on resetForm() (runs when modal opens in "create" mode).
+    // For "update"/"view" modes, loadData() overwrites with API data anyway.
+    if (!this.config.props) this.config.props = {};
+    if (!this.config.props.form) this.config.props.form = {};
+    this.config.props.form.initialData = data;
+    return this;
+  }
 }

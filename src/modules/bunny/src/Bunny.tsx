@@ -36,7 +36,11 @@ export default function Bunny<TRow, TForm>({
   customize,
 }: ExtendedBunnyProps<TRow, TForm>) {
   return (
-    <AdminPanelProvider query={config.query} mutation={config.mutation}>
+    <AdminPanelProvider
+      query={config.query}
+      mutation={config.mutation}
+      props={config.props}
+    >
       <BunnyMainPanel config={config} customize={customize}>
         {children}
       </BunnyMainPanel>
@@ -200,6 +204,7 @@ function BunnyMainPanel<TRow, TForm>({
 
     await form.submit();
   }, [form, modal.mode, config.formConfig, finalConfig.validationAdapter, finalConfig.beforeFormSubmit]); // Stable and explicit dependency
+
   useEffect(() => {
     const onFormSuccess = ({
       mode,

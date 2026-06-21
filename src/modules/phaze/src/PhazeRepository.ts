@@ -15,22 +15,22 @@ import {
 import { PhazeRepositoryResult } from "./types/PhazeResult.Types";
 import { PhazeRepositoryResultManager } from "./PhazeResultManager";
 
-export class PhazeRepository<T> implements IPhazeRepository<T> {
-  protected set: Table<T>;
-  protected result: PhazeRepositoryResultManager<T>;
+export class PhazeRepository<TRow, TForm = TRow> implements IPhazeRepository<TRow, TForm> {
+  protected set: Table<TRow>;
+  protected result: PhazeRepositoryResultManager<TRow>;
 
   // Public exposed namespaces grouped by intent
-  public query: IPhazeRepositoryQueries<T>;
-  public mutation: IPhazeRepositoryMutations<T>;
+  public query: IPhazeRepositoryQueries<TRow>;
+  public mutation: IPhazeRepositoryMutations<TRow, TForm>;
 
   public dataLayer: {
-    query: IPhazeRepositoryQueries<T>;
-    mutation: IPhazeRepositoryMutations<T>;
+    query: IPhazeRepositoryQueries<TRow>;
+    mutation: IPhazeRepositoryMutations<TRow, TForm>;
   };
 
-  constructor(table: Table<T>) {
+  constructor(table: Table<TRow>) {
     this.set = table;
-    this.result = new PhazeRepositoryResultManager<T>();
+    this.result = new PhazeRepositoryResultManager<TRow>();
 
     // Bind namespaces to maintain correct 'this' context effortlessly
     this.query = this.initQueries();
@@ -46,12 +46,12 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
 
   public async getList(
     _options: AdminPanelQueryOptions,
-  ): Promise<PhazeRepositoryResult<T[]>> {
+  ): Promise<PhazeRepositoryResult<TRow[]>> {
     const data = await this.set.toArray(); //
     return this.result.successList(data); //
   }
 
-  public async get(id: AdminPanelId): Promise<PhazeRepositoryResult<T>> {
+  public async get(id: AdminPanelId): Promise<PhazeRepositoryResult<TRow>> {
     const data = await this.set.get(id); //
     if (data === undefined) {
       return this.result.error(404, "Data can't be found."); //
@@ -59,7 +59,7 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
     return this.result.success(data); //
   }
 
-  public async create(data: T): Promise<PhazeRepositoryResult<T>> {
+  public async create(data: TForm): Promise<PhazeRepositoryResult<TRow>> {
     // Only inject UUID v7 for tables that use a manual (non-auto-increment) primary key.
     // Dexie's IndexSpec.auto indicates whether the primary key is auto-incremented ("++id").
     const isAutoIncrement = this.set.schema.primKey.auto === true;
@@ -71,17 +71,17 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
       }
     }
 
-    const id = await this.set.add(data); //
+    const id = await this.set.add(data as unknown as TRow); //
     return await this.get(id); //
   }
 
   public async update(
     id: AdminPanelId,
-    data: T,
-  ): Promise<PhazeRepositoryResult<T>> {
+    data: TForm,
+  ): Promise<PhazeRepositoryResult<TRow>> {
     const result = await this.get(id); //
     if (result.isSuccess) {
-      const payload = { ...result.value, ...data }; //
+      const payload = { ...result.value, ...data } as unknown as TRow; //
       await this.set.put(payload); //
       return this.result.success(payload); //
     }
@@ -95,9 +95,9 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
 
   // --- NAMESPACE INITIALIZERS ---
 
-  private initQueries(): IPhazeRepositoryQueries<T> {
+  private initQueries(): IPhazeRepositoryQueries<TRow> {
     return {
-      getOne: async (id: AdminPanelId): Promise<T> => {
+      getOne: async (id: AdminPanelId): Promise<TRow> => {
         const result = await this.get(id); //
         if (result.isSuccess) return result.value; //
         throw new Error(result.error.message); //
@@ -106,7 +106,7 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
       getAll: async (
         options: AdminPanelQueryOptions,
         overrideOptions?: AdminPanelQueryOptions,
-      ): Promise<GetAllResponse<T>> => {
+      ): Promise<GetAllResponse<TRow>> => {
         const opt = options; //
         if (overrideOptions) {
           Object.assign(opt, overrideOptions); //
@@ -129,9 +129,9 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
     };
   }
 
-  private initMutations(): IPhazeRepositoryMutations<T> {
+  private initMutations(): IPhazeRepositoryMutations<TRow, TForm> {
     return {
-      create: async (data: T): Promise<AdminPanelResult<T, unknown>> => {
+      create: async (data: TForm): Promise<AdminPanelResult<TRow, unknown>> => {
         const result = await this.create(data); //
         if (result.isSuccess) {
           return { status: "success", data: result.value }; //
@@ -141,8 +141,8 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
 
       update: async (
         id: AdminPanelId,
-        data: T,
-      ): Promise<AdminPanelResult<T, unknown>> => {
+        data: TForm,
+      ): Promise<AdminPanelResult<TRow, unknown>> => {
         const result = await this.update(id, data); //
         if (result.isSuccess) {
           return { status: "success", data: result.value }; //
@@ -152,7 +152,7 @@ export class PhazeRepository<T> implements IPhazeRepository<T> {
 
       delete: async (
         id: AdminPanelId,
-      ): Promise<AdminPanelResult<T, unknown>> => {
+      ): Promise<AdminPanelResult<TRow, unknown>> => {
         const result = await this.delete(id); //
         if (result.isSuccess) {
           return { status: "success" }; //
