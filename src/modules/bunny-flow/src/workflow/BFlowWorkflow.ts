@@ -6,8 +6,9 @@ import {
 } from "./BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
-import { BFLOW_TOGGLE_YAML_GUIDE_EVENT } from "./BFlowWorkflow.ModalBody";
 import { BookOpenIcon } from "lucide-react";
+import BFlowWorkflowGuidePanel from "./BFlowWorkflow.Guide.Panel";
+import { AdminPanelFormActionState } from "@/src/modules/admin-panel/features/form-fields/admin-panel-form-field.interface";
 
 export const bflowWorkflowModule = BunnyFeature.create<
   BFlowWorkflowTemplateEntity,
@@ -35,10 +36,24 @@ export const bflowWorkflowModule = BunnyFeature.create<
       id: "yaml-guide-toggle",
       label: "YAML Structure Guide",
       icon: React.createElement(BookOpenIcon, { className: "size-4" }),
-      onClick: () => {
-        window.dispatchEvent(
-          new CustomEvent(BFLOW_TOGGLE_YAML_GUIDE_EVENT),
-        );
+      onClick: (context) => {
+        context?.adminPanel.dialog.openDialog({
+          title: "YAML Structure Guide",
+          contentOnly: true,
+          children: React.createElement(BFlowWorkflowGuidePanel, {
+            show: true,
+            onClose: () => context?.adminPanel.dialog.closeDialog(),
+          }),
+          actionId: "open-yaml-guide",
+          onConfirm: function (options: {
+            prevState?: AdminPanelFormActionState;
+            form: FormData;
+            context: unknown;
+          }): AdminPanelFormActionState | Promise<AdminPanelFormActionState> {
+            // throw new Error("Function not implemented.");
+            return {};
+          },
+        });
       },
       hide: ["update", "view", "plain"],
     });

@@ -1,0 +1,19 @@
+name: Local Config
+version: 1.0.0
+schema: v1
+models:
+  - name: Qwen 2.5 Coder 7b
+    provider: ollama
+    model: qwen2.5-coder:7b
+    apiBase: http://localhost:11434
+  - name: Gemma4:e4b
+    provider: ollama
+    model: gemma4:e4b
+    apiBase: http://localhost:11434
+  - name: Gemini
+    provider: gemini
+    model: gemini-3.1-flash-lite
+    apiKey:
+    capabilities:
+      - tool_use
+      - image_input # For OCR image
