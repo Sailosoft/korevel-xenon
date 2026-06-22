@@ -1,3 +1,4 @@
+import React from "react";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import {
   BFlowWorkflowTemplateEntity,
@@ -5,6 +6,8 @@ import {
 } from "./BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
+import { BFLOW_TOGGLE_YAML_GUIDE_EVENT } from "./BFlowWorkflow.ModalBody";
+import { BookOpenIcon } from "lucide-react";
 
 export const bflowWorkflowModule = BunnyFeature.create<
   BFlowWorkflowTemplateEntity,
@@ -17,6 +20,29 @@ export const bflowWorkflowModule = BunnyFeature.create<
   // ── Validation adapter ─────────────────────────────────────────────────
   feature.setValidationAdapter(useBFlowWorkflowFormValidation());
   feature.setModalSize("lg");
+
+  // ── Header display (detailed variant with description) ───────────────
+  feature.configureHeader((header) => {
+    header.setConfig({
+      description:
+        "Create and manage workflow templates. Each workflow defines a YAML-based orchestration pipeline.",
+    });
+  });
+
+  // ── Modal header action: YAML Structure Guide toggle ────────────────
+  feature.configureModal((modal) => {
+    modal.addModalHeaderAction({
+      id: "yaml-guide-toggle",
+      label: "YAML Structure Guide",
+      icon: React.createElement(BookOpenIcon, { className: "size-4" }),
+      onClick: () => {
+        window.dispatchEvent(
+          new CustomEvent(BFLOW_TOGGLE_YAML_GUIDE_EVENT),
+        );
+      },
+      hide: ["update", "view", "plain"],
+    });
+  });
 
   feature.configureTable((table) => {
     table.addColumns([
