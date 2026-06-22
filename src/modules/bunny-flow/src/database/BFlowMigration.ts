@@ -121,4 +121,33 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
       table.index("active");
     });
   });
+
+  // ── Version 5 — add pipeline run tracking tables ──────────────
+  model.schema((config) => {
+    // Pipeline Runs — tracks overall pipeline execution
+    config.create("pipelineRuns", (table) => {
+      table.uuid();
+      table.index("pipelineId");
+      table.index("flowId");
+      table.index("templateId");
+      table.index("status");
+    });
+
+    // Job Runs — tracks individual job execution within a pipeline run
+    config.create("jobRuns", (table) => {
+      table.uuid();
+      table.index("runId");
+      table.index("jobId");
+      table.index("status");
+    });
+
+    // Step Runs — tracks individual step execution within a job run
+    config.create("stepRuns", (table) => {
+      table.uuid();
+      table.index("jobRunId");
+      table.index("runId");
+      table.index("stepId");
+      table.index("status");
+    });
+  });
 }

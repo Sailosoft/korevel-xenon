@@ -23,7 +23,7 @@ export const BFlowVariableTypeSchema = z.enum([
 export type BFlowVariableType = z.infer<typeof BFlowVariableTypeSchema>;
 
 export const BFlowVariableSchema = z.object({
-  id: GuidSchema,
+  id: GuidSchema.optional(),
   name: NameSchema,
   defaultValue: z.string(),
   type: BFlowVariableTypeSchema,
@@ -53,7 +53,7 @@ export type BFlowStepSkipIf = z.infer<typeof BFlowStepSkipIfSchema>;
 // ─── Step Input ────────────────────────────────────────────────────
 
 export const BFlowStepInputSchema = z.object({
-  id: GuidSchema,
+  id: GuidSchema.optional(),
   name: NameSchema,
   /**
    * inputs:
@@ -88,7 +88,7 @@ export type BFlowStepOutputMode = z.infer<typeof BFlowStepOutputModeSchema>;
 // ─── Step ──────────────────────────────────────────────────────────
 
 export const BFlowStepSchema = z.object({
-  id: GuidSchema,
+  id: GuidSchema.optional(),
   /** name of step */
   name: NameSchema,
   skipIf: z.array(BFlowStepSkipIfSchema).optional(),
@@ -109,7 +109,7 @@ export type BFlowStep = z.infer<typeof BFlowStepSchema>;
 
 export const BFlowWorkflowJobSchema = z.object({
   /** guid */
-  id: GuidSchema,
+  id: GuidSchema.optional(),
   /** Jobs avoid spaces */
   name: NameSchema,
   /** agent slug */
@@ -127,7 +127,7 @@ export type BFlowWorkflowJob = z.infer<typeof BFlowWorkflowJobSchema>;
 // ─── Workflow Agent ────────────────────────────────────────────────
 
 export const BFlowWorkflowAgentSchema = z.object({
-  id: GuidSchema,
+  id: GuidSchema.optional(),
   name: NameSchema,
   slug: SlugSchema,
   role: z.string(),

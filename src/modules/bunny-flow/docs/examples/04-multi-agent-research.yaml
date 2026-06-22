@@ -1,0 +1,145 @@
+# =============================================================================
+# Example 4: Multi-Agent Research Pipeline
+# Demonstrates: multiple specialized agents, agent pool references,
+#               parallel-style job chaining, diverse output types (yaml, html),
+#               multiple inputs from multiple upstream steps
+# =============================================================================
+name: Competitive Research Report
+semanticVersion: 1.0.0
+description: >
+  A comprehensive competitive analysis pipeline that uses specialized agents
+  to research a market, analyze competitors, and produce a final report
+  in multiple formats.
+
+variables:
+  - name: market_segment
+    defaultValue: "SaaS Project Management Tools"
+    type: text
+    description: The market segment to analyze
+
+  - name: top_competitors
+    defaultValue: "Asana, Monday.com, ClickUp, Notion"
+    type: text
+    description: Comma-separated list of competitors to analyze
+
+  - name: report_format
+    defaultValue: "markdown"
+    type: select
+    description: Output format for the final report
+
+agents:
+  - name: Market Researcher
+    slug: researcher
+    role: Market Researcher
+    prompt: >
+      You are a market research analyst. You gather and synthesize
+      data about market segments, competitor positioning, and trends.
+
+  - name: Product Analyst
+    slug: analyst
+    role: Product Analyst
+    prompt: >
+      You are a product analyst who compares features, pricing,
+      and user feedback across competing products.
+
+  - name: Strategy Consultant
+    slug: strategist
+    role: Strategy Consultant
+    prompt: >
+      You are a strategy consultant who provides actionable
+      recommendations based on competitive analysis.
+
+jobs:
+  - name: market_research
+    prompt: Research the market segment and identify key trends
+    agent: researcher
+    steps:
+      - name: analyze_market
+        prompts: |
+          Research the "{segment}" market segment.
+          Provide:
+          1. Market size and growth rate
+          2. Key trends shaping the industry
+          3. Major players and their market share
+        output:
+          - name: market_overview
+            type: markdown
+          - name: growth_rate
+            type: number
+          - name: key_trends
+            type: json_array
+
+      - name: competitor_landscape
+        prompts: |
+          Analyze these competitors: {competitors}.
+          For each, provide:
+          - Target audience
+          - Unique selling points
+          - Pricing model (if known)
+          - Strengths and weaknesses
+        agent: researcher
+        inputs:
+          - name: competitors
+            source: vars.top_competitors
+          - name: market_context
+            source: market_research.analyze_market.outputs.__raw__
+        output:
+          - name: competitor_matrix
+            type: yaml
+          - name: top_competitor
+            type: plain
+
+  - name: deep_dive
+    prompt: Perform deep-dive analysis on the top competitor
+    agent: analyst
+    needs: market_research
+    steps:
+      - name: feature_comparison
+        prompts: |
+          Do a deep feature comparison between {segment} tools.
+          Focus on the top competitor: {top_competitor}.
+          Create a feature parity matrix.
+        agent: analyst
+        inputs:
+          - name: segment
+            source: vars.market_segment
+          - name: top_competitor
+            source: market_research.competitor_landscape.outputs.top_competitor
+          - name: trends
+            source: market_research.analyze_market.outputs.key_trends
+        output:
+          - name: feature_matrix
+            type: html
+          - name: gap_analysis
+            type: plain
+
+  - name: strategy
+    prompt: Develop strategic recommendations
+    agent: strategist
+    needs:
+      - market_research
+      - deep_dive
+    steps:
+      - name: generate_recommendations
+        prompts: |
+          Based on the full analysis, produce a strategic report for
+          the {segment} market. Include:
+          1. Executive summary
+          2. Market overview with {growth}% growth rate
+          3. Competitive positioning
+          4. Feature gaps to exploit
+          5. Strategic recommendations (short-term & long-term)
+          Format as {format}.
+        inputs:
+          - name: segment
+            source: vars.market_segment
+          - name: growth
+            source: market_research.analyze_market.outputs.growth_rate
+          - name: format
+            source: vars.report_format
+          - name: market_info
+            source: market_research.analyze_market.outputs.__raw__
+          - name: competitor_info
+            source: market_research.competitor_landscape.outputs.__raw__
+          - name: features
+            source: deep_dive.feature_comparison.outputs.__raw__

@@ -1,0 +1,155 @@
+# =============================================================================
+# Example 5: Data Transformation & Export Pipeline
+# Demonstrates: diverse output types (json, yaml, csv, html), chained
+#               transformations, multiple prompts per step, structured
+#               inputs flowing through a multi-stage ETL-like workflow
+# =============================================================================
+name: Data Transformation Pipeline
+semanticVersion: 1.0.0
+description: >
+  An ETL-style pipeline that ingests raw data, transforms it into
+  multiple structured formats (JSON, YAML, CSV, HTML), and produces
+  a final compiled report. Demonstrates rich output typing.
+
+variables:
+  - name: source_data_description
+    defaultValue: "Monthly sales data for Q1 2025 across 4 regions"
+    type: text
+    description: Description of the raw data to process
+
+  - name: currency
+    defaultValue: "USD"
+    type: text
+    description: Currency for financial figures
+
+  - name: include_charts
+    defaultValue: "true"
+    type: text
+    description: Whether to include chart placeholders in HTML output
+
+agents:
+  - name: Data Engineer
+    slug: engineer
+    role: Data Engineer
+    prompt: >
+      You are a data engineer who transforms raw data into
+      clean, structured formats. You handle data validation,
+      normalization, and formatting with precision.
+
+  - name: Reporting Analyst
+    slug: analyst
+    role: Reporting Analyst
+    prompt: >
+      You are a reporting analyst who creates comprehensive
+      reports from structured data. You ensure data accuracy
+      and clear presentation.
+
+jobs:
+  - name: ingestion
+    prompt: Ingest and validate the raw data
+    agent: engineer
+    steps:
+      - name: parse_raw_data
+        prompts:
+          - "Parse the raw data from: {source}"
+          - "Normalize all currency values to {cur}"
+          - "Flag any missing or anomalous values"
+        agent: engineer
+        output:
+          - name: validated_records
+            type: json
+          - name: record_count
+            type: number
+          - name: anomalies
+            type: json_array
+          - name: normalized_data
+            type: yaml
+
+  - name: transformation
+    prompt: Transform data into multiple output formats
+    agent: engineer
+    needs: ingestion
+    steps:
+      - name: generate_csv_export
+        prompts: |
+          Convert the validated records into a CSV format with
+          the following columns: Region, Product, Units Sold,
+          Revenue ({cur}), Profit Margin, Quarter.
+          Include a header row and sort by Revenue descending.
+        inputs:
+          - name: cur
+            source: vars.currency
+          - name: records
+            source: ingestion.parse_raw_data.outputs.validated_records
+        output:
+          - name: csv_data
+            type: csv
+          - name: total_revenue
+            type: number
+
+      - name: generate_html_report
+        prompts:
+          - "Create an HTML report from the sales data"
+          - "Use a clean, professional table layout"
+          - "If {charts} is true, include chart data section"
+          - "Highlight top-performing regions in green"
+        agent: engineer
+        inputs:
+          - name: charts
+            source: vars.include_charts
+          - name: records
+            source: ingestion.parse_raw_data.outputs.validated_records
+          - name: anomalies
+            source: ingestion.parse_raw_data.outputs.anomalies
+        output:
+          - name: html_report
+            type: html
+
+      - name: summarize_metrics
+        prompts: |
+          Calculate key metrics from the data:
+          - Total records processed: {count}
+          - Total revenue: {revenue} {cur}
+          - Anomaly rate: {anomaly_count} issues
+          Provide a JSON summary with all metrics.
+        inputs:
+          - name: count
+            source: ingestion.parse_raw_data.outputs.record_count
+          - name: revenue
+            source: transformation.generate_csv_export.outputs.total_revenue
+          - name: anomaly_count
+            source: ingestion.parse_raw_data.outputs.anomalies
+          - name: cur
+            source: vars.currency
+        output:
+          - name: metrics_summary
+            type: json
+          - name: executive_overview
+            type: plain
+
+  - name: compilation
+    prompt: Compile all outputs into a final deliverable
+    agent: analyst
+    needs: transformation
+    steps:
+      - name: compile_final_package
+        prompts:
+          - "Compile a final data package with the following sections:"
+          - "1. Executive Overview: {overview}"
+          - "2. Metrics Summary: {metrics}"
+          - "3. CSV Export (first 5 rows): {csv_preview}"
+          - "4. Data Quality: {anomalies}"
+          - "Format: structured markdown with clear headings"
+        agent: analyst
+        inputs:
+          - name: overview
+            source: transformation.summarize_metrics.outputs.executive_overview
+          - name: metrics
+            source: transformation.summarize_metrics.outputs.metrics_summary
+          - name: csv_preview
+            source: transformation.generate_csv_export.outputs.csv_data
+          - name: anomalies
+            source: ingestion.parse_raw_data.outputs.anomalies
+        output:
+          - name: final_report
+            type: markdown

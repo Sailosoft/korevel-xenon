@@ -213,6 +213,12 @@ const HELIX_PROVIDER_MODELS: Record<
     "llama3.2:1b",
     "mistral:7b",
     "qwen2.5:7b",
+    "gemma4:31b-cloud",
+    "gemini-3-flash-preview:cloud",
+    "deepseek-v4-pro:cloud",
+    "deepseek-v4-flash:cloud",
+    "devstral-small-2:24b-cloud",
+    "devstral-2:123b-cloud"
   ] as const,
   ollamaCloud: [
     "gemma4:31b-cloud",

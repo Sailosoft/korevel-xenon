@@ -2,6 +2,8 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowPipelineEntity } from "./BFlowPipeline.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowPipelineFormValidation } from "../adapters/BFlowZodAdapter";
+import { PlayCircle } from "lucide-react";
+import { createElement } from "react";
 
 export const bflowPipelineModule = BunnyFeature.create<
   BFlowPipelineEntity,
@@ -15,14 +17,36 @@ export const bflowPipelineModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowPipelineFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      // { field: "id", header: "ID", sortable: true, isRowHeader: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
       { field: "status", header: "Status", sortable: true },
       { field: "version", header: "Version", sortable: true },
       { field: "createdAt", header: "Created", sortable: true },
     ]);
   });
+
+  feature.configureRow((row) => {
+    row.addAction({
+      id: "run-pipeline",
+      // label: "Run",
+      icon: createElement(PlayCircle),
+      variant: "primary",
+      onClick(row, context) {
+        const flowId = (row as BFlowPipelineEntity).flowId;
+        if (flowId) {
+          // Stay within the flow context
+          context.router.push(
+            `/modules/bunny-flow/flow/${flowId}/pipeline/${row.id}/run`,
+          );
+        } else {
+          context.router.push(
+            `/modules/bunny-flow/pipeline/${row.id}/run`,
+          );
+        }
+      },
+    })
+  })
 
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });

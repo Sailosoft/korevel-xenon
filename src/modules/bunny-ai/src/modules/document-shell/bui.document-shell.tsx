@@ -36,11 +36,11 @@ export default function BUIDocumentShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 🔍 DEBUG: Track shell re-renders
-  console.log(
-    "[BUIDocumentShell] RE-RENDER children type:",
-    typeof children,
-    children ? "exists" : "null",
-  );
+  // console.log(
+  //   "[BUIDocumentShell] RE-RENDER children type:",
+  //   typeof children,
+  //   children ? "exists" : "null",
+  // );
 
   const theme = useMemo(
     () => ({ ...DEFAULT_BUI_THEME, ...config.theme }),

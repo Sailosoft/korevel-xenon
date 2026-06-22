@@ -23,6 +23,18 @@ import { BFlowGlobalVariableRepository } from "../global-variable/BFlowGlobalVar
 import { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
 import { BFlowFlowVariableRepository } from "../flow-variable/BFlowFlowVariable.Repository";
 
+// Pipeline Run imports
+import {
+  BFlowPipelineRunEntity,
+  BFlowJobRun,
+  BFlowStepRun,
+} from "../run/BFlowRun.Types";
+import {
+  BFlowPipelineRunRepository,
+  BFlowJobRunRepository,
+  BFlowStepRunRepository,
+} from "../run/BFlowRun.Repository";
+
 // AI Config imports
 import {
   BFlowGlobalAIConfigEntity,
@@ -109,6 +121,22 @@ export class BFlowDatabase extends PhazeDB {
   public flowVariablesRepo = new BFlowFlowVariableRepository(
     this.flowVariables,
   );
+
+  // ─── Pipeline Run Tables ───────────────────────────────────────────
+
+  /** Pipeline Runs — tracks overall pipeline execution */
+  public pipelineRuns = this.table<BFlowPipelineRunEntity, string>(
+    "pipelineRuns",
+  );
+  public pipelineRunsRepo = new BFlowPipelineRunRepository(this.pipelineRuns);
+
+  /** Job Runs — tracks individual job execution within a pipeline run */
+  public jobRuns = this.table<BFlowJobRun, string>("jobRuns");
+  public jobRunsRepo = new BFlowJobRunRepository(this.jobRuns);
+
+  /** Step Runs — tracks individual step execution within a job run */
+  public stepRuns = this.table<BFlowStepRun, string>("stepRuns");
+  public stepRunsRepo = new BFlowStepRunRepository(this.stepRuns);
 
   // ─── AI Config Tables ──────────────────────────────────────────────
 
