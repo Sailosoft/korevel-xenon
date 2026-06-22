@@ -3,21 +3,21 @@
 
 import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
-import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
+import type { HelixAISchemaOptions } from "@/src/modules/helix";
 import { buiBookPrompt } from "./bui.book.prompt";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 export async function buiBookServerEnhanceWithParams(
   title: string,
   description: string,
   promptType: string = "comprehensive",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");
 
   // A unified schema capable of holding any of the 5 option patterns gracefully
-  const bookEnhancementSchema: BUIAISchemaOptions = {
+  const bookEnhancementSchema: HelixAISchemaOptions = {
     name: "book_enhancement",
     description:
       "Enhances a book's title and generates structured conceptual metadata, chapters, or pitches.",

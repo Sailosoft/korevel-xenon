@@ -1,0 +1,99 @@
+# =============================================================================
+# Example 1: Simple Content Pipeline
+# Demonstrates: basic variables, single agent, cross-step inputs, __raw__ output
+# =============================================================================
+name: Content Pipeline
+semanticVersion: 1.0.0
+agentPools: []
+description: >
+  A simple content pipeline that researches a topic, extracts a key statistic,
+  and drafts an article from the combined research output.
+
+variables:
+  - name: topic
+    defaultValue: "Artificial Intelligence in Healthcare"
+    type: text
+    description: The topic to research and write about
+
+  - name: tone
+    defaultValue: "Professional"
+    type: select
+    description: Writing tone for the article
+
+agents:
+  - name: Writer Agent
+    slug: writer
+    role: Technical Writer
+    prompt: >
+      You are a skilled technical writer who produces clear,
+      well-researched content. You adapt your tone based on
+      instructions and always cite key facts.
+
+jobs:
+  - name: research
+    prompt: Research the given topic thoroughly
+    agent: writer
+    steps:
+      - name: gather_facts
+        prompts: |
+          Research the topic "{{topic}}" and list 5 key facts
+          with supporting details. Be thorough and specific.
+        agent: writer
+        inputs:
+          - name: topic
+            source: vars.topic
+
+      - name: extract_statistic
+        prompts: |
+          Using the provided research data:
+          "{{research_output}}"
+
+          Identify the single most important statistic. Explain why it matters.
+        agent: writer
+        inputs:
+          - name: research_output
+            source: research.gather_facts.outputs.__raw__
+
+  - name: writing
+    prompt: Write and polish the final article
+    agent: writer
+    needs: research
+    steps:
+      - name: draft_article
+        prompts: |
+          Write a {{tone}} 300-word article about "{{topic_name}}" based on the research
+          and the key statistic provided below.
+
+          Research Facts:
+          "{{facts}}"
+
+          Key Statistic:
+          "{{key_stat}}"
+
+          Include:
+          - An engaging title
+          - An opening hook
+          - The key statistic with context
+          - A strong conclusion
+        agent: writer
+        inputs:
+          - name: tone
+            source: vars.tone
+          - name: topic_name
+            source: vars.topic
+          - name: facts
+            source: research.gather_facts.outputs.__raw__
+          - name: key_stat
+            source: research.extract_statistic.outputs.__raw__
+
+      - name: polish_article
+        prompts: |
+          Review the following draft article for clarity, grammar, and flow:
+          "{{draft}}"
+
+          Improve sentence structure and fix any issues. Return the
+          polished version only.
+        agent: writer
+        inputs:
+          - name: draft
+            source: writing.draft_article.outputs.__raw__

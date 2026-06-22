@@ -13,12 +13,19 @@ export default abstract class PhazeDB {
 
     this.onModelCreating(orchestrator);
 
+    // Compile all registered schemas into Dexie version/stores configuration.
+    // Without this call, no tables are registered and Dexie throws InvalidTableError.
+    orchestrator.compile();
   }
 
   protected abstract dbName(): string;
 
   public set<TEntity, TKey>(table: string): () => Table<TEntity, TKey> {
     return () => this.db.table<TEntity, TKey>(table);
+  }
+
+  public table<TEntity, TKey>(table: string) {
+    return this.set<TEntity, TKey>(table)();
   }
 
   protected abstract onModelCreating(model: IPhazeModelBuilder): void;

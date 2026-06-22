@@ -14,6 +14,7 @@ import {
   BunnyHasId,
   BunnyOnSuccessBehavior,
 } from "./Bunny.Interface";
+import { AdminPanelFormMode } from "../../admin-panel/features/form/admin-panel-form.interface";
 import { adminPanelEvents } from "../../admin-panel/features/event/admin-panel-event";
 import { useBunnyHeaderActions } from "./header/BunnyHeader.Action.Default";
 import { useBunnyRowActionDefault } from "./rows/BunnyRow.Action.Default";
@@ -35,7 +36,11 @@ export default function Bunny<TRow, TForm>({
   customize,
 }: ExtendedBunnyProps<TRow, TForm>) {
   return (
-    <AdminPanelProvider query={config.query} mutation={config.mutation}>
+    <AdminPanelProvider
+      query={config.query}
+      mutation={config.mutation}
+      props={config.props}
+    >
       <BunnyMainPanel config={config} customize={customize}>
         {children}
       </BunnyMainPanel>
@@ -143,23 +148,63 @@ function BunnyMainPanel<TRow, TForm>({
   const handlePrimaryAction = useCallback(async () => {
     form.clearFormError();
 
-    // Directly pull from the primary config prop
-    const rawFormConfig = config.formConfig;
-    const resolvedFormConfig =
-      typeof rawFormConfig === "function" ? rawFormConfig(form) : rawFormConfig;
+    let formData = form.formData;
 
-    if (resolvedFormConfig?.fields) {
-      const clientErrors = validateBunnyForm(
-        resolvedFormConfig.fields,
-        form.formData,
-      );
-      if (Object.keys(clientErrors).length > 0) {
-        form.setFormError(clientErrors);
+    // --- Before Form Submit ---
+    if (finalConfig.beforeFormSubmit) {
+      formData = {
+        ...formData,
+        ...finalConfig.beforeFormSubmit(formData, modal.mode || "create"),
+      };
+      form.setFormData(formData);
+    }
+
+    // --- Validation: adapter takes precedence over built-in rules ---
+    if (finalConfig.validationAdapter) {
+      const errors = finalConfig.validationAdapter.validate(formData);
+      if (Object.keys(errors).length > 0) {
+        form.setFormError(errors);
+        console.error("There is form error", errors);
+        toast.danger(
+          <div className="space-y-2">
+            <p className="font-medium">Please fix the following errors:</p>
+            <ul className="list-disc pl-5 text-sm">
+              {Object.entries(errors).map(
+                ([field, message]: [string, string]) => (
+                  <li key={field}>
+                    <strong>{field}</strong>: {message}
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>,
+          {},
+        );
         return;
       }
+    } else {
+      // Fallback to built-in field-level rules
+      const rawFormConfig = config.formConfig;
+      const resolvedFormConfig =
+        typeof rawFormConfig === "function"
+          ? rawFormConfig(form)
+          : rawFormConfig;
+
+      if (resolvedFormConfig?.fields) {
+        const clientErrors = validateBunnyForm(
+          resolvedFormConfig.fields,
+          formData,
+        );
+        if (Object.keys(clientErrors).length > 0) {
+          form.setFormError(clientErrors);
+          return;
+        }
+      }
     }
+
     await form.submit();
-  }, [form, config.formConfig]); // Stable and explicit dependency
+  }, [form, modal.mode, config.formConfig, finalConfig.validationAdapter, finalConfig.beforeFormSubmit]); // Stable and explicit dependency
+
   useEffect(() => {
     const onFormSuccess = ({
       mode,

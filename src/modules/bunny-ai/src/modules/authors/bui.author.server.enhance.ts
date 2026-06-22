@@ -3,20 +3,20 @@
 
 import Handlebars from "handlebars";
 import { buiContainer } from "../../container/bui.container";
-import { BUIAISchemaOptions } from "../ai-schema/bui.ai-schema.types";
+import type { HelixAISchemaOptions } from "@/src/modules/helix";
 import { buiAuthorPrompt } from "./bui.author.prompt";
-import { BUIAIOption } from "../../configs/bui.config.interface";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 export async function buiAuthorServerEnhanceWithParams(
   name: string,
   description: string,
   promptType: string = "professional",
-  aiConfig?: BUIAIOption,
+  aiConfig?: HelixAIOption,
 ) {
   const container = buiContainer.createScope();
   const ai = container.resolve("ai");
 
-  const authorEnhancementSchema: BUIAISchemaOptions = {
+  const authorEnhancementSchema: HelixAISchemaOptions = {
     name: "author_enhancement",
     description:
       "Enhances an author's name and generates a compelling, accurate bio description.",

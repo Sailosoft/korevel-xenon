@@ -1,6 +1,6 @@
 "use client";
 
-import { BookA, RabbitIcon } from "lucide-react";
+import { BookA, RabbitIcon, GitBranch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -255,14 +255,14 @@ const Icons = {
 };
 
 interface App {
-    id: number;
-    name: string;
-    url: string;
-    status: "Active" | "Maintenance" | "Inactive";
-    category: string;
-    latency: string;
-    icon: React.ReactNode;
-  }
+  id: number;
+  name: string;
+  url: string;
+  status: "Active" | "Maintenance" | "Inactive";
+  category: string;
+  latency: string;
+  icon: React.ReactNode;
+}
 
 export default function AppPage() {
   const [viewMode, setViewMode] = useState("grid");
@@ -319,6 +319,15 @@ export default function AppPage() {
       latency: "42ms",
       icon: <RabbitIcon />,
     },
+    {
+      id: 6,
+      name: "BunnyFlow",
+      url: "/modules/bunny-flow",
+      status: "Active",
+      category: "AI",
+      latency: "42ms",
+      icon: <GitBranch />,
+    },
   ]);
 
   const categories = [
@@ -349,7 +358,11 @@ export default function AppPage() {
     }, 1200);
   };
 
-  const handleCopy = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>, url: string, id: number) => {
+  const handleCopy = (
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+    url: string,
+    id: number,
+  ) => {
     e.stopPropagation();
     const textArea = document.createElement("textarea");
     textArea.value = url;

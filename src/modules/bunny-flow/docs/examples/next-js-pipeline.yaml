@@ -1,0 +1,119 @@
+# =============================================================================
+# Example: Next.js Feature Development Pipeline
+# Demonstrates: Multi-agent collaboration, architectural scoping, code generation,
+#              and QA review using structured cross-job inputs.
+# =============================================================================
+name: Nextjs Feature Pipeline
+semanticVersion: 1.0.0
+agentPools: []
+description: >
+  A comprehensive development pipeline that takes a feature request,
+  designs the Next.js component/API architecture, writes the implementation,
+  and runs a security and code quality review.
+
+variables:
+  - name: feature_request
+    defaultValue: "A responsive user profile dashboard with an avatar upload button and client-side form validation using React Hook Form."
+    type: text
+    description: Describe the Next.js feature or component you want to build.
+
+  - name: styling_framework
+    defaultValue: "Tailwind CSS"
+    type: select
+    description: The preferred styling utility or framework.
+
+agents:
+  - name: Tech Lead Agent
+    slug: architect
+    role: Software Architect
+    prompt: >
+      You are an expert Solutions Architect specializing in React, Next.js (App Router),
+      and modern frontend design patterns. You focus on clean architecture,
+      state management, and performance.
+
+  - name: Developer Agent
+    slug: developer
+    role: Senior Full-Stack Engineer
+    prompt: >
+      You are an efficient Next.js developer. You write clean, modular TypeScript code 
+      following modern standards (Server vs Client components, clean hooks, error boundaries).
+      You return raw code blocks with minimal conversational filler.
+
+  - name: QA Agent
+    slug: qa_engineer
+    role: Senior QA & Security Reviewer
+    prompt: >
+      You are a meticulous QA engineer and security analyst. You inspect code for
+      edge cases, performance bottlenecks, accessibility (a11y) issues, and security vulnerabilities.
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # JOB 1: Planning and Architecture
+  # ---------------------------------------------------------------------------
+  - name: architecture_planning
+    prompt: Design the technical architecture and component breakdown
+    agent: architect
+    steps:
+      - name: technical_scoping
+        prompts: |
+          Analyze the following feature request for a Next.js application:
+          "{{request}}"
+
+          Provide a step-by-step technical implementation plan. Include:
+          1. Component Tree Architecture (Identify which should be Server vs. Client Components).
+          2. Data Fetching or API routes needed.
+          3. State management strategy.
+        agent: architect
+        inputs:
+          - name: request
+            source: vars.feature_request
+
+  # ---------------------------------------------------------------------------
+  # JOB 2: Code Implementation
+  # ---------------------------------------------------------------------------
+  - name: code_generation
+    prompt: Write the TypeScript and Next.js codebase implementation
+    agent: developer
+    needs: architecture_planning
+    steps:
+      - name: write_code
+        prompts: |
+          Implement the Next.js feature based on the following architectural scope:
+          "{{scoping_plan}}"
+
+          Requirements:
+          - Use TypeScript.
+          - Use {{styling}} for all component layouts.
+          - Ensure proper separation of concerns.
+          
+          Provide the complete, production-ready code files.
+        agent: developer
+        inputs:
+          - name: scoping_plan
+            source: architecture_planning.technical_scoping.outputs.__raw__
+          - name: styling
+            source: vars.styling_framework
+
+  # ---------------------------------------------------------------------------
+  # JOB 3: Quality Assurance & Code Review
+  # ---------------------------------------------------------------------------
+  - name: quality_assurance
+    prompt: Review the generated code for bugs, performance, and best practices
+    agent: qa_engineer
+    needs: code_generation
+    steps:
+      - name: code_review
+        prompts: |
+          Review the following generated Next.js code for potential issues:
+          "{{generated_code}}"
+
+          Check for:
+          1. React performance anti-patterns (unnecessary re-renders).
+          2. Edge cases or unhandled API/form validation errors.
+          3. Security issues or optimization opportunities.
+
+          Provide a summary of findings and a finalized, hardened version of the code if fixes are required.
+        agent: qa_engineer
+        inputs:
+          - name: generated_code
+            source: code_generation.write_code.outputs.__raw__

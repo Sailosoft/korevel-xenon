@@ -12,11 +12,14 @@ export default function BunnyForm<TRow, TForm>() {
       ? config.formConfig(form)
       : config.formConfig;
 
-  // console.log(resolvedConfig, config, config.formConfig);
+  // No formConfig defined — nothing to render
+  if (!resolvedConfig) {
+    return null;
+  }
 
   return (
     <BunnyFormBuilder<TForm>
-      config={resolvedConfig!}
+      config={resolvedConfig}
       formData={form.formData}
       onChange={form.handleChange}
       errors={form.formError || {}}

@@ -1,17 +1,20 @@
 import OpenAI from "openai";
 import BookBuilderAI from "./book-builder.ai";
-import { BOOK_BUILDER_CONFIG } from "../config/book-builder.config";
+import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 
 export default class BookBuilderModule {
   ai: OpenAI;
   bookBuilderAI: BookBuilderAI;
   constructor() {
+    // Subscribe to Helix configuration for AI settings
+    const defaultProvider = HELIX_AI_PROVIDERS.find(
+      (p) => p.provider === "default",
+    )!;
     this.ai = new OpenAI({
-      apiKey: BOOK_BUILDER_CONFIG.OPEN_AI_API_KEY,
-      baseURL: BOOK_BUILDER_CONFIG.OPEN_AI_BASE_URL,
-      // baseURL: "http://localhost:11434/v1",
+      apiKey: defaultProvider.apiKey,
+      baseURL: defaultProvider.endpoint,
     });
-    this.bookBuilderAI = new BookBuilderAI(BOOK_BUILDER_CONFIG.OPEN_AI_MODEL);
+    this.bookBuilderAI = new BookBuilderAI(defaultProvider.model);
   }
 
   async generateBook() {

@@ -42,6 +42,8 @@ export default function BUISidebar({
   wizard,
 }: BUISidebarProps) {
   const pathname = usePathname();
+  // 🔍 DEBUG: Track pathname changes
+  // console.log("[BUISidebar] pathname:", pathname);
 
   // Group nav items by section
   const sections = groupBySection(navItems);
@@ -106,17 +108,39 @@ export default function BUISidebar({
 
                   {/* Nav links */}
                   {section.items.map((item) => {
-                    const isActive =
-                      pathname === item.href ||
-                      (item.href !== "/modules/bunny-ai" &&
-                        pathname.startsWith(item.href));
+                    // Determine if this nav item has any child routes also listed
+                    // in the nav. If so, we use exact-match only so that the parent
+                    // (e.g. Dashboard) doesn't stay highlighted when a child route
+                    // (e.g. Workflows, Pipelines) is active.
+                    const hasChildItems = navItems.some(
+                      (other) =>
+                        other !== item &&
+                        other.href.startsWith(item.href + "/"),
+                    );
+
+                    const segments = item.href
+                      .split("/")
+                      .filter(Boolean).length;
+
+                    const isActive = hasChildItems
+                      ? // Parent with children → exact match only
+                        pathname === item.href
+                      : // Leaf item → use startsWith for deeper routes too
+                        pathname === item.href ||
+                        (segments >= 3 && pathname.startsWith(item.href + "/"));
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group ${
-                          isActive ? theme.navActive : theme.navHover
-                        }`}
+                        className={`
+                          flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors group
+                          ${
+                            isActive
+                              ? theme.navActive
+                              : item.variant === "danger"
+                                ? `text-[${theme.textPrimary}] hover:bg-red-50`
+                                : theme.navHover
+                          }`}
                       >
                         <item.icon className="w-5 h-5" />
                         <span className="font-medium">{item.label}</span>

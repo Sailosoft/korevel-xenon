@@ -1,0 +1,93 @@
+# =============================================================================
+# Example 2: Structured Outputs Pipeline
+# Demonstrates: named output fields (plain, number, json_array, markdown),
+#               granular cross-step references, partial input consumption
+# =============================================================================
+name: Data Analysis Pipeline
+semanticVersion: 1.0.0
+description: >
+  Analyze a dataset and extract structured fields (insight, score, keywords),
+  then generate targeted downstream reports using only the fields they need.
+
+variables:
+  - name: dataset_description
+    defaultValue: "Customer survey responses Q1 2025"
+    type: text
+    description: Description of the dataset to analyze
+
+  - name: min_score_threshold
+    defaultValue: "70"
+    type: number
+    description: Minimum sentiment score to consider positive
+
+agents:
+  - name: Data Analyst
+    slug: analyst
+    role: Data Analyst
+    prompt: >
+      You are a data analyst specializing in survey data.
+      You extract precise, structured insights from raw data.
+
+  - name: Content Writer
+    slug: writer
+    role: Content Writer
+    prompt: >
+      You are a technical content writer who produces
+      clear, audience-appropriate content from data.
+
+jobs:
+  - name: analysis
+    prompt: Analyze the dataset and extract structured insights
+    agent: analyst
+    steps:
+      - name: extract_insights
+        prompts: |
+          Analyze the dataset: "{dataset_description}".
+          Extract the key insight, sentiment score (0-100),
+          and list of top 3 keywords.
+        output:
+          - name: key_insight
+            type: plain
+          - name: sentiment_score
+            type: number
+          - name: keywords
+            type: json_array
+
+  - name: reporting
+    prompt: Generate reports from the structured analysis
+    agent: writer
+    needs: analysis
+    steps:
+      - name: write_summary
+        prompts: |
+          Write a concise executive summary based on the insight.
+          The sentiment score is {score}. Tailor the urgency
+          based on whether the score exceeds {threshold}.
+        inputs:
+          - name: insight
+            source: analysis.extract_insights.outputs.key_insight
+          - name: score
+            source: analysis.extract_insights.outputs.sentiment_score
+          - name: threshold
+            source: vars.min_score_threshold
+
+      - name: generate_keywords_report
+        prompts: |
+          Write a detailed breakdown of each keyword from the list.
+          For each keyword, explain why it's significant in the
+          context of {description}.
+        inputs:
+          - name: keyword_list
+            source: analysis.extract_insights.outputs.keywords
+          - name: description
+            source: vars.dataset_description
+
+      - name: compose_final_report
+        prompts: |
+          Combine the summary and keyword breakdown into a cohesive
+          final report. Format it with clear sections.
+        inputs:
+          - name: summary
+            source: reporting.write_summary.outputs.__raw__
+          - name: keyword_section
+            source: reporting.generate_keywords_report.outputs.__raw__

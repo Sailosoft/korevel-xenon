@@ -1,5 +1,6 @@
 import { UseAdminPanel } from "../../admin-panel/admin-panel.interface";
 import {
+  AdminPanelFormMode,
   UseAdminPanelForm,
   UseAdminPanelFormPropsWithoutQueryMutation,
 } from "../../admin-panel/features/form/admin-panel-form.interface";
@@ -12,6 +13,7 @@ import { BunnyFormConfig } from "./form/BunnyForm.Interface";
 import {
   BunnyHeaderAction,
   BunnyHeaderActionType,
+  BunnyHeaderConfig,
 } from "./header/BunnyHeader.Interface";
 import { BunnyModalHeaderAction } from "./modal/BunnyModal.Interface";
 import { BunnyRouter } from "./router/BunnyRouter.interface";
@@ -22,6 +24,42 @@ import {
   BunnyTableMobileView,
   BunnyTableMode,
 } from "./table/BunnyTable.Interface";
+
+/**
+ * A validation adapter decouples Bunny from any specific validation library (Zod, Yup, Joi, etc.).
+ *
+ * - Implement this interface in your **consumer project** where your validation library lives.
+ * - Bunny imports **only this interface** — zero foreign dependencies.
+ * - The adapter's `validate()` returns `Record<string, string>` (field → error message),
+ *   which maps directly to `form.setFormError()`.
+ *
+ * @example
+ * ```ts
+ * // Zod adapter in your project
+ * const adapter: BunnyValidationAdapter<MyForm> = {
+ *   validate(formData) {
+ *     const r = myZodSchema.safeParse(formData);
+ *     if (r.success) return {};
+ *     // flatten Zod issues into field → message
+ *     const errors: Record<string, string> = {};
+ *     for (const issue of r.error.issues) {
+ *       const path = issue.path.join(".");
+ *       if (!errors[path]) errors[path] = issue.message;
+ *     }
+ *     return errors;
+ *   },
+ * };
+ * ```
+ */
+export interface BunnyValidationAdapter<TForm = Record<string, unknown>> {
+  /**
+   * Validates `formData` and returns field-level error messages.
+   * Return an **empty object** `{}` when validation passes.
+   * Each key is a field path (e.g. `"title"`, `"address.city"`),
+   * each value is a human-readable error message.
+   */
+  validate: (formData: TForm) => Record<string, string>;
+}
 
 export type BunnyCustomize<TRow, TForm> = (
   admin: UseAdminPanel<TRow, TForm>,
@@ -57,6 +95,10 @@ export type BunnyOnSuccessBehavior =
 
 export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   title: string;
+  /** URL pattern that this module handles — matched against `window.location.pathname`
+   *  during Next.js inference to determine which BunnyPackage to activate.
+   *  Supports exact paths (`/books`), prefix wildcards (`/books/*`), and regex patterns (`/^\/books\//`). */
+  module_url?: string;
   titlePlural?: string;
   modalSizeWidth?: number;
   modalSize?: BunnyModalSize;
@@ -74,6 +116,13 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   formConfig?:
     | BunnyFormConfig<TForm>
     | ((form: UseAdminPanelForm<TForm>) => BunnyFormConfig<TForm>);
+
+  /**
+   * Optional validation adapter.
+   *
+   */
+  validationAdapter?: BunnyValidationAdapter<TForm>;
+
   /** Width configuration for the table's row actions column 🚀 */
   rowActionsColWidth?: number; // 👈 Updated naming;
 
@@ -83,6 +132,9 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
   hideHeaderActions?: BunnyHeaderActionType[];
   /** Manually appended custom header items */
   headerActions?: BunnyHeaderAction<TRow, TForm>[];
+
+  /** Header display configuration (icon, description, variant) */
+  header?: BunnyHeaderConfig;
 
   /** Automatically pull in default row actions (view, edit, delete) */
   defaultRowActions?: boolean;
@@ -98,6 +150,24 @@ export interface BunnyConfig<TRow = unknown, TForm = unknown> {
 
   tableMode?: BunnyTableMode;
   tableMobileView?: BunnyTableMobileView<TRow>;
+
+  /** Before Form Submit */
+  beforeFormSubmit?: (form: Partial<TForm>, mode: AdminPanelFormMode) => Partial<TForm>;
+
+  /**
+   * Default form data to pre-populate when opening the modal in "create" mode.
+   * This is applied after the form resets, ensuring fresh default values
+   * compatible with the workflow schema are available on every new creation.
+   *
+   * @example
+   * ```ts
+   * form.setFormDefaultData({
+   *   templateYaml: "name: my-workflow\nversion: 1.0.0",
+   *   status: "draft",
+   * });
+   * ```
+   */
+  formDefaultData?: Partial<TForm>;
 
   props?: {
     table?: Partial<UseAdminPanelTablePropsWithoutQuery<TRow>>;

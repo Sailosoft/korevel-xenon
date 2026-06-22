@@ -1,0 +1,133 @@
+# =============================================================================
+# Example 3: Conditional Execution & Skip Logic
+# Demonstrates: skipIf conditions, multiple job dependencies (needs as array),
+#               boolean variables, dynamic step skipping based on input values
+# =============================================================================
+name: Conditional Review Pipeline
+semanticVersion: 1.0.0
+description: >
+  A code/PR review pipeline that conditionally executes steps based on
+  variable values. If no issues are found, the remediation step is skipped.
+
+variables:
+  - name: pr_title
+    defaultValue: "feat: add user authentication module"
+    type: text
+    description: The title of the pull request
+
+  - name: code_complexity
+    defaultValue: "medium"
+    type: select
+    description: Estimated code complexity (low/medium/high)
+
+  - name: require_security_review
+    defaultValue: "true"
+    type: text
+    description: Whether to perform a security audit
+
+agents:
+  - name: Code Reviewer
+    slug: reviewer
+    role: Code Reviewer
+    prompt: >
+      You are a senior software engineer conducting a thorough
+      code review. You identify bugs, security issues, and
+      performance bottlenecks.
+
+  - name: Security Auditor
+    slug: security
+    role: Security Auditor
+    prompt: >
+      You are a security expert who audits code for vulnerabilities.
+      You follow OWASP guidelines.
+
+  - name: Tech Writer
+    slug: writer
+    role: Technical Writer
+    prompt: >
+      You are a technical writer who documents code changes
+      clearly for both developers and stakeholders.
+
+jobs:
+  - name: review
+    prompt: Review the pull request code changes
+    agent: reviewer
+    steps:
+      - name: analyze_code
+        prompts: |
+          Review the PR titled "{title}" with {complexity} complexity.
+          Identify:
+          1. Code quality issues
+          2. Potential bugs
+          3. Performance concerns
+          Return "NO_ISSUES" if everything looks clean, otherwise
+          list each issue found.
+        agent: reviewer
+        output:
+          - name: review_verdict
+            type: plain
+          - name: issue_count
+            type: number
+
+      - name: security_audit
+        prompts: |
+          Perform a security audit on the code in PR "{title}".
+          Check for:
+          - Injection vulnerabilities
+          - Authentication weaknesses
+          - Data exposure risks
+        agent: security
+        skipIf:
+          - inputs: perform_audit
+            condition: "=="
+            value: false
+        inputs:
+          - name: perform_audit
+            source: vars.require_security_review
+          - name: code_context
+            source: review.analyze_code.outputs.__raw__
+
+  - name: remediation
+    prompt: Fix issues found during review
+    agent: reviewer
+    needs: review
+    steps:
+      - name: fix_issues
+        prompts: |
+          Based on the review findings, provide specific code fixes
+          for each issue identified.
+        agent: reviewer
+        skipIf:
+          - inputs: verdict
+            condition: "=="
+            value: "NO_ISSUES"
+        inputs:
+          - name: verdict
+            source: review.analyze_code.outputs.review_verdict
+          - name: issues
+            source: review.analyze_code.outputs.__raw__
+
+  - name: documentation
+    prompt: Document the PR changes
+    agent: writer
+    needs:
+      - review
+      - remediation
+    steps:
+      - name: generate_changelog
+        prompts: |
+          Write a changelog entry for PR "{title}" at {complexity}
+          complexity. Include:
+          - Summary of changes
+          - Issues found and fixed
+          - Security considerations
+        agent: writer
+        inputs:
+          - name: title
+            source: vars.pr_title
+          - name: complexity
+            source: vars.code_complexity
+          - name: review_findings
+            source: review.analyze_code.outputs.__raw__
+          - name: sec_findings
+            source: review.security_audit.outputs.__raw__

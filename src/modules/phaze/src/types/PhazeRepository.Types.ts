@@ -7,26 +7,32 @@ import {
 import { AdminPanelResult } from "@/src/modules/admin-panel/shared/admin-panel-result";
 import { PhazeRepositoryResult } from "./PhazeResult.Types";
 
-export interface IPhazeRepositoryQueries<T> {
-  panelGetOne(id: AdminPanelId): Promise<T>;
-  panelGetAll(
+export interface IPhazeRepositoryQueries<TRow> {
+  getOne(id: AdminPanelId): Promise<TRow>;
+  getAll(
     options: AdminPanelQueryOptions,
     overrideOptions?: AdminPanelQueryOptions,
-  ): Promise<GetAllResponse<T>>;
+  ): Promise<GetAllResponse<TRow>>;
 }
 
-export interface IPhazeRepositoryMutations<T> {
-  panelCreate(data: T): Promise<AdminPanelResult<T, unknown>>;
-  panelUpdate(id: AdminPanelId, data: T): Promise<AdminPanelResult<T, unknown>>;
-  panelDelete(id: AdminPanelId): Promise<AdminPanelResult<T, unknown>>;
+export interface IPhazeRepositoryMutations<TRow, TForm = TRow> {
+  create(data: TForm): Promise<AdminPanelResult<TRow, unknown>>;
+  update(id: AdminPanelId, data: TForm): Promise<AdminPanelResult<TRow, unknown>>;
+  delete(id: AdminPanelId): Promise<AdminPanelResult<TRow, unknown>>;
 }
 
-export interface IPhazeRepository<T> {
-  getList(_options: AdminPanelQueryOptions): Promise<PhazeRepositoryResult<T[]>>;
-  get(id: AdminPanelId): Promise<PhazeRepositoryResult<T>>;
-  create(data: T): Promise<PhazeRepositoryResult<T>>;
-  update(id: AdminPanelId, data: T): Promise<PhazeRepositoryResult<T>>;
+export interface IPhazeRepository<TRow, TForm = TRow> {
+  getList(
+    _options: AdminPanelQueryOptions,
+  ): Promise<PhazeRepositoryResult<TRow[]>>;
+  get(id: AdminPanelId): Promise<PhazeRepositoryResult<TRow>>;
+  create(data: TForm): Promise<PhazeRepositoryResult<TRow>>;
+  update(id: AdminPanelId, data: TForm): Promise<PhazeRepositoryResult<TRow>>;
   delete(id: AdminPanelId): Promise<PhazeRepositoryResult>;
-  query: IPhazeRepositoryQueries<T>;
-  mutation: IPhazeRepositoryMutations<T>;
+  query: IPhazeRepositoryQueries<TRow>;
+  mutation: IPhazeRepositoryMutations<TRow, TForm>;
+  dataLayer: {
+    query: IPhazeRepositoryQueries<TRow>;
+    mutation: IPhazeRepositoryMutations<TRow, TForm>;
+  };
 }
