@@ -177,8 +177,11 @@ export default function BFlowRunComponent() {
               </div>
               <div className="p-2 space-y-1">
                 {jobs.map((job, index) => {
+                  // Match job run by jobId, falling back to job.name
+                  // for templates without explicit IDs in YAML
+                  const jobKey = job.id || job.name;
                   const jobRun = jobRuns?.find(
-                    (jr) => jr.jobId === job.id,
+                    (jr) => jr.jobId === jobKey,
                   );
                   const cfg = getStatusConfig(jobRun?.status);
 

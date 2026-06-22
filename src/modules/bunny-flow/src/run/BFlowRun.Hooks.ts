@@ -1,3 +1,4 @@
+
 /**
  * BFlowRun.Hooks — Custom React hooks for BunnyFlow pipeline run orchestration.
  *
@@ -387,10 +388,13 @@ export function useBFlowRunSubmit(
 
         try {
           // Create job run record in pending status
+          // Use job.id as primary identifier, falling back to job.name
+          // for templates without explicit IDs in YAML
+          const jobId = job.id || job.name;
           const jobRun: BFlowJobRun = {
             id: jobRunId,
             runId,
-            jobId: job.id!,
+            jobId,
             jobName: job.name,
             status: "running",
             prompt: job.prompt,
@@ -408,6 +412,7 @@ export function useBFlowRunSubmit(
           completedJobRuns.push(jobRun);
 
           // 5. Execute steps sequentially within the job
+          let jobStepFailed = false;
           for (let sIdx = 0; sIdx < job.steps.length; sIdx++) {
             const step = job.steps[sIdx];
             const stepStartedAt = new Date();
@@ -560,6 +565,7 @@ export function useBFlowRunSubmit(
             // 5f. If step failed, mark job as failed and stop
             if (!stepResult.success) {
               anyFailed = true;
+              jobStepFailed = true;
               globalError = stepResult.error || `Step "${step.name}" failed`;
               await bflowDB.jobRuns.update(jobRunId, {
                 status: "failed" as BFlowRunStatus,
@@ -568,6 +574,30 @@ export function useBFlowRunSubmit(
                 updatedAt: stepCompletedAt,
               } as Partial<BFlowJobRun>);
               break;
+            }
+
+            // 5g. After all steps complete, mark job as succeeded
+            //     (job is only marked failed inside the step loop or catch block)
+            if (!jobStepFailed) {
+              const jobCompletedAt = new Date();
+              await bflowDB.jobRuns.update(jobRunId, {
+                status: "succeeded" as BFlowRunStatus,
+                completedAt: jobCompletedAt,
+                updatedAt: jobCompletedAt,
+              } as Partial<BFlowJobRun>);
+            }
+
+            // 5h. Immediately refresh UI state after job completes so
+            //     the sidebar, job list, and step list update without
+            //     waiting for the 2-second polling interval
+            try {
+              const [latestJobs, latestSteps] = await Promise.all([
+                bflowRunDB.getJobRunsForRun(runId),
+                bflowRunDB.getStepRunsForRun(runId),
+              ]);
+              onRunDataUpdate(latestJobs, latestSteps);
+            } catch {
+              // Refresh is best-effort — polling will catch up
             }
           }
         } catch (jobErr) {
@@ -828,7 +858,13 @@ export function useBFlowRun(
   const currentJob = jobs[selectedJobIndex];
 
   const currentJobRun = useMemo(
-    () => jobRuns?.find((jr) => jr.jobId === currentJob?.id),
+    () => {
+      // Match by jobId, falling back to job.name for templates without IDs
+      const jobKey = currentJob?.id || currentJob?.name;
+      return jobKey
+        ? jobRuns?.find((jr) => jr.jobId === jobKey)
+        : undefined;
+    },
     [jobRuns, currentJob],
   );
 
