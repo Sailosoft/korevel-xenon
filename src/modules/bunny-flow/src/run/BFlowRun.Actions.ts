@@ -215,15 +215,18 @@ export async function executePipelineRunAction(
     return {
       runId: request.runId,
       success: !anyFailed,
-      error: anyFailed
-        ? jobResults.find((j) => !j.success)?.error
-        : undefined,
+      error: anyFailed ? jobResults.find((j) => !j.success)?.error : undefined,
       jobs: jobResults,
     };
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unknown pipeline execution error";
-    console.error("[BFlowRun.Actions] executePipelineRunAction failed:", message);
+      error instanceof Error
+        ? error.message
+        : "Unknown pipeline execution error";
+    console.error(
+      "[BFlowRun.Actions] executePipelineRunAction failed:",
+      message,
+    );
     return {
       runId: request.runId,
       success: false,
