@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { BookOpenIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  XIcon,
+} from "lucide-react";
 import { getWorkflowYamlGuideMarkdown } from "./BFlowWorkflow.Guide";
 
 /**
@@ -124,7 +129,12 @@ function RenderGuideMarkdown({ markdown }: { markdown: string }) {
 
     // Horizontal rule
     if (line.startsWith("---")) {
-      elements.push(<hr key={index} className="my-3 border-slate-200 dark:border-slate-700" />);
+      elements.push(
+        <hr
+          key={index}
+          className="my-3 border-slate-200 dark:border-slate-700"
+        />,
+      );
       return;
     }
 
@@ -146,7 +156,10 @@ function RenderGuideMarkdown({ markdown }: { markdown: string }) {
     if (line.startsWith("# ")) {
       const content = renderInlineMarkdown(line.slice(2));
       elements.push(
-        <h1 key={index} className="text-base font-bold text-slate-800 dark:text-slate-100 mb-2 mt-1">
+        <h1
+          key={index}
+          className="text-base font-bold text-slate-800 dark:text-slate-100 mb-2 mt-1"
+        >
           {content}
         </h1>,
       );
@@ -157,7 +170,10 @@ function RenderGuideMarkdown({ markdown }: { markdown: string }) {
     if (line.startsWith("## ")) {
       const content = renderInlineMarkdown(line.slice(3));
       elements.push(
-        <h2 key={index} className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1 mt-3">
+        <h2
+          key={index}
+          className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1 mt-3"
+        >
           {content}
         </h2>,
       );
@@ -216,7 +232,10 @@ function renderInlineMarkdown(text: string): React.ReactNode {
     return boldParts.map((boldPart, j) => {
       if (boldPart.startsWith("**") && boldPart.endsWith("**")) {
         return (
-          <strong key={`${i}-${j}`} className="font-semibold text-slate-800 dark:text-slate-100">
+          <strong
+            key={`${i}-${j}`}
+            className="font-semibold text-slate-800 dark:text-slate-100"
+          >
             {boldPart.slice(2, -2)}
           </strong>
         );
