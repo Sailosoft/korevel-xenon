@@ -3,11 +3,12 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import {
   BFlowWorkflowTemplateEntity,
   BFlowWorkflowTemplateForm,
-} from "./BFlowWorkflow.Types";
+} from "./BFlowWorkflow.Entity";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
-import { BookOpenIcon } from "lucide-react";
+import { BookOpenIcon, SparklesIcon } from "lucide-react";
 import BFlowWorkflowGuidePanel from "./BFlowWorkflow.Guide.Panel";
+import BFlowWorkflowYamlGenerator from "./BFlowWorkflow.YamlGenerator.Component";
 import { AdminPanelFormActionState } from "@/src/modules/admin-panel/features/form-fields/admin-panel-form-field.interface";
 
 export const bflowWorkflowModule = BunnyFeature.create<
@@ -30,8 +31,9 @@ export const bflowWorkflowModule = BunnyFeature.create<
     });
   });
 
-  // ── Modal header action: YAML Structure Guide toggle ────────────────
+  // ── Modal header actions ────────────────────────────────────────────
   feature.configureModal((modal) => {
+    // Action 1: YAML Structure Guide toggle
     modal.addModalHeaderAction({
       id: "yaml-guide-toggle",
       label: "YAML Structure Guide",
@@ -50,12 +52,43 @@ export const bflowWorkflowModule = BunnyFeature.create<
             form: FormData;
             context: unknown;
           }): AdminPanelFormActionState | Promise<AdminPanelFormActionState> {
-            // throw new Error("Function not implemented.");
             return {};
           },
         });
       },
-      hide: ["update", "view", "plain"],
+      hide: ["plain"],
+    });
+
+    // Action 2: AI YAML Generator
+    modal.addModalHeaderAction({
+      id: "yaml-generator",
+      label: "AI Generate YAML",
+      icon: React.createElement(SparklesIcon, { className: "size-4" }),
+      onClick: (context) => {
+        const form = context?.adminPanel.form;
+
+        context?.adminPanel.dialog.openDialog({
+          title: "AI Workflow YAML Generator",
+          contentOnly: true,
+          size: "3xl",
+          children: React.createElement(BFlowWorkflowYamlGenerator, {
+            onClose: () => context?.adminPanel.dialog.closeDialog(),
+            // Direct form state injection via admin-panel form handleChange
+            onYamlGenerated: (yaml: string) => {
+              form?.handleChange("templateYaml", yaml);
+            },
+          }),
+          actionId: "open-yaml-generator",
+          onConfirm: function (options: {
+            prevState?: AdminPanelFormActionState;
+            form: FormData;
+            context: unknown;
+          }): AdminPanelFormActionState | Promise<AdminPanelFormActionState> {
+            return {};
+          },
+        });
+      },
+      hide: ["view", "plain"],
     });
   });
 
