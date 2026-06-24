@@ -4,27 +4,42 @@
  * Implements IBFlowRunPromptBuilder using Handlebars template compilation.
  * Separates concerns into three distinct phases:
  *
- *   1. **Template strings** — Declarative Handlebars templates stored as
- *      constants (see [`BFlowRun.Prompt.Types`](./BFlowRun.Prompt.Types.ts)).
- *      Uses `{{#if}}` / `{{#each}}` helpers for dynamic sections instead of
- *      imperative string concatenation.
+ *   1. **Pass 1 — Inline interpolation** — Free‑form prompt strings
+ *      (`step.prompts`, `job.prompt`, `pipeline.prompt`) are themselves
+ *      compiled as Handlebars templates and rendered against a flat map of
+ *      resolved inputs **and** variables. Markers such as `{{topic}}` are
+ *      replaced in‑place with their concrete values *before* the outer
+ *      template runs. This uses `strict` mode so an undefined marker throws
+ *      (fail‑fast), mirroring [`InputResolutionError`](./BFlowRun.InputResolver.ts).
  *
- *   2. **Value resolution** — Input data (step, job, pipeline, variables,
+ *   2. **Pass 2 — Template strings** — Declarative Handlebars templates
+ *      stored as constants (see [`BFlowRun.Prompt.Types`](./BFlowRun.Prompt.Types.ts))
+ *      wrap the already‑interpolated prompt text. Uses `{{#if}}` / `{{#each}}`
+ *      helpers for dynamic sections instead of imperative string concatenation.
+ *      The pass‑1 output is fed verbatim into `step.prompts` / `job.prompt` /
+ *      `pipeline.prompt`, so no `{{...}}` escaping collisions occur.
+ *
+ *   3. **Value resolution** — Input data (step, job, pipeline, variables,
  *      resolved inputs) is projected into a flat context object. Computed
  *      values are **hot‑swapped** directly into the context so the template
  *      receives the actual value, not a reference that needs a second pass.
  *
- *   3. **Template compilation** — Handlebars compiles the template string
- *      once (cached per unique template) and renders it against the context.
- *
  * ## Hot‑swap semantics
  *
- * Instead of inserting `{{input.someField}}` placeholders that require a
- * secondary resolution step, the TemplateBar builder resolves all inputs
- * and variables ahead of time and places the **computed value** directly
- * into the template context keyed by its logical name. This means the
- * Handlebars template sees `{{slug}}` already containing `"my-value"`
- * rather than `{{input.slug}}` that would need a later substitution pass.
+ * Resolved inputs and variables are flattened into the pass‑1 context keyed
+ * by their logical names, so an author writing `{{topic}}` in a prompt gets
+ * `"my-value"` substituted inline. Pass 2 still receives the original
+ * `resolvedInputs` / `resolvedVariables` arrays (rendered as explicit
+ * `name = value` blocks) so the AI has an unambiguous map of available data.
+ *
+ * ## Caveats
+ *
+ * Pass 1 only exposes the resolved input/variable map to the prompt strings —
+ * not `step.name`, `job.name`, etc. A stray `{{step.name}}` inside a prompt
+ * therefore renders to "step.name" reference error under strict mode. If an
+ * input value itself contains `{{x}}` markers, those are left untouched by
+ * pass 1 (the value is inserted as a finished string), and pass 2 cannot
+ * re‑substitute them because {{step.prompts}} is emitted verbatim.
  */
 
 import Handlebars from "handlebars";
@@ -64,6 +79,103 @@ function compileCached(templateStr: string): HandlebarsTemplateDelegate {
   return compiled;
 }
 
+// ─── Pass 1: Inline Interpolation ────────────────────────────────────────
+
+/**
+ * Separate cache for pass‑1 prompt interpolation templates. These use
+ * `strict: true` so referencing an unknown marker throws at render time,
+ * surfacing typos like `{{tpoic}}` instead of silently rendering empty.
+ */
+const interpolationCache = new Map<string, HandlebarsTemplateDelegate>();
+
+function compileInterpolation(templateStr: string): HandlebarsTemplateDelegate {
+  let compiled = interpolationCache.get(templateStr);
+  if (!compiled) {
+    compiled = Handlebars.compile(templateStr, {
+      noEscape: true,
+      strict: true,
+    });
+    interpolationCache.set(templateStr, compiled);
+  }
+  return compiled;
+}
+
+/**
+ * Flatten resolved inputs and pipeline variables into a single
+ * `name → value` map that pass‑1 prompt interpolation can render against.
+ *
+ * Inputs and variables intentionally share the same namespace: in a prompt,
+ * `{{topic}}` resolves to `vars.topic` **unless** an input named `topic`
+ * overrides it (inputs take precedence because step‑scoped data is more
+ * specific than pipeline‑scoped variables).
+ */
+function buildInterpolationContext(
+  resolvedVariables?: BFlowPipelineVariable[],
+  resolvedInputs?: ResolvedStepInput[],
+): Record<string, string> {
+  const ctx: Record<string, string> = {};
+
+  // Variables first (lower precedence)
+  if (resolvedVariables) {
+    for (const v of resolvedVariables) {
+      ctx[v.name] = v.value;
+    }
+  }
+
+  // Inputs override variables (step scope beats pipeline scope)
+  if (resolvedInputs) {
+    for (const input of resolvedInputs) {
+      ctx[input.name] = input.value;
+    }
+  }
+
+  return ctx;
+}
+
+/**
+ * Render a free‑form prompt string through pass‑1 Handlebars interpolation,
+ * substituting `{{marker}}` references with the values in `context`.
+ *
+ * Falls back to the original string if it contains no interpolation
+ * markers at all — avoids the cost of compiling trivial prompts and keeps
+ * output byte‑identical to the input for marker‑free text.
+ *
+ * @param strict  When `true` (default), a marker referencing a name absent
+ *                from `context` throws — mirroring the fail‑fast
+ *                [`InputResolutionError`](./BFlowRun.InputResolver.ts) philosophy.
+ *                When `false`, unresolvable markers are left untouched (the
+ *                original string is returned) — used by pre‑resolution
+ *                snapshots such as [`buildExecutionRequest`](#buildExecutionRequest)
+ *                where cross‑step inputs are not yet available.
+ */
+function interpolatePrompt(
+  promptStr: string,
+  context: Record<string, string>,
+  strict = true,
+): string {
+  // Quick reject: no double‑curly markers → nothing to interpolate.
+  if (!promptStr.includes("{{")) {
+    return promptStr;
+  }
+
+  const template = compileInterpolation(promptStr);
+  try {
+    return template(context);
+  } catch (err) {
+    if (!strict) {
+      // Lenient mode (pre‑resolution snapshot): leave the prompt literal.
+      return promptStr;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Prompt interpolation failed.\n` +
+        `    Prompt: ${promptStr.slice(0, 120)}${promptStr.length > 120 ? "…" : ""}\n` +
+        `    Error:  ${msg}\n` +
+        `    Available markers: ${Object.keys(context).join(", ") || "(none)"}`,
+    );
+  }
+}
+
 // ─── Context Builder Helpers ──────────────────────────────────────────
 
 /**
@@ -99,22 +211,60 @@ function buildSystemContext(
   pipeline: BFlowPipelineEntity,
   resolvedVariables: BFlowPipelineVariable[],
   resolvedInputs?: ResolvedStepInput[],
+  /**
+   * Pass‑1 interpolation strictness. `true` (default) throws on unresolved
+   * markers; `false` leaves the prompt literal when a marker can't be found.
+   * Pre‑resolution snapshots (e.g. [`buildExecutionRequest`](#buildExecutionRequest))
+   * pass `false` because cross‑step inputs aren't available yet.
+   */
+  strict = true,
 ): SystemPromptContext {
+  // Flatten inputs + variables into the pass‑1 interpolation namespace.
+  // Inputs take precedence over variables (step scope beats pipeline scope).
+  const interpolationCtx = buildInterpolationContext(
+    resolvedVariables,
+    resolvedInputs,
+  );
+
+  // Pass 1: render each prompt string's `{{marker}}` markers inline.
+  let interpolatedPrompts: string;
+  if (Array.isArray(step.prompts)) {
+    interpolatedPrompts = step.prompts
+      .map((p) => interpolatePrompt(p, interpolationCtx, strict))
+      .join("\n");
+  } else if (typeof step.prompts === "string") {
+    interpolatedPrompts = interpolatePrompt(
+      step.prompts,
+      interpolationCtx,
+      strict,
+    );
+  } else {
+    interpolatedPrompts = "";
+  }
+
+  const interpolatedJobPrompt = interpolatePrompt(
+    job.prompt ?? "",
+    interpolationCtx,
+    strict,
+  );
+  const interpolatedPipelinePrompt = interpolatePrompt(
+    pipeline.prompt ?? "",
+    interpolationCtx,
+    strict,
+  );
+
   return {
     step: {
       name: step.name,
-      prompts:
-        step.prompts && Array.isArray(step.prompts)
-          ? step.prompts.join("\n")
-          : (step.prompts ?? ""),
+      prompts: interpolatedPrompts,
       output: step.output ?? [],
     },
     job: {
       name: job.name,
-      prompt: job.prompt ?? "",
+      prompt: interpolatedJobPrompt,
     },
     pipeline: {
-      prompt: pipeline.prompt ?? "",
+      prompt: interpolatedPipelinePrompt,
     },
     resolvedInputs: (resolvedInputs ?? []).map((ri) => ({
       name: ri.name,
@@ -208,12 +358,14 @@ export class BFlowRunPromptTemplateBar implements IBFlowRunPromptBuilder {
     resolvedVariables: BFlowPipelineVariable[],
     resolvedInputs?: ResolvedStepInput[],
   ): string {
+    // Per‑step path: fail‑fast if a `{{marker}}` can't be resolved.
     const context = buildSystemContext(
       step,
       job,
       pipeline,
       resolvedVariables,
       resolvedInputs,
+      /* strict */ true,
     );
     const template = compileCached(this.systemTemplate);
     return template(context);
@@ -280,18 +432,28 @@ export class BFlowRunPromptTemplateBar implements IBFlowRunPromptBuilder {
       jobs: jobs.map((job) => ({
         jobId: job.id!,
         jobName: job.name,
-        steps: job.steps.map((step) => ({
-          stepId: step.id!,
-          stepName: step.name,
-          systemPrompt: this.buildSystemPrompt(
+        steps: job.steps.map((step) => {
+          // Pre‑resolution snapshot: cross‑step inputs aren't available yet,
+          // so pass `strict=false` to leave unresolvable `{{marker}}` markers
+          // as literal text. Actual per‑step execution re‑invokes
+          // [`buildStepSystemPrompt`](#buildStepSystemPrompt) with resolved
+          // inputs, where strict mode fails fast on genuine typos.
+          const snapshotContext = buildSystemContext(
             step,
             job,
             pipeline,
             resolvedVariables,
-          ),
-          userPrompt: this.buildUserPrompt(step),
-          aiConfig,
-        })),
+            undefined,
+            /* strict */ false,
+          );
+          return {
+            stepId: step.id!,
+            stepName: step.name,
+            systemPrompt: compileCached(this.systemTemplate)(snapshotContext),
+            userPrompt: this.buildUserPrompt(step),
+            aiConfig,
+          };
+        }),
       })),
     };
   }
