@@ -2,12 +2,13 @@
  * BFlowRun.Hooks.Submit — Custom React hook for pipeline execution and report generation.
  *
  * Separates execution logic (pipeline submission, step execution, report generation)
- * from the presentation layer.
+ * from the presentation layer. Supports both the fluent section‑based prompt builder
+ * (default) and the Handlebars‑driven TemplateBar builder.
  */
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { v7 as uuidv7 } from "uuid";
 import { bflowDB } from "../database/BFlowDatabase";
 import {
@@ -16,12 +17,15 @@ import {
   type StepExecutionRequest,
 } from "./BFlowRun.Actions";
 import { bflowRunDB } from "./BFlowRunDB";
-import { BFlowRunPromptBuilder } from "./BFlowRun.Prompt";
+import { BFlowRunPromptBuilder } from "./BFlowRun.SectionBuilder";
+import { BFlowRunPromptTemplateBar } from "./BFlowRun.Prompt.TemplateBar";
 import {
   BFlowRunInputResolver,
   InputResolutionError,
   type ResolvedStepInput,
 } from "./BFlowRun.InputResolver";
+import type { IBFlowRunPromptBuilder } from "./BFlowRun.Prompt.Types";
+import { BFlowPromptBuilderKind } from "./BFlowRun.Prompt.Types";
 import type {
   BFlowPipelineEntity,
   BFlowPipelineVariable,
@@ -39,8 +43,27 @@ import type {
 
 // ─── Shared instances ──────────────────────────────────────────────
 
-const promptBuilder = new BFlowRunPromptBuilder();
 const inputResolver = new BFlowRunInputResolver();
+
+/**
+ * Resolve the prompt builder strategy based on the pipeline entity's
+ * metadata configuration. Falls back to the section builder if no
+ * strategy is specified.
+ *
+ * The strategy can be stored in `pipeline.metadata.promptBuilderKind`.
+ */
+function resolvePromptBuilder(
+  pipeline?: BFlowPipelineEntity,
+): IBFlowRunPromptBuilder {
+  const kind = (pipeline?.metadata as Record<string, unknown> | undefined)
+    ?.promptBuilderKind;
+
+  if (kind === BFlowPromptBuilderKind.TemplateBar) {
+    return new BFlowRunPromptTemplateBar();
+  }
+
+  return new BFlowRunPromptBuilder();
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // useBFlowRunSubmit — pipeline execution + report generation
@@ -75,6 +98,12 @@ export function useBFlowRunSubmit(
   onError: (error: string | null) => void,
 ): BFlowRunSubmitState {
   const [isRunning, setIsRunning] = useState(false);
+
+  // ── Resolve prompt builder based on pipeline metadata ──────────────
+  const promptBuilder = useMemo<IBFlowRunPromptBuilder>(
+    () => resolvePromptBuilder(pipeline),
+    [pipeline?.id, pipeline?.metadata],
+  );
 
   // ── Start Pipeline Run ─────────────────────────────────────────
 

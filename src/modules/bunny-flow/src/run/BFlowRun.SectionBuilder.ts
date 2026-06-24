@@ -1,9 +1,8 @@
 /**
- * BFlowRunPromptBuilder — Builds system/user prompts and pipeline execution requests.
+ * BFlowRun.SectionBuilder — Fluent section‑based prompt builder.
  *
- * Encapsulates all prompt construction logic so the component stays focused
- * on orchestration and rendering, and prompting can be tested/evolved
- * independently.
+ * Implements IBFlowRunPromptBuilder using the BFlowPromptSectionBuilder fluent
+ * internal helper. Sections are pushed individually and joined at the end.
  */
 
 import { resolveBFlowAIOption } from "../ai-config/BFlowHelixIntegration";
@@ -18,6 +17,7 @@ import type {
 import type { HelixAIOption } from "@/src/modules/helix";
 import type { PipelineExecutionRequest } from "./BFlowRun.Actions";
 import type { ResolvedStepInput } from "./BFlowRun.InputResolver";
+import type { IBFlowRunPromptBuilder } from "./BFlowRun.Prompt.Types";
 
 // ─── Fluent Prompt Section Builder ───────────────────────────────────
 
@@ -126,7 +126,7 @@ class BFlowPromptSectionBuilder {
   }
 }
 
-export class BFlowRunPromptBuilder {
+export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
   /**
    * Build the system prompt for a single step using the fluent section
    * builder. Sections are pushed via `builder.resolveInput(...)`,
