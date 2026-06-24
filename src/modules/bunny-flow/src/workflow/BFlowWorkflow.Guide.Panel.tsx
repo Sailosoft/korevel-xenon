@@ -1,78 +1,18 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import {
-  BookOpenIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  XIcon,
-} from "lucide-react";
 import { getWorkflowYamlGuideMarkdown } from "./BFlowWorkflow.Guide";
 
 /**
- * A collapsible panel that displays the workflow YAML structure guide.
+ * Displays the workflow YAML structure guide as plain markdown.
  * The guide content is auto-generated from the `BFlowWorkflowSchema` Zod schema
  * using `toJSONSchema()` and rendered as human-readable markdown.
  */
-export default function BFlowWorkflowGuidePanel({
-  show,
-  onClose,
-}: {
-  show: boolean;
-  onClose?: () => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
+export default function BFlowWorkflowGuidePanel() {
   const guideMarkdown = getWorkflowYamlGuideMarkdown();
 
-  const handleClose = useCallback(() => {
-    setExpanded(false);
-    onClose?.();
-  }, [onClose]);
-
-  if (!show) return null;
-
   return (
-    <div className="border rounded-lg bg-slate-50 dark:bg-slate-900 mb-4 overflow-hidden">
-      {/* Header */}
-      <button
-        type="button"
-        onClick={() => setExpanded((prev) => !prev)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          {expanded ? (
-            <ChevronDownIcon className="size-4 text-slate-500" />
-          ) : (
-            <ChevronRightIcon className="size-4 text-slate-500" />
-          )}
-          <BookOpenIcon className="size-4 text-blue-500" />
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            YAML Structure Guide
-          </span>
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClose();
-            }}
-            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-            aria-label="Close guide"
-          >
-            <XIcon className="size-3.5 text-slate-400" />
-          </button>
-        )}
-      </button>
-
-      {/* Content */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-1">
-          <div className="bg-white dark:bg-slate-950 rounded-md p-4 border text-sm leading-relaxed max-h-[400px] overflow-y-auto">
-            <RenderGuideMarkdown markdown={guideMarkdown} />
-          </div>
-        </div>
-      )}
+    <div className="bg-white dark:bg-slate-950 rounded-md p-4 border text-sm leading-relaxed overflow-y-auto">
+      <RenderGuideMarkdown markdown={guideMarkdown} />
     </div>
   );
 }

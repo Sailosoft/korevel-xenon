@@ -42,10 +42,7 @@ export const bflowWorkflowModule = BunnyFeature.create<
         context?.adminPanel.dialog.openDialog({
           title: "YAML Structure Guide",
           contentOnly: true,
-          children: React.createElement(BFlowWorkflowGuidePanel, {
-            show: true,
-            onClose: () => context?.adminPanel.dialog.closeDialog(),
-          }),
+          children: React.createElement(BFlowWorkflowGuidePanel),
           actionId: "open-yaml-guide",
           onConfirm: function (options: {
             prevState?: AdminPanelFormActionState;

@@ -109,9 +109,7 @@ export default function BFlowRunComponent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {activeRun && (
-                <BFlowStatusBadge status={activeRun.status} />
-              )}
+              {activeRun && <BFlowStatusBadge status={activeRun.status} />}
 
               <Button
                 variant="outline"
@@ -168,9 +166,7 @@ export default function BFlowRunComponent() {
           <div className="lg:col-span-1">
             <div className="bg-background rounded-2xl border border-default-100 overflow-hidden">
               <div className="p-4 border-b border-default-100">
-                <h2 className="text-sm font-semibold text-default-700">
-                  Jobs
-                </h2>
+                <h2 className="text-sm font-semibold text-default-700">Jobs</h2>
                 <p className="text-xs text-default-400 mt-0.5">
                   {jobs.length} job{jobs.length !== 1 ? "s" : ""}
                 </p>
@@ -180,9 +176,7 @@ export default function BFlowRunComponent() {
                   // Match job run by jobId, falling back to job.name
                   // for templates without explicit IDs in YAML
                   const jobKey = job.id || job.name;
-                  const jobRun = jobRuns?.find(
-                    (jr) => jr.jobId === jobKey,
-                  );
+                  const jobRun = jobRuns?.find((jr) => jr.jobId === jobKey);
                   const cfg = getStatusConfig(jobRun?.status);
 
                   return (
@@ -208,9 +202,7 @@ export default function BFlowRunComponent() {
                             {job.name}
                           </p>
                           <p className="text-xs text-default-400">
-                            {jobRun
-                              ? cfg.label
-                              : `${job.steps.length} steps`}
+                            {jobRun ? cfg.label : `${job.steps.length} steps`}
                           </p>
                         </div>
                         <ChevronRight
@@ -374,9 +366,7 @@ export default function BFlowRunComponent() {
             ) : (
               <div className="bg-background rounded-2xl border border-default-100 p-12 text-center">
                 <Clock className="w-12 h-12 text-default-200 mx-auto mb-4" />
-                <p className="text-default-400">
-                  No jobs defined in template
-                </p>
+                <p className="text-default-400">No jobs defined in template</p>
               </div>
             )}
           </div>

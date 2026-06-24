@@ -9,7 +9,11 @@ const SlugSchema = z.string().min(1, "Slug must not be empty").max(128);
 const GuidSchema = z.string().min(1, "GUID is required");
 
 /** Name constraint */
-const NameSchema = z.string().min(1, "Name must not be empty").max(256);
+const NameSchema = z
+  .string()
+  .min(1, "Name must not be empty")
+  .max(256)
+  .regex(/^[^\s]+$/, "Name must not contain spaces");
 
 // ─── Variable ──────────────────────────────────────────────────────
 

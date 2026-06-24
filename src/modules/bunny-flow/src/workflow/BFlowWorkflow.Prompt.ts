@@ -39,7 +39,7 @@ The YAML MUST conform to this exact structure:
 - jobs: array of { id?, name, agent?, needs?, variables?, prompt, steps }
 
 Each step in a job:
-- name: string
+- name: string | without spaces
 - prompts: string or array of strings
 - agent?: string (agent slug reference)
 - skipIf?: array of { inputs, condition (==|!=|>|<|>=|<=), value }
@@ -47,11 +47,11 @@ Each step in a job:
 - output?: array of { name, type (plain|markdown|json|html|csv|json_array|yaml) }
 
 IMPORTANT RULES:
-1. Variable source references use dots: vars.variable_name or job_name.step_name.outputs.field_name
+1. Variable source references use dots: vars.variable_name or job_name.step_name.outputs.field_name or job_name.step_name (this equal to job_name.step_name.outpus.__raw__)
 2. Use {{variable_name}} for Handlebars-style template interpolation in prompts
 3. Jobs can depend on other jobs via \`needs\` (string or array of strings)
 4. Steps run sequentially within a job
-5. Use __raw__ for full step output reference: job.step.outputs.__raw__
+5. Use __raw__ for full step output reference: job.step.outputs.__raw__ or (simplified) job.step
 6. agentPools can be empty array if not using agent pools
 7. Generate realistic, complete workflows that would actually execute
 8. Do NOT generate placeholder or template YAML — generate a complete, working workflow
