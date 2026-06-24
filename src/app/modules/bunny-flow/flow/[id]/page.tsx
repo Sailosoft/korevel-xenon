@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from "react";
 import { bflowDB } from "@/src/modules/bunny-flow/src/database/BFlowDatabase";
 import type { BFlowDefinitionEntity } from "@/src/modules/bunny-flow/src/definition/BFlowDefinition.Types";
-import type { BFlowWorkflowTemplateEntity } from "@/src/modules/bunny-flow/src/workflow/BFlowWorkflow.Types";
+import type { BFlowWorkflowTemplateEntity } from "@/src/modules/bunny-flow/src/workflow/BFlowWorkflow.Entity";
 import type { BFlowPipelineEntity } from "@/src/modules/bunny-flow/src/pipeline/BFlowPipeline.Types";
 import type { BFlowReportTemplateEntity } from "@/src/modules/bunny-flow/src/report/BFlowReport.Types";
 import { GitBranch, Workflow, Container, FileBarChart } from "lucide-react";

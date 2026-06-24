@@ -19,6 +19,9 @@ export const BFLOW_TOGGLE_YAML_GUIDE_EVENT = "bflow:toggle-yaml-guide";
  * 3. Listens for a custom DOM event (`bflow:toggle-yaml-guide`) to toggle
  *    the guide visibility — triggered by the modal header dropdown action.
  *
+ * The YAML generator populates form state directly via the modal header
+ * action's `onClick` context, which accesses `adminPanel.form.handleChange`.
+ *
  * @example
  * ```tsx
  * <Bunny config={bflowWorkflowModule}>

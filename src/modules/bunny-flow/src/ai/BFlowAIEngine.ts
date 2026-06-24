@@ -19,8 +19,8 @@ import { v7 as uuidv7 } from "uuid";
 import { bflowDB } from "../database/BFlowDatabase";
 import { createHelixFromBFlow } from "../ai-config/BFlowHelixIntegration";
 import type { BFlowPipelineEntity } from "../pipeline/BFlowPipeline.Types";
+import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
 import type {
-  BFlowWorkflowTemplateEntity,
   BFlowWorkflowJob,
   BFlowStep,
 } from "../workflow/BFlowWorkflow.Types";

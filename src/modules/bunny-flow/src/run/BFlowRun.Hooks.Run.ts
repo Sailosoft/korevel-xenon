@@ -19,6 +19,8 @@ import type { BFlowVariableGroupEntity } from "../variable/BFlowVariableGroup.Ty
 import type { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
 import type {
   BFlowWorkflowTemplateEntity,
+} from "../workflow/BFlowWorkflow.Entity";
+import type {
   BFlowWorkflowJob,
   BFlowStep,
 } from "../workflow/BFlowWorkflow.Types";

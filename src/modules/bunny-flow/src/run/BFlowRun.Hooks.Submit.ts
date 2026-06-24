@@ -32,6 +32,8 @@ import type {
 } from "../pipeline/BFlowPipeline.Types";
 import type {
   BFlowWorkflowTemplateEntity,
+} from "../workflow/BFlowWorkflow.Entity";
+import type {
   BFlowWorkflowJob,
 } from "../workflow/BFlowWorkflow.Types";
 import type {

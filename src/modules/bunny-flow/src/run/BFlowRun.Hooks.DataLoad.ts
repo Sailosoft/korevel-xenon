@@ -12,7 +12,7 @@ import { bflowDB } from "../database/BFlowDatabase";
 import type { BFlowPipelineEntity } from "../pipeline/BFlowPipeline.Types";
 import type { BFlowVariableGroupEntity } from "../variable/BFlowVariableGroup.Types";
 import type { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
-import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Types";
+import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
 
 // ═══════════════════════════════════════════════════════════════════
 // useBFlowRunDataLoad — loads pipeline, template, variables
