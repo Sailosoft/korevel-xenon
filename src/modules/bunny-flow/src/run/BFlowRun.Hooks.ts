@@ -1,4 +1,3 @@
-
 /**
  * BFlowRun.Hooks — Custom React hooks for BunnyFlow pipeline run orchestration.
  *
@@ -23,6 +22,14 @@ import {
   InputResolutionError,
   type ResolvedStepInput,
 } from "./BFlowRun.InputResolver";
+import {
+  useBFlowRunDataLoad,
+  type BFlowRunDataLoadState,
+} from "./BFlowRun.Hooks.DataLoad";
+import {
+  useBFlowRunPolling,
+  type BFlowRunPollingState,
+} from "./BFlowRun.Hooks.Polling";
 import type {
   BFlowPipelineEntity,
   BFlowPipelineVariable,
@@ -45,258 +52,6 @@ import type {
 
 const promptBuilder = new BFlowRunPromptBuilder();
 const inputResolver = new BFlowRunInputResolver();
-
-// ═══════════════════════════════════════════════════════════════════
-// useBFlowRunDataLoad — loads pipeline, template, variables
-// ═══════════════════════════════════════════════════════════════════
-
-export interface BFlowRunDataLoadState {
-  pipeline: BFlowPipelineEntity | undefined;
-  template: BFlowWorkflowTemplateEntity | undefined;
-  variableGroup: BFlowVariableGroupEntity | undefined;
-  flowVariables: BFlowFlowVariableEntity[];
-  error: string | null;
-  loading: boolean;
-}
-
-/**
- * Loads the pipeline entity, its workflow template, variable group,
- * and flow-level variables from IndexedDB. Returns all together so
- * the component only needs to consume the result.
- */
-export function useBFlowRunDataLoad(
-  pipelineId: string | undefined,
-): BFlowRunDataLoadState {
-  const [pipeline, setPipeline] = useState<BFlowPipelineEntity | undefined>();
-  const [template, setTemplate] = useState<BFlowWorkflowTemplateEntity | undefined>();
-  const [variableGroup, setVariableGroup] = useState<BFlowVariableGroupEntity | undefined>();
-  const [flowVariables, setFlowVariables] = useState<BFlowFlowVariableEntity[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Load pipeline
-  useEffect(() => {
-    if (!pipelineId) {
-      setPipeline(undefined);
-      setError("Pipeline ID not found in URL");
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    bflowDB.pipelines
-      .get(pipelineId)
-      .then((p) => {
-        if (cancelled) return;
-        if (!p) {
-          setError(`Pipeline not found (${pipelineId})`);
-        } else {
-          setPipeline(p);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(
-            `Failed to load pipeline: ${e instanceof Error ? e.message : "Unknown error"}`,
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pipelineId]);
-
-  // Load template when pipeline changes
-  useEffect(() => {
-    if (!pipeline?.templateId) {
-      setTemplate(undefined);
-      return;
-    }
-    let cancelled = false;
-    bflowDB.workflowTemplates
-      .get(pipeline.templateId)
-      .then((t) => {
-        if (!cancelled) setTemplate(t);
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(
-            `Failed to load template: ${e instanceof Error ? e.message : "Unknown error"}`,
-          );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pipeline?.templateId]);
-
-  // Load variable group when pipeline changes
-  useEffect(() => {
-    if (!pipeline?.variableGroupId) {
-      setVariableGroup(undefined);
-      return;
-    }
-    let cancelled = false;
-    bflowDB.variableGroups
-      .get(pipeline.variableGroupId)
-      .then((g) => {
-        if (!cancelled) setVariableGroup(g);
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(
-            `Failed to load variable group: ${e instanceof Error ? e.message : "Unknown error"}`,
-          );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pipeline?.variableGroupId]);
-
-  // Load flow variables when variable group changes
-  useEffect(() => {
-    if (!variableGroup?.id) {
-      setFlowVariables([]);
-      return;
-    }
-    let cancelled = false;
-    bflowDB.flowVariables
-      .where("groupId")
-      .equals(variableGroup.id)
-      .toArray()
-      .then((vars) => {
-        if (!cancelled) setFlowVariables(vars);
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(
-            `Failed to load flow variables: ${e instanceof Error ? e.message : "Unknown error"}`,
-          );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [variableGroup?.id]);
-
-  return { pipeline, template, variableGroup, flowVariables, error, loading };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// useBFlowRunPolling — polls active run state from IndexedDB
-// ═══════════════════════════════════════════════════════════════════
-
-export interface BFlowRunPollingState {
-  activeRun: BFlowPipelineRunEntity | undefined;
-  jobRuns: BFlowJobRun[];
-  stepRuns: BFlowStepRun[];
-  initialLoadDone: boolean;
-  /**
-   * Immediately refreshes run data from IndexedDB, bypassing the polling interval.
-   * Used by the submit hook to force an immediate state update after pipeline execution completes.
-   */
-  refreshRunData: () => Promise<void>;
-}
-
-/**
- * Loads the latest pipeline run on mount, then polls every 2 seconds
- * while a run is actively executing (status "running" or "pending").
- * Stops polling once the run reaches a terminal state.
- */
-export function useBFlowRunPolling(
-  pipelineId: string | undefined,
-): BFlowRunPollingState {
-  const [activeRun, setActiveRun] = useState<
-    BFlowPipelineRunEntity | undefined
-  >();
-  const [jobRuns, setJobRuns] = useState<BFlowJobRun[]>([]);
-  const [stepRuns, setStepRuns] = useState<BFlowStepRun[]>([]);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-
-  /**
-   * Immediately fetches the latest run data from IndexedDB and updates state.
-   * Used to force an immediate refresh after pipeline execution completes,
-   * bypassing the 2-second polling interval delay.
-   */
-  const refreshRunData = useCallback(async () => {
-    if (!pipelineId) return;
-    const run = await bflowRunDB.getLatestPipelineRun(pipelineId);
-    setActiveRun(run);
-
-    if (run) {
-      const [jobs, steps] = await Promise.all([
-        bflowRunDB.getJobRunsForRun(run.id),
-        bflowRunDB.getStepRunsForRun(run.id),
-      ]);
-      setJobRuns(jobs);
-      setStepRuns(steps);
-    } else {
-      setJobRuns([]);
-      setStepRuns([]);
-    }
-  }, [pipelineId]);
-
-  useEffect(() => {
-    if (!pipelineId) {
-      setActiveRun(undefined);
-      setJobRuns([]);
-      setStepRuns([]);
-      setInitialLoadDone(true);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function load() {
-      const run = await bflowRunDB.getLatestPipelineRun(pipelineId!);
-      if (cancelled) return;
-      setActiveRun(run);
-      setInitialLoadDone(true);
-
-      if (run) {
-        const [jobs, steps] = await Promise.all([
-          bflowRunDB.getJobRunsForRun(run.id),
-          bflowRunDB.getStepRunsForRun(run.id),
-        ]);
-        if (cancelled) return;
-        setJobRuns(jobs);
-        setStepRuns(steps);
-      } else {
-        setJobRuns([]);
-        setStepRuns([]);
-      }
-    }
-
-    load();
-
-    const interval = setInterval(async () => {
-      const run = await bflowRunDB.getLatestPipelineRun(pipelineId!);
-      if (cancelled) return;
-
-      if (!run || (run.status !== "running" && run.status !== "pending")) {
-        setActiveRun(run);
-        clearInterval(interval);
-        return;
-      }
-
-      setActiveRun(run);
-
-      const [jobs, steps] = await Promise.all([
-        bflowRunDB.getJobRunsForRun(run.id),
-        bflowRunDB.getStepRunsForRun(run.id),
-      ]);
-      if (cancelled) return;
-      setJobRuns(jobs);
-      setStepRuns(steps);
-    }, 2000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [pipelineId]);
-
-  return { activeRun, jobRuns, stepRuns, initialLoadDone, refreshRunData };
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // useBFlowRunSubmit — pipeline execution + report generation
@@ -622,9 +377,7 @@ export function useBFlowRunSubmit(
 
       // 6. Update pipeline run status
       const pipelineCompletedAt = new Date();
-      const finalStatus: BFlowRunStatus = anyFailed
-        ? "failed"
-        : "succeeded";
+      const finalStatus: BFlowRunStatus = anyFailed ? "failed" : "succeeded";
       await bflowDB.pipelineRuns.update(runId, {
         status: finalStatus,
         error: globalError,
@@ -701,9 +454,7 @@ export function useBFlowRunSubmit(
         reportLines.push("### Steps");
         reportLines.push("");
 
-        const jobStepRuns = stepRuns.filter(
-          (sr) => sr.jobRunId === jobRun.id,
-        );
+        const jobStepRuns = stepRuns.filter((sr) => sr.jobRunId === jobRun.id);
 
         for (const stepRun of jobStepRuns) {
           reportLines.push(`#### ${stepRun.stepName}`);
@@ -748,9 +499,7 @@ export function useBFlowRunSubmit(
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      onError(
-        err instanceof Error ? err.message : "Failed to generate report",
-      );
+      onError(err instanceof Error ? err.message : "Failed to generate report");
     }
   }, [activeRun, pipeline, onError]);
 
@@ -820,9 +569,7 @@ export interface BFlowRunState {
  * Top-level hook that composes all data loading, polling, and execution
  * logic into a single state object consumed by the presentational component.
  */
-export function useBFlowRun(
-  pipelineId: string | undefined,
-): BFlowRunState {
+export function useBFlowRun(pipelineId: string | undefined): BFlowRunState {
   // ── Data loading ──────────────────────────────────────────────
   const {
     pipeline,
@@ -857,16 +604,11 @@ export function useBFlowRun(
 
   const currentJob = jobs[selectedJobIndex];
 
-  const currentJobRun = useMemo(
-    () => {
-      // Match by jobId, falling back to job.name for templates without IDs
-      const jobKey = currentJob?.id || currentJob?.name;
-      return jobKey
-        ? jobRuns?.find((jr) => jr.jobId === jobKey)
-        : undefined;
-    },
-    [jobRuns, currentJob],
-  );
+  const currentJobRun = useMemo(() => {
+    // Match by jobId, falling back to job.name for templates without IDs
+    const jobKey = currentJob?.id || currentJob?.name;
+    return jobKey ? jobRuns?.find((jr) => jr.jobId === jobKey) : undefined;
+  }, [jobRuns, currentJob]);
 
   const currentStepRuns = useMemo(
     () => stepRuns?.filter((sr) => sr.jobRunId === currentJobRun?.id) ?? [],
@@ -1012,3 +754,13 @@ export function useBFlowRun(
     generateReport,
   };
 }
+
+// Re-exports from sub-modules for consumer convenience
+export {
+  useBFlowRunDataLoad,
+  type BFlowRunDataLoadState,
+} from "./BFlowRun.Hooks.DataLoad";
+export {
+  useBFlowRunPolling,
+  type BFlowRunPollingState,
+} from "./BFlowRun.Hooks.Polling";
