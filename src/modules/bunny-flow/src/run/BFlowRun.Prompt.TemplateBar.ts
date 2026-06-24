@@ -40,6 +40,7 @@
  * input value itself contains `{{x}}` markers, those are left untouched by
  * pass 1 (the value is inserted as a finished string), and pass 2 cannot
  * re‑substitute them because {{step.prompts}} is emitted verbatim.
+ *
  */
 
 import Handlebars from "handlebars";

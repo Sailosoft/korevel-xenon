@@ -227,6 +227,19 @@ Execute step "draft_article" with the following inputs:
 Provide the output for this step.
 ```
 
+### 3a. How Inputs Are Injected — Under the Hood
+
+The resolved input injection described above is implemented by the prompt builder strategy in use. BunnyFlow supports two strategies:
+
+| Strategy                     | File                                                                          | Approach                                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TemplateBar** (Handlebars) | [`BFlowRun.Prompt.TemplateBar.ts`](../src/run/BFlowRun.Prompt.TemplateBar.ts) | Two-pass system: Pass 1 interpolates `{{marker}}` references in prompt strings using a flat context map; Pass 2 renders the pre-interpolated strings through Handlebars templates with `{{#if}}` / `{{#each}}` helpers. |
+| **SectionBuilder** (fluent)  | [`BFlowRun.SectionBuilder.ts`](../src/run/BFlowRun.SectionBuilder.ts)         | Legacy fluent builder that appends prompt sections (instructions, inputs, variables, output format) one by one via method chaining.                                                                                     |
+
+Both implement the [`IBFlowRunPromptBuilder`](../src/run/BFlowRun.Prompt.Types.ts) interface and produce identical prompt output — they differ only in how sections are assembled internally.
+
+The strategy is selected at runtime via the `BFlowPromptBuilderKind` enum (`Section` | `TemplateBar`) defined in [`BFlowRun.Prompt.Types.ts`](../src/run/BFlowRun.Prompt.Types.ts).
+
 ### 4. Execution Order & Dependencies
 
 Steps execute **sequentially within a job**. Jobs execute **sequentially across the pipeline**.

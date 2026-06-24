@@ -196,7 +196,7 @@ flowchart TD
 
 ## Prompt Building Flow (BFlowRunPromptBuilder)
 
-```mermaid
+````mermaid
 flowchart TD
     BUILD["buildStepSystemPrompt(step, job, pipeline,<br/>resolvedVariables, resolvedInputs)"] --> INTRO["Append: 'You are executing step {name}<br/>in job {name} of a pipeline.'"]
 
@@ -243,7 +243,18 @@ flowchart TD
     SKIP_OUTPUT --> RETURN
 
     RETURN["Return joined string = systemPrompt<br/><br/>Then buildUserPrompt() appends:<br/>'Execute step {name} with inputs:{list}'<br/>or simple: 'Execute step {name}'"]
-```
+
+### Implementation: two-pass TemplateBar
+
+The [`BFlowRunPromptTemplateBar`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.TemplateBar.ts) uses a **two-pass Handlebars strategy**:
+
+1. **Pass 1 — Inline interpolation** — Free-form prompt strings (`step.prompts`, `job.prompt`, `pipeline.prompt`) are compiled as Handlebars templates and rendered against a flat map of resolved inputs **and** variables. Markers such as `{{topic}}` are replaced in-place before the outer template runs. Uses `strict` mode so an undefined marker throws (fail-fast).
+
+2. **Pass 2 — Template rendering** — The pre-interpolated strings are fed into the Handlebars templates defined in [`BFlowRun.Prompt.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.Types.ts), which use `{{#if}}` / `{{#each}}` helpers for dynamic sections instead of imperative string concatenation.
+
+**Key difference from the legacy [`BFlowRunPromptBuilder`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.ts)**: The TemplateBar separates interpolation from template rendering, supports hot-swapped values so the AI sees actual resolved data rather than reference chains, and caches compiled templates for performance.
+
+**Strategy enum**: The available builder strategies are defined in [`BFlowRun.Prompt.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.Types.ts) as `BFlowPromptBuilderKind` (`Section` / `TemplateBar`).
 
 ---
 
@@ -276,7 +287,7 @@ flowchart TD
 
     PIPE_FAIL --> WRITE_PIPE_FAIL["Catch-all: Mark pipeline run<br/>status: 'failed'<br/>error: err.message<br/>completedAt: now"]
     WRITE_PIPE_FAIL --> SHOW_UI_ERROR
-```
+````
 
 ---
 
@@ -350,13 +361,16 @@ flowchart TD
 
 ## File Reference Map
 
-| File                                                                                             | Role                                                                                                                    |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| [`BFlowRun.Component.tsx`](../../../src/modules/bunny-flow/src/run/BFlowRun.Component.tsx)       | Presentational React component — stateless, consumes `useBFlowRun()`                                                    |
-| [`BFlowRun.Hooks.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Hooks.ts)                 | All hooks: `useBFlowRun`, `useBFlowRunDataLoad`, `useBFlowRunPolling`, `useBFlowRunSubmit`                              |
-| [`BFlowRun.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Types.ts)                 | Zod schemas: `BFlowStepRun`, `BFlowJobRun`, `BFlowPipelineRunEntity`, `BFlowPipelineRunSummary`                         |
-| [`BFlowRun.Prompt.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.ts)               | `BFlowRunPromptBuilder` — constructs system/user prompts with variable substitution                                     |
-| [`BFlowRun.InputResolver.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.InputResolver.ts) | `BFlowRunInputResolver` — resolves `vars.{name}`, `{job}.{step}` (shorthand), and `{job}.{step}.outputs.{name}` sources |
-| [`BFlowRun.Actions.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Actions.ts)             | Server actions (`'use server'`) — `executeStepChatAction`, `executePipelineRunAction`                                   |
-| [`BFlowRunDB.ts`](../../../src/modules/bunny-flow/src/run/BFlowRunDB.ts)                         | IndexedDB access layer — convenience queries over PhazeRepository                                                       |
-| [`BFlowAIEngine.ts`](../../../src/modules/bunny-flow/src/run/BFlowAIEngine.ts)                   | Alternative server-side engine — full pipeline orchestration with topological job ordering                              |
+| File                                                                                                       | Role                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`BFlowRun.Component.tsx`](../../../src/modules/bunny-flow/src/run/BFlowRun.Component.tsx)                 | Presentational React component — stateless, consumes `useBFlowRun()`                                                                                                |
+| [`BFlowRun.Hooks.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Hooks.ts)                           | All hooks: `useBFlowRun`, `useBFlowRunDataLoad`, `useBFlowRunPolling`, `useBFlowRunSubmit`                                                                          |
+| [`BFlowRun.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Types.ts)                           | Zod schemas: `BFlowStepRun`, `BFlowJobRun`, `BFlowPipelineRunEntity`, `BFlowPipelineRunSummary`                                                                     |
+| [`BFlowRun.Prompt.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.Types.ts)             | Interfaces (`IBFlowRunPromptBuilder`) and Handlebars template strings (`SYSTEM_PROMPT_TEMPLATE`, `USER_PROMPT_WITH_INPUTS_TEMPLATE`, `USER_PROMPT_SIMPLE_TEMPLATE`) |
+| [`BFlowRun.Prompt.TemplateBar.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.TemplateBar.ts) | **Handlebars-driven prompt builder** — two-pass system (inline interpolation + template rendering). See [Prompt Building Flow](#prompt-building-flow) above.        |
+| [`BFlowRun.Prompt.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.ts)                         | `BFlowRunPromptBuilder` — constructs system/user prompts with variable substitution (legacy string-concatenation strategy)                                          |
+| [`BFlowRun.SectionBuilder.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.SectionBuilder.ts)         | Fluent section-based prompt builder — alternative strategy implementing `IBFlowRunPromptBuilder`                                                                    |
+| [`BFlowRun.InputResolver.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.InputResolver.ts)           | `BFlowRunInputResolver` — resolves `vars.{name}`, `{job}.{step}` (shorthand), and `{job}.{step}.outputs.{name}` sources                                             |
+| [`BFlowRun.Actions.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Actions.ts)                       | Server actions (`'use server'`) — `executeStepChatAction`, `executePipelineRunAction`                                                                               |
+| [`BFlowRunDB.ts`](../../../src/modules/bunny-flow/src/run/BFlowRunDB.ts)                                   | IndexedDB access layer — convenience queries over PhazeRepository                                                                                                   |
+| [`BFlowAIEngine.ts`](../../../src/modules/bunny-flow/src/run/BFlowAIEngine.ts)                             | Alternative server-side engine — full pipeline orchestration with topological job ordering                                                                          |
