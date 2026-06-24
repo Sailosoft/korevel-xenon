@@ -4,10 +4,12 @@
  *
  * ## Input Source Resolution
  *
- * Supports two source patterns as defined in BFlowStepInputSchema:
+ * Supports three source patterns as defined in BFlowStepInputSchema:
  *
  *   1. `vars.{name}`              → pipeline/flow variable lookup
- *   2. `{jobSlug}.{stepSlug}.outputs.{name}`  → cross-step output reference
+ *   2. `{jobSlug}.{stepSlug}`     → shorthand for the step's full raw output
+ *                                   (equivalent to `{job}.{step}.outputs.__raw__`)
+ *   3. `{jobSlug}.{stepSlug}.outputs.{name}`  → cross-step output reference
  *
  * On resolution failure (missing variable, step, or output), a descriptive
  * error is thrown so the pipeline run can fail fast with a clear message.
@@ -41,6 +43,14 @@ const VARS_PATTERN = /^vars\.([a-zA-Z_][a-zA-Z0-9_-]*)$/;
  */
 const STEP_OUTPUT_PATTERN =
   /^([a-zA-Z_][a-zA-Z0-9_\-.]*)\.([a-zA-Z_][a-zA-Z0-9_\-.]*)\.outputs\.([a-zA-Z_][a-zA-Z0-9_\-]*)$/;
+
+/**
+ * Regex for `{jobSlug}.{stepSlug}` shorthand pattern.
+ * Resolves to the step's `__raw__` output (the full raw output text).
+ * Job and step slugs: alphanumeric, underscores, hyphens, dots.
+ */
+const STEP_REF_PATTERN =
+  /^([a-zA-Z_][a-zA-Z0-9_\-.]*)\.([a-zA-Z_][a-zA-Z0-9_\-.]*)$/;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -125,7 +135,12 @@ export class BFlowRunInputResolver {
     const resolved: ResolvedStepInput[] = [];
 
     for (const input of step.inputs) {
-      const value = this.resolveSingleInput(step.name, input.name, input.source, context);
+      const value = this.resolveSingleInput(
+        step.name,
+        input.name,
+        input.source,
+        context,
+      );
       resolved.push({
         name: input.name,
         source: input.source,
@@ -179,10 +194,27 @@ export class BFlowRunInputResolver {
       );
     }
 
+    // ── Pattern 3: {jobSlug}.{stepSlug} (shorthand for .outputs.__raw__) ─
+    // NOTE: Checked AFTER Pattern 2 so the longer `{job}.{step}.outputs.{name}`
+    // format is matched first, avoiding a false-positive on the shorter pattern.
+    const stepRefMatch = trimmed.match(STEP_REF_PATTERN);
+    if (stepRefMatch) {
+      const [, jobSlug, stepSlug] = stepRefMatch;
+      return this.resolveStepOutput(
+        stepName,
+        inputName,
+        source,
+        jobSlug,
+        stepSlug,
+        "__raw__",
+        context,
+      );
+    }
+
     // ── Unknown pattern ────────────────────────────────────────────
     throw new InputResolutionError(
       `Input "${inputName}" has an unrecognized source format: "${source}". ` +
-        `Expected formats: "vars.{name}" or "{job}.{step}.outputs.{name}".`,
+        `Expected formats: "vars.{name}", "{job}.{step}", or "{job}.{step}.outputs.{name}".`,
       stepName,
       inputName,
       source,
@@ -265,9 +297,7 @@ export class BFlowRunInputResolver {
   /**
    * Build a variable lookup map from an array of pipeline variables.
    */
-  buildVariableMap(
-    variables: BFlowPipelineVariable[],
-  ): Map<string, string> {
+  buildVariableMap(variables: BFlowPipelineVariable[]): Map<string, string> {
     const map = new Map<string, string>();
     for (const v of variables) {
       map.set(v.name, v.value);
@@ -355,7 +385,11 @@ export class BFlowRunInputResolver {
 
     try {
       const parsed = JSON.parse(jsonStr);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
         parsedJson = parsed as Record<string, unknown>;
       } else if (typeof parsed === "object" && parsed !== null) {
         // Array response — wrap it
@@ -390,10 +424,7 @@ export class BFlowRunInputResolver {
   /**
    * Coerce a parsed value to match the expected output type.
    */
-  private coerceOutputValue(
-    value: unknown,
-    expectedType: string,
-  ): unknown {
+  private coerceOutputValue(value: unknown, expectedType: string): unknown {
     switch (expectedType) {
       case "json":
       case "json_array":

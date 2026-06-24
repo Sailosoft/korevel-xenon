@@ -66,7 +66,9 @@ export class BFlowAIEngine {
    * Execute an entire pipeline run.
    * Creates the pipeline run record, resolves variables, and orchestrates jobs.
    */
-  async executePipeline(pipeline: BFlowPipelineEntity): Promise<BFlowExecutionResult> {
+  async executePipeline(
+    pipeline: BFlowPipelineEntity,
+  ): Promise<BFlowExecutionResult> {
     const now = new Date();
 
     // ── 1. Create pipeline run record ──────────────────────────────
@@ -142,7 +144,9 @@ export class BFlowAIEngine {
     } catch (error) {
       // Mark run as failed
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown pipeline execution error";
+        error instanceof Error
+          ? error.message
+          : "Unknown pipeline execution error";
       await bflowDB.pipelineRuns.update(runId, {
         status: "failed" as BFlowRunStatus,
         error: errorMessage,
@@ -275,7 +279,14 @@ export class BFlowAIEngine {
       // Execute all jobs at this level concurrently
       const levelResults = await Promise.all(
         level.jobs.map((job) =>
-          this.executeJob(runId, pipeline, template, job, resolvedVars, allResults),
+          this.executeJob(
+            runId,
+            pipeline,
+            template,
+            job,
+            resolvedVars,
+            allResults,
+          ),
         ),
       );
       allResults.push(...levelResults);
@@ -302,7 +313,9 @@ export class BFlowAIEngine {
     if (job.needs) {
       const needs = Array.isArray(job.needs) ? job.needs : [job.needs];
       for (const need of needs) {
-        const needResult = previousResults.find((r) => r.jobName === need.trim());
+        const needResult = previousResults.find(
+          (r) => r.jobName === need.trim(),
+        );
         if (needResult && !needResult.success) {
           // Mark job as skipped
           const skippedJobRun: BFlowJobRun = {
@@ -431,7 +444,11 @@ export class BFlowAIEngine {
       const now = new Date();
 
       // Resolve inputs from step context
-      const resolvedInputs = this.resolveStepInputs(step, resolvedVars, stepContext);
+      const resolvedInputs = this.resolveStepInputs(
+        step,
+        resolvedVars,
+        stepContext,
+      );
 
       // Create step run record
       const stepRun: BFlowStepRun = {
@@ -456,7 +473,10 @@ export class BFlowAIEngine {
       try {
         // Check skip conditions
         if (step.skipIf && step.skipIf.length > 0) {
-          const shouldSkip = this.evaluateSkipConditions(step.skipIf, stepContext);
+          const shouldSkip = this.evaluateSkipConditions(
+            step.skipIf,
+            stepContext,
+          );
           if (shouldSkip) {
             await bflowDB.stepRuns.update(stepRunId, {
               status: "skipped",
@@ -516,7 +536,9 @@ ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify
         });
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Unknown step execution error";
+          error instanceof Error
+            ? error.message
+            : "Unknown step execution error";
         await bflowDB.stepRuns.update(stepRunId, {
           status: "failed",
           error: errorMessage,
@@ -555,8 +577,9 @@ ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify
 
     for (const input of step.inputs) {
       // Source patterns:
-      // - {job}.{step}.outputs.{name}
       // - vars.{name}
+      // - {job}.{step} (shorthand for .outputs.__raw__)
+      // - {job}.{step}.outputs.{name}
       const source = input.source;
 
       if (source.startsWith("vars.")) {
@@ -565,6 +588,12 @@ ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify
       } else if (source.includes(".outputs.")) {
         // e.g., "job-1.step-1.outputs.result"
         resolved[input.name] = stepContext[source] || "";
+      } else if (
+        /^[a-zA-Z_][a-zA-Z0-9_\-.]*\.[a-zA-Z_][a-zA-Z0-9_\-.]*$/.test(source)
+      ) {
+        // {job}.{step} shorthand — resolves to .outputs.__raw__
+        const rawKey = `${source}.outputs.__raw__`;
+        resolved[input.name] = stepContext[rawKey] || "";
       } else {
         // Try direct context lookup
         resolved[input.name] = stepContext[source] || "";

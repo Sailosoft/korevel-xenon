@@ -577,8 +577,9 @@ ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify
 
     for (const input of step.inputs) {
       // Source patterns:
-      // - {job}.{step}.outputs.{name}
       // - vars.{name}
+      // - {job}.{step} (shorthand for .outputs.__raw__)
+      // - {job}.{step}.outputs.{name}
       const source = input.source;
 
       if (source.startsWith("vars.")) {
@@ -587,6 +588,12 @@ ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify
       } else if (source.includes(".outputs.")) {
         // e.g., "job-1.step-1.outputs.result"
         resolved[input.name] = stepContext[source] || "";
+      } else if (
+        /^[a-zA-Z_][a-zA-Z0-9_\-.]*\.[a-zA-Z_][a-zA-Z0-9_\-.]*$/.test(source)
+      ) {
+        // {job}.{step} shorthand — resolves to .outputs.__raw__
+        const rawKey = `${source}.outputs.__raw__`;
+        resolved[input.name] = stepContext[rawKey] || "";
       } else {
         // Try direct context lookup
         resolved[input.name] = stepContext[source] || "";

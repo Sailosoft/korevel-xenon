@@ -31,7 +31,7 @@ flowchart TD
 
     subgraph Engine_Layer ["Engine & Builder Layer"]
         BFlowRunPromptBuilder["BFlowRunPromptBuilder<br/>Builds system/user prompts<br/>with resolved variables + inputs"]
-        BFlowRunInputResolver["BFlowRunInputResolver<br/>Resolves step input sources:<br/>vars.{name} or {job}.{step}.outputs.{name}"]
+        BFlowRunInputResolver["BFlowRunInputResolver<br/>Resolves step input sources:<br/>vars.{name} | {job}.{step} | {job}.{step}.outputs.{name}"]
     end
 
     subgraph Action_Layer ["Server Action Layer (secure AI calls)"]
@@ -158,6 +158,9 @@ flowchart TD
     LOOKUP_VAR -->|"not found"| THROW_VAR_ERR["Throw InputResolutionError:<br/>'Variable {name} does not exist.<br/>Available: ...'"]
 
     PARSE_SOURCE -->|"matches {job}.{step}.outputs.{name}"| VALIDATE_JOB["Validate job exists<br/>in context.jobs"]
+    PARSE_SOURCE -->|"matches {job}.{step} (shorthand)"| SHORTHAND_RESOLVE["Resolve to '__raw__'<br/>then validate job/step"]
+
+    SHORTHAND_RESOLVE --> VALIDATE_JOB
     VALIDATE_JOB -->|"invalid"| THROW_JOB_ERR["Throw InputResolutionError:<br/>'Job {jobSlug} does not exist.'"]
     VALIDATE_JOB -->|"valid"| VALIDATE_STEP["Validate step exists<br/>in target job"]
     VALIDATE_STEP -->|"invalid"| THROW_STEP_ERR["Throw InputResolutionError:<br/>'Step {stepSlug} does not exist.'"]
@@ -167,7 +170,7 @@ flowchart TD
     CHECK_OUTPUT -->|"not found"| THROW_OUTPUT_ERR["Throw InputResolutionError:<br/>'Output {name} does not exist.<br/>Available: ...'"]
     CHECK_OUTPUT -->|"found"| ASSIGN_OUTPUT["Resolve to step output value"]
 
-    PARSE_SOURCE -->|"unrecognized format"| THROW_FORMAT_ERR["Throw InputResolutionError:<br/>'Unrecognized source format.<br/>Expected: vars.{name} or {job}.{step}.outputs.{name}'"]
+    PARSE_SOURCE -->|"unrecognized format"| THROW_FORMAT_ERR["Throw InputResolutionError:<br/>'Unrecognized source format.<br/>Expected: vars.{name} / {job}.{step} / {job}.{step}.outputs.{name}'"]
 
     ASSIGN_VAR --> COLLECT_RESULT["Collect ResolvedStepInput<br/>{ name, source, value }"]
     ASSIGN_OUTPUT --> COLLECT_RESULT
@@ -347,13 +350,13 @@ flowchart TD
 
 ## File Reference Map
 
-| File                                                                                             | Role                                                                                            |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| [`BFlowRun.Component.tsx`](../../../src/modules/bunny-flow/src/run/BFlowRun.Component.tsx)       | Presentational React component — stateless, consumes `useBFlowRun()`                            |
-| [`BFlowRun.Hooks.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Hooks.ts)                 | All hooks: `useBFlowRun`, `useBFlowRunDataLoad`, `useBFlowRunPolling`, `useBFlowRunSubmit`      |
-| [`BFlowRun.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Types.ts)                 | Zod schemas: `BFlowStepRun`, `BFlowJobRun`, `BFlowPipelineRunEntity`, `BFlowPipelineRunSummary` |
-| [`BFlowRun.Prompt.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.ts)               | `BFlowRunPromptBuilder` — constructs system/user prompts with variable substitution             |
-| [`BFlowRun.InputResolver.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.InputResolver.ts) | `BFlowRunInputResolver` — resolves `vars.{name}` and `{job}.{step}.outputs.{name}` sources      |
-| [`BFlowRun.Actions.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Actions.ts)             | Server actions (`'use server'`) — `executeStepChatAction`, `executePipelineRunAction`           |
-| [`BFlowRunDB.ts`](../../../src/modules/bunny-flow/src/run/BFlowRunDB.ts)                         | IndexedDB access layer — convenience queries over PhazeRepository                               |
-| [`BFlowAIEngine.ts`](../../../src/modules/bunny-flow/src/run/BFlowAIEngine.ts)                   | Alternative server-side engine — full pipeline orchestration with topological job ordering      |
+| File                                                                                             | Role                                                                                                                    |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| [`BFlowRun.Component.tsx`](../../../src/modules/bunny-flow/src/run/BFlowRun.Component.tsx)       | Presentational React component — stateless, consumes `useBFlowRun()`                                                    |
+| [`BFlowRun.Hooks.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Hooks.ts)                 | All hooks: `useBFlowRun`, `useBFlowRunDataLoad`, `useBFlowRunPolling`, `useBFlowRunSubmit`                              |
+| [`BFlowRun.Types.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Types.ts)                 | Zod schemas: `BFlowStepRun`, `BFlowJobRun`, `BFlowPipelineRunEntity`, `BFlowPipelineRunSummary`                         |
+| [`BFlowRun.Prompt.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Prompt.ts)               | `BFlowRunPromptBuilder` — constructs system/user prompts with variable substitution                                     |
+| [`BFlowRun.InputResolver.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.InputResolver.ts) | `BFlowRunInputResolver` — resolves `vars.{name}`, `{job}.{step}` (shorthand), and `{job}.{step}.outputs.{name}` sources |
+| [`BFlowRun.Actions.ts`](../../../src/modules/bunny-flow/src/run/BFlowRun.Actions.ts)             | Server actions (`'use server'`) — `executeStepChatAction`, `executePipelineRunAction`                                   |
+| [`BFlowRunDB.ts`](../../../src/modules/bunny-flow/src/run/BFlowRunDB.ts)                         | IndexedDB access layer — convenience queries over PhazeRepository                                                       |
+| [`BFlowAIEngine.ts`](../../../src/modules/bunny-flow/src/run/BFlowAIEngine.ts)                   | Alternative server-side engine — full pipeline orchestration with topological job ordering                              |
