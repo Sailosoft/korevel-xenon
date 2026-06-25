@@ -1,155 +1,192 @@
 # =============================================================================
-# Example 5: Data Transformation & Export Pipeline
+# Example 5: Data Transformation & Export Pipeline (v2)
 # Demonstrates: diverse output types (json, yaml, csv, html), chained
 #               transformations, multiple prompts per step, structured
 #               inputs flowing through a multi-stage ETL-like workflow
 # =============================================================================
 name: Data Transformation Pipeline
-semanticVersion: 1.0.0
+# semanticVersion is now optional
+# semanticVersion: 1.0.0
 description: >
   An ETL-style pipeline that ingests raw data, transforms it into
   multiple structured formats (JSON, YAML, CSV, HTML), and produces
   a final compiled report. Demonstrates rich output typing.
 
+outputType: markdown
+
 variables:
   - name: source_data_description
-    defaultValue: "Monthly sales data for Q1 2025 across 4 regions"
-    type: text
+    value: "Monthly sales data for Q1 2025 across 4 regions"
     description: Description of the raw data to process
 
   - name: currency
-    defaultValue: "USD"
-    type: text
+    value: "USD"
     description: Currency for financial figures
 
   - name: include_charts
-    defaultValue: "true"
-    type: text
+    value: "true"
     description: Whether to include chart placeholders in HTML output
 
 agents:
-  - name: Data Engineer
-    slug: engineer
+  - name: engineer
     role: Data Engineer
     prompt: >
-      You are a data engineer who transforms raw data into
-      clean, structured formats. You handle data validation,
-      normalization, and formatting with precision.
+      You are a data engineer. You transform raw data into
+      structured formats and ensure data integrity.
 
-  - name: Reporting Analyst
-    slug: analyst
-    role: Reporting Analyst
+  - name: analyst
+    role: Business Analyst
     prompt: >
-      You are a reporting analyst who creates comprehensive
-      reports from structured data. You ensure data accuracy
-      and clear presentation.
+      You are a business analyst. You derive insights from data
+      and present them in clear, actionable formats.
+
+  - name: publisher
+    role: Report Publisher
+    prompt: >
+      You are a report publisher. You compile data from multiple
+      sources into comprehensive, well-formatted documents.
 
 jobs:
   - name: ingestion
-    prompt: Ingest and validate the raw data
+    prompt: Ingest and validate raw data
     agent: engineer
     steps:
-      - name: parse_raw_data
-        prompts:
-          - "Parse the raw data from: {source}"
-          - "Normalize all currency values to {cur}"
-          - "Flag any missing or anomalous values"
+      - name: parse_data
+        prompts: |
+          Parse the following data source: "{data_source}".
+          Identify:
+          1. Number of records
+          2. Key fields (dates, amounts, regions)
+          3. Data quality issues (missing values, outliers)
         agent: engineer
         output:
-          - name: validated_records
-            type: json
           - name: record_count
             type: number
-          - name: anomalies
+          - name: fields_identified
             type: json_array
-          - name: normalized_data
-            type: yaml
+          - name: quality_report
+            type: plain
 
-  - name: transformation
-    prompt: Transform data into multiple output formats
-    agent: engineer
-    needs: ingestion
-    steps:
-      - name: generate_csv_export
+      - name: validate_data
         prompts: |
-          Convert the validated records into a CSV format with
-          the following columns: Region, Product, Units Sold,
-          Revenue ({cur}), Profit Margin, Quarter.
-          Include a header row and sort by Revenue descending.
-        inputs:
-          - name: cur
-            source: vars.currency
-          - name: records
-            source: ingestion.parse_raw_data.outputs.validated_records
-        output:
-          - name: csv_data
-            type: csv
-          - name: total_revenue
-            type: number
+          Validate the parsed data based on these criteria:
+          - All records have required fields
+          - Numeric values are positive
+          - Dates are in valid range
 
-      - name: generate_html_report
-        prompts:
-          - "Create an HTML report from the sales data"
-          - "Use a clean, professional table layout"
-          - "If {charts} is true, include chart data section"
-          - "Highlight top-performing regions in green"
+          Quality report: "{quality}"
+
+          Return PASS or FAIL with details.
         agent: engineer
         inputs:
-          - name: charts
+          - name: quality
+            source: ingestion.parse_data.outputs.quality_report
+        output:
+          - name: validation_result
+            type: plain
+          - name: error_count
+            type: number
+
+  - name: transformation
+    prompt: Transform data into multiple formats
+    agent: analyst
+    needs: ingestion
+    steps:
+      - name: to_json
+        prompts: |
+          Using the validated data, create a JSON representation.
+          Include all records with their fields aggregated by region.
+        agent: analyst
+        inputs:
+          - name: parsed
+            source: ingestion.parse_data.outputs.__raw__
+          - name: validation
+            source: ingestion.validate_data.outputs.__raw__
+        output:
+          - name: json_output
+            type: json
+
+      - name: to_yaml
+        prompts: |
+          Convert the same data to YAML format.
+          Use the JSON output as the source.
+
+          JSON data: "{json_data}"
+        agent: analyst
+        inputs:
+          - name: json_data
+            source: transformation.to_json.outputs.json_output
+        output:
+          - name: yaml_output
+            type: yaml
+
+      - name: to_csv
+        prompts: |
+          Flatten the data into CSV format with these columns:
+          Region, Month, Revenue, Expenses, Profit, Currency
+          Use {currency} for all monetary values.
+
+          Source data: "{json_data}"
+        agent: analyst
+        inputs:
+          - name: json_data
+            source: transformation.to_json.outputs.json_output
+          - name: currency
+            source: vars.currency
+        output:
+          - name: csv_output
+            type: csv
+
+  - name: publishing
+    prompt: Compile final report
+    agent: publisher
+    needs: transformation
+    steps:
+      - name: generate_html_report
+        prompts: |
+          Create an HTML report that includes:
+          1. Executive summary
+          2. Data quality section
+          3. JSON data view (collapsible)
+          4. YAML data view (collapsible)
+          5. CSV data table
+          6. Key metrics dashboard
+          Include chart placeholders if {charts_enabled}.
+
+          JSON: {json}
+          YAML: {yaml}
+          CSV: {csv}
+        agent: publisher
+        inputs:
+          - name: json
+            source: transformation.to_json.outputs.json_output
+          - name: yaml
+            source: transformation.to_yaml.outputs.yaml_output
+          - name: csv
+            source: transformation.to_csv.outputs.csv_output
+          - name: charts_enabled
             source: vars.include_charts
-          - name: records
-            source: ingestion.parse_raw_data.outputs.validated_records
-          - name: anomalies
-            source: ingestion.parse_raw_data.outputs.anomalies
         output:
           - name: html_report
             type: html
 
-      - name: summarize_metrics
+      - name: generate_summary
         prompts: |
-          Calculate key metrics from the data:
-          - Total records processed: {count}
-          - Total revenue: {revenue} {cur}
-          - Anomaly rate: {anomaly_count} issues
-          Provide a JSON summary with all metrics.
-        inputs:
-          - name: count
-            source: ingestion.parse_raw_data.outputs.record_count
-          - name: revenue
-            source: transformation.generate_csv_export.outputs.total_revenue
-          - name: anomaly_count
-            source: ingestion.parse_raw_data.outputs.anomalies
-          - name: cur
-            source: vars.currency
-        output:
-          - name: metrics_summary
-            type: json
-          - name: executive_overview
-            type: plain
+          Generate a markdown executive summary that covers:
+          1. Data ingestion results ({records} records processed)
+          2. Validation findings
+          3. Transformation outputs (JSON, YAML, CSV)
+          4. Key business insights
 
-  - name: compilation
-    prompt: Compile all outputs into a final deliverable
-    agent: analyst
-    needs: transformation
-    steps:
-      - name: compile_final_package
-        prompts:
-          - "Compile a final data package with the following sections:"
-          - "1. Executive Overview: {overview}"
-          - "2. Metrics Summary: {metrics}"
-          - "3. CSV Export (first 5 rows): {csv_preview}"
-          - "4. Data Quality: {anomalies}"
-          - "Format: structured markdown with clear headings"
-        agent: analyst
+          Keep it concise but comprehensive.
+        agent: publisher
         inputs:
-          - name: overview
-            source: transformation.summarize_metrics.outputs.executive_overview
-          - name: metrics
-            source: transformation.summarize_metrics.outputs.metrics_summary
-          - name: csv_preview
-            source: transformation.generate_csv_export.outputs.csv_data
-          - name: anomalies
-            source: ingestion.parse_raw_data.outputs.anomalies
+          - name: records
+            source: ingestion.parse_data.outputs.record_count
+          - name: validation
+            source: ingestion.validate_data.outputs.__raw__
+          - name: json
+            source: transformation.to_json.outputs.json_output
         output:
-          - name: final_report
-            type: markdown
+          - name: summary_md
+            # type defaults to "markdown"

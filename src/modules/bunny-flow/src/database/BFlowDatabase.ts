@@ -60,7 +60,7 @@ import { configureBFlowMigrations } from "./BFlowMigration";
  * Each table is backed by a typed repository (PhazeRepository) exposing
  * CRUD + query operations with GUIDv7 support.
  */
-class BFlowDatabase extends PhazeDB {
+export class BFlowDatabase extends PhazeDB {
   /** Flow Definitions — blueprint / container for pipelines */
   public definitions = this.table<BFlowDefinitionEntity, string>("definitions");
   public definitionsRepo = new BFlowDefinitionRepository(this.definitions);

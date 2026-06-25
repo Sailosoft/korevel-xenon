@@ -1,8 +1,8 @@
 /**
  * BFlowRun.Hooks.Run — Composite hook that orchestrates all pipeline run hooks.
  *
- * Assembles data loading, polling, submission, and derived state into a single
- * consumable object for the presentation layer.
+ * Assembles data loading, polling, submission, test run, and derived state
+ * into a single consumable object for the presentation layer.
  */
 
 "use client";
@@ -11,15 +11,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBFlowRunDataLoad } from "./BFlowRun.Hooks.DataLoad";
 import { useBFlowRunPolling } from "./BFlowRun.Hooks.Polling";
 import { useBFlowRunSubmit } from "./BFlowRun.Hooks.Submit";
+import { useBFlowTestRun } from "./BFlowRun.Hooks.TestRun";
 import type {
   BFlowPipelineEntity,
   BFlowPipelineVariable,
 } from "../pipeline/BFlowPipeline.Types";
 import type { BFlowVariableGroupEntity } from "../variable/BFlowVariableGroup.Types";
 import type { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
-import type {
-  BFlowWorkflowTemplateEntity,
-} from "../workflow/BFlowWorkflow.Entity";
+import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
 import type {
   BFlowWorkflowJob,
   BFlowStep,
@@ -87,6 +86,30 @@ export interface BFlowRunState {
   startPipelineRun: () => Promise<void>;
   /** Generate and download a markdown report */
   generateReport: () => Promise<void>;
+
+  // ── Test Run (in-memory, no DB persistence) ────────────────────
+
+  /** In-memory test pipeline run (undefined when no test has been performed) */
+  testRun: BFlowPipelineRunEntity | undefined;
+  /** In-memory test job runs */
+  testJobRuns: BFlowJobRun[];
+  /** In-memory test step runs */
+  testStepRuns: BFlowStepRun[];
+  /** Whether a test run is currently in progress */
+  isTestRunning: boolean;
+  /** Error message from the last test run */
+  testError: string | null;
+  /** Start an in-memory test run (no DB writes) */
+  startTestRun: () => Promise<void>;
+  /** Clear all test run state */
+  clearTestRun: () => void;
+
+  /** Current job run for the selected tab — prefers test run if available */
+  currentJobRunEffective: BFlowJobRun | undefined;
+  /** Current step runs for the selected tab — prefers test run if available */
+  currentStepRunsEffective: BFlowStepRun[];
+  /** Whether there's an active test run result to display */
+  hasTestRunResult: boolean;
 }
 
 /**
@@ -144,14 +167,14 @@ export function useBFlowRun(pipelineId: string | undefined): BFlowRunState {
 
     // 1. Base layer: template/YAML variable defaults (lowest priority)
     //    These come from the YAML workflow schema's `variables` key.
-    //    YAML variables use `defaultValue`; we map it to `value`.
+    //    YAML variables use `value` (replaces legacy `defaultValue`).
     if (template?.template?.variables) {
       for (const tv of template.template.variables) {
         vars.push({
           id: tv.id ?? `template-${tv.name}`,
           name: tv.name,
-          value: tv.defaultValue,
-          type: tv.type,
+          value: tv.value ?? "",
+          type: tv.type ?? "text",
           description: tv.description,
         });
       }
@@ -232,6 +255,45 @@ export function useBFlowRun(pipelineId: string | undefined): BFlowRunState {
     onError,
   );
 
+  // ── Test Run hook (in-memory, no DB persistence) ─────────────
+  const {
+    testRun,
+    testJobRuns,
+    testStepRuns,
+    isTestRunning,
+    testError,
+    startTestRun,
+    clearTestRun,
+  } = useBFlowTestRun(pipeline, template, jobs, resolvedVariables);
+
+  // ── Effective run data (prefers test run over actual run) ────
+
+  const hasTestRunResult = testRun !== undefined;
+
+  const currentJobRunEffective = useMemo(() => {
+    if (hasTestRunResult) {
+      const jobKey = currentJob?.id || currentJob?.name;
+      return jobKey ? testJobRuns.find((jr) => jr.jobId === jobKey) : undefined;
+    }
+    return currentJobRun;
+  }, [hasTestRunResult, currentJob, testJobRuns, currentJobRun]);
+
+  const currentStepRunsEffective = useMemo(() => {
+    if (hasTestRunResult) {
+      return (
+        testStepRuns?.filter(
+          (sr) => sr.jobRunId === currentJobRunEffective?.id,
+        ) ?? []
+      );
+    }
+    return currentStepRuns;
+  }, [
+    hasTestRunResult,
+    testStepRuns,
+    currentJobRunEffective?.id,
+    currentStepRuns,
+  ]);
+
   // ── Effects ───────────────────────────────────────────────────
 
   // Reset selection on pipeline change
@@ -276,5 +338,17 @@ export function useBFlowRun(pipelineId: string | undefined): BFlowRunState {
     isRunning,
     startPipelineRun,
     generateReport,
+    // ── Test Run state ─────────────────────────────────────────
+    testRun,
+    testJobRuns,
+    testStepRuns,
+    isTestRunning,
+    testError,
+    startTestRun,
+    clearTestRun,
+    // ── Effective run data (prefers test run when available) ───
+    currentJobRunEffective,
+    currentStepRunsEffective,
+    hasTestRunResult,
   };
 }

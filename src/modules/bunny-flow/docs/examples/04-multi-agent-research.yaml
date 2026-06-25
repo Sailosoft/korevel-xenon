@@ -1,49 +1,49 @@
 # =============================================================================
-# Example 4: Multi-Agent Research Pipeline
+# Example 4: Multi-Agent Research Pipeline (v2)
 # Demonstrates: multiple specialized agents, agent pool references,
 #               parallel-style job chaining, diverse output types (yaml, html),
 #               multiple inputs from multiple upstream steps
 # =============================================================================
 name: Competitive Research Report
-semanticVersion: 1.0.0
+# semanticVersion is now optional
+# semanticVersion: 1.0.0
 description: >
   A comprehensive competitive analysis pipeline that uses specialized agents
   to research a market, analyze competitors, and produce a final report
   in multiple formats.
 
+outputType: markdown
+
 variables:
   - name: market_segment
-    defaultValue: "SaaS Project Management Tools"
-    type: text
+    value: "SaaS Project Management Tools"
+    # type optional, defaults to "text"
     description: The market segment to analyze
 
   - name: top_competitors
-    defaultValue: "Asana, Monday.com, ClickUp, Notion"
-    type: text
+    value: "Asana, Monday.com, ClickUp, Notion"
+    # type: text
     description: Comma-separated list of competitors to analyze
 
   - name: report_format
-    defaultValue: "markdown"
-    type: select
+    value: "markdown"
+    # type: select
     description: Output format for the final report
 
 agents:
-  - name: Market Researcher
-    slug: researcher
+  - name: researcher
     role: Market Researcher
     prompt: >
       You are a market research analyst. You gather and synthesize
       data about market segments, competitor positioning, and trends.
 
-  - name: Product Analyst
-    slug: analyst
+  - name: analyst
     role: Product Analyst
     prompt: >
       You are a product analyst who compares features, pricing,
       and user feedback across competing products.
 
-  - name: Strategy Consultant
-    slug: strategist
+  - name: strategist
     role: Strategy Consultant
     prompt: >
       You are a strategy consultant who provides actionable

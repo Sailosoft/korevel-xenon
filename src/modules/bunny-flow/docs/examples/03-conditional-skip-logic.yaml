@@ -1,48 +1,49 @@
 # =============================================================================
-# Example 3: Conditional Execution & Skip Logic
+# Example 3: Conditional Execution & Skip Logic (v2)
 # Demonstrates: skipIf conditions, multiple job dependencies (needs as array),
 #               boolean variables, dynamic step skipping based on input values
 # =============================================================================
 name: Conditional Review Pipeline
-semanticVersion: 1.0.0
+# semanticVersion is now optional
+# semanticVersion: 1.0.0
 description: >
   A code/PR review pipeline that conditionally executes steps based on
   variable values. If no issues are found, the remediation step is skipped.
 
+outputType: markdown
+
 variables:
   - name: pr_title
-    defaultValue: "feat: add user authentication module"
-    type: text
+    value: "feat: add user authentication module"
+    # type optional, defaults to "text"
     description: The title of the pull request
 
   - name: code_complexity
-    defaultValue: "medium"
-    type: select
+    value: "medium"
+    # type: select
     description: Estimated code complexity (low/medium/high)
 
   - name: require_security_review
-    defaultValue: "true"
-    type: text
+    value: "true"
+    # type: text
     description: Whether to perform a security audit
 
+# Agents — slug removed, role optional
 agents:
-  - name: Code Reviewer
-    slug: reviewer
+  - name: reviewer
     role: Code Reviewer
     prompt: >
       You are a senior software engineer conducting a thorough
       code review. You identify bugs, security issues, and
       performance bottlenecks.
 
-  - name: Security Auditor
-    slug: security
+  - name: security
     role: Security Auditor
     prompt: >
       You are a security expert who audits code for vulnerabilities.
       You follow OWASP guidelines.
 
-  - name: Tech Writer
-    slug: writer
+  - name: writer
     role: Technical Writer
     prompt: >
       You are a technical writer who documents code changes

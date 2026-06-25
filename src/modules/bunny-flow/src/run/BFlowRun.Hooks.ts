@@ -19,4 +19,8 @@ export {
   useBFlowRunSubmit,
   type BFlowRunSubmitState,
 } from "./BFlowRun.Hooks.Submit";
+export {
+  useBFlowTestRun,
+  type BFlowTestRunState,
+} from "./BFlowRun.Hooks.TestRun";
 export { useBFlowRun, type BFlowRunState } from "./BFlowRun.Hooks.Run";

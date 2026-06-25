@@ -6,7 +6,7 @@ import {
 } from "./BFlowWorkflow.Entity";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowWorkflowFormValidation } from "../adapters/BFlowZodAdapter";
-import { BookOpenIcon, SparklesIcon } from "lucide-react";
+import { BookOpenIcon, Monitor, SparklesIcon, Terminal } from "lucide-react";
 import BFlowWorkflowGuidePanel from "./BFlowWorkflow.Guide.Panel";
 import BFlowWorkflowYamlGenerator from "./BFlowWorkflow.YamlGenerator.Component";
 import { AdminPanelFormActionState } from "@/src/modules/admin-panel/features/form-fields/admin-panel-form-field.interface";
@@ -100,6 +100,22 @@ export const bflowWorkflowModule = BunnyFeature.create<
     ]);
   });
 
+  // ── Row Actions (adds "Studio" action to each row) ──────────────────
+  feature.configureRow((row) => {
+    row.addAction({
+      id: "open-studio",
+      label: "Studio",
+      icon: React.createElement(Monitor, { className: "size-4" }),
+      variant: "secondary",
+      onClick: (rowData, context) => {
+        const entity = rowData as BFlowWorkflowTemplateEntity;
+        context.router.push(
+          `/modules/bunny-flow/flow/${entity.flowId}/workflows/${entity.id}/studio`,
+        );
+      },
+    });
+  });
+
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
     form.setFormDefaultData({
@@ -107,10 +123,22 @@ export const bflowWorkflowModule = BunnyFeature.create<
       templateYaml: `# v{{VERSION_PLACEHOLDER}}
 name: ""
 description: ""
-semanticVersion: 1.0.0
+# Optional: semantic version
+# semanticVersion: 1.0.0
+# Variables (type is optional, defaults to "text"; uses "value" instead of "defaultValue")
 variables: []
-agentPools: []
-agents: []
+# Agent pools (optional)
+# agentPools: []
+# Agents (optional — role is also optional, slug removed — use name as identifier)
+# agents:
+#   - name: writer
+#     role: Technical Writer
+#     prompt: You are a technical writer.
+# Reports configuration (optional)
+# reports:
+#   - name: final-report
+#     label: "Pipeline Report"
+#     source: job.step.outputs.__raw__
 jobs:
   - id: job-001
     name: job-1
@@ -119,6 +147,12 @@ jobs:
       - id: step-001
         name: step-1
         prompts: ""
+        # Step-level outputType (optional, default "markdown"):
+        # outputType: markdown  # plain | markdown | html | json | csv | yaml
+        # Or use structured outputs:
+        # output:
+        #   - name: result
+        #     type: markdown
 `,
     });
     form.addFields([

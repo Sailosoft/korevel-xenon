@@ -404,7 +404,7 @@ export class BFlowRunInputResolver {
 
     for (const outputDef of outputDefinitions) {
       const outputName = outputDef.name;
-      const outputType = outputDef.type;
+      const outputType = outputDef.type ?? "markdown";
 
       if (parsedJson && outputName in parsedJson) {
         // Got the value from parsed JSON

@@ -43,10 +43,7 @@ export default function BFlowWorkflowModalBody() {
   return (
     <div className="space-y-4">
       {/* Guide panel — appears above the form when toggled */}
-      <BFlowWorkflowGuidePanel
-        show={showGuide}
-        onClose={() => setShowGuide(false)}
-      />
+      {showGuide && <BFlowWorkflowGuidePanel />}
 
       {/* Standard form fields */}
       <BunnyForm />

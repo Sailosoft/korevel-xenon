@@ -104,11 +104,14 @@ class BFlowPromptSectionBuilder {
     return this;
   }
 
-  /** Output-format (structured-JSON) instructions for steps that declare outputs. */
-  outputFormat(step: BFlowStep): this {
+  /** Output-format instructions for steps that declare outputs. */
+  outputFormat(step: BFlowStep, defaultOutputType?: string): this {
     if (step.output && step.output.length > 0) {
       const fields = step.output
-        .map((od) => `  "${od.name}": <${od.type}>`)
+        .map((od) => {
+          const type = od.type ?? defaultOutputType ?? "markdown";
+          return `  "${od.name}": <${type}>`;
+        })
         .join("\n");
       return this.add(
         `\n\nYou MUST return your response as a valid JSON object with the following fields:\n` +
@@ -120,6 +123,37 @@ class BFlowPromptSectionBuilder {
     return this;
   }
 
+  /**
+   * Output type instruction — tells the AI what format the output should follow.
+   * Appended when the step does NOT declare structured outputs but has an implicit output type.
+   */
+  outputTypeInstruction(outputType: string | undefined): this {
+    const type = outputType ?? "markdown";
+    if (type === "plain") {
+      return this.add(
+        `\n\nIMPORTANT: Your response MUST be plain text only. Do NOT use markdown formatting, ` +
+          `headings, bold, italic, code blocks, lists, or any other markup. Return raw plain text.`,
+      );
+    }
+    if (type === "html") {
+      return this.add(
+        `\n\nIMPORTANT: Your response MUST be valid HTML. Use proper HTML tags for structure ` +
+          `(e.g. <h1>, <p>, <ul>, <li>, <code>). Do NOT wrap the output in markdown code fences.`,
+      );
+    }
+    if (type === "json") {
+      return this.add(
+        `\n\nIMPORTANT: Your response MUST be a valid JSON object. Do NOT wrap it in markdown ` +
+          `code blocks. Return ONLY the raw JSON object.`,
+      );
+    }
+    // Default: markdown
+    return this.add(
+      `\n\nIMPORTANT: Format your response using markdown. Use headings, lists, code blocks, ` +
+        `and other markdown elements as appropriate for readability.`,
+    );
+  }
+
   /** Join all accumulated sections into the final prompt string. */
   build(): string {
     return this.parts.join("\n");
@@ -127,6 +161,19 @@ class BFlowPromptSectionBuilder {
 }
 
 export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
+  /**
+   * Resolve the effective output type for a step.
+   * Priority:
+   *   1. step.outputType (when no structured outputs defined)
+   *   2. fallback "markdown"
+   *
+   * When step has structured outputs (`step.output`), each output field
+   * has its own type — handled in outputFormat().
+   */
+  private resolveStepOutputType(step: BFlowStep): string {
+    return step.outputType ?? "markdown";
+  }
+
   /**
    * Build the system prompt for a single step using the fluent section
    * builder. Sections are pushed via `builder.resolveInput(...)`,
@@ -140,6 +187,8 @@ export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
     resolvedInputs?: ResolvedStepInput[],
   ): string {
     const builder = new BFlowPromptSectionBuilder();
+    // Resolve step-level outputType (no longer workflow-level)
+    const effectiveOutputType = this.resolveStepOutputType(step);
 
     builder.add(
       `You are executing step "${step.name}" in job "${job.name}" of a pipeline.`,
@@ -158,7 +207,13 @@ export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
       .jobContext(job)
       .pipelineContext(pipeline)
       .availableVariables(resolvedVariables)
-      .outputFormat(step);
+      .outputFormat(step, effectiveOutputType);
+
+    // If step has no structured outputs, add output type instruction
+    // using the step-level outputType (defaults to "markdown")
+    if (!step.output || step.output.length === 0) {
+      builder.outputTypeInstruction(effectiveOutputType);
+    }
 
     return builder.build();
   }

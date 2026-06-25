@@ -141,6 +141,16 @@ You MUST return your response as a valid JSON object with the following fields:
 {{/each}}
 }
 Do NOT include any text outside the JSON object. Do NOT wrap it in markdown code blocks. Return ONLY the raw JSON object.
+{{else}}
+{{#if (eq step.outputType "plain")}}
+IMPORTANT: Your response MUST be plain text only. Do NOT use markdown formatting, headings, bold, italic, code blocks, lists, or any other markup. Return raw plain text.
+{{else if (eq step.outputType "html")}}
+IMPORTANT: Your response MUST be valid HTML. Use proper HTML tags for structure (e.g. <h1>, <p>, <ul>, <li>, <code>). Do NOT wrap the output in markdown code fences.
+{{else if (eq step.outputType "json")}}
+IMPORTANT: Your response MUST be a valid JSON object. Do NOT wrap it in markdown code blocks. Return ONLY the raw JSON object.
+{{else}}
+IMPORTANT: Format your response using markdown. Use headings, lists, code blocks, and other markdown elements as appropriate for readability.
+{{/if}}
 {{/if}}`;
 
 /** User prompt template (with inputs). */

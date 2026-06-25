@@ -2,7 +2,10 @@ import { ReactNode } from "react";
 import { BunnyKernel } from "../Bunny.Interface";
 
 export type BunnyTableMode = "desktop" | "mobile";
-export type BunnyTableMobileView<TRow> = (row: TRow, columns: BunnyColumn<TRow>[]) => ReactNode;
+export type BunnyTableMobileView<TRow> = (
+  row: TRow,
+  columns: BunnyColumn<TRow>[],
+) => ReactNode;
 export interface BunnyColumn<TRow = unknown> {
   field: string;
   header: string;

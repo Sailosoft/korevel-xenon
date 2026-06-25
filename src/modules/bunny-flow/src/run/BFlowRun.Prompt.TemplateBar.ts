@@ -186,7 +186,8 @@ interface SystemPromptContext {
   step: {
     name: string;
     prompts: string;
-    output: Array<{ name: string; type: string }>;
+    outputType?: string;
+    output: Array<{ name: string; type?: string }>;
   };
   job: {
     name: string;

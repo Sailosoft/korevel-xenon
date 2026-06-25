@@ -26,6 +26,27 @@ export const BFlowReportSchema = z.object({
 });
 export type BFlowReport = z.infer<typeof BFlowReportSchema>;
 
+/**
+ * Workflow-level report configuration (embedded in YAML).
+ * Maps to the `reports[]` array in the workflow schema.
+ */
+export const BFlowWorkflowReportConfigSchema = z.object({
+  /** Report slug/identifier */
+  name: z.string().min(1),
+  /** Optional label for the report heading */
+  label: z.string().optional(),
+  /**
+   * Source of the report data:
+   * - "job.step" — full step output
+   * - "job.step.outputs.__raw__" — raw output
+   * - "job.steps.outputs.{name}" — specific named output
+   */
+  source: z.string(),
+});
+export type BFlowWorkflowReportConfig = z.infer<
+  typeof BFlowWorkflowReportConfigSchema
+>;
+
 // ─── Report Template ───────────────────────────────────────────────
 
 export const BFlowReportTemplateSchema = z.object({
