@@ -30,12 +30,8 @@ import type {
   BFlowPipelineEntity,
   BFlowPipelineVariable,
 } from "../pipeline/BFlowPipeline.Types";
-import type {
-  BFlowWorkflowTemplateEntity,
-} from "../workflow/BFlowWorkflow.Entity";
-import type {
-  BFlowWorkflowJob,
-} from "../workflow/BFlowWorkflow.Types";
+import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
+import type { BFlowWorkflowJob } from "../workflow/BFlowWorkflow.Types";
 import type {
   BFlowPipelineRunEntity,
   BFlowJobRun,
@@ -266,7 +262,18 @@ export function useBFlowRunSubmit(
             const userPrompt = promptBuilder.buildUserPrompt(
               step,
               resolvedInputs,
+              resolvedVariables,
             );
+
+            // DEBUG: Log built prompts for debugging
+            console.log("[BFlowRun.Submit] step prompts built", {
+              stepName: step.name,
+              stepPromptsRaw: step.prompts,
+              userPrompt,
+              systemPromptIncludesInstructions:
+                systemPrompt.includes("Instructions:"),
+              resolvedVarCount: resolvedVariables.length,
+            });
 
             // 5c. Execute step via server action
             const stepRequest: StepExecutionRequest = {

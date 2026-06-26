@@ -44,12 +44,13 @@ export interface IBFlowRunPromptBuilder {
   ): string;
 
   /**
-   * Build the user prompt for a single step, optionally including
-   * resolved input context.
+   * Build the user prompt for a single step from the step's own prompts field
+   * (the actual task), with {{varName}} template variables resolved.
    */
   buildUserPrompt(
     step: BFlowStep,
     resolvedInputs?: ResolvedStepInput[],
+    resolvedVariables?: BFlowPipelineVariable[],
   ): string;
 
   /**
@@ -112,9 +113,6 @@ export enum BFlowPromptBuilderKind {
 
 /** System prompt template — the complete instruction block sent to the AI. */
 export const SYSTEM_PROMPT_TEMPLATE = `You are executing step "{{step.name}}" in job "{{job.name}}" of a pipeline.
-{{#if step.prompts}}
-Instructions: {{step.prompts}}
-{{/if}}
 {{#if job.prompt}}
 Job Context: {{job.prompt}}
 {{/if}}
@@ -153,13 +151,15 @@ IMPORTANT: Format your response using markdown. Use headings, lists, code blocks
 {{/if}}
 {{/if}}`;
 
-/** User prompt template (with inputs). */
-export const USER_PROMPT_WITH_INPUTS_TEMPLATE = `Execute step "{{step.name}}" with the following inputs:
+/** User prompt template (with inputs) — includes the step's own prompt as the actual task. */
+export const USER_PROMPT_WITH_INPUTS_TEMPLATE = `{{#if step.prompts}}{{step.prompts}}
+{{else}}Execute step "{{step.name}}" with the following inputs:{{/if}}
 {{#each resolvedInputs}}
   {{this.name}}: {{this.value}}
 {{/each}}
+{{#unless step.prompts}}
+Provide the output for this step.
+{{/unless}}`;
 
-Provide the output for this step.`;
-
-/** User prompt template (without inputs). */
-export const USER_PROMPT_SIMPLE_TEMPLATE = `Execute step "{{step.name}}" and provide the output.`;
+/** User prompt template (without inputs) — uses the step's own prompt as the actual task. */
+export const USER_PROMPT_SIMPLE_TEMPLATE = `{{#if step.prompts}}{{step.prompts}}{{else}}Execute step "{{step.name}}" and provide the output.{{/if}}`;

@@ -493,9 +493,17 @@ export class BFlowAIEngine {
           }
         }
 
-        // Build the step prompt
+        // Resolve template variables ({{varName}} → value)
+        const resolveTpl = (text: string): string => {
+          let result = text;
+          for (const v of resolvedVars) {
+            result = result.replaceAll(`{{${v.name}}}`, v.value);
+          }
+          return result;
+        };
+
+        // Build the system prompt (role/persona — NOT the step task)
         const systemPrompt = `You are executing step "${step.name}" in job "${job.name}" of a pipeline.
-${step.prompts ? `\nInstructions: ${Array.isArray(step.prompts) ? step.prompts.join("\n") : step.prompts}` : ""}
 
 ${job.prompt ? `\nJob Context: ${job.prompt}` : ""}
 ${pipeline.prompt ? `\nPipeline Context: ${pipeline.prompt}` : ""}
@@ -504,7 +512,14 @@ ${resolvedVars.length > 0 ? `\nAvailable variables:\n${resolvedVars.map((v) => `
 
 ${Object.keys(resolvedInputs).length > 0 ? `\nResolved inputs:\n${JSON.stringify(resolvedInputs, null, 2)}` : ""}`;
 
-        const userPrompt = `Execute step "${step.name}" and provide the output.`;
+        // Build the user prompt from the step's own prompts field (the actual task),
+        // with {{varName}} template variables resolved.
+        const rawPrompts = Array.isArray(step.prompts)
+          ? step.prompts.join("\n")
+          : step.prompts || "";
+        const userPrompt = rawPrompts
+          ? resolveTpl(rawPrompts)
+          : `Execute step "${step.name}" and provide the output.`;
 
         // Execute via Helix AI
         const output = await helix.doChat({

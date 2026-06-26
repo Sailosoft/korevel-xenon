@@ -285,20 +285,46 @@ function buildSystemContext(
 interface UserPromptContext {
   step: {
     name: string;
+    prompts: string;
   };
   resolvedInputs: Array<{ name: string; value: string }>;
 }
 
 /**
  * Build the template context for a user prompt.
+ * Performs pass‑1 interpolation of {{marker}} placeholders in step prompts.
  */
 function buildUserContext(
   step: BFlowStep,
   resolvedInputs?: ResolvedStepInput[],
+  resolvedVariables?: BFlowPipelineVariable[],
 ): UserPromptContext {
+  // Flatten inputs + variables into the pass‑1 interpolation namespace.
+  const interpolationCtx = buildInterpolationContext(
+    resolvedVariables,
+    resolvedInputs,
+  );
+
+  // Pass 1: render step prompt's {{marker}} markers inline.
+  let interpolatedPrompts: string;
+  if (Array.isArray(step.prompts)) {
+    interpolatedPrompts = step.prompts
+      .map((p) => interpolatePrompt(p, interpolationCtx, false))
+      .join("\n");
+  } else if (typeof step.prompts === "string") {
+    interpolatedPrompts = interpolatePrompt(
+      step.prompts,
+      interpolationCtx,
+      false,
+    );
+  } else {
+    interpolatedPrompts = "";
+  }
+
   return {
     step: {
       name: step.name,
+      prompts: interpolatedPrompts,
     },
     resolvedInputs: (resolvedInputs ?? []).map((ri) => ({
       name: ri.name,
@@ -378,8 +404,9 @@ export class BFlowRunPromptTemplateBar implements IBFlowRunPromptBuilder {
   buildUserPrompt(
     step: BFlowStep,
     resolvedInputs?: ResolvedStepInput[],
+    resolvedVariables?: BFlowPipelineVariable[],
   ): string {
-    const context = buildUserContext(step, resolvedInputs);
+    const context = buildUserContext(step, resolvedInputs, resolvedVariables);
 
     const hasInputs = resolvedInputs !== undefined && resolvedInputs.length > 0;
     const templateStr = hasInputs

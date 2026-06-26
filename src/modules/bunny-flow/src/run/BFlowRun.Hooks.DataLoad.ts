@@ -8,7 +8,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { parse as parseYaml } from "yaml";
 import { bflowDB } from "../database/BFlowDatabase";
+import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowPipelineEntity } from "../pipeline/BFlowPipeline.Types";
 import type { BFlowVariableGroupEntity } from "../variable/BFlowVariableGroup.Types";
 import type { BFlowFlowVariableEntity } from "../flow-variable/BFlowFlowVariable.Types";
@@ -91,7 +93,22 @@ export function useBFlowRunDataLoad(
     bflowDB.workflowTemplates
       .get(pipeline.templateId)
       .then((t) => {
-        if (!cancelled) setTemplate(t);
+        if (cancelled || !t) return;
+
+        // Re-parse the YAML to ensure the template field is always
+        // in sync with templateYaml (studio saves bypass parseTemplate).
+        if (t.templateYaml) {
+          try {
+            const parsed = parseYaml(t.templateYaml);
+            const validated = BFlowWorkflowSchema.parse(parsed);
+            setTemplate({ ...t, template: validated });
+          } catch {
+            // If re-parsing fails, fall back to stored template
+            setTemplate(t);
+          }
+        } else {
+          setTemplate(t);
+        }
       })
       .catch((e) => {
         if (!cancelled)

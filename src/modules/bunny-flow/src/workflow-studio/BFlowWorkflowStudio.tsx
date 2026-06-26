@@ -16,15 +16,17 @@
  *   Right (runner) — Pipeline display showing jobs, steps, outputs & prompts.
  *
  * ─── Actions ──────────────────────────────────────────────────────────
- *   • Save           — Persists the edited YAML to the workflow template.
- *   • Test Workflow  — Runs the pipeline in-memory via useBFlowTestRun.
- *   • Back to Workflow — Navigates back to the workflow list.
+ *   • Save              — Persists the edited YAML to the workflow template.
+ *   • Test Workflow     — Runs the pipeline in-memory via useBFlowTestRun.
+ *   • Back to Workflow  — Navigates back to the workflow list.
+ *   • Generative Menu   — AI-powered generation of agents, jobs, or steps
+ *                         via HeroUI Select with modal dialogs.
  */
 
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, Select, ListBox } from "@heroui/react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -41,6 +43,9 @@ import {
   Brain,
   Monitor,
   PenTool,
+  Sparkles,
+  Layers,
+  ListTree,
 } from "lucide-react";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
@@ -60,6 +65,7 @@ import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Enti
 import type {
   BFlowWorkflowJob,
   BFlowStep,
+  BFlowVariable,
 } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun, BFlowJobRun } from "../run/BFlowRun.Types";
 import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
@@ -70,6 +76,15 @@ import type { BFlowInteractiveWorkflowData } from "../workflow-interactive/BFlow
 
 import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
 import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
+
+// ─── Generative Menu ────────────────────────────────────────────────
+
+import {
+  AgentSwarmModal,
+  GenerateJobsModal,
+  GenerateStepsModal,
+  type GenerativeMenuOption,
+} from "./BFlowWorkflowStudio.GenerativeMenu";
 
 // ─── Dynamic Monaco import (SSR-safe) ────────────────────────────────
 
@@ -117,6 +132,8 @@ export default function BFlowWorkflowStudio({
 
   // ── Parsed pipeline state ─────────────────────────────────────────
   const [parsedJobs, setParsedJobs] = useState<BFlowWorkflowJob[]>([]);
+  /** Variables parsed from the live YAML (kept in sync with parsedJobs). */
+  const [parsedVariables, setParsedVariables] = useState<BFlowVariable[]>([]);
   const [selectedJobIndex, setSelectedJobIndex] = useState(0);
 
   // ── Modal state ───────────────────────────────────────────────────
@@ -134,18 +151,44 @@ export default function BFlowWorkflowStudio({
   } | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
-  // ── Parse YAML and extract jobs ───────────────────────────────────
+  // ── Generative Menu state ──────────────────────────────────────────
+  const [generativeMenuOption, setGenerativeMenuOption] =
+    useState<GenerativeMenuOption>(null);
+
+  // ── Parse YAML and extract jobs + variables ───────────────────────
   const parseAndSetJobs = useCallback((yaml: string) => {
     try {
       const parsed = parseYaml(yaml);
       const jobs = parsed?.jobs ?? [];
       setParsedJobs(jobs);
+      // Extract workflow-level variables from the live YAML so
+      // `vars.{name}` input resolution reflects unsaved edits.
+      const variables: BFlowVariable[] = parsed?.variables ?? [];
+      setParsedVariables(variables);
       setYamlError(null);
     } catch {
       setYamlError("Invalid YAML — pipeline display may be incomplete");
-      // Keep previous jobs visible if parsing fails
+      // Keep previous jobs/variables visible if parsing fails
     }
   }, []);
+
+  /** Callback when generative modal updates YAML content */
+  const handleGenerativeYamlUpdate = useCallback(
+    (newYaml: string) => {
+      setYamlContent(newYaml);
+      parseAndSetJobs(newYaml);
+    },
+    [parseAndSetJobs],
+  );
+
+  // Reset generative menu select after modal opens (allows re-triggering
+  // the same option without needing to dismiss and re-select)
+  useEffect(() => {
+    if (generativeMenuOption) {
+      const timer = setTimeout(() => setGenerativeMenuOption(null), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [generativeMenuOption]);
 
   // ── Initialise edit mode from URL on mount ───────────────────────
   useEffect(() => {
@@ -366,17 +409,25 @@ export default function BFlowWorkflowStudio({
   const currentJobs = useMemo(() => parsedJobs, [parsedJobs]);
   const currentJob = currentJobs[selectedJobIndex];
 
-  // ── Resolve template variables from YAML ─────────────────────────
+  // ── Resolve workflow variables from the LIVE YAML ─────────────────
+  // Reads `parsedVariables` (parsed from yamlContent) so that test runs
+  // reflect unsaved edits to the `variables:` block. Falls back to the
+  // persisted entity's variables when the live YAML hasn't been parsed
+  // yet (e.g. initial load before parseAndSetJobs runs).
   const resolvedVariables: BFlowPipelineVariable[] = useMemo(() => {
-    if (!workflow?.template?.variables) return [];
-    return workflow.template.variables.map((v) => ({
+    const source =
+      parsedVariables.length > 0
+        ? parsedVariables
+        : (workflow?.template?.variables ?? []);
+    if (source.length === 0) return [];
+    return source.map((v) => ({
       id: v.id ?? `studio-${v.name}`,
       name: v.name,
       value: v.value ?? "", // `value` replaces legacy `defaultValue`
       type: v.type ?? "text",
       description: v.description,
     }));
-  }, [workflow]);
+  }, [parsedVariables, workflow?.template?.variables]);
 
   // ── Test Run hook (in-memory only — no DB writes) ────────────────
   const {
@@ -475,7 +526,7 @@ export default function BFlowWorkflowStudio({
            HEADER — Back, title, action buttons
            ═══════════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-default-100">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-3">
+        <div className="px-2 md:px-3 py-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             {/* Left: Back + Title */}
             <div className="flex items-center gap-3 min-w-0">
@@ -543,6 +594,76 @@ export default function BFlowWorkflowStudio({
                   TemplateBar
                 </button>
               </div>
+
+              {/* ── Generative Menu Select ──────────────────────────── */}
+              <Select
+                className="min-w-[150px] max-h-9 [&_[data-slot=trigger]]:min-h-0 [&_[data-slot=trigger]]:h-8 [&_[data-slot=trigger]]:py-0 [&_[data-slot=trigger]]:text-xs"
+                value={generativeMenuOption}
+                onChange={(val) =>
+                  setGenerativeMenuOption(val as GenerativeMenuOption)
+                }
+                placeholder="✦ AI Generate"
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item
+                      key="agent-swarm"
+                      id="agent-swarm"
+                      textValue="Agent Swarm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-violet-500" />
+                        <div>
+                          <span className="text-sm font-medium">
+                            Agent Swarm
+                          </span>
+                          <p className="text-xs text-default-400">
+                            Generate AI agents from config
+                          </p>
+                        </div>
+                      </div>
+                    </ListBox.Item>
+                    <ListBox.Item
+                      key="generate-jobs"
+                      id="generate-jobs"
+                      textValue="Generate Jobs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-primary-500" />
+                        <div>
+                          <span className="text-sm font-medium">
+                            Generate Jobs
+                          </span>
+                          <p className="text-xs text-default-400">
+                            Create job definitions from config
+                          </p>
+                        </div>
+                      </div>
+                    </ListBox.Item>
+                    <ListBox.Item
+                      key="generate-steps"
+                      id="generate-steps"
+                      textValue="Generate Steps"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ListTree className="w-4 h-4 text-teal-500" />
+                        <div>
+                          <span className="text-sm font-medium">
+                            Generate Steps
+                          </span>
+                          <p className="text-xs text-default-400">
+                            Create steps and assign agents
+                          </p>
+                        </div>
+                      </div>
+                    </ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
 
               {/* ── Interactive Mode Toggle ─────────────────────────── */}
               <div className="flex items-center bg-default-100 rounded-lg p-0.5 border border-default-200">
@@ -948,6 +1069,37 @@ export default function BFlowWorkflowStudio({
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
+
+      {/* ═══════════════════════════════════════════════════════════════
+           GENERATIVE MENU MODALS — AgentSwarm, GenerateJobs, GenerateSteps
+           ═══════════════════════════════════════════════════════════════ */}
+
+      {/* Agent Swarm Modal */}
+      <AgentSwarmModal
+        open={generativeMenuOption === "agent-swarm"}
+        yamlContent={yamlContent}
+        jobs={currentJobs}
+        onYamlUpdate={handleGenerativeYamlUpdate}
+        onClose={() => setGenerativeMenuOption(null)}
+      />
+
+      {/* Generate Jobs Modal */}
+      <GenerateJobsModal
+        open={generativeMenuOption === "generate-jobs"}
+        yamlContent={yamlContent}
+        jobs={currentJobs}
+        onYamlUpdate={handleGenerativeYamlUpdate}
+        onClose={() => setGenerativeMenuOption(null)}
+      />
+
+      {/* Generate Steps Modal */}
+      <GenerateStepsModal
+        open={generativeMenuOption === "generate-steps"}
+        yamlContent={yamlContent}
+        jobs={currentJobs}
+        onYamlUpdate={handleGenerativeYamlUpdate}
+        onClose={() => setGenerativeMenuOption(null)}
+      />
     </div>
   );
 }

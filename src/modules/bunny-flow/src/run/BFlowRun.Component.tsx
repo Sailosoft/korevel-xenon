@@ -5,10 +5,15 @@
  *
  * All stateful logic is extracted into useBFlowRun() and its sub-hooks.
  * This component only consumes the returned state and renders the UI.
+ *
+ * ─── Export ──────────────────────────────────────────────────────────
+ * Supports exporting pipeline run results to a styled HTML document with
+ * Tailwind CSS (via CDN). The export includes all job and step runs with
+ * their statuses, outputs, variables, and metadata in a polished layout.
  */
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Play,
   Loader2,
@@ -18,6 +23,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Beaker,
+  Download,
+  CheckCircle2,
 } from "lucide-react";
 import { Button, Card } from "@heroui/react";
 import { useBFlowRun } from "./BFlowRun.Hooks";
@@ -33,6 +40,9 @@ import {
 } from "./BFlowRunState";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun } from "./BFlowRun.Types";
+
+// ─── Tailwind HTML Export Service ────────────────────────────────────
+import { bflowTailwindExportService } from "../export/BFlowExport.TailwindService";
 
 export default function BFlowRunComponent() {
   const params = useParams();
@@ -89,6 +99,55 @@ export default function BFlowRunComponent() {
     stepRun?: BFlowStepRun;
   } | null>(null);
 
+  // ── Export State ──────────────────────────────────────────────
+  const [exportStatus, setExportStatus] = useState<
+    "idle" | "exporting" | "exported"
+  >("idle");
+
+  /**
+   * Export pipeline run results to a Tailwind-styled HTML document.
+   * Uses the effective runs (test run or actual run) as data source.
+   */
+  const handleExportHtml = useCallback(() => {
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+
+    if (effectiveJobRuns.length === 0 && effectiveStepRuns.length === 0) {
+      return;
+    }
+
+    setExportStatus("exporting");
+
+    try {
+      bflowTailwindExportService.download(
+        {
+          pipelineName: pipeline?.name ?? template?.name ?? "Pipeline Report",
+          description: template?.description,
+          jobRuns: effectiveJobRuns,
+          stepRuns: effectiveStepRuns,
+          reports: template?.template?.reports,
+        },
+        `${pipeline?.slug ?? "pipeline"}-report.html`,
+        {
+          includeResolvedPrompts: false,
+          includeDescription: true,
+        },
+      );
+      setExportStatus("exported");
+      setTimeout(() => setExportStatus("idle"), 2000);
+    } catch {
+      setExportStatus("idle");
+    }
+  }, [
+    hasTestRunResult,
+    testJobRuns,
+    testStepRuns,
+    jobRuns,
+    stepRuns,
+    pipeline,
+    template,
+  ]);
+
   // ── Render ────────────────────────────────────────────────────
 
   if (!pipeline) {
@@ -140,6 +199,32 @@ export default function BFlowRunComponent() {
               >
                 <FileBarChart className="w-4 h-4" />
                 Generate Report
+              </Button>
+
+              {/* ── Export HTML Button ────────────────────────────── */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
+                onPress={handleExportHtml}
+                isDisabled={
+                  exportStatus === "exporting" ||
+                  (hasTestRunResult
+                    ? testJobRuns.length === 0
+                    : jobRuns.length === 0)
+                }
+              >
+                {exportStatus === "exported" ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Exported
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    Export HTML
+                  </>
+                )}
               </Button>
 
               {/* ── Test Run Button ──────────────────────────────── */}

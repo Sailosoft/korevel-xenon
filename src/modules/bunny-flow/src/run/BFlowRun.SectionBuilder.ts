@@ -203,7 +203,6 @@ export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
     }
 
     builder
-      .instructions(step)
       .jobContext(job)
       .pipelineContext(pipeline)
       .availableVariables(resolvedVariables)
@@ -219,13 +218,35 @@ export class BFlowRunPromptBuilder implements IBFlowRunPromptBuilder {
   }
 
   /**
-   * Build the user prompt for a single step, optionally including
-   * resolved input context.
+   * Build the user prompt for a single step from the step's own prompts field
+   * (the actual task), with {{varName}} template variables resolved.
    */
   buildUserPrompt(
     step: BFlowStep,
     resolvedInputs?: ResolvedStepInput[],
+    resolvedVariables?: BFlowPipelineVariable[],
   ): string {
+    // Use the step's own prompts as the user prompt (the actual task)
+    const rawPrompts = Array.isArray(step.prompts)
+      ? step.prompts.join("\n")
+      : step.prompts;
+
+    if (rawPrompts) {
+      // Resolve {{varName}} template variables
+      let resolved = rawPrompts;
+      if (resolvedVariables) {
+        for (const v of resolvedVariables) {
+          resolved = resolved.replaceAll(`{{${v.name}}}`, v.value);
+        }
+      }
+      console.log(
+        "[BFlowRun.SectionBuilder] buildUserPrompt RESULT:",
+        resolved,
+      );
+      return resolved;
+    }
+
+    // Fallback: generate a generic user prompt from inputs
     if (resolvedInputs && resolvedInputs.length > 0) {
       return (
         `Execute step "${step.name}" with the following inputs:\n` +

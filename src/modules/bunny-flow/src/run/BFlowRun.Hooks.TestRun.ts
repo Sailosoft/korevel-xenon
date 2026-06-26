@@ -276,7 +276,11 @@ export function useBFlowTestRun(
           resolvedVariables,
           resolvedInputs,
         );
-        const userPrompt = promptBuilder.buildUserPrompt(step, resolvedInputs);
+        const userPrompt = promptBuilder.buildUserPrompt(
+          step,
+          resolvedInputs,
+          resolvedVariables,
+        );
 
         // 5. Execute step via server action
         const stepRequest: StepExecutionRequest = {
@@ -563,6 +567,7 @@ export function useBFlowTestRun(
             const userPrompt = promptBuilder.buildUserPrompt(
               step,
               resolvedInputs,
+              resolvedVariables,
             );
 
             // 5c. Execute step via server action
