@@ -1,12 +1,18 @@
 /**
- * BFlowWorkflow.Studio.Component — Live YAML editor + pipeline test runner.
+ * BFlowWorkflowStudio — Live YAML editor + interactive builder + pipeline test runner.
  *
  * Two-panel studio (side-by-side on desktop, stacked on mobile) for rapidly
  * developing and testing a workflow without persisting any run data to the
  * database (IndexedDB).  All test-run results live only in browser memory.
  *
+ * ─── Modes ─────────────────────────────────────────────────────────────
+ *   • YAML Editor (default) — Monaco code editor pre-loaded with the workflow YAML.
+ *   • Interactive Mode      — Form-based UI for building workflow interactively
+ *                             using heroUI components. Replaces Monaco editor,
+ *                             skips YAML validation, and serializes to YAML on save.
+ *
  * ─── Panels ───────────────────────────────────────────────────────────
- *   Left  (editor) — Monaco code editor pre-loaded with the workflow YAML.
+ *   Left  (editor) — Monaco code editor OR interactive form.
  *   Right (runner) — Pipeline display showing jobs, steps, outputs & prompts.
  *
  * ─── Actions ──────────────────────────────────────────────────────────
@@ -17,7 +23,7 @@
 
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Modal } from "@heroui/react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -33,9 +39,11 @@ import {
   Eye,
   Code,
   Brain,
+  Monitor,
+  PenTool,
 } from "lucide-react";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { BFlowWorkflowSchema } from "./BFlowWorkflow.Types";
+import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowTestRun } from "../run/BFlowRun.Hooks.TestRun";
 import { BFlowStatusBadge, getStatusConfig } from "../run/BFlowStatusBadge";
@@ -47,34 +55,28 @@ import { BFlowComputedInputsModal } from "../run/BFlowComputedInputsModal";
 import { BFlowRunInputResolver } from "../run/BFlowRun.InputResolver";
 import { BFlowRunPromptBuilder } from "../run/BFlowRun.SectionBuilder";
 import { BFlowPromptBuilderKind } from "../run/BFlowRun.Prompt.Types";
-import BFlowWorkflowGuidePanel from "./BFlowWorkflow.Guide.Panel";
-import type { BFlowWorkflowTemplateEntity } from "./BFlowWorkflow.Entity";
-import type { BFlowWorkflowJob, BFlowStep } from "./BFlowWorkflow.Types";
+import BFlowWorkflowGuidePanel from "../workflow/BFlowWorkflow.Guide.Panel";
+import type { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
+import type {
+  BFlowWorkflowJob,
+  BFlowStep,
+} from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun, BFlowJobRun } from "../run/BFlowRun.Types";
 import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
+
+// Import Interactive component from new location
+import BFlowWorkflowInteractive from "../workflow-interactive/BFlowWorkflowInteractive";
+import type { BFlowInteractiveWorkflowData } from "../workflow-interactive/BFlowWorkflowInteractive.Types";
+
+import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
+import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
 
 // ─── Dynamic Monaco import (SSR-safe) ────────────────────────────────
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.default),
-  { ssr: false, loading: () => <StudioLoadingFallback /> },
+  { ssr: false, loading: () => <BFlowStudioLoadingFallback /> },
 );
-
-// ─── Props ────────────────────────────────────────────────────────────
-
-interface BFlowWorkflowStudioProps {
-  params: Promise<{ id: string; workflowId: string }>;
-}
-
-// ─── Loading fallback ─────────────────────────────────────────────────
-
-function StudioLoadingFallback() {
-  return (
-    <div className="h-full flex items-center justify-center bg-default-50 rounded-xl">
-      <Loader2 className="w-6 h-6 text-default-400 animate-spin" />
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // BFlowWorkflowStudio
@@ -88,6 +90,7 @@ export default function BFlowWorkflowStudio({
 
   // ── Edit mode (YAML editor caching via ?edit) ─────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
+  const hasMounted = useRef(false);
   const STORAGE_PREFIX = "bflow-studio-edit";
   const storageKey = `${STORAGE_PREFIX}-${workflowId}`;
 
@@ -97,6 +100,9 @@ export default function BFlowWorkflowStudio({
   >(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Interactive mode toggle ─────────────────────────────────────
+  const [interactiveMode, setInteractiveMode] = useState(false);
 
   // ── Editor state ──────────────────────────────────────────────────
   const [yamlContent, setYamlContent] = useState<string>("");
@@ -159,6 +165,15 @@ export default function BFlowWorkflowStudio({
 
   // ── Cleanup cache when leaving edit mode ─────────────────────────
   useEffect(() => {
+    // Skip on initial mount — isEditMode starts false, but the
+    // URL-parsing effect (line 150) will flip it to true almost
+    // immediately.  Without this guard the cache would be wiped
+    // before it can be restored on page refresh.
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+
     if (!isEditMode) {
       // Remove all studio-edit cache entries for any workflow
       for (let i = 0; i < localStorage.length; i++) {
@@ -244,7 +259,18 @@ export default function BFlowWorkflowStudio({
     };
   }, [workflowId, isEditMode, storageKey, parseAndSetJobs]);
 
-  // ── YAML change handler ───────────────────────────────────────────
+  // ── Interactive mode data change handler ──────────────────────────
+  // Receives the interactive form data and serializes it to YAML,
+  // updating both the yamlContent (for save/test-run) and parsed jobs.
+  const handleInteractiveDataChange = useCallback(
+    (_data: BFlowInteractiveWorkflowData, yaml: string) => {
+      setYamlContent(yaml);
+      parseAndSetJobs(yaml);
+    },
+    [parseAndSetJobs],
+  );
+
+  // ── YAML change handler (Monaco editor changes) ────────────────────
   const handleYamlChange = useCallback(
     (value: string | undefined) => {
       const newYaml = value ?? "";
@@ -283,8 +309,11 @@ export default function BFlowWorkflowStudio({
     setYamlError(null);
 
     try {
-      // Validate YAML before saving
-      parseYaml(yamlContent);
+      // In interactive mode, YAML is already serialized — skip validation
+      if (!interactiveMode) {
+        // Validate YAML before saving (only in YAML editor mode)
+        parseYaml(yamlContent);
+      }
 
       const now = new Date();
       await bflowDB.workflowTemplates.update(workflowId, {
@@ -301,7 +330,7 @@ export default function BFlowWorkflowStudio({
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, [workflow, workflowId, yamlContent]);
+  }, [workflow, workflowId, yamlContent, interactiveMode]);
 
   // ── Derived pipeline entity for test run ──────────────────────────
   // Injects the selected prompt builder kind into metadata so the
@@ -366,16 +395,20 @@ export default function BFlowWorkflowStudio({
 
   // ── Test Run with pre-validation ─────────────────────────────────
   const handleTestRun = useCallback(async () => {
-    // Validate YAML against Zod schema before running
-    const validationError = validateWorkflowYaml(yamlContent);
-    if (validationError) {
-      setYamlError(validationError);
-      return;
+    // In interactive mode, skip YAML validation — the form
+    // serializes to valid YAML automatically
+    if (!interactiveMode) {
+      // Validate YAML against Zod schema before running
+      const validationError = validateWorkflowYaml(yamlContent);
+      if (validationError) {
+        setYamlError(validationError);
+        return;
+      }
     }
     // Clear previous validation error and run
     setYamlError(null);
     await startTestRun();
-  }, [yamlContent, validateWorkflowYaml, startTestRun]);
+  }, [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode]);
 
   // ── Effective run data (prefers test run) ─────────────────────────
   const currentJobRunEffective = useMemo<BFlowJobRun | undefined>(() => {
@@ -511,6 +544,34 @@ export default function BFlowWorkflowStudio({
                 </button>
               </div>
 
+              {/* ── Interactive Mode Toggle ─────────────────────────── */}
+              <div className="flex items-center bg-default-100 rounded-lg p-0.5 border border-default-200">
+                <button
+                  onClick={() => setInteractiveMode(false)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    !interactiveMode
+                      ? "bg-background text-default-800 shadow-sm"
+                      : "text-default-500 hover:text-default-700"
+                  }`}
+                  title="Standard YAML code editor"
+                >
+                  <Code className="w-3.5 h-3.5 inline-block mr-1" />
+                  Code
+                </button>
+                <button
+                  onClick={() => setInteractiveMode(true)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    interactiveMode
+                      ? "bg-background text-default-800 shadow-sm"
+                      : "text-default-500 hover:text-default-700"
+                  }`}
+                  title="Interactive form-based workflow builder"
+                >
+                  <PenTool className="w-3.5 h-3.5 inline-block mr-1" />
+                  Interactive
+                </button>
+              </div>
+
               {/* Guide Button */}
               <Button
                 onPress={() => setIsGuideOpen(true)}
@@ -587,39 +648,60 @@ export default function BFlowWorkflowStudio({
            BODY — Two-panel layout
            ═══════════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
-        {/* ─── LEFT PANEL — Monaco YAML Editor ─────────────────────── */}
+        {/* ─── LEFT PANEL — Monaco YAML Editor or Interactive Form ── */}
         <div className="w-full lg:w-1/2 flex flex-col border-b lg:border-b-0 lg:border-r border-default-100">
-          <div className="px-4 py-2 bg-default-50 border-b border-default-100 flex items-center justify-between">
-            <span className="text-xs font-semibold text-default-500 uppercase tracking-wider">
-              YAML Editor
-            </span>
-            <span className="text-[10px] text-default-400 font-mono">
-              {yamlContent.split("\n").length} lines
-            </span>
-          </div>
-          <div className="flex-1 min-h-[50vh] lg:min-h-0">
-            <MonacoEditor
-              height="100%"
-              defaultLanguage="yaml"
-              language="yaml"
-              theme="vs-light"
-              value={yamlContent}
-              onChange={handleYamlChange}
-              options={{
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                fontSize: 13,
-                lineNumbers: "on",
-                automaticLayout: true,
-                tabSize: 2,
-                wordWrap: "on",
-                formatOnPaste: true,
-                renderWhitespace: "selection",
-                bracketPairColorization: { enabled: true },
-                padding: { top: 12 },
-              }}
-            />
-          </div>
+          {interactiveMode ? (
+            <>
+              <div className="px-4 py-2 bg-default-50 border-b border-default-100 flex items-center justify-between">
+                <span className="text-xs font-semibold text-default-500 uppercase tracking-wider">
+                  Interactive Builder
+                </span>
+                <span className="text-[10px] text-default-400 font-mono">
+                  {parsedJobs.length} job{parsedJobs.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="flex-1 min-h-[50vh] lg:min-h-0">
+                <BFlowWorkflowInteractive
+                  initialYaml={yamlContent}
+                  onDataChange={handleInteractiveDataChange}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="px-4 py-2 bg-default-50 border-b border-default-100 flex items-center justify-between">
+                <span className="text-xs font-semibold text-default-500 uppercase tracking-wider">
+                  YAML Editor
+                </span>
+                <span className="text-[10px] text-default-400 font-mono">
+                  {yamlContent.split("\n").length} lines
+                </span>
+              </div>
+              <div className="flex-1 min-h-[50vh] lg:min-h-0">
+                <MonacoEditor
+                  height="100%"
+                  defaultLanguage="yaml"
+                  language="yaml"
+                  theme="vs-light"
+                  value={yamlContent}
+                  onChange={handleYamlChange}
+                  options={{
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                    lineNumbers: "on",
+                    automaticLayout: true,
+                    tabSize: 2,
+                    wordWrap: "on",
+                    formatOnPaste: true,
+                    renderWhitespace: "selection",
+                    bracketPairColorization: { enabled: true },
+                    padding: { top: 12 },
+                  }}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* ─── RIGHT PANEL — Pipeline Display ──────────────────────── */}

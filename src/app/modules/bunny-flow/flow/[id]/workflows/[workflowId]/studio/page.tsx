@@ -7,7 +7,7 @@
 
 "use client";
 
-import BFlowWorkflowStudio from "@/src/modules/bunny-flow/src/workflow/BFlowWorkflow.Studio.Component";
+import BFlowWorkflowStudio from "@/src/modules/bunny-flow/src/workflow-studio/BFlowWorkflowStudio";
 
 // ─── Props ────────────────────────────────────────────────────────────
 
