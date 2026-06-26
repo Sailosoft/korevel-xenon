@@ -9,6 +9,7 @@
  * produces a polished, modern HTML report with proper Tailwind utility classes.
  */
 
+import { marked } from "marked";
 import type { BFlowWorkflowReport } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowJobRun, BFlowStepRun } from "../run/BFlowRun.Types";
 
@@ -441,7 +442,7 @@ export class BFlowTailwindExportService {
                   ? `<div>
                     <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Output:</p>
                     <div class="prose prose-sm max-w-none dark:prose-invert bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 output-content text-sm text-slate-700 dark:text-slate-300">
-                      ${escapeHtml(stepRun.output)}
+                      ${marked.parse(stepRun.output)}
                     </div>
                   </div>`
                   : ""

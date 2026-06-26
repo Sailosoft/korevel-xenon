@@ -26,7 +26,7 @@ import {
   Download,
   CheckCircle2,
 } from "lucide-react";
-import { Button, Card } from "@heroui/react";
+import { Button, Card, Dropdown, Label, Separator } from "@heroui/react";
 import { useBFlowRun } from "./BFlowRun.Hooks";
 import { BFlowStatusBadge, getStatusConfig } from "./BFlowStatusBadge";
 import { BFlowStepNode } from "./BFlowStepNode";
@@ -191,41 +191,58 @@ export default function BFlowRunComponent() {
                 <BFlowStatusBadge status={testRun!.status} />
               )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                onPress={generateReport}
-                isDisabled={!activeRun}
-              >
-                <FileBarChart className="w-4 h-4" />
-                Generate Report
-              </Button>
-
-              {/* ── Export HTML Button ────────────────────────────── */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
-                onPress={handleExportHtml}
-                isDisabled={
-                  exportStatus === "exporting" ||
-                  (hasTestRunResult
-                    ? testJobRuns.length === 0
-                    : jobRuns.length === 0)
-                }
-              >
-                {exportStatus === "exported" ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Exported
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Export HTML
-                  </>
-                )}
-              </Button>
+              <Dropdown>
+                <Dropdown.Trigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
+                    isDisabled={
+                      exportStatus === "exporting" ||
+                      (hasTestRunResult
+                        ? testJobRuns.length === 0
+                        : jobRuns.length === 0)
+                    }
+                  >
+                    {exportStatus === "exported" ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Exported
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Export
+                      </>
+                    )}
+                  </Button>
+                </Dropdown.Trigger>
+                <Dropdown.Popover>
+                  <Dropdown.Menu aria-label="Export actions">
+                    <Dropdown.Item
+                      key="generate-report"
+                      onPress={generateReport}
+                      isDisabled={!activeRun}
+                    >
+                      <FileBarChart className="w-4 h-4" />
+                      <Label>Generate Report</Label>
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      key="export-html"
+                      onPress={handleExportHtml}
+                      isDisabled={
+                        exportStatus === "exporting" ||
+                        (hasTestRunResult
+                          ? testJobRuns.length === 0
+                          : jobRuns.length === 0)
+                      }
+                    >
+                      <Download className="w-4 h-4" />
+                      <Label>Export HTML</Label>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
 
               {/* ── Test Run Button ──────────────────────────────── */}
               <Button
