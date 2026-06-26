@@ -18,8 +18,8 @@ export {
 export { BFlowDefinitionFormSchema } from "../definition/BFlowDefinition.Types";
 export type { BFlowDefinitionForm } from "../definition/BFlowDefinition.Types";
 
-export { BFlowWorkflowTemplateFormSchema } from "../workflow/BFlowWorkflow.Types";
-export type { BFlowWorkflowTemplateForm } from "../workflow/BFlowWorkflow.Types";
+export { BFlowWorkflowTemplateFormSchema } from "../workflow/BFlowWorkflow.Entity";
+export type { BFlowWorkflowTemplateForm } from "../workflow/BFlowWorkflow.Entity";
 
 export { BFlowPipelineFormSchema } from "../pipeline/BFlowPipeline.Types";
 export type { BFlowPipelineForm } from "../pipeline/BFlowPipeline.Types";

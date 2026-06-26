@@ -30,8 +30,8 @@ export type {
 
 // Types
 export type { BFlowDefinitionEntity } from "./definition/BFlowDefinition.Types";
+export type { BFlowWorkflowTemplateEntity } from "./workflow/BFlowWorkflow.Entity";
 export type {
-  BFlowWorkflowTemplateEntity,
   BFlowWorkflow,
   BFlowWorkflowJob,
   BFlowWorkflowAgent,
@@ -165,3 +165,14 @@ export { default as BFlowRunComponent } from "./run/BFlowRun.Component";
 
 // AI Engine
 export { BFlowAIEngine, bflowAIEngine } from "./ai/BFlowAIEngine";
+
+// Export Service
+export {
+  BFlowExportService,
+  bflowExportService,
+} from "./export/BFlowExport.Service";
+export type {
+  BFlowExportFormat,
+  BFlowExportOptions,
+  BFlowExportInput,
+} from "./export/BFlowExport.Service";

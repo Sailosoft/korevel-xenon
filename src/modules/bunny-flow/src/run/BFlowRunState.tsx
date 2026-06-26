@@ -1,11 +1,12 @@
 /**
- * BFlowRunState — Loading and error state components for the pipeline run view.
+ * BFlowRunState — Loading, error, and test-run state components for the pipeline run view.
  *
- * Provides consistent empty/loading/error states across the run workspace.
+ * Provides consistent empty/loading/error states across the run workspace,
+ * plus a test-run mode banner to visually distinguish in-memory test runs.
  */
 
 import React from "react";
-import { Loader2, XCircle } from "lucide-react";
+import { Loader2, XCircle, Beaker, RotateCcw } from "lucide-react";
 
 /**
  * Full-height centered spinner for loading states.
@@ -29,6 +30,46 @@ export function BFlowErrorState({ message }: { message: string }) {
         Failed to Load Pipeline
       </h2>
       <p className="text-sm text-danger-500">{message}</p>
+    </div>
+  );
+}
+
+/**
+ * Prominent test-run mode banner shown when test run results are being displayed.
+ * Visually distinguishes in-memory (ephemeral) results from persisted pipeline runs.
+ */
+export function BFlowTestRunBanner({
+  status,
+  onClearTestRun,
+}: {
+  status?: string;
+  onClearTestRun: () => void;
+}) {
+  return (
+    <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-3">
+      <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+        <Beaker className="w-4 h-4 text-violet-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-violet-800">Test Run Mode</p>
+        <p className="text-xs text-violet-500">
+          Results are ephemeral — stored in browser memory only.
+          {status === "succeeded"
+            ? " All steps completed."
+            : status === "failed"
+              ? " Some steps failed."
+              : status === "running"
+                ? " Execution in progress..."
+                : ""}
+        </p>
+      </div>
+      <button
+        onClick={onClearTestRun}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 transition-colors text-xs font-medium text-violet-700"
+      >
+        <RotateCcw className="w-3.5 h-3.5" />
+        Clear Results
+      </button>
     </div>
   );
 }

@@ -5,10 +5,15 @@
  *
  * All stateful logic is extracted into useBFlowRun() and its sub-hooks.
  * This component only consumes the returned state and renders the UI.
+ *
+ * ─── Export ──────────────────────────────────────────────────────────
+ * Supports exporting pipeline run results to a styled HTML document with
+ * Tailwind CSS (via CDN). The export includes all job and step runs with
+ * their statuses, outputs, variables, and metadata in a polished layout.
  */
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Play,
   Loader2,
@@ -17,17 +22,27 @@ import {
   FileBarChart,
   ArrowLeft,
   ChevronRight,
+  Beaker,
+  Download,
+  CheckCircle2,
 } from "lucide-react";
-import { Button, Card } from "@heroui/react";
+import { Button, Card, Dropdown, Label, Separator } from "@heroui/react";
 import { useBFlowRun } from "./BFlowRun.Hooks";
 import { BFlowStatusBadge, getStatusConfig } from "./BFlowStatusBadge";
 import { BFlowStepNode } from "./BFlowStepNode";
 import { BFlowStepDetailsModal } from "./BFlowStepDetailsModal";
 import { BFlowOutputModal } from "./BFlowOutputModal";
 import { BFlowComputedInputsModal } from "./BFlowComputedInputsModal";
-import { BFlowLoadingState, BFlowErrorState } from "./BFlowRunState";
+import {
+  BFlowLoadingState,
+  BFlowErrorState,
+  BFlowTestRunBanner,
+} from "./BFlowRunState";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun } from "./BFlowRun.Types";
+
+// ─── Tailwind HTML Export Service ────────────────────────────────────
+import { bflowTailwindExportService } from "../export/BFlowExport.TailwindService";
 
 export default function BFlowRunComponent() {
   const params = useParams();
@@ -60,6 +75,17 @@ export default function BFlowRunComponent() {
     isRunning,
     startPipelineRun,
     generateReport,
+    // ── Test Run ───────────────────────────────────────────────
+    testRun,
+    testJobRuns,
+    testStepRuns,
+    isTestRunning,
+    testError,
+    startTestRun,
+    clearTestRun,
+    currentJobRunEffective,
+    currentStepRunsEffective,
+    hasTestRunResult,
   } = useBFlowRun(pipelineId);
 
   // ── Modal State ───────────────────────────────────────────────
@@ -72,6 +98,55 @@ export default function BFlowRunComponent() {
     step: BFlowStep;
     stepRun?: BFlowStepRun;
   } | null>(null);
+
+  // ── Export State ──────────────────────────────────────────────
+  const [exportStatus, setExportStatus] = useState<
+    "idle" | "exporting" | "exported"
+  >("idle");
+
+  /**
+   * Export pipeline run results to a Tailwind-styled HTML document.
+   * Uses the effective runs (test run or actual run) as data source.
+   */
+  const handleExportHtml = useCallback(() => {
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+
+    if (effectiveJobRuns.length === 0 && effectiveStepRuns.length === 0) {
+      return;
+    }
+
+    setExportStatus("exporting");
+
+    try {
+      bflowTailwindExportService.download(
+        {
+          pipelineName: pipeline?.name ?? template?.name ?? "Pipeline Report",
+          description: template?.description,
+          jobRuns: effectiveJobRuns,
+          stepRuns: effectiveStepRuns,
+          reports: template?.template?.reports,
+        },
+        `${pipeline?.slug ?? "pipeline"}-report.html`,
+        {
+          includeResolvedPrompts: false,
+          includeDescription: true,
+        },
+      );
+      setExportStatus("exported");
+      setTimeout(() => setExportStatus("idle"), 2000);
+    } catch {
+      setExportStatus("idle");
+    }
+  }, [
+    hasTestRunResult,
+    testJobRuns,
+    testStepRuns,
+    jobRuns,
+    stepRuns,
+    pipeline,
+    template,
+  ]);
 
   // ── Render ────────────────────────────────────────────────────
 
@@ -109,25 +184,92 @@ export default function BFlowRunComponent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {activeRun && (
+              {activeRun && !hasTestRunResult && (
                 <BFlowStatusBadge status={activeRun.status} />
               )}
+              {hasTestRunResult && (
+                <BFlowStatusBadge status={testRun!.status} />
+              )}
 
+              <Dropdown>
+                <Dropdown.Trigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
+                    isDisabled={
+                      exportStatus === "exporting" ||
+                      (hasTestRunResult
+                        ? testJobRuns.length === 0
+                        : jobRuns.length === 0)
+                    }
+                  >
+                    {exportStatus === "exported" ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Exported
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Export
+                      </>
+                    )}
+                  </Button>
+                </Dropdown.Trigger>
+                <Dropdown.Popover>
+                  <Dropdown.Menu aria-label="Export actions">
+                    <Dropdown.Item
+                      key="generate-report"
+                      onPress={generateReport}
+                      isDisabled={!activeRun}
+                    >
+                      <FileBarChart className="w-4 h-4" />
+                      <Label>Generate Report</Label>
+                    </Dropdown.Item>
+                    <Dropdown.Item
+                      key="export-html"
+                      onPress={handleExportHtml}
+                      isDisabled={
+                        exportStatus === "exporting" ||
+                        (hasTestRunResult
+                          ? testJobRuns.length === 0
+                          : jobRuns.length === 0)
+                      }
+                    >
+                      <Download className="w-4 h-4" />
+                      <Label>Export HTML</Label>
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+
+              {/* ── Test Run Button ──────────────────────────────── */}
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onPress={generateReport}
-                isDisabled={!activeRun}
+                className="border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 data-[hover=true]:bg-violet-100"
+                onPress={startTestRun}
+                isDisabled={isTestRunning || isRunning}
               >
-                <FileBarChart className="w-4 h-4" />
-                Generate Report
+                {isTestRunning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <Beaker className="w-4 h-4" />
+                    Test Run
+                  </>
+                )}
               </Button>
 
               <Button
                 variant="primary"
                 size="sm"
                 onPress={startPipelineRun}
-                isDisabled={isRunning}
+                isDisabled={isRunning || isTestRunning}
               >
                 {isRunning ? (
                   <>
@@ -143,6 +285,15 @@ export default function BFlowRunComponent() {
               </Button>
             </div>
           </div>
+
+          {hasTestRunResult && (
+            <div className="mt-3">
+              <BFlowTestRunBanner
+                status={testRun?.status}
+                onClearTestRun={clearTestRun}
+              />
+            </div>
+          )}
 
           {error && (
             <div className="mt-3 bg-danger-50 border border-danger-200 rounded-xl p-3 flex items-center gap-2">
@@ -168,9 +319,7 @@ export default function BFlowRunComponent() {
           <div className="lg:col-span-1">
             <div className="bg-background rounded-2xl border border-default-100 overflow-hidden">
               <div className="p-4 border-b border-default-100">
-                <h2 className="text-sm font-semibold text-default-700">
-                  Jobs
-                </h2>
+                <h2 className="text-sm font-semibold text-default-700">Jobs</h2>
                 <p className="text-xs text-default-400 mt-0.5">
                   {jobs.length} job{jobs.length !== 1 ? "s" : ""}
                 </p>
@@ -180,7 +329,11 @@ export default function BFlowRunComponent() {
                   // Match job run by jobId, falling back to job.name
                   // for templates without explicit IDs in YAML
                   const jobKey = job.id || job.name;
-                  const jobRun = jobRuns?.find(
+                  // Use effective runs: prefer test run when available
+                  const effectiveJobRuns = hasTestRunResult
+                    ? testJobRuns
+                    : jobRuns;
+                  const jobRun = effectiveJobRuns?.find(
                     (jr) => jr.jobId === jobKey,
                   );
                   const cfg = getStatusConfig(jobRun?.status);
@@ -208,9 +361,7 @@ export default function BFlowRunComponent() {
                             {job.name}
                           </p>
                           <p className="text-xs text-default-400">
-                            {jobRun
-                              ? cfg.label
-                              : `${job.steps.length} steps`}
+                            {jobRun ? cfg.label : `${job.steps.length} steps`}
                           </p>
                         </div>
                         <ChevronRight
@@ -229,7 +380,7 @@ export default function BFlowRunComponent() {
 
             <Card className="mt-4 p-4 bg-background border-default-100">
               <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wider mb-3">
-                Run Summary
+                {hasTestRunResult ? "Test Run Summary" : "Run Summary"}
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -241,23 +392,36 @@ export default function BFlowRunComponent() {
                 <div className="flex justify-between">
                   <span className="text-default-500">Jobs Run</span>
                   <span className="text-default-700 font-medium">
-                    {jobRuns?.length ?? 0}
+                    {hasTestRunResult
+                      ? (testJobRuns?.length ?? 0)
+                      : (jobRuns?.length ?? 0)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-default-500">Steps Executed</span>
                   <span className="text-default-700 font-medium">
-                    {stepRuns?.length ?? 0}
+                    {hasTestRunResult
+                      ? (testStepRuns?.length ?? 0)
+                      : (stepRuns?.length ?? 0)}
                   </span>
                 </div>
-                {activeRun?.startedAt && (
-                  <div className="flex justify-between">
-                    <span className="text-default-500">Started</span>
-                    <span className="text-default-700 text-xs">
-                      {activeRun.startedAt.toLocaleTimeString()}
-                    </span>
-                  </div>
-                )}
+                {hasTestRunResult
+                  ? testRun?.startedAt && (
+                      <div className="flex justify-between">
+                        <span className="text-default-500">Started</span>
+                        <span className="text-default-700 text-xs">
+                          {testRun.startedAt.toLocaleTimeString()}
+                        </span>
+                      </div>
+                    )
+                  : activeRun?.startedAt && (
+                      <div className="flex justify-between">
+                        <span className="text-default-500">Started</span>
+                        <span className="text-default-700 text-xs">
+                          {activeRun.startedAt.toLocaleTimeString()}
+                        </span>
+                      </div>
+                    )}
               </div>
             </Card>
           </div>
@@ -279,22 +443,32 @@ export default function BFlowRunComponent() {
                         {currentJob.agent
                           ? ` • Agent: ${currentJob.agent}`
                           : ""}
-                        {currentJobRun?.status
-                          ? ` • ${getStatusConfig(currentJobRun.status).label}`
-                          : ""}
+                        {hasTestRunResult && testRun?.status === "running"
+                          ? ` • ${getStatusConfig("running").label}`
+                          : currentJobRunEffective?.status
+                            ? ` • ${getStatusConfig(currentJobRunEffective.status).label}`
+                            : ""}
                       </p>
                     </div>
-                    <BFlowStatusBadge status={currentJobRun?.status} />
+                    <BFlowStatusBadge
+                      status={
+                        hasTestRunResult
+                          ? testRun?.status === "running"
+                            ? "running"
+                            : currentJobRunEffective?.status
+                          : currentJobRun?.status
+                      }
+                    />
                   </div>
 
-                  {currentJobRun?.status === "running" && (
+                  {currentJobRunEffective?.status === "running" && (
                     <div className="w-full bg-default-100 rounded-full h-2 overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-success to-teal-500 h-full rounded-full transition-all duration-500 animate-pulse"
                         style={{
                           width: `${
-                            currentStepRuns.length > 0
-                              ? (currentStepRuns.filter(
+                            currentStepRunsEffective.length > 0
+                              ? (currentStepRunsEffective.filter(
                                   (s) =>
                                     s.status === "succeeded" ||
                                     s.status === "failed" ||
@@ -329,9 +503,11 @@ export default function BFlowRunComponent() {
                     // Use step.id as primary identifier, falling back to step.name
                     // for templates without explicit IDs in YAML
                     const stepKey = step.id || step.name;
-                    const stepRun = currentStepRuns.find(
-                      (sr) => sr.stepId === stepKey,
-                    );
+                    const stepRun = hasTestRunResult
+                      ? currentStepRunsEffective.find(
+                          (sr) => sr.stepId === stepKey,
+                        )
+                      : currentStepRuns.find((sr) => sr.stepId === stepKey);
                     return (
                       <BFlowStepNode
                         key={step.id ?? `step-${stepIdx}-${step.name}`}
@@ -350,14 +526,18 @@ export default function BFlowRunComponent() {
                     );
                   })}
 
-                  {currentStepRuns.length === 0 && !activeRun && (
-                    <div className="text-center py-12">
-                      <Play className="w-12 h-12 text-default-200 mx-auto mb-4" />
-                      <p className="text-default-400 text-sm">
-                        Click &ldquo;Run Pipeline&rdquo; to start execution
-                      </p>
-                    </div>
-                  )}
+                  {currentStepRuns.length === 0 &&
+                    currentStepRunsEffective.length === 0 &&
+                    !activeRun &&
+                    !hasTestRunResult && (
+                      <div className="text-center py-12">
+                        <Beaker className="w-12 h-12 text-default-200 mx-auto mb-4" />
+                        <p className="text-default-400 text-sm">
+                          Click &ldquo;Test Run&rdquo; or &ldquo;Run
+                          Pipeline&rdquo; to start execution
+                        </p>
+                      </div>
+                    )}
                 </div>
 
                 {currentJob.prompt && (
@@ -374,9 +554,7 @@ export default function BFlowRunComponent() {
             ) : (
               <div className="bg-background rounded-2xl border border-default-100 p-12 text-center">
                 <Clock className="w-12 h-12 text-default-200 mx-auto mb-4" />
-                <p className="text-default-400">
-                  No jobs defined in template
-                </p>
+                <p className="text-default-400">No jobs defined in template</p>
               </div>
             )}
           </div>

@@ -2,12 +2,13 @@
  * BFlowStepNode — Displays a single step execution node in the pipeline run view.
  *
  * Shows status icon, step info (name, agent, error, output, timing), and action
- * buttons: "View" (step details), "View Output" (react-markdown modal), and
- * "View Computed Inputs" (resolved input values modal).
+ * buttons: "View" (step details), "View Output" (react-markdown modal),
+ * "View Computed Inputs" (resolved input values modal), and
+ * "Rerun" (re-execute a single step with updated prompts).
  */
 
 import React from "react";
-import { Eye, FileText, Code } from "lucide-react";
+import { Eye, FileText, Code, RotateCw } from "lucide-react";
 import { Button } from "@heroui/react";
 import { BFlowStatusBadge, getStatusConfig } from "./BFlowStatusBadge";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
@@ -24,13 +25,31 @@ export interface BFlowStepNodeProps {
   onViewOutput: (step: BFlowStep, stepRun?: BFlowStepRun) => void;
   /** Called when the user clicks the "View Computed Inputs" button */
   onViewComputedInputs: (step: BFlowStep, stepRun?: BFlowStepRun) => void;
+  /**
+   * Called when the user clicks the "Rerun" button to re-execute a single step.
+   * Receives the job name and step identifier.
+   */
+  onRerun?: (jobName: string, stepId: string) => void;
+  /** The name of the parent job (required for rerun) */
+  jobName?: string;
+  /** Whether this step is currently being re-run */
+  isRerunning?: boolean;
 }
 
 /**
  * A single step execution node in the pipeline run flow.
  * Shows status, agent info, error/output snippets, timing, and action buttons.
  */
-export function BFlowStepNode({ step, stepRun, onView, onViewOutput, onViewComputedInputs }: BFlowStepNodeProps) {
+export function BFlowStepNode({
+  step,
+  stepRun,
+  onView,
+  onViewOutput,
+  onViewComputedInputs,
+  onRerun,
+  jobName,
+  isRerunning,
+}: BFlowStepNodeProps) {
   const status = stepRun?.status ?? "pending";
   const cfg = getStatusConfig(status);
 
@@ -52,7 +71,9 @@ export function BFlowStepNode({ step, stepRun, onView, onViewOutput, onViewCompu
       {/* Step Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-foreground text-sm">{step.name}</span>
+          <span className="font-medium text-foreground text-sm">
+            {step.name}
+          </span>
           <BFlowStatusBadge status={status} />
         </div>
 
@@ -67,7 +88,9 @@ export function BFlowStepNode({ step, stepRun, onView, onViewOutput, onViewCompu
         )}
 
         {stepRun?.output && status === "succeeded" && (
-          <p className="text-xs text-default-500 mt-1 line-clamp-2">{stepRun.output}</p>
+          <p className="text-xs text-default-500 mt-1 line-clamp-2">
+            {stepRun.output}
+          </p>
         )}
 
         {/* Timing */}
@@ -75,7 +98,9 @@ export function BFlowStepNode({ step, stepRun, onView, onViewOutput, onViewCompu
           <p className="text-xs text-default-400 mt-1">
             {stepRun.completedAt
               ? `Completed in ${Math.round(
-                  (stepRun.completedAt.getTime() - stepRun.startedAt.getTime()) / 1000,
+                  (stepRun.completedAt.getTime() -
+                    stepRun.startedAt.getTime()) /
+                    1000,
                 )}s`
               : `Started at ${stepRun.startedAt.toLocaleTimeString()}`}
           </p>
@@ -103,6 +128,21 @@ export function BFlowStepNode({ step, stepRun, onView, onViewOutput, onViewCompu
             onPress={() => onViewOutput(step, stepRun)}
           >
             <FileText className="w-4 h-4" />
+          </Button>
+        )}
+
+        {/* Rerun Step Button (only visible after execution) */}
+        {stepRun && onRerun && jobName && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-w-0 px-2 text-amber-500 hover:text-amber-700 hover:bg-amber-50"
+            isDisabled={isRerunning}
+            onPress={() => onRerun(jobName, step.id ?? step.name)}
+          >
+            <RotateCw
+              className={`w-4 h-4 ${isRerunning ? "animate-spin" : ""}`}
+            />
           </Button>
         )}
 

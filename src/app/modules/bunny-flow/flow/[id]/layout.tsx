@@ -34,7 +34,7 @@ export default function BFlowInnerLayout({
   // Build the inner shell config — definitionId is baked into every href
   const innerConfig: BUIDocumentShellConfig = {
     title: "Flow Details",
-    brand: "BFlow",
+    brand: "BunnyAI - Flow",
     profile: {
       initials: "BF",
       name: "Flow Manager",

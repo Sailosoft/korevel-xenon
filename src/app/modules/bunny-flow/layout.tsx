@@ -9,8 +9,8 @@ import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/
 // ── Shell Configuration (outer) ────────────────────────────────────
 
 const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
-  title: "Bunny Flow - Pipeline Manager",
-  brand: "BFlow",
+  title: "BunnyAI - Flow Manager",
+  brand: "BunnyAI - Flow",
   profile: {
     initials: "BF",
     name: "Flow Manager",

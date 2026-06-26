@@ -2,14 +2,15 @@ import { z } from "zod";
 
 // ─── Shared Primitives ─────────────────────────────────────────────
 
-/** Slug identifier pattern */
-const SlugSchema = z.string().min(1, "Slug must not be empty").max(128);
-
 /** GUIDv7 identifier */
 const GuidSchema = z.string().min(1, "GUID is required");
 
-/** Name constraint */
-const NameSchema = z.string().min(1, "Name must not be empty").max(256);
+/** Name constraint — spaces NOT allowed, used for job/step/agent identifiers */
+const NameSchema = z
+  .string()
+  .min(1, "Name must not be empty")
+  .max(256)
+  .regex(/^[^\s]+$/, "Name must not contain spaces");
 
 // ─── Variable ──────────────────────────────────────────────────────
 
@@ -25,8 +26,10 @@ export type BFlowVariableType = z.infer<typeof BFlowVariableTypeSchema>;
 export const BFlowVariableSchema = z.object({
   id: GuidSchema.optional(),
   name: NameSchema,
-  defaultValue: z.string(),
-  type: BFlowVariableTypeSchema,
+  /** The variable value (replaces legacy defaultValue) */
+  value: z.string(),
+  /** Variable type is now optional — defaults to "text" in the UI */
+  type: BFlowVariableTypeSchema.optional(),
   description: z.string().optional(),
 });
 export type BFlowVariable = z.infer<typeof BFlowVariableSchema>;
@@ -79,9 +82,13 @@ export const BFlowStepOutputTypeSchema = z.enum([
 ]);
 export type BFlowStepOutputType = z.infer<typeof BFlowStepOutputTypeSchema>;
 
+/**
+ * Step output mode declaration.
+ * `type` is now optional — defaults to `"markdown"` if omitted.
+ */
 export const BFlowStepOutputModeSchema = z.object({
   name: NameSchema,
-  type: BFlowStepOutputTypeSchema,
+  type: BFlowStepOutputTypeSchema.optional(),
 });
 export type BFlowStepOutputMode = z.infer<typeof BFlowStepOutputModeSchema>;
 
@@ -100,8 +107,18 @@ export const BFlowStepSchema = z.object({
    */
   prompts: z.union([z.string(), z.array(z.string())]),
   agent: z.string().optional(),
-  /** Define output format. If not defined, defaults to plain output without commentary */
+  /**
+   * Define structured output modes (named fields with types).
+   * When this is set, the AI returns a JSON object with these fields.
+   */
   output: z.array(BFlowStepOutputModeSchema).optional(),
+  /**
+   * Simple output type for the step's response format.
+   * Only valid when `output` is NOT defined (i.e. no structured outputs).
+   * If neither `output` nor `outputType` is set, defaults to "markdown".
+   * Values: plain | markdown | json | html | csv | json_array | yaml
+   */
+  outputType: BFlowStepOutputTypeSchema.optional(),
 });
 export type BFlowStep = z.infer<typeof BFlowStepSchema>;
 
@@ -112,7 +129,7 @@ export const BFlowWorkflowJobSchema = z.object({
   id: GuidSchema.optional(),
   /** Jobs avoid spaces */
   name: NameSchema,
-  /** agent slug */
+  /** agent name reference */
   agent: z.string().optional(),
   /** Reference to another job slug */
   needs: z.union([z.string(), z.array(z.string())]).optional(),
@@ -126,89 +143,74 @@ export type BFlowWorkflowJob = z.infer<typeof BFlowWorkflowJobSchema>;
 
 // ─── Workflow Agent ────────────────────────────────────────────────
 
+/**
+ * Agent definition. The `name` is the primary identifier (no spaces allowed).
+ * `slug` has been removed — use `name` directly as the identifier.
+ * `role` is now optional.
+ */
 export const BFlowWorkflowAgentSchema = z.object({
   id: GuidSchema.optional(),
+  /** Agent identifier — non-space name used as the reference key */
   name: NameSchema,
-  slug: SlugSchema,
-  role: z.string(),
+  /** Agent role descriptor (optional) */
+  role: z.string().optional(),
+  /** System prompt / persona for this agent */
   prompt: z.string(),
 });
 export type BFlowWorkflowAgent = z.infer<typeof BFlowWorkflowAgentSchema>;
 
+// ─── Workflow Report ───────────────────────────────────────────────
+
+export const BFlowWorkflowReportSourceSchema = z.union([
+  z.literal("job.step"),
+  z.literal("job.step.outputs.__raw__"),
+  z.string(), // Accepts "job.steps.outputs.{name}" patterns
+]);
+export type BFlowWorkflowReportSource = z.infer<
+  typeof BFlowWorkflowReportSourceSchema
+>;
+
+export const BFlowWorkflowReportSchema = z.object({
+  /** Report name (slug-like, used as identifier) */
+  name: NameSchema,
+  /** Optional label for the report heading */
+  label: z.string().optional(),
+  /** Source of the report data */
+  source: BFlowWorkflowReportSourceSchema,
+});
+export type BFlowWorkflowReport = z.infer<typeof BFlowWorkflowReportSchema>;
+
 // ─── Workflow (YAML Records Structure) ─────────────────────────────
 
+/**
+ * Root workflow YAML schema.
+ *
+ * Breaking changes from v1:
+ * - `semanticVersion` is now optional
+ * - `agentPools` is now optional
+ * - `agents` is now optional (a warning is raised if undefined agents are referenced)
+ * - `variables[].defaultValue` → `variables[].value`
+ * - `variables[].type` is now optional
+ * - `agents[].slug` removed — use `name` as identifier
+ * - `agents[].role` is now optional
+ * - `output` on steps: `type` is optional (defaults to `"markdown"`)
+ * - Added `reports` (optional) for export configuration
+ * - Added `outputType` (optional) on steps — only valid when `output` is empty
+ */
 export const BFlowWorkflowSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
-  /** semantic version of workflow e.g. 1.0.0 */
-  semanticVersion: z.string(),
+  /** semantic version of workflow e.g. 1.0.0 (optional) */
+  semanticVersion: z.string().optional(),
   /** Variables that will be used in workflow */
-  variables: z.array(BFlowVariableSchema),
-  /** Agent pool slugs injected from flow */
-  agentPools: z.array(z.string()),
-  /** Agents setup inside workflow */
-  agents: z.array(BFlowWorkflowAgentSchema),
+  variables: z.array(BFlowVariableSchema).optional(),
+  /** Agent pool slugs injected from flow (optional) */
+  agentPools: z.array(z.string()).optional(),
+  /** Agents setup inside workflow (optional — warning if referenced but not defined) */
+  agents: z.array(BFlowWorkflowAgentSchema).optional(),
+  /** Report configurations for export (optional) */
+  reports: z.array(BFlowWorkflowReportSchema).optional(),
   /** Jobs - Steps that will execute */
   jobs: z.array(BFlowWorkflowJobSchema),
 });
 export type BFlowWorkflow = z.infer<typeof BFlowWorkflowSchema>;
-
-// ─── Workflow Template (Entity) ────────────────────────────────────
-
-export const BFlowWorkflowStatusSchema = z.enum([
-  "draft",
-  "published",
-  "archived",
-]);
-export type BFlowWorkflowStatus = z.infer<typeof BFlowWorkflowStatusSchema>;
-
-export const BFlowWorkflowTemplateSchema = z.object({
-  /** GUIDv7 */
-  id: z.string(),
-  /** GUIDv7 reference to BFlowDefinition */
-  flowId: z.string(),
-  /** Name of the workflow */
-  name: z.string().min(1),
-  /** Slug */
-  slug: z.string().min(1),
-  /** Description of the workflow */
-  description: z.string().optional(),
-  /** Version of the workflow */
-  version: z.string().optional(),
-  /** Status of the workflow */
-  status: BFlowWorkflowStatusSchema.optional().default("draft"),
-  /** Metadata of the workflow */
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  /** Template YAML string */
-  templateYaml: z.string(),
-  /** Actual workflow data (parsed from YAML) */
-  template: BFlowWorkflowSchema,
-  /** Created timestamp */
-  createdAt: z.date(),
-  /** Updated timestamp */
-  updatedAt: z.date(),
-});
-export type BFlowWorkflowTemplateEntity = z.infer<
-  typeof BFlowWorkflowTemplateSchema
->;
-
-// ─── Form Schema (user-editable fields only) ─────────────────────────
-
-/**
- * Form schema for creating/updating a workflow template.
- * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
- */
-export const BFlowWorkflowTemplateFormSchema = z.object({
-  flowId: z.string().min(1, "Flow definition is required"),
-  name: NameSchema,
-  slug: SlugSchema,
-  description: z.string().optional(),
-  version: z.string().optional(),
-  status: BFlowWorkflowStatusSchema.optional().default("draft"),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  templateYaml: z.string().min(1, "Template YAML is required"),
-});
-
-export type BFlowWorkflowTemplateForm = z.infer<
-  typeof BFlowWorkflowTemplateFormSchema
->;

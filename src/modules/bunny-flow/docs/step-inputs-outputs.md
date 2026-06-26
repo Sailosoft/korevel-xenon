@@ -6,10 +6,11 @@ BunnyFlow supports passing data **between steps** and **from pipeline variables*
 
 ### Supported Source Patterns
 
-| Pattern | Description | Example |
-|---------|-------------|---------|
-| `vars.{name}` | Reference a pipeline/flow variable | `vars.api_endpoint` |
-| `{job}.{step}.outputs.{name}` | Reference another step's output | `analysis.extract_data.outputs.__raw__` |
+| Pattern                       | Description                                                                           | Example                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------- |
+| `vars.{name}`                 | Reference a pipeline/flow variable                                                    | `vars.api_endpoint`                     |
+| `{job}.{step}`                | Shorthand for a step's full raw output (equivalent to `{job}.{step}.outputs.__raw__`) | `research.gather_facts`                 |
+| `{job}.{step}.outputs.{name}` | Reference another step's output                                                       | `analysis.extract_data.outputs.__raw__` |
 
 ---
 
@@ -106,10 +107,10 @@ steps:
 
 **Fields:**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | ✅ | An alias for this input. Used to reference it in the prompt context. |
-| `source` | ✅ | The source reference. See supported patterns below. |
+| Field    | Required | Description                                                          |
+| -------- | -------- | -------------------------------------------------------------------- |
+| `name`   | ✅       | An alias for this input. Used to reference it in the prompt context. |
+| `source` | ✅       | The source reference. See supported patterns below.                  |
 
 ### 2. Source Patterns
 
@@ -126,6 +127,7 @@ inputs:
 ```
 
 **Validation:**
+
 - ✅ Variable exists → resolved to its current value
 - ❌ Variable does not exist → step fails with error:
   ```
@@ -147,12 +149,13 @@ inputs:
 
 **Special output names:**
 
-| Output Name | Description |
-|-------------|-------------|
-| `__raw__` | The full raw text output from the AI step |
+| Output Name     | Description                                           |
+| --------------- | ----------------------------------------------------- |
+| `__raw__`       | The full raw text output from the AI step             |
 | `{custom_name}` | A named output if the step defines structured outputs |
 
 **Validation chain:**
+
 1. ✅ Job `{job_name}` exists → continues
 2. ✅ Step `{step_name}` exists in that job → continues
 3. ✅ Step has been executed (outputs available) → continues
@@ -164,11 +167,41 @@ inputs:
    a step that must run first.
    ```
 
+#### Pattern C (Shorthand): `{job_name}.{step_name}`
+
+A convenient shortcut for referencing the **full raw output** of another step.
+Equivalent to `{job_name}.{step_name}.outputs.__raw__`.
+
+```yaml
+inputs:
+- name: full_text
+ source: research.gather_facts          # ← shorthand, no .outputs.__raw__ needed
+```
+
+This is especially useful when the step has **no structured outputs** defined and you
+simply need the entire raw text.
+
+**When to use `{job}.{step}` vs `{job}.{step}.outputs.__raw__`:**
+
+| Use Case                                    | Recommended Syntax             |
+| ------------------------------------------- | ------------------------------ |
+| Need the full raw output (most common case) | `{job}.{step}` (shorthand)     |
+| Be explicit about intent                    | `{job}.{step}.outputs.__raw__` |
+| Reference a specific structured field       | `{job}.{step}.outputs.{field}` |
+
+**Validation chain:** (same as Pattern B for job/step validation, output resolution is implicit)
+
+1. ✅ Job `{job_name}` exists → continues
+2. ✅ Step `{step_name}` exists in that job → continues
+3. ✅ Step has been executed (outputs available) → continues
+4. ✅ Resolves implicitly to `__raw__` → **resolved**
+
 ### 3. How Inputs Appear in the AI Prompt
 
 When a step has resolved inputs, they are injected into both the **system prompt** and the **user prompt**:
 
 **System prompt (auto-injected):**
+
 ```
 You are executing step "draft_article" in job "writing" of a pipeline.
 
@@ -184,6 +217,7 @@ Available variables:
 ```
 
 **User prompt (auto-injected):**
+
 ```
 Execute step "draft_article" with the following inputs:
   topic_name: Artificial Intelligence
@@ -192,6 +226,19 @@ Execute step "draft_article" with the following inputs:
 
 Provide the output for this step.
 ```
+
+### 3a. How Inputs Are Injected — Under the Hood
+
+The resolved input injection described above is implemented by the prompt builder strategy in use. BunnyFlow supports two strategies:
+
+| Strategy                     | File                                                                          | Approach                                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TemplateBar** (Handlebars) | [`BFlowRun.Prompt.TemplateBar.ts`](../src/run/BFlowRun.Prompt.TemplateBar.ts) | Two-pass system: Pass 1 interpolates `{{marker}}` references in prompt strings using a flat context map; Pass 2 renders the pre-interpolated strings through Handlebars templates with `{{#if}}` / `{{#each}}` helpers. |
+| **SectionBuilder** (fluent)  | [`BFlowRun.SectionBuilder.ts`](../src/run/BFlowRun.SectionBuilder.ts)         | Legacy fluent builder that appends prompt sections (instructions, inputs, variables, output format) one by one via method chaining.                                                                                     |
+
+Both implement the [`IBFlowRunPromptBuilder`](../src/run/BFlowRun.Prompt.Types.ts) interface and produce identical prompt output — they differ only in how sections are assembled internally.
+
+The strategy is selected at runtime via the `BFlowPromptBuilderKind` enum (`Section` | `TemplateBar`) defined in [`BFlowRun.Prompt.Types.ts`](../src/run/BFlowRun.Prompt.Types.ts).
 
 ### 4. Execution Order & Dependencies
 
@@ -207,6 +254,7 @@ Job 2: "writing"
 ```
 
 **Rules:**
+
 - A step can only reference outputs from **earlier steps** (same job or previous jobs)
 - Cross-job references work as long as the referenced job completed first
 - Use `needs` on a job to enforce job-level ordering (see `needs: research` in the example)
@@ -223,7 +271,7 @@ If steps in Job B reference outputs from Job A, ensure Job B has `needs: A`:
       # produces output
 
 - name: job_b
-  needs: job_a       # Required! Ensures job_a runs first
+  needs: job_a # Required! Ensures job_a runs first
   steps:
     - name: step_2
       prompts: Summarize the report
@@ -255,17 +303,19 @@ agents:
 jobs:
   - name: job_name
     prompt: Job-level context
-    agent: agent_slug        # optional per-job agent
-    needs: other_job         # optional dependency
+    agent: agent_slug # optional per-job agent
+    needs: other_job # optional dependency
     steps:
       - name: step_name
         prompts: Instructions for the AI
-        agent: agent_slug    # optional per-step agent override
-        inputs:              # OPTIONAL: define inputs
+        agent: agent_slug # optional per-step agent override
+        inputs: # OPTIONAL: define inputs
           - name: input_1
             source: vars.variable_name
           - name: input_2
-            source: other_job.other_step.outputs.__raw__
+            source: other_job.other_step # shorthand for .outputs.__raw__
+          - name: input_3
+            source: other_job.other_step.outputs.__raw__ # explicit (equivalent)
 ```
 
 ---
@@ -274,14 +324,14 @@ jobs:
 
 When input resolution fails, the step is marked as `failed` with a clear error message:
 
-| Scenario | Error Message |
-|----------|--------------|
-| Variable not found | `Variable "{name}" referenced in input "{input}" source "{source}" does not exist. Available variables: ...` |
-| Job not found | `Job "{name}" referenced in input "{input}" source "{source}" does not exist. Available jobs: ...` |
-| Step not found in job | `Step "{name}" in job "{job}" referenced in input "{input}" source "{source}" does not exist. Available steps in job "{job}": ...` |
-| Step hasn't executed yet | `Step "{name}" in job "{job}" has not been executed yet. Input "{input}" source "{source}" references a step that must run first.` |
-| Output name not found | `Output "{name}" from step "{step}" in job "{job}" ... does not exist. Available outputs: ...` |
-| Invalid source format | `Input "{input}" has an unrecognized source format: "{source}". Expected formats: "vars.{name}" or "{job}.{step}.outputs.{name}".` |
+| Scenario                 | Error Message                                                                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable not found       | `Variable "{name}" referenced in input "{input}" source "{source}" does not exist. Available variables: ...`                                        |
+| Job not found            | `Job "{name}" referenced in input "{input}" source "{source}" does not exist. Available jobs: ...`                                                  |
+| Step not found in job    | `Step "{name}" in job "{job}" referenced in input "{input}" source "{source}" does not exist. Available steps in job "{job}": ...`                  |
+| Step hasn't executed yet | `Step "{name}" in job "{job}" has not been executed yet. Input "{input}" source "{source}" references a step that must run first.`                  |
+| Output name not found    | `Output "{name}" from step "{step}" in job "{job}" ... does not exist. Available outputs: ...`                                                      |
+| Invalid source format    | `Input "{input}" has an unrecognized source format: "{source}". Expected formats: "vars.{name}", "{job}.{step}", or "{job}.{step}.outputs.{name}".` |
 
 ---
 
@@ -315,15 +365,15 @@ steps:
 
 **Supported output types:**
 
-| Type         | Description          | Parsing behavior                        |
-|--------------|----------------------|-----------------------------------------|
-| `plain`      | Plain text           | Stored as-is                            |
-| `markdown`   | Markdown text        | Stored as-is                            |
-| `json`       | Structured JSON obj  | Parsed from AI response, value extracted|
-| `json_array` | JSON array           | Parsed from AI response                 |
-| `yaml`       | YAML content         | Parsed from AI response                 |
-| `html`       | HTML content         | Stored as-is                            |
-| `csv`        | CSV data             | Stored as-is                            |
+| Type         | Description         | Parsing behavior                         |
+| ------------ | ------------------- | ---------------------------------------- |
+| `plain`      | Plain text          | Stored as-is                             |
+| `markdown`   | Markdown text       | Stored as-is                             |
+| `json`       | Structured JSON obj | Parsed from AI response, value extracted |
+| `json_array` | JSON array          | Parsed from AI response                  |
+| `yaml`       | YAML content        | Parsed from AI response                  |
+| `html`       | HTML content        | Stored as-is                             |
+| `csv`        | CSV data            | Stored as-is                             |
 
 ### How It Works (Behind the Scenes)
 
@@ -374,11 +424,11 @@ steps:
     prompts: |
       Write a report based on the analysis summary and top tag.
     inputs:
-      - name: analysis_summary    # References only the "summary" field
+      - name: analysis_summary # References only the "summary" field
         source: job_a.analyze_data.outputs.summary
-      - name: top_tag             # References only the first tag
+      - name: top_tag # References only the first tag
         source: job_a.analyze_data.outputs.tags
-      - name: full_analysis       # Can still reference the raw output
+      - name: full_analysis # Can still reference the raw output
         source: job_a.analyze_data.outputs.__raw__
 ```
 
@@ -413,7 +463,7 @@ jobs:
           Analyze the dataset: "{dataset_description}".
           Extract the key insight, sentiment score (0-100), and
           list of top 3 keywords.
-        output:                                # Declare structured outputs
+        output: # Declare structured outputs
           - name: key_insight
             type: plain
           - name: sentiment_score
@@ -424,22 +474,22 @@ jobs:
   - name: reporting
     prompt: Generate reports from analysis
     agent: writer
-    needs: analysis                            # Required for cross-job refs
+    needs: analysis # Required for cross-job refs
     steps:
       - name: write_summary
         prompts: |
           Write a short executive summary based on the insight.
         inputs:
-          - name: insight                      # References named output directly
+          - name: insight # References named output directly
             source: analysis.extract_insights.outputs.key_insight
-          - name: score                        # References the numeric score
+          - name: score # References the numeric score
             source: analysis.extract_insights.outputs.sentiment_score
 
       - name: generate_keywords_report
         prompts: |
           Write a detailed breakdown of the keywords.
         inputs:
-          - name: keyword_list                 # References the JSON array
+          - name: keyword_list # References the JSON array
             source: analysis.extract_insights.outputs.keywords
 ```
 
@@ -458,11 +508,11 @@ Available variables:
 
 ### Structured Output vs. Raw `__raw__`
 
-| Use Case                           | Reference        | Example                                    |
-|------------------------------------|------------------|--------------------------------------------|
-| Need the full AI response          | `__raw__`        | `outputs.__raw__`                          |
-| Need a specific extracted field    | `{field_name}`   | `outputs.sentiment_score`                  |
-| Need the parsed JSON object        | individual fields| Reference each field by name               |
+| Use Case                        | Reference         | Example                      |
+| ------------------------------- | ----------------- | ---------------------------- |
+| Need the full AI response       | `__raw__`         | `outputs.__raw__`            |
+| Need a specific extracted field | `{field_name}`    | `outputs.sentiment_score`    |
+| Need the parsed JSON object     | individual fields | Reference each field by name |
 
 ### Error Handling
 

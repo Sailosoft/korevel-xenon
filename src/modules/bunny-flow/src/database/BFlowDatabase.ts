@@ -2,7 +2,7 @@ import PhazeDB, { IPhazeModelBuilder } from "@/src/modules/phaze/src/PhazeDB";
 import { PhazeRepository } from "@/src/modules/phaze/src/PhazeRepository";
 import { BFlowDefinitionEntity } from "../definition/BFlowDefinition.Types";
 import { BFlowDefinitionRepository } from "../definition/BFlowDefinition.Repository";
-import { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Types";
+import { BFlowWorkflowTemplateEntity } from "../workflow/BFlowWorkflow.Entity";
 import { BFlowWorkflowRepository } from "../workflow/BFlowWorkflow.Repository";
 import {
   BFlowPipelineEntity,
@@ -45,18 +45,27 @@ import {
   BFlowGlobalAIConfigRepository,
   BFlowFlowAIConfigRepository,
   BFlowPipelineAIConfigRepository,
+  BFlowAIConfigResolver,
 } from "../ai-config/BFlowAIConfig.Repository";
 
 import { configureBFlowMigrations } from "./BFlowMigration";
 
+/**
+ * BFlowDatabase — IndexedDB persistence layer for BunnyFlow.
+ *
+ * Uses the PhazeDB abstraction over Dexie to manage local IndexedDB stores
+ * for all flow entities: definitions, workflow templates, pipelines, reports,
+ * variable groups, and pipeline runs.
+ *
+ * Each table is backed by a typed repository (PhazeRepository) exposing
+ * CRUD + query operations with GUIDv7 support.
+ */
 export class BFlowDatabase extends PhazeDB {
-  // ─── Tables ─────────────────────────────────────────────────────
-
-  /** Flow Definitions */
+  /** Flow Definitions — blueprint / container for pipelines */
   public definitions = this.table<BFlowDefinitionEntity, string>("definitions");
   public definitionsRepo = new BFlowDefinitionRepository(this.definitions);
 
-  /** Workflow Templates */
+  /** Workflow Templates — YAML-based pipeline templates */
   public workflowTemplates = this.table<BFlowWorkflowTemplateEntity, string>(
     "workflowTemplates",
   );
@@ -64,41 +73,41 @@ export class BFlowDatabase extends PhazeDB {
     this.workflowTemplates,
   );
 
-  /** Pipelines */
+  /** Pipelines — scheduled / running / completed pipeline instances */
   public pipelines = this.table<BFlowPipelineEntity, string>("pipelines");
   public pipelinesRepo = new BFlowPipelineRepository(this.pipelines);
 
-  /** Pipeline Stores */
+  /** Pipeline Stores — ephemeral per-pipeline output store */
   public pipelineStores = this.table<BFlowPipelineStoreEntity, string>(
     "pipelineStores",
   );
   public pipelineStoresRepo = new PhazeRepository(this.pipelineStores);
 
-  /** Pipeline Store Data */
+  /** Pipeline Store Data — key-value step output store */
   public pipelineStoreData = this.table<BFlowPipelineStoreDataEntity, string>(
     "pipelineStoreData",
   );
   public pipelineStoreDataRepo = new PhazeRepository(this.pipelineStoreData);
 
-  /** Report Templates */
+  /** Report Templates — report configurations */
   public reportTemplates = this.table<BFlowReportTemplateEntity, string>(
     "reportTemplates",
   );
   public reportTemplatesRepo = new BFlowReportRepository(this.reportTemplates);
 
-  /** Pipeline Reports */
+  /** Pipeline Reports — generated report instances */
   public pipelineReports = this.table<BFlowPipelineReportEntity, string>(
     "pipelineReports",
   );
   public pipelineReportsRepo = new PhazeRepository(this.pipelineReports);
 
-  /** Report Snapshots */
+  /** Report Snapshots — report snapshot data */
   public reportSnapshots = this.table<BFlowReportSnapshotEntity, string>(
     "reportSnapshots",
   );
   public reportSnapshotsRepo = new PhazeRepository(this.reportSnapshots);
 
-  /** Variable Groups */
+  /** Variable Groups — collections of variables per flow */
   public variableGroups = this.table<BFlowVariableGroupEntity, string>(
     "variableGroups",
   );
@@ -106,7 +115,7 @@ export class BFlowDatabase extends PhazeDB {
     this.variableGroups,
   );
 
-  /** Global Variables */
+  /** Global Variables — variables available across all flows */
   public globalVariables = this.table<BFlowGlobalVariableEntity, string>(
     "globalVariables",
   );
@@ -114,7 +123,7 @@ export class BFlowDatabase extends PhazeDB {
     this.globalVariables,
   );
 
-  /** Flow Variables (individual variables within a group) */
+  /** Flow Variables — individual variables within a variable group */
   public flowVariables = this.table<BFlowFlowVariableEntity, string>(
     "flowVariables",
   );
@@ -122,7 +131,7 @@ export class BFlowDatabase extends PhazeDB {
     this.flowVariables,
   );
 
-  // ─── Pipeline Run Tables ───────────────────────────────────────────
+  // ── Pipeline Run Tables ──────────────────────────────────────────
 
   /** Pipeline Runs — tracks overall pipeline execution */
   public pipelineRuns = this.table<BFlowPipelineRunEntity, string>(
@@ -138,9 +147,9 @@ export class BFlowDatabase extends PhazeDB {
   public stepRuns = this.table<BFlowStepRun, string>("stepRuns");
   public stepRunsRepo = new BFlowStepRunRepository(this.stepRuns);
 
-  // ─── AI Config Tables ──────────────────────────────────────────────
+  // ── AI Config Tables ─────────────────────────────────────────────
 
-  /** Global AI Config (single record with id="global") */
+  /** Global AI Config — AI configuration across all flows */
   public globalAIConfig = this.table<BFlowGlobalAIConfigEntity, string>(
     "globalAIConfig",
   );
@@ -148,15 +157,13 @@ export class BFlowDatabase extends PhazeDB {
     this.globalAIConfig,
   );
 
-  /** Flow-level AI Config (per definition flow) */
+  /** Flow AI Config — AI configuration per flow definition */
   public flowAIConfig = this.table<BFlowFlowAIConfigEntity, string>(
     "flowAIConfig",
   );
-  public flowAIConfigRepo = new BFlowFlowAIConfigRepository(
-    this.flowAIConfig,
-  );
+  public flowAIConfigRepo = new BFlowFlowAIConfigRepository(this.flowAIConfig);
 
-  /** Pipeline-level AI Config (per pipeline, with job overrides) */
+  /** Pipeline AI Config — AI configuration per pipeline */
   public pipelineAIConfig = this.table<BFlowPipelineAIConfigEntity, string>(
     "pipelineAIConfig",
   );

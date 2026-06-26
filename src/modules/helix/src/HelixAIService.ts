@@ -11,6 +11,7 @@ import {
   HelixAISchemaOptions,
   HelixInferSchemaProps,
 } from "./HelixAISchemaTypes";
+import HelixAIUtil from "./HelixAIUtil";
 
 /** Placeholder sentinel used when no real API key has been configured. */
 const ENCRYPTION_KEY_PLACEHOLDER = "[ENCRYPTION_KEY]";
@@ -232,14 +233,30 @@ export default class HelixAIService implements HelixAIServiceType {
     const compiled = this.aiSchema.compileSchema(options.schema);
     const schemaString = JSON.stringify(compiled, null, 2);
 
+    /**
+     * Previous:prompt
+     * CRITICAL INSTRUCTION: You must respond ONLY with a raw JSON object matching the schema below.
+     * Do not wrap the response in markdown code blocks (like \`\`\`json ... \`\`\`).
+     * Do not include any introductory or concluding text.
+     */
     const enhancedSystemPrompt = `${options.system}
 
-CRITICAL INSTRUCTION: You must respond ONLY with a raw JSON object matching the schema below.
-Do not wrap the response in markdown code blocks (like \`\`\`json ... \`\`\`).
-Do not include any introductory or concluding text.
+You are a strict JSON generator. Follow these rules exactly:
+
+1. OUTPUT — Respond with ONLY the raw JSON object. No markdown fences (\`\`\`json), no labels, no explanations, no introductory or concluding text.
+2. KEYS — Every property key MUST be double-quoted. Never use single quotes or bare identifiers.
+3. STRINGS — All string values must be properly escaped — no literal newlines or unescaped quotes inside a string.
+4. COMMAS — Never add a trailing comma before \`}\` or \`]\`.
+5. COMMENTS — Never include // or /* */ comments in the output.
+6. SCHEMA — Output must conform to the schema below exactly. Do not add, remove, or reorder properties.
 
 Required JSON Schema:
-${schemaString}`;
+${schemaString}
+
+Example of correct output:
+\`\`\`json
+{"title": "Example Title", "content": "Example content here"}
+\`\`\``;
 
     const rawResponse = await this.doChat({
       system: enhancedSystemPrompt,
@@ -250,19 +267,17 @@ ${schemaString}`;
       aiConfig: options.aiConfig,
     });
 
-    try {
-      let cleanJSON = rawResponse.trim();
+    const result =
+      HelixAIUtil.safeJSONParse<HelixInferSchemaProps<S>>(rawResponse);
 
-      if (cleanJSON.startsWith("```")) {
-        cleanJSON = cleanJSON.replace(/^```(?:json)?\n?/i, "");
-        cleanJSON = cleanJSON.replace(/\n?```$/, "");
-      }
-
-      return JSON.parse(cleanJSON.trim()) as HelixInferSchemaProps<S>;
-    } catch (error) {
+    if (!result.success) {
       throw new Error(
-        `Failed to parse prompt-enforced structured JSON output. Raw response was: "${rawResponse}". Error: ${error}`,
+        `Failed to parse prompt-enforced structured JSON output. ` +
+          `Response (first 500 chars): ${rawResponse.slice(0, 500)}. ` +
+          `Recovery details: ${result.error}`,
       );
     }
+
+    return result.data;
   }
 }

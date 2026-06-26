@@ -93,6 +93,18 @@ export class BunnyFeature<TRow, TForm> {
     return feature.config;
   }
 
+  public static createImmutable<R, F>(
+    title: string,
+    rowKey: keyof R,
+    configure: (feature: BunnyFeature<R, F>) => void,
+  ): Readonly<BunnyConfig<R, F>> {
+    const feature = new BunnyFeature<R, F>(title, rowKey);
+    configure(feature);
+
+    deepFreeze(feature.config);
+    return feature.config as Readonly<BunnyConfig<R, F>>;
+  }
+
   public setCustomPlural(pluralTitle: string): this {
     this.config.titlePlural = pluralTitle;
     return this;

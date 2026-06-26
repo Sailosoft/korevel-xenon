@@ -1,28 +1,34 @@
 # =============================================================================
-# Example 1: Simple Content Pipeline
+# Example 1: Simple Content Pipeline (v2)
 # Demonstrates: basic variables, single agent, cross-step inputs, __raw__ output
 # =============================================================================
 name: Content Pipeline
-semanticVersion: 1.0.0
-agentPools: []
+# semanticVersion is now optional
+# semanticVersion: 1.0.0
 description: >
   A simple content pipeline that researches a topic, extracts a key statistic,
   and drafts an article from the combined research output.
 
+# Default output type for all steps (optional, defaults to "markdown")
+outputType: markdown
+
 variables:
   - name: topic
-    defaultValue: "Artificial Intelligence in Healthcare"
-    type: text
+    value: "Artificial Intelligence in Healthcare"
+    # type is now optional (defaults to "text")
+    # type: text
     description: The topic to research and write about
 
   - name: tone
-    defaultValue: "Professional"
-    type: select
+    value: "Professional"
+    # type: select
     description: Writing tone for the article
 
+# Agents are now optional.
+# slug has been removed — use name as identifier.
+# role is also optional.
 agents:
-  - name: Writer Agent
-    slug: writer
+  - name: writer
     role: Technical Writer
     prompt: >
       You are a skilled technical writer who produces clear,

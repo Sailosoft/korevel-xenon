@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   cn,
+  Tooltip,
   type Selection,
   type SortDescriptor,
   Virtualizer,
@@ -174,23 +175,42 @@ function MobileCardCell<TRow>({
           {/* Row Actions pinned top right */}
           {actions && (
             <div className="flex items-center gap-1">
-              {actions.map((action, idx) => (
-                <Button
-                  key={idx}
-                  isIconOnly
-                  size="sm"
-                  variant={action.variant}
-                  onClick={() =>
-                    callAction(
-                      action as unknown as BunnyRowAction<BunnyHasId>,
-                      row as unknown as BunnyHasId,
-                    )
-                  }
-                >
-                  {action.icon}
-                  {action.label}
-                </Button>
-              ))}
+              {actions.map((action, idx) =>
+                action.icon && action.label ? (
+                  <Tooltip key={idx}>
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant={action.variant}
+                      onClick={() =>
+                        callAction(
+                          action as unknown as BunnyRowAction<BunnyHasId>,
+                          row as unknown as BunnyHasId,
+                        )
+                      }
+                    >
+                      {action.icon}
+                    </Button>
+                    <Tooltip.Content>{action.label}</Tooltip.Content>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    key={idx}
+                    isIconOnly
+                    size="sm"
+                    variant={action.variant}
+                    onClick={() =>
+                      callAction(
+                        action as unknown as BunnyRowAction<BunnyHasId>,
+                        row as unknown as BunnyHasId,
+                      )
+                    }
+                  >
+                    {action.icon}
+                    {action.label}
+                  </Button>
+                ),
+              )}
             </div>
           )}
         </div>
@@ -256,23 +276,42 @@ function DesktopRowCells<TRow>({
       {actions && (
         <Table.Cell>
           <div className="flex items-center justify-end gap-1">
-            {actions.map((action, idx) => (
-              <Button
-                key={idx}
-                isIconOnly
-                size="sm"
-                variant={action.variant}
-                onClick={() =>
-                  callAction(
-                    action as unknown as BunnyRowAction<BunnyHasId>,
-                    row as unknown as BunnyHasId,
-                  )
-                }
-              >
-                {action.icon}
-                {action.label}
-              </Button>
-            ))}
+            {actions.map((action, idx) =>
+              action.icon && action.label ? (
+                <Tooltip key={idx}>
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant={action.variant}
+                    onClick={() =>
+                      callAction(
+                        action as unknown as BunnyRowAction<BunnyHasId>,
+                        row as unknown as BunnyHasId,
+                      )
+                    }
+                  >
+                    {action.icon}
+                  </Button>
+                  <Tooltip.Content>{action.label}</Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <Button
+                  key={idx}
+                  isIconOnly
+                  size="sm"
+                  variant={action.variant}
+                  onClick={() =>
+                    callAction(
+                      action as unknown as BunnyRowAction<BunnyHasId>,
+                      row as unknown as BunnyHasId,
+                    )
+                  }
+                >
+                  {action.icon}
+                  {action.label}
+                </Button>
+              ),
+            )}
           </div>
         </Table.Cell>
       )}

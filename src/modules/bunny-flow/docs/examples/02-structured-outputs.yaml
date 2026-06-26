@@ -1,93 +1,118 @@
 # =============================================================================
-# Example 2: Structured Outputs Pipeline
+# Example 2: Structured Outputs Pipeline (v2)
 # Demonstrates: named output fields (plain, number, json_array, markdown),
 #               granular cross-step references, partial input consumption
 # =============================================================================
 name: Data Analysis Pipeline
-semanticVersion: 1.0.0
+# semanticVersion is now optional
+# semanticVersion: 1.0.0
 description: >
   Analyze a dataset and extract structured fields (insight, score, keywords),
   then generate targeted downstream reports using only the fields they need.
 
+# Default output type for all steps (optional, defaults to "markdown")
+outputType: markdown
+
 variables:
   - name: dataset_description
-    defaultValue: "Customer survey responses Q1 2025"
-    type: text
+    value: "Customer survey responses Q1 2025"
+    # type is now optional (defaults to "text")
+    # type: text
     description: Description of the dataset to analyze
 
   - name: min_score_threshold
-    defaultValue: "70"
-    type: number
+    value: "70"
+    # type: number
     description: Minimum sentiment score to consider positive
 
+# Agents are now optional. slug removed — use name as identifier. role is optional.
 agents:
-  - name: Data Analyst
-    slug: analyst
+  - name: analyst
     role: Data Analyst
     prompt: >
       You are a data analyst specializing in survey data.
       You extract precise, structured insights from raw data.
 
-  - name: Content Writer
-    slug: writer
-    role: Content Writer
+  - name: reporter
+    role: Report Generator
     prompt: >
-      You are a technical content writer who produces
-      clear, audience-appropriate content from data.
+      You are a report generator. You produce clean summaries
+      based on structured data inputs.
 
 jobs:
   - name: analysis
-    prompt: Analyze the dataset and extract structured insights
+    prompt: Analyze the dataset and extract structured outputs
     agent: analyst
     steps:
-      - name: extract_insights
+      - name: analyze_survey
         prompts: |
-          Analyze the dataset: "{dataset_description}".
-          Extract the key insight, sentiment score (0-100),
-          and list of top 3 keywords.
+          Analyze the "{{dataset_description}}" dataset.
+          Return a JSON object with:
+          - insight: a one-paragraph plain-text summary
+          - score: a numeric satisfaction score (0-100)
+          - keywords: a JSON array of 5 key terms found
+        agent: analyst
+        inputs:
+          - name: dataset_description
+            source: vars.dataset_description
+        # Structured output: name + optional type (defaults to markdown)
         output:
-          - name: key_insight
+          - name: insight
             type: plain
-          - name: sentiment_score
+          - name: score
             type: number
           - name: keywords
             type: json_array
 
   - name: reporting
-    prompt: Generate reports from the structured analysis
-    agent: writer
+    prompt: Generate targeted reports from structured analysis
+    agent: reporter
     needs: analysis
     steps:
-      - name: write_summary
+      - name: generate_summary
         prompts: |
-          Write a concise executive summary based on the insight.
-          The sentiment score is {score}. Tailor the urgency
-          based on whether the score exceeds {threshold}.
-        inputs:
-          - name: insight
-            source: analysis.extract_insights.outputs.key_insight
-          - name: score
-            source: analysis.extract_insights.outputs.sentiment_score
-          - name: threshold
-            source: vars.min_score_threshold
+          Using the analysis results from the survey:
 
-      - name: generate_keywords_report
-        prompts: |
-          Write a detailed breakdown of each keyword from the list.
-          For each keyword, explain why it's significant in the
-          context of {description}.
-        inputs:
-          - name: keyword_list
-            source: analysis.extract_insights.outputs.keywords
-          - name: description
-            source: vars.dataset_description
+          Insight: "{{insight_text}}"
+          Score: {{score_value}}
 
-      - name: compose_final_report
-        prompts: |
-          Combine the summary and keyword breakdown into a cohesive
-          final report. Format it with clear sections.
+          Generate a one-paragraph executive summary in markdown format.
+        agent: reporter
         inputs:
+          - name: insight_text
+            source: analysis.analyze_survey.outputs.insight
+          - name: score_value
+            source: analysis.analyze_survey.outputs.score
+        # Output type is optional — defaults to workflow-level outputType (markdown)
+        output:
           - name: summary
-            source: reporting.write_summary.outputs.__raw__
-          - name: keyword_section
-            source: reporting.generate_keywords_report.outputs.__raw__
+            # type defaults to "markdown"
+
+      - name: list_keywords
+        prompts: |
+          Here are the keywords from the analysis: {{keywords_list}}
+
+          Format them as a bullet-point markdown list with brief descriptions.
+        agent: reporter
+        inputs:
+          - name: keywords_list
+            source: analysis.analyze_survey.outputs.keywords
+        output:
+          - name: keyword_list
+            # type defaults to "markdown"
+
+      - name: final_report
+        prompts: |
+          Combine the summary and keyword list into a final markdown report.
+
+          Summary:
+          "{{summary_content}}"
+
+          Keywords:
+          "{{keywords_formatted}}"
+        agent: reporter
+        inputs:
+          - name: summary_content
+            source: reporting.generate_summary.outputs.summary
+          - name: keywords_formatted
+            source: reporting.list_keywords.outputs.keyword_list

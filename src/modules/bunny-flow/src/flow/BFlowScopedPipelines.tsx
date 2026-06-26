@@ -27,7 +27,7 @@ export default function BFlowScopedPipelines() {
     flowId,
   });
 
-  // ── Also scope the variableGroupId dropdown to this flow ─────────
+  // ── Scope dropdowns to this flow ────────────────────────────────
   const rawForm = scopedConfig.formConfig;
   if (rawForm && typeof rawForm !== "function") {
     scopedConfig.formConfig = {
@@ -39,6 +39,21 @@ export default function BFlowScopedPipelines() {
             options: () =>
               bflowDB.variableGroups
                 .filter((vg) => vg.flowId === flowId)
+                .toArray()
+                .then((items) =>
+                  items.map((item) => ({
+                    label: item.name,
+                    value: item.id,
+                  })),
+                ),
+          };
+        }
+        if (field.name === "templateId") {
+          return {
+            ...field,
+            options: () =>
+              bflowDB.workflowTemplates
+                .filter((wt) => wt.flowId === flowId)
                 .toArray()
                 .then((items) =>
                   items.map((item) => ({

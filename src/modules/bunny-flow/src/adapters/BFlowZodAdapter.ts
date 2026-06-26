@@ -6,10 +6,8 @@ import type { BunnyValidationAdapter } from "@/src/modules/bunny/src/Bunny.Inter
 
 import { BFlowDefinitionFormSchema } from "../definition/BFlowDefinition.Types";
 
-import {
-  BFlowWorkflowTemplateFormSchema,
-  BFlowWorkflowSchema,
-} from "../workflow/BFlowWorkflow.Types";
+import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
+import { BFlowWorkflowTemplateFormSchema } from "../workflow/BFlowWorkflow.Entity";
 
 import { BFlowPipelineFormSchema } from "../pipeline/BFlowPipeline.Types";
 
@@ -39,7 +37,9 @@ type BFlowReportTemplateForm = z.infer<typeof BFlowReportTemplateFormSchema>;
 
 type BFlowGlobalAIConfigForm = z.infer<typeof BFlowGlobalAIConfigFormSchema>;
 type BFlowFlowAIConfigForm = z.infer<typeof BFlowFlowAIConfigFormSchema>;
-type BFlowPipelineAIConfigForm = z.infer<typeof BFlowPipelineAIConfigFormSchema>;
+type BFlowPipelineAIConfigForm = z.infer<
+  typeof BFlowPipelineAIConfigFormSchema
+>;
 
 // ─── Generic Adapter Factory ───────────────────────────────────────
 
