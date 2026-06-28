@@ -30,6 +30,7 @@ import type { BKProcess } from "./BKProcess.Types";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
 import type { BKThought } from "../thoughts/BKThoughts.Types";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import { useAISettings } from "../ai-settings/BKAISettings.Context";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export default function BKProcessDetailPage({
   processId,
 }: BKProcessDetailPageProps) {
   const router = useRouter();
+  const { aiConfig } = useAISettings();
 
   // State
   const [process, setProcess] = useState<BKProcess | null>(null);
@@ -152,6 +154,7 @@ export default function BKProcessDetailPage({
 
     const result = await bkProcessExecuteAction(processId, {
       craftFormat,
+      aiConfig,
     });
 
     if (result.success) {

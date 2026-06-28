@@ -4,7 +4,8 @@
 //
 // Uses the PhazeDB abstraction over Dexie to manage local IndexedDB stores
 // for all thinker entities: Thinkers, Thought Patterns, Thought Associations,
-// Ideas, Craft Configs, Thoughts, Train of Thoughts, Memories, and Thinks.
+// Ideas, Craft Configs, Thoughts, Train of Thoughts, Memories, Thinks,
+// Processes, and AI Settings.
 //
 // Each table is backed by a typed repository (PhazeRepository) exposing
 // CRUD + query operations with GUIDv7 support.
@@ -24,6 +25,7 @@ import type { BKMemoryNeuron } from "../memory/BKMemory.Types";
 import type { BKThink } from "../think/BKThink.Types";
 import type { BKProcess } from "../process/BKProcess.Types";
 import type { BKIdea, BKThoughtIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
+import type { BKAISettings } from "../ai-settings/BKAISettings.Types";
 import { BKThoughtPatternRepository } from "../thought-pattern/BKThoughtPattern.Repository";
 import { BKThoughtAssociationRepository } from "../thought-association/BKThoughtAssociation.Repository";
 import { BKIdeaRepository } from "../ideas/BKIdeas.Repository";
@@ -100,6 +102,10 @@ export class BKThinkerDatabase extends PhazeDB {
   // ── Thinks ────────────────────────────────────────────────────────
   public thinks = this.table<BKThink, string>("thinks");
   public thinksRepo = new BKThinkRepository(this.thinks);
+
+  // ── AI Settings ───────────────────────────────────────────────────
+  public aiSettings = this.table<BKAISettings, string>("aiSettings");
+  public aiSettingsRepo = new PhazeRepository<BKAISettings>(this.aiSettings);
 
   protected dbName(): string {
     return "BKThinkerDB";

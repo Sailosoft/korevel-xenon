@@ -25,6 +25,7 @@ import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { executeThinkChatAction } from "../think/BKThink.Actions";
 import type { BKThinkMessage } from "../think/BKThink.Actions";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 // ─── Resolve Association ─────────────────────────────────────────────────
 
@@ -106,6 +107,8 @@ export async function bkProcessExecuteAction(
     thinkerName?: string;
     thinkerDescription?: string;
     thinkerRole?: string;
+    /** AI provider+model override from user settings */
+    aiConfig?: HelixAIOption;
   },
 ): Promise<BKProcessExecutionResult> {
   try {
@@ -239,6 +242,7 @@ export async function bkProcessExecuteAction(
           content: step.thought,
         },
         craftFormat: step.craftId ? craftFormat : undefined,
+        aiConfig: options?.aiConfig,
       });
 
       if (!response.success) {
@@ -347,6 +351,8 @@ export async function bkProcessRerunAction(
   processId: string,
   options?: {
     craftFormat?: BKCraftFormat;
+    /** AI provider+model override from user settings */
+    aiConfig?: HelixAIOption;
   },
 ): Promise<BKProcessExecutionResult> {
   return bkProcessExecuteAction(processId, options);
