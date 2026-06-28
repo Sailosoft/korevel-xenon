@@ -1,3 +1,27 @@
+export type BunnyDisplayFieldMode = "card" | "badge" | "text" | "custom";
+
+export interface BunnyDisplayFieldConfig<TForm = Record<string, unknown>> {
+  /**
+   * Visual display mode:
+   * - `"card"`: Renders a styled card with title + subtitle
+   * - `"badge"`: Renders a compact badge/pill
+   * - `"text"`: Renders plain text (title only)
+   * - `"custom"`: Uses a custom render function
+   * @default "card"
+   */
+  mode?: BunnyDisplayFieldMode;
+  /** Primary title text — can be a static string or a function receiving formData */
+  title?: string | ((formData: TForm) => string);
+  /** Secondary subtitle/description — can be a static string or a function receiving formData */
+  subtitle?: string | ((formData: TForm) => string);
+  /**
+   * Custom render function.
+   * Only used when `mode === "custom"`.
+   * Receives the field props including full formData snapshot.
+   */
+  render?: (props: BunnyFieldRendererProps<TForm>) => React.ReactNode;
+}
+
 export type BunnyFieldType =
   | "text"
   | "number"
@@ -10,7 +34,8 @@ export type BunnyFieldType =
   | "code-editor"
   | "slug"
   | "custom"
-  | "render";
+  | "render"
+  | "display";
 
 export interface BunnySelectOption {
   label: string;
@@ -68,6 +93,13 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   language?: string;
   // validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
   rules?: BunnyValidationRule[];
+  /**
+   * Configuration for "display" field type.
+   * Renders an information-only field that reacts to form data changes.
+   * Supports card, badge, text, and custom visual modes with
+   * dynamic title/subtitle resolution based on formData.
+   */
+  display?: BunnyDisplayFieldConfig<TForm>;
   /**
    * Custom React component to render this field.
    * Only used when `type === "custom"`.
