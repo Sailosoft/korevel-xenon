@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import { v7 as uuidv7 } from "uuid";
@@ -6,6 +6,8 @@ import { Button, Card, Input, TextArea, Select, ListBox, Toast, toast } from "@h
 import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
+import BunnyCodeEditor from "@/src/modules/bunny/src/form/builder/BunnyCodeEditor";
+import BunnyMDXEditor from "@/src/modules/bunny/src/form/builder/BunnyMDXEditor";
 import type { BKThoughtPattern, BKPatternMemorySlot } from "../thought-pattern/BKThoughtPattern.Types";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
 
@@ -64,9 +66,11 @@ export default function BKPatternDetailPage({
   };
 
   const bkUpdateSlot = (index: number, updates: Partial<BKPatternMemorySlot>) => {
-    const updated = [...slots];
-    updated[index] = { ...updated[index], ...updates };
-    setSlots(updated);
+    setSlots((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...updates };
+      return updated;
+    });
   };
 
   const bkRemoveSlot = (index: number) => {
@@ -156,9 +160,10 @@ export default function BKPatternDetailPage({
             {slots.map((slot, index) => (
               <div
                 key={slot.id}
-                className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100"
+                className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2"
               >
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+                {/* Row 1: Name, Type, Required, Delete */}
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-2 items-start">
                   <Input
                     placeholder="Slot name"
                     value={slot.name}
@@ -167,10 +172,11 @@ export default function BKPatternDetailPage({
                     }
                   />
                   <Select
+                    aria-label="Slot type"
                     value={slot.type}
                     onChange={(val) =>
                       bkUpdateSlot(index, {
-                        type: val as BKPatternMemorySlot["type"],
+                        type: String(val) as BKPatternMemorySlot["type"],
                       })
                     }
                   >
@@ -180,41 +186,75 @@ export default function BKPatternDetailPage({
                     </Select.Trigger>
                     <Select.Popover>
                       <ListBox>
-                        <ListBox.Item key="text" textValue="text">Text</ListBox.Item>
-                        <ListBox.Item key="textarea" textValue="textarea">Textarea</ListBox.Item>
-                        <ListBox.Item key="editor" textValue="editor">Editor</ListBox.Item>
-                        <ListBox.Item key="code-editor" textValue="code-editor">Code Editor</ListBox.Item>
+                        <ListBox.Item key="text" id="text" textValue="text">Text</ListBox.Item>
+                        <ListBox.Item key="textarea" id="textarea" textValue="textarea">Textarea</ListBox.Item>
+                        <ListBox.Item key="editor" id="editor" textValue="editor">Editor</ListBox.Item>
+                        <ListBox.Item key="code-editor" id="code-editor" textValue="code-editor">Code Editor</ListBox.Item>
                       </ListBox>
                     </Select.Popover>
                   </Select>
-                  <Input
-                    placeholder="Default value"
-                    value={slot.defaultValue}
-                    onChange={(e) =>
-                      bkUpdateSlot(index, { defaultValue: e.target.value })
-                    }
-                  />
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={slot.required}
-                        onChange={(e) =>
-                          bkUpdateSlot(index, { required: e.target.checked })
-                        }
-                        className="rounded border-gray-300"
-                      />
-                      Required
-                    </label>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      isIconOnly
-                      onPress={() => bkRemoveSlot(index)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
+                  <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={slot.required}
+                      onChange={(e) =>
+                        bkUpdateSlot(index, { required: e.target.checked })
+                      }
+                      className="rounded border-gray-300"
+                    />
+                    Required
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    isIconOnly
+                    onPress={() => bkRemoveSlot(index)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+
+                {/* Row 2: Default value - adapts to slot type */}
+                <div key={`${slot.id}-${slot.type}`}>
+                  {slot.type === "text" ? (
+                    <Input
+                      placeholder="Default value"
+                      value={slot.defaultValue}
+                      onChange={(e) =>
+                        bkUpdateSlot(index, { defaultValue: e.target.value })
+                      }
+                      className="w-full"
+                    />
+                  ) : slot.type === "textarea" ? (
+                    <TextArea
+                      placeholder="Default value"
+                      value={slot.defaultValue}
+                      onChange={(e) =>
+                        bkUpdateSlot(index, { defaultValue: e.target.value })
+                      }
+                      className="w-full min-h-[80px]"
+                    />
+                  ) : slot.type === "code-editor" ? (
+                    <BunnyCodeEditor
+                      id={`slot-default-${slot.id}`}
+                      value={slot.defaultValue}
+                      onChange={(val) =>
+                        bkUpdateSlot(index, { defaultValue: val })
+                      }
+                      placeholder={`Default value (${slot.type})`}
+                      language="typescript"
+                      minHeight={80}
+                    />
+                  ) : (
+                    <BunnyMDXEditor
+                      id={`slot-default-${slot.id}`}
+                      value={slot.defaultValue}
+                      onChange={(val) =>
+                        bkUpdateSlot(index, { defaultValue: val })
+                      }
+                      placeholder={`Default value (${slot.type})`}
+                    />
+                  )}
                 </div>
               </div>
             ))}
@@ -259,7 +299,7 @@ export default function BKPatternDetailPage({
                     </p>
                   )}
                   <div className="flex gap-1 mt-1">
-                    {assoc.slotValues.map((sv, i) => (
+                    {(assoc.slotValues ?? []).map((sv, i) => (
                       <span
                         key={sv.slotId}
                         className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700"

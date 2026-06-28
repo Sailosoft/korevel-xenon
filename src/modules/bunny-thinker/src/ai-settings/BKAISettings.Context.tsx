@@ -85,10 +85,19 @@ export function BKAISettingsProvider({ children }: { children: ReactNode }) {
 
   const saveSettings = useCallback(async (settings: BKAISettings) => {
     try {
-      await bkThinkerDB.aiSettingsRepo.create({
-        id: SETTINGS_ID,
-        ...settings,
-      } as BKAISettings & { id: string });
+      // Check if a settings record already exists
+      const existing = await bkThinkerDB.aiSettingsRepo.get(SETTINGS_ID);
+
+      if (existing.isSuccess) {
+        // Record exists → update it
+        await bkThinkerDB.aiSettingsRepo.update(SETTINGS_ID, settings);
+      } else {
+        // No record yet → create one with the fixed ID
+        await bkThinkerDB.aiSettingsRepo.create({
+          id: SETTINGS_ID,
+          ...settings,
+        } as BKAISettings & { id: string });
+      }
 
       setAiConfig({
         provider: settings.provider,

@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Button, Card, Input, Toast, toast } from "@heroui/react";
+import { Button, Card, Input, TextArea, Toast, toast } from "@heroui/react";
 import { Save, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
+import BunnyCodeEditor from "@/src/modules/bunny/src/form/builder/BunnyCodeEditor";
+import BunnyMDXEditor from "@/src/modules/bunny/src/form/builder/BunnyMDXEditor";
 import type { BKThoughtAssociation, BKAssociationSlotValue } from "./BKThoughtAssociation.Types";
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 
@@ -162,18 +164,35 @@ export default function BKThoughtAssociationDetailPage({
                     {slot.required && <span className="text-red-500 ml-0.5">*</span>}
                     <span className="text-xs text-gray-400 ml-2">({slot.type})</span>
                   </label>
-                  {slot.type === "textarea" ? (
-                    <textarea
-                      className="w-full min-h-[80px] px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all resize-y"
-                      placeholder={`Enter ${slot.name}`}
-                      value={value}
-                      onChange={(e) => bkUpdateSlotValue(slot.id, e.target.value)}
-                    />
-                  ) : (
+                  {slot.type === "text" ? (
                     <Input
                       placeholder={`Enter ${slot.name}`}
                       value={value}
                       onChange={(e) => bkUpdateSlotValue(slot.id, e.target.value)}
+                      className="w-full"
+                    />
+                  ) : slot.type === "textarea" ? (
+                    <TextArea
+                      placeholder={`Enter ${slot.name}`}
+                      value={value}
+                      onChange={(e) => bkUpdateSlotValue(slot.id, e.target.value)}
+                      className="w-full min-h-[80px]"
+                    />
+                  ) : slot.type === "code-editor" ? (
+                    <BunnyCodeEditor
+                      id={`slot-value-${slot.id}`}
+                      value={value}
+                      onChange={(val) => bkUpdateSlotValue(slot.id, val)}
+                      placeholder={`Enter ${slot.name}`}
+                      language="typescript"
+                      minHeight={80}
+                    />
+                  ) : (
+                    <BunnyMDXEditor
+                      id={`slot-value-${slot.id}`}
+                      value={value}
+                      onChange={(val) => bkUpdateSlotValue(slot.id, val)}
+                      placeholder={`Enter ${slot.name}`}
                     />
                   )}
                 </div>
