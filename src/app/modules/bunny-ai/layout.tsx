@@ -27,6 +27,7 @@ const BUNNY_AI_SHELL_CONFIG: BUIDocumentShellConfig = {
     name: "Bunny Author",
     subtitle: "Premium Tier",
   },
+  logoutHref: "/",
   navItems: [
     {
       href: "/modules/bunny-ai",

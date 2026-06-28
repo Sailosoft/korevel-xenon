@@ -1,12 +1,13 @@
 // bui.document-shell.header.tsx
 //
-// Sticky top header with sidebar toggle button and brand title.
+// Sticky top header with sidebar toggle button, brand title, and logout link.
 
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Button } from "@heroui/react";
-import { Menu, Rabbit } from "lucide-react";
+import { Menu, Rabbit, LogOut } from "lucide-react";
 import type { BUIDocumentShellTheme } from "./bui.document-shell.config";
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -15,6 +16,8 @@ export interface BUIHeaderProps {
   theme: BUIDocumentShellTheme;
   title: string;
   onToggleSidebar: () => void;
+  /** Optional logout href — when provided, a logout icon button is shown in the header. */
+  logoutHref?: string;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────────
@@ -23,6 +26,7 @@ export default function BUIHeader({
   theme,
   title,
   onToggleSidebar,
+  logoutHref,
 }: BUIHeaderProps) {
   return (
     <header className="glass-header h-16 flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 sticky top-0">
@@ -46,6 +50,18 @@ export default function BUIHeader({
           </span>
         </div>
       </div>
+
+      {/* ── Right side: logout ─────────────────────────── */}
+      {logoutHref && (
+        <Link
+          href={logoutHref}
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${theme.btnSecondary}`}
+          title="Logout"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="hidden sm:inline">Logout</span>
+        </Link>
+      )}
     </header>
   );
 }

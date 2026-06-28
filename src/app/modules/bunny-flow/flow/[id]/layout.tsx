@@ -35,6 +35,7 @@ export default function BFlowInnerLayout({
   const innerConfig: BUIDocumentShellConfig = {
     title: "Flow Details",
     brand: "BunnyAI - Flow",
+    logoutHref: "/",
     profile: {
       initials: "BF",
       name: "Flow Manager",

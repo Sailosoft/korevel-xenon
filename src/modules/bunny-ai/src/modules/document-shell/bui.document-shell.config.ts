@@ -89,4 +89,6 @@ export interface BUIDocumentShellConfig {
   wizard?: BUIWizardConfig;
   /** Optional user profile widget in the sidebar footer. */
   profile?: BUIProfile;
+  /** Optional logout href — when provided, a logout icon button appears in the header. */
+  logoutHref?: string;
 }

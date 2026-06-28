@@ -11,6 +11,7 @@ import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/
 const BFLOW_SHELL_CONFIG: BUIDocumentShellConfig = {
   title: "BunnyAI - Flow Manager",
   brand: "BunnyAI - Flow",
+  logoutHref: "/",
   profile: {
     initials: "BF",
     name: "Flow Manager",

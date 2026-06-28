@@ -85,6 +85,7 @@ export default function BUIDocumentShell({
           theme={theme}
           title={config.title}
           onToggleSidebar={toggleSidebar}
+          logoutHref={config.logoutHref}
         />
 
         <main className="flex-1 min-w-0 overflow-y-auto p-2 md:p-4 bg-[#f8fafc]">
