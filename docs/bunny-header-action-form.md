@@ -99,6 +99,24 @@ const myAction = useBunnyHeaderActionForm({
 });
 ```
 
+### 4. Performance: Stabilize Your Builder Callback
+
+When using the builder callback overload, wrap it in `useCallback` to prevent the internal config from being rebuilt on every render:
+
+```tsx
+const generateAction = useBunnyHeaderActionForm(
+  useCallback((builder) => {
+    builder.setLabel("Generate");
+    builder.setForm([...]);
+    builder.setSubmitAction(async ({ formData, kernel, setState }) => {
+      // ... your logic
+    });
+  }, []), // ← empty deps if no external values are captured
+);
+```
+
+**Why this matters:** If `configure` is an inline arrow function (as shown in the Quick Start example), it becomes a **new reference on every render**. This causes `useBunnyHeaderActionForm` to rebuild the config and re-create the action object each time. While this doesn't cause bugs, it's unnecessary work. With `useCallback`, the config is built once and stays stable across re-renders.
+
 ---
 
 ## 📋 Builder API Reference
