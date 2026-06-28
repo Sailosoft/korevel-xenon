@@ -18,6 +18,7 @@ export type HelixAIProvider =
   | "openai"
   | "deepinfra"
   | "openRouter"
+  | "requesty"
   | "googleAIStudio";
 
 // ── Temperature presets ───────────────────────────────────────────────────────
@@ -111,6 +112,12 @@ export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
     endpoint: "https://openrouter.ai/api/v1",
   },
   {
+    provider: "requesty",
+    apiKey: process.env.REQUESTY_AI_API_KEY || "",
+    model: "google/gemma-4-31b-it",
+    endpoint: "https://router.requesty.ai/v1",
+  },
+  {
     provider: "deepinfra",
     apiKey: process.env.DEEP_INFRA_API_KEY || "",
     model: "google/gemma-4-31B-it",
@@ -134,6 +141,7 @@ export const HELIX_PROVIDER_LABELS: Record<HelixAIProvider, string> = {
   groq: "Groq",
   openai: "OpenAI",
   openRouter: "OpenRouter",
+  requesty: "Requesty",
   deepinfra: "DeepInfra",
   googleAIStudio: "Google AI Studio",
 };
@@ -265,6 +273,54 @@ const HELIX_PROVIDER_MODELS: Record<
     "whisper-large-v3-turbo",
   ] as const,
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"] as const,
+  requesty: [
+    // free
+    "google/gemma-4-31b-it",
+    "poolside/laguna-m.1",
+    "poolside/laguna-xs.2",
+    "nvidia/nemotron-3.5-content-safety",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "nvidia/nemotron-3-nano-30b-a3b",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/nemotron-3-ultra-550b-a55b",
+    // non free 1m token
+    "xiaomi/mimo-v2.5",
+    "xai/grok-4-1-fast-reasoning",
+    "xai/grok-4-fast",
+    "minimaxi/minimax-m3",
+    "alibaba/qwen3.7-plus",
+    "openai/gpt-4.1-mini",
+    "vertex/gemini-3.1-flash-lite",
+    "coding/gemini-2.5-flash",
+    "google/gemini-2.5-flash",
+    "xai/grok-4.3",
+    "doubleword/glm-5.2:flex",
+    "zai/glm-5.2",
+    "alibaba/qwen3.7-max",
+    "openai/gpt-5.4",
+    "bedrock/claude-sonnet-4-6",
+    "vertex/claude-opus-4-7",
+    "openai/gpt-5.5",
+    // low out price
+    "groq/openai/gpt-oss-120b",
+    "fireworks/gpt-oss-20b",
+    "openai-responses/gpt-5-nano",
+    "xai/grok-4-fast",
+    // analytics good
+    "novita/minimax/minimax-m2.7",
+    "xai/grok-3-mini",
+    "nebius/qwen/qwen3-235b-a22b-instruct-2507",
+    "nebius/qwen/qwen3-30b-a3b-instruct-2507",
+    "vertex/claude-4-5-sonnet",
+    "openai/gpt-4.1-mini",
+    "openai/gpt-5-mini",
+    "openai/gpt-4.1-nano",
+    "perplexity/sonar",
+    "openai-responses/gpt-5.4-mini",
+    "anthropic/claude-opus-4-8",
+    "vertex/gemini-3.1-flash-lite@eu",
+    "xiaomi/mimo-v2.5-pro"
+  ] as const,
   openRouter: [
     "openrouter/fusion",
     "moonshotai/kimi-k2.7-code",
