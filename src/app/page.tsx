@@ -1,6 +1,6 @@
 "use client";
 
-import { BookA, RabbitIcon, GitBranch } from "lucide-react";
+import { BookA, RabbitIcon, GitBranch, Brain } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -327,6 +327,15 @@ export default function AppPage() {
       category: "AI",
       latency: "42ms",
       icon: <GitBranch />,
+    },
+    {
+      id: 7,
+      name: "BunnyAI Thinker",
+      url: "/modules/bunny-thinker",
+      status: "Active",
+      category: "AI",
+      latency: "-",
+      icon: <Brain />,
     },
   ]);
 
