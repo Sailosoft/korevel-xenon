@@ -4,12 +4,16 @@
 //
 // Process Detail Page — the execution workspace where users:
 // - View the process configuration (association + thought)
-// - Resolve association slot values into context
-// - Execute the full pipeline (resolve → think → export to memory)
+// - Resolve association slot values into context (client-side IndexedDB)
+// - Execute the full pipeline (server-side AI chat via server action)
 // - Review execution results, conversation, and memory output
 // - Re-run the process
+//
+// All IndexedDB operations happen client-side. The server action only
+// handles AI chat calls (Helix) and returns results to be saved locally.
 
 import React, { useEffect, useState, useCallback } from "react";
+import { v7 as uuidv7 } from "uuid";
 import { Button, Card } from "@heroui/react";
 import {
   Play,
@@ -22,13 +26,14 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
-import {
-  bkProcessExecuteAction,
-  bkProcessResolveAssociationAction,
-} from "./BKProcess.Actions";
+import { bkProcessExecuteAction } from "./BKProcess.Actions";
+import type { BKProcessExecutionRequest } from "./BKProcess.Actions";
 import type { BKProcess } from "./BKProcess.Types";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
-import type { BKThought } from "../thoughts/BKThoughts.Types";
+import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
+import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
+import type { BKThink } from "../think/BKThink.Types";
+import type { BKMemory, BKMemoryNeuron } from "../memory/BKMemory.Types";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
 
@@ -61,6 +66,34 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── Helper: Build resolved context string ──────────────────────────────
+
+function buildResolvedContext(
+  pattern: BKThoughtPattern,
+  association?: BKThoughtAssociation,
+): string {
+  const lines: string[] = [];
+  lines.push(`Thought Pattern: ${pattern.name}`);
+  if (pattern.description) {
+    lines.push(pattern.description);
+  }
+  lines.push("");
+  lines.push("Slots:");
+  if (pattern.slots.length > 0) {
+    for (const slot of pattern.slots) {
+      const slotVal = association?.slotValues.find(
+        (sv) => sv.slotId === slot.id,
+      );
+      const value = slotVal?.value ?? slot.defaultValue ?? "";
+      const label = slot.label || slot.name;
+      lines.push(`  - ${label}: ${value || "[not set]"}`);
+    }
+  } else {
+    lines.push("  (no slots defined)");
+  }
+  return lines.join("\n");
+}
+
 // ─── Detail Page Component ──────────────────────────────────────────────
 
 export default function BKProcessDetailPage({
@@ -73,7 +106,11 @@ export default function BKProcessDetailPage({
   const [process, setProcess] = useState<BKProcess | null>(null);
   const [association, setAssociation] =
     useState<BKThoughtAssociation | null>(null);
+  const [pattern, setPattern] = useState<BKThoughtPattern | null>(null);
   const [thought, setThought] = useState<BKThought | null>(null);
+  const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
+    [],
+  );
   const [resolvedContext, setResolvedContext] = useState<string>("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionLog, setExecutionLog] = useState<string[]>([]);
@@ -81,7 +118,7 @@ export default function BKProcessDetailPage({
   const [loading, setLoading] = useState(true);
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
 
-  // ── Load Process ────────────────────────────────────────────────────
+  // ── Load Process (client-side IndexedDB) ────────────────────────────
 
   useEffect(() => {
     bkLoadProcess();
@@ -99,7 +136,16 @@ export default function BKProcessDetailPage({
           proc.associationId,
         );
         if (assocResult.isSuccess) {
-          setAssociation(assocResult.value);
+          const assoc = assocResult.value;
+          setAssociation(assoc);
+
+          // Load pattern (from association)
+          const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+            assoc.patternId,
+          );
+          if (patternResult.isSuccess) {
+            setPattern(patternResult.value);
+          }
         }
 
         // Load thought
@@ -107,7 +153,15 @@ export default function BKProcessDetailPage({
           proc.thoughtId,
         );
         if (thoughtResult.isSuccess) {
-          setThought(thoughtResult.value);
+          const loadedThought = thoughtResult.value;
+          setThought(loadedThought);
+
+          // Load train-of-thoughts
+          const totList =
+            await bkThinkerDB.trainOfThoughtsRepo.getByThoughtId(
+              loadedThought.id,
+            );
+          setTrainOfThoughts(totList);
         }
       }
     } catch (err) {
@@ -117,67 +171,225 @@ export default function BKProcessDetailPage({
     }
   };
 
-  // ── Resolve Association ─────────────────────────────────────────────
+  // ── Resolve Association (client-side IndexedDB) ─────────────────────
 
   const bkResolveContext = useCallback(async () => {
-    if (!process) return;
+    if (!process || !pattern) return;
     setExecutionLog((prev) => [...prev, "🔍 Resolving association..."]);
 
-    const result = await bkProcessResolveAssociationAction(
-      process.associationId,
-    );
-    if (result.success && result.resolvedContext) {
-      setResolvedContext(result.resolvedContext);
+    try {
+      const context = buildResolvedContext(pattern, association ?? undefined);
+      setResolvedContext(context);
       setExecutionLog((prev) => [
         ...prev,
-        `✅ Resolved context from pattern "${result.patternName}"`,
+        `✅ Resolved context from pattern "${pattern.name}"`,
       ]);
-    } else {
+    } catch (err) {
       setExecutionLog((prev) => [
         ...prev,
-        `❌ Resolution failed: ${result.error}`,
+        `❌ Resolution failed: ${err instanceof Error ? err.message : "Unknown error"}`,
       ]);
     }
-  }, [process]);
+  }, [process, pattern, association]);
 
-  // ── Execute Process ─────────────────────────────────────────────────
+  // ── Execute Process ────────────────────────────────────────────────
 
   const bkExecuteProcess = useCallback(async () => {
-    if (!process) return;
+    if (!process || !thought || trainOfThoughts.length === 0) return;
+
     setIsExecuting(true);
     setError("");
-    setExecutionLog([
+
+    const log: string[] = [
       "🚀 Starting process execution...",
       `📋 Association: ${association?.name ?? process.associationId}`,
-      `💭 Thought: ${thought?.name ?? process.thoughtId}`,
-    ]);
+      `💭 Thought: ${thought.name}`,
+    ];
+    setExecutionLog(log);
 
-    const result = await bkProcessExecuteAction(processId, {
-      craftFormat,
-      aiConfig,
-    });
+    try {
+      // ── 1. Update process status to "resolving" (client-side) ────
+      await bkThinkerDB.processesRepo.update(processId, {
+        ...process,
+        status: "resolving",
+        updatedAt: Date.now(),
+      } as BKProcess);
+      setProcess((prev) =>
+        prev ? { ...prev, status: "resolving" as const } : prev,
+      );
 
-    if (result.success) {
-      setExecutionLog((prev) => [
-        ...prev,
-        "✅ Process completed successfully!",
-        `🧠 Think session: ${result.thinkId}`,
-        `💾 Memory export: ${result.memoryId}`,
-      ]);
-    } else {
-      setExecutionLog((prev) => [
-        ...prev,
-        `❌ Execution failed: ${result.error}`,
-      ]);
-      setError(result.error ?? "Unknown error");
+      // ── 2. Resolve association context (client-side) ─────────────
+      let slotContextStr = "";
+      if (pattern) {
+        slotContextStr = buildResolvedContext(pattern, association ?? undefined);
+      }
+
+      // ── 3. Update process status to "ready" (client-side) ────────
+      await bkThinkerDB.processesRepo.update(processId, {
+        ...process,
+        status: "ready",
+        updatedAt: Date.now(),
+      } as BKProcess);
+      setProcess((prev) =>
+        prev ? { ...prev, status: "ready" as const } : prev,
+      );
+
+      // ── 4. Build the server action request ───────────────────────
+      const request: BKProcessExecutionRequest = {
+        thoughtName: thought.name,
+        thoughtContent: thought.thought,
+        associationContext: slotContextStr || undefined,
+        trainOfThoughts: trainOfThoughts.map((tot) => ({
+          id: tot.id,
+          name: tot.name,
+          thought: tot.thought,
+          craftId: tot.craftId,
+        })),
+        craftFormat,
+        aiConfig: aiConfig
+          ? { provider: aiConfig.provider, model: aiConfig.model }
+          : undefined,
+      };
+
+      // ── 5. Update process status to "processing" (client-side) ───
+      await bkThinkerDB.processesRepo.update(processId, {
+        ...process,
+        status: "processing",
+        updatedAt: Date.now(),
+      } as BKProcess);
+      setProcess((prev) =>
+        prev ? { ...prev, status: "processing" as const } : prev,
+      );
+
+      // ── 6. Execute AI chat on the server ─────────────────────────
+      log.push("🤖 Executing train-of-thought steps via AI...");
+      setExecutionLog([...log]);
+
+      const result = await bkProcessExecuteAction(request);
+
+      if (!result.success) {
+        await markProcessError(processId, result.error ?? "Execution failed");
+        setExecutionLog((prev) => [
+          ...prev,
+          `❌ Execution failed: ${result.error}`,
+        ]);
+        setError(result.error ?? "Unknown execution error");
+        setIsExecuting(false);
+        return;
+      }
+
+      const conversation = result.conversation ?? [];
+      log.push(`✅ AI execution completed (${conversation.length} messages)`);
+      setExecutionLog([...log]);
+
+      // ── 7. Create Think session in IndexedDB ─────────────────────
+      const thinkId = uuidv7();
+      const thinkSlug = `${thought.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+
+      await bkThinkerDB.thinksRepo.create({
+        id: thinkId,
+        slug: thinkSlug,
+        name: `Process: ${thought.name}`,
+        description: `Auto-generated by process "${process.name}"${association ? ` using association "${association.name}"` : ""}`,
+        thoughtId: thought.id,
+        thoughtAssociationId: process.associationId,
+        thinkConversation: conversation,
+        status: "completed",
+        createdAt: Date.now(),
+      } as BKThink);
+
+      log.push(`🧠 Think session created: ${thinkId}`);
+
+      // ── 8. Export to Memory in IndexedDB ─────────────────────────
+      const memoryId = uuidv7();
+      const processedOutput = result.output ?? "";
+
+      await bkThinkerDB.memoriesRepo.create({
+        id: memoryId,
+        thinkId,
+        name: `Memory - ${process.name} - ${new Date().toLocaleDateString()}`,
+        description: `Exported from process "${process.name}"`,
+        rawOutput: conversation[conversation.length - 1]?.content ?? "",
+        processedOutput:
+          processedOutput ||
+          (conversation[conversation.length - 1]?.content ?? ""),
+        format: craftFormat,
+        createdAt: Date.now(),
+      } as BKMemory);
+
+      // Create memory neurons for each assistant response
+      for (let i = 0; i < conversation.length; i++) {
+        const msg = conversation[i];
+        if (msg.role === "assistant") {
+          const stepIndex = Math.floor(i / 2) - 1; // -1 to skip system message at index 0
+          const totStep = trainOfThoughts[stepIndex >= 0 ? stepIndex : 0];
+          await bkThinkerDB.memoryNeuronsRepo.create({
+            id: uuidv7(),
+            memoryId,
+            thoughtId: thought.id,
+            trainOfThoughtId: totStep?.id,
+            name: totStep?.name ?? `Neuron ${Math.floor(i / 2) + 1}`,
+            value: msg.content,
+            order: Math.floor(i / 2),
+          } as BKMemoryNeuron);
+        }
+      }
+
+      log.push(`💾 Memory export: ${memoryId}`);
+
+      // ── 9. Finalize the Process in IndexedDB ─────────────────────
+      await bkThinkerDB.processesRepo.update(processId, {
+        ...process,
+        thinkId,
+        memoryId,
+        status: "completed",
+        updatedAt: Date.now(),
+      } as BKProcess);
+
+      log.push("✅ Process completed successfully!");
+      setExecutionLog([...log]);
+
+      // Reload process state
+      await bkLoadProcess();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unknown process execution error";
+      console.error("[BKProcessDetail] execute failed:", message);
+      await markProcessError(processId, message);
+      setExecutionLog((prev) => [...prev, `❌ Execution failed: ${message}`]);
+      setError(message);
+    } finally {
+      setIsExecuting(false);
     }
+  }, [process, thought, trainOfThoughts, association, pattern, craftFormat, processId, aiConfig]);
 
-    // Reload process state
-    await bkLoadProcess();
-    setIsExecuting(false);
-  }, [process, association, thought, craftFormat, processId]);
+  // ── Helper: Mark process as errored ───────────────────────────────
 
-  // ── Render ──────────────────────────────────────────────────────────
+  const markProcessError = async (
+    pid: string,
+    errorMessage: string,
+  ) => {
+    try {
+      const result = await bkThinkerDB.processesRepo.get(pid);
+      if (result.isSuccess) {
+        await bkThinkerDB.processesRepo.update(pid, {
+          ...result.value,
+          status: "error",
+          errorMessage,
+          updatedAt: Date.now(),
+        } as BKProcess);
+        setProcess((prev) =>
+          prev
+            ? { ...prev, status: "error" as const, errorMessage }
+            : prev,
+        );
+      }
+    } catch (err) {
+      console.error("[BKProcessDetail] Failed to mark error:", err);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -318,6 +530,11 @@ export default function BKProcessDetailPage({
               <p className="text-xs text-gray-500">
                 Pattern slots: {association.slotValues.length} values
               </p>
+              {pattern && (
+                <p className="text-xs text-gray-500">
+                  Pattern: {pattern.name}
+                </p>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -346,6 +563,9 @@ export default function BKProcessDetailPage({
               </p>
               <p className="text-xs text-gray-500 line-clamp-2">
                 {thought.thought}
+              </p>
+              <p className="text-xs text-gray-500">
+                Train of thoughts: {trainOfThoughts.length} steps
               </p>
               <Button
                 variant="ghost"

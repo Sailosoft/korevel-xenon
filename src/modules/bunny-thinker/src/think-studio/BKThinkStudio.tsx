@@ -9,10 +9,11 @@
 // - Generate and export memory
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@heroui/react";
-import { RotateCcw, MessageSquareText, X, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ArrowLeft, RotateCcw, MessageSquareText, X, ChevronDown, ChevronRight, Info, List, Settings2 } from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { executeThinkChatAction } from "../think/BKThink.Actions";
@@ -29,6 +30,7 @@ import type {
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThinkMetaModal from "./BKThinkMetaModal";
+import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -147,6 +149,7 @@ function BKStepPanel({
 // ─── Main Component ───────────────────────────────────────────────────────
 
 export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
+  const router = useRouter();
   const { aiConfig } = useAISettings();
   const [think, setThink] = useState<BKThink | null>(null);
   const [thought, setThought] = useState<BKThought | null>(null);
@@ -162,10 +165,21 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [isThinking, setIsThinking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
   const [result, setResult] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
+
+  // ── Association Select State ──────────────────────────────────────────
+  const [associations, setAssociations] = useState<BKThoughtAssociation[]>([]);
+  const [selectedAssociationId, setSelectedAssociationId] = useState<
+    string | undefined
+  >();
+  const [selectedAssociation, setSelectedAssociation] =
+    useState<BKThoughtAssociation | null>(null);
+  const [associationSelectLoading, setAssociationSelectLoading] =
+    useState(false);
 
   // Ref to track manual tab pinning — when the user clicks a tab during thinking,
   // auto-switch to the current processing step is suppressed so they can read
@@ -193,9 +207,76 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       );
       if (thoughtResult.isSuccess) {
         setThought(thoughtResult.value);
+        // Load associations for this thought's pattern
+        if (thoughtResult.value.patternId) {
+          loadAssociations(thoughtResult.value.patternId);
+        }
+      }
+
+      // If think has a saved association, pre-select it
+      if (loadedThink.thoughtAssociationId) {
+        setSelectedAssociationId(loadedThink.thoughtAssociationId);
+        const assocResult = await bkThinkerDB.thoughtAssociationsRepo.get(
+          loadedThink.thoughtAssociationId,
+        );
+        if (assocResult.isSuccess) {
+          setSelectedAssociation(assocResult.value);
+        }
       }
     }
   };
+
+  // ── Load associations for the thought's pattern ─────────────────────
+
+  const loadAssociations = useCallback(async (patternId: string) => {
+    setAssociationSelectLoading(true);
+    try {
+      const items =
+        await bkThinkerDB.thoughtAssociationsRepo.getByPatternId(patternId);
+      setAssociations(items);
+    } catch (err) {
+      console.error("[BKThinkStudio] Failed to load associations:", err);
+    } finally {
+      setAssociationSelectLoading(false);
+    }
+  }, []);
+
+  // ── Effect: load associations when thought pattern changes ──────────
+
+  useEffect(() => {
+    if (thought?.patternId) {
+      loadAssociations(thought.patternId);
+    } else {
+      setAssociations([]);
+      setSelectedAssociation(null);
+      setSelectedAssociationId(undefined);
+    }
+  }, [thought?.patternId, loadAssociations]);
+
+  // ── Handle association selection change ─────────────────────────────
+
+  const handleAssociationChange = useCallback(
+    async (val: unknown) => {
+      const assocId = String(val);
+      setSelectedAssociationId(assocId || undefined);
+      if (!assocId) {
+        setSelectedAssociation(null);
+        return;
+      }
+      try {
+        const result = await bkThinkerDB.thoughtAssociationsRepo.get(assocId);
+        if (result.isSuccess) {
+          setSelectedAssociation(result.value);
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudio] Failed to load selected association:",
+          err,
+        );
+      }
+    },
+    [],
+  );
 
   // ── Run the thinking process ─────────────────────────────────────────
 
@@ -260,8 +341,20 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         return lines.join("\n");
       };
 
-      if (think.thoughtAssociationId) {
-        // Association exists — use its slot values as overrides on the pattern defaults
+      // Resolve association context — priority: selected association > saved association > pattern defaults
+      if (selectedAssociation) {
+        // User-selected association from dropdown — slot values override pattern defaults
+        const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+          selectedAssociation.patternId,
+        );
+        if (patternResult.isSuccess) {
+          associationContext = bakePatternContext(
+            patternResult.value,
+            selectedAssociation.slotValues,
+          );
+        }
+      } else if (think.thoughtAssociationId) {
+        // Association exists on saved think — use its slot values as overrides
         const assocResult = await bkThinkerDB.thoughtAssociationsRepo.get(
           think.thoughtAssociationId,
         );
@@ -400,7 +493,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       setIsThinking(false);
       setCurrentStepIndex(-1);
     }
-  }, [think, thought, thinker, craftFormat]);
+  }, [think, thought, thinker, craftFormat, selectedAssociation]);
 
   // ── Rethink from a specific step ─────────────────────────────────────
 
@@ -451,8 +544,20 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           return lines.join("\n");
         };
 
-        if (think.thoughtAssociationId) {
-          // Association exists — use its slot values as overrides
+        // Resolve association context — priority: selected association > saved association > pattern defaults
+        if (selectedAssociation) {
+          // User-selected association from dropdown — slot values override pattern defaults
+          const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+            selectedAssociation.patternId,
+          );
+          if (patternResult.isSuccess) {
+            associationContext = bakePatternContext(
+              patternResult.value,
+              selectedAssociation.slotValues,
+            );
+          }
+        } else if (think.thoughtAssociationId) {
+          // Association exists on saved think — use its slot values as overrides
           const assocResult = await bkThinkerDB.thoughtAssociationsRepo.get(
             think.thoughtAssociationId,
           );
@@ -555,7 +660,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         setCurrentStepIndex(-1);
       }
     },
-    [think, thought, thinker, conversation, trainOfThoughts, craftFormat],
+    [think, thought, thinker, conversation, trainOfThoughts, craftFormat, selectedAssociation],
   );
 
   // ── Generate Memory ─────────────────────────────────────────────────
@@ -577,18 +682,26 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         createdAt: Date.now(),
       });
 
-      // Create memory neurons for each conversation exchange
-      for (let i = 0; i < conversation.length; i += 2) {
-        const userMsg = conversation[i];
+      // Create memory neurons from assistant responses only.
+      // Conversation structure:
+      //   [0] system message
+      //   [1] user message (step 0 prompt)
+      //   [2] assistant message (step 0 response)
+      //   [3] user message (step 1 prompt)
+      //   [4] assistant message (step 1 response)
+      //   ...
+      // Start at i=1 to skip the system message, then take every
+      // even-indexed message (which is the assistant response).
+      for (let i = 1; i < conversation.length; i += 2) {
         const assistantMsg = conversation[i + 1];
 
-        if (assistantMsg) {
+        if (assistantMsg && assistantMsg.role === "assistant") {
           await bkThinkerDB.memoryNeuronsRepo.create({
             id: uuidv7(),
             memoryId,
-            name: `Neuron ${i / 2 + 1}`,
+            name: `Neuron ${(i - 1) / 2 + 1}`,
             value: assistantMsg.content,
-            order: i / 2,
+            order: (i - 1) / 2,
           });
         }
       }
@@ -616,15 +729,43 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     <div className="bk-think-studio space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">
-            {think?.name || "Think Studio"}
-          </h2>
-          {thought && (
-            <p className="text-sm text-gray-500 mt-1">
-              Thought: {thought.name}
-            </p>
+        <div className="flex items-center gap-3">
+          {think && thought && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                isIconOnly
+                aria-label="Back to Thought"
+                onPress={() =>
+                  router.push(`/modules/bunny-thinker/thoughts/${thought.id}`)
+                }
+              >
+                <ArrowLeft size={18} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                isIconOnly
+                aria-label="Thought List"
+                onPress={() =>
+                  router.push("/modules/bunny-thinker/thoughts")
+                }
+              >
+                <List size={18} />
+              </Button>
+            </>
           )}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {think?.name || "Think Studio"}
+            </h2>
+            {thought && (
+              <p className="text-sm text-gray-500 mt-1">
+                Thought: {thought.name}
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           {think && (
@@ -665,6 +806,17 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
             >
               Save to Memory
+            </Button>
+          )}
+          {think && (
+            <Button
+              variant="ghost"
+              size="sm"
+              isDisabled={isThinking}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              onPress={() => setShowSettings(true)}
+            >
+              <Settings2 size={16} /> Settings
             </Button>
           )}
           {think && (
@@ -962,6 +1114,20 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         </div>
       )}
 
+      {/* ── Settings Modal ────────────────────────────────────────── */}
+      {showSettings && think && (
+        <BKThinkStudioSettingsModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          thoughtPatternId={thought?.patternId}
+          associations={associations}
+          selectedAssociationId={selectedAssociationId}
+          selectedAssociation={selectedAssociation}
+          associationSelectLoading={associationSelectLoading}
+          onAssociationChange={handleAssociationChange}
+        />
+      )}
+
       {/* ── Meta Modal ──────────────────────────────────────────── */}
       {showMeta && think && (
         <BKThinkMetaModal
@@ -969,6 +1135,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           thought={thought!}
           trainOfThoughts={trainOfThoughts}
           aiConfig={aiConfig}
+          activeAssociation={selectedAssociation}
           onClose={() => setShowMeta(false)}
         />
       )}

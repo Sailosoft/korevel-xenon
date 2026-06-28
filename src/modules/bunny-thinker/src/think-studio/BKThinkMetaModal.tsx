@@ -52,6 +52,8 @@ export interface BKThinkMetaModalProps {
   thought: BKThought;
   trainOfThoughts: BKTrainOfThought[];
   aiConfig: HelixAIOption;
+  /** Active association selected in the Think Studio dropdown (overrides saved thoughtAssociationId) */
+  activeAssociation?: BKThoughtAssociation | null;
   onClose: () => void;
 }
 
@@ -62,6 +64,7 @@ export default function BKThinkMetaModal({
   thought,
   trainOfThoughts,
   aiConfig,
+  activeAssociation,
   onClose,
 }: BKThinkMetaModalProps) {
   const [metaData, setMetaData] = useState<BKThinkMetaData | null>(null);
@@ -81,7 +84,17 @@ export default function BKThinkMetaModal({
       let pattern: BKThoughtPattern | null = null;
       let association: BKThoughtAssociation | null = null;
 
-      if (think.thoughtAssociationId) {
+      // Priority: activeAssociation (from dropdown) > think.thoughtAssociationId > thought.patternId (defaults)
+      if (activeAssociation) {
+        // Use the actively selected association from the Think Studio dropdown
+        association = activeAssociation;
+        const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+          activeAssociation.patternId,
+        );
+        if (patternResult.isSuccess) {
+          pattern = patternResult.value;
+        }
+      } else if (think.thoughtAssociationId) {
         const assocResult = await bkThinkerDB.thoughtAssociationsRepo.get(
           think.thoughtAssociationId,
         );
@@ -298,9 +311,16 @@ export default function BKThinkMetaModal({
                     {/* Association info */}
                     {metaData.association && (
                       <div className="border-t border-blue-200 pt-2">
-                        <span className="text-xs text-blue-600 font-medium uppercase tracking-wider">
-                          Association
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-blue-600 font-medium uppercase tracking-wider">
+                            Association
+                          </span>
+                          {activeAssociation && (
+                            <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full font-medium">
+                              Active Override
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-blue-900 mt-0.5">
                           {metaData.association.name}
                         </p>

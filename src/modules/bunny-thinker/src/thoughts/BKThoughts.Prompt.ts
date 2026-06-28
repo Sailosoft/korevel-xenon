@@ -24,7 +24,16 @@ export function BKPromptBuildThoughtSystem(
 Core Thought:
 ${thoughtContent}${personaSection}
 
-You are participating in a preplanned chain of thought conversation. Each turn represents a step in the thinking process. Respond naturally as the thinker, building upon previous responses in the conversation.`;
+You are participating in a preplanned chain of thought conversation. Each turn represents a step in the thinking process.
+
+CRITICAL INSTRUCTION — Strictly enforced:
+1. OUTPUT ONLY the direct result for the current step — NO meta-questions, NO commentary, NO explanations, NO introductory phrases.
+2. Do NOT ask questions or seek clarification. Just produce the output requested.
+3. Do NOT wrap your response in conversational framing like "Here is my response:" or "I think...".
+4. Build upon previous responses naturally by incorporating the context, but output only the substance.
+5. If the step asks for a specific format or output, provide ONLY that output without additional text.
+
+FAILURE TO FOLLOW THESE RULES WILL RESULT IN REJECTION.`;
 }
 
 /**

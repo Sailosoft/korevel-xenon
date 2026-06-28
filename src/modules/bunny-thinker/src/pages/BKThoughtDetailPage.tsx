@@ -9,7 +9,7 @@
 // - Create a Process from this thought and an association
 
 import React, { useEffect, useState } from "react";
-import { Button, Card } from "@heroui/react";
+import { Button, Card, Select, ListBox, Toast, toast } from "@heroui/react";
 import {
   ArrowLeft,
   PlayCircle,
@@ -20,12 +20,15 @@ import {
   Save,
   Workflow,
   Lightbulb,
+  Palette,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
+import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import { BKCraftFormats, BKCraftFormatDescriptions } from "../craft/BKCraft.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -143,7 +146,7 @@ export default function BKThoughtDetailPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editedSteps, setEditedSteps] = useState<
-    Array<{ id: string; name: string; thought: string; order: number }>
+    Array<{ id: string; name: string; thought: string; order: number; craftFormat?: BKCraftFormat }>
   >([]);
 
   useEffect(() => {
@@ -166,6 +169,7 @@ export default function BKThoughtDetailPage({
             name: t.name,
             thought: t.thought,
             order: t.order,
+            craftFormat: t.craftId ? "markdown" as BKCraftFormat : undefined,
           })),
         );
 
@@ -204,6 +208,7 @@ export default function BKThoughtDetailPage({
         name: "",
         thought: "",
         order: prev.length,
+        craftFormat: undefined,
       },
     ]);
     setStepIdeaMap((prev) => ({ ...prev, [newId]: [] }));
@@ -219,7 +224,7 @@ export default function BKThoughtDetailPage({
 
   const bkUpdateStep = (
     stepId: string,
-    field: "name" | "thought",
+    field: "name" | "thought" | "craftFormat",
     value: string,
   ) => {
     setEditedSteps((prev) =>
@@ -281,6 +286,28 @@ export default function BKThoughtDetailPage({
 
       // Create new train of thoughts and their idea mappings
       for (const step of editedSteps) {
+        // Resolve craft format — create a craft config if a format is selected
+        let craftId: string | undefined;
+        if (step.craftFormat) {
+          const existingConfigs = await bkThinkerDB.craftConfigs
+            .toArray() as Array<{ id: string; format: string }>;
+          const existing = existingConfigs.find(
+            (c) => c.format === step.craftFormat,
+          );
+          if (existing) {
+            craftId = existing.id;
+          } else {
+            craftId = uuidv7();
+            const { BKCraftConfigSchema } = await import("../craft/BKCraft.Types");
+            await bkThinkerDB.craftConfigsRepo.create({
+              id: craftId,
+              name: `Craft: ${step.craftFormat}`,
+              format: step.craftFormat,
+              createdAt: Date.now(),
+            });
+          }
+        }
+
         await bkThinkerDB.trainOfThoughtsRepo.create({
           id: step.id,
           thoughtId: thought.id,
@@ -288,6 +315,7 @@ export default function BKThoughtDetailPage({
           thought: step.thought,
           order: step.order,
           includeInMemory: true,
+          craftId,
           createdAt: Date.now(),
         } as BKTrainOfThought);
 
@@ -304,6 +332,7 @@ export default function BKThoughtDetailPage({
 
       // Reload
       await bkLoadThought();
+      toast.success("Chain of thought saved successfully!");
     } catch (err) {
       console.error("[BKThoughtDetail] Failed to save:", err);
     } finally {
@@ -351,7 +380,9 @@ export default function BKThoughtDetailPage({
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <Toast.Provider />
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -480,6 +511,41 @@ export default function BKThoughtDetailPage({
                   }
                 />
 
+                {/* Craft Format Selector */}
+                <div className="mt-2 flex items-center gap-2">
+                  <Palette size={14} className="text-gray-400" />
+                  <Select
+                    value={step.craftFormat ?? ""}
+                    onChange={(val) =>
+                      bkUpdateStep(step.id, "craftFormat", String(val))
+                    }
+                    placeholder="No craft format"
+                    className="min-w-[180px]"
+                  >
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        <ListBox.Item key="" textValue="No craft format">
+                          None
+                        </ListBox.Item>
+                        {BKCraftFormats.map((format) => (
+                          <ListBox.Item key={format} textValue={format}>
+                            <div className="flex flex-col">
+                              <span className="text-sm">{format}</span>
+                              <span className="text-xs text-gray-400">
+                                {BKCraftFormatDescriptions[format]}
+                              </span>
+                            </div>
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+
                 {/* Attached Ideas */}
                 <div className="mt-2 border-t border-gray-100 pt-2">
                   <IdeaSelector
@@ -522,6 +588,7 @@ export default function BKThoughtDetailPage({
           </Button>
         </div>
       </Card>
-    </div>
+      </div>
+    </>
   );
 }

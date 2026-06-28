@@ -6,7 +6,7 @@ export const BKPatternMemorySlotSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, "Slot name is required"),
   label: z.string().optional(),
-  type: z.enum(["text", "textarea", "editor", "code-editor"]),
+  type: z.enum(["text", "textarea", "editor", "code-editor"]).default("text"),
   defaultValue: z.string().default(""),
   required: z.boolean().default(false),
 });
