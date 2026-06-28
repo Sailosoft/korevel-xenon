@@ -118,6 +118,61 @@ export default class HelixAIService implements HelixAIServiceType {
     return 8000;
   }
 
+  /**
+   * Send a chat completion with a raw messages array, preserving conversation history
+   * in OpenAI's natural format. This method accepts an array of messages with roles
+   * ("system", "user", "assistant") — analogous to how you would call the OpenAI SDK
+   * directly but routed through HelixAIService for provider resolution and config.
+   *
+   * Usage example:
+   * ```ts
+   * const response = await helix.doChatWithHistory({
+   *   messages: [
+   *     { role: "system", content: "You are a helpful assistant." },
+   *     { role: "user", content: "Hello!" },
+   *     { role: "assistant", content: "Hi! How can I help?" },
+   *     { role: "user", content: "What is AI?" },
+   *   ],
+   * });
+   * ```
+   */
+  async doChatWithHistory(option: {
+    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    model?: string;
+    provider?: string;
+    aiConfig?: HelixAIOption;
+    temperature?: number;
+    type?: HelixTemperaturePreset;
+    maxToken?: number;
+  }): Promise<string> {
+    const resolved = resolveConfig(
+      { provider: this.provider, configs: this.providerConfigs },
+      option.aiConfig,
+    );
+    const client =
+      option.aiConfig || option.provider
+        ? new OpenAI({
+            apiKey: resolved.apiKey,
+            baseURL: resolved.endpoint,
+          })
+        : this.ai;
+    const effectiveModel =
+      option.aiConfig?.model || option.model || resolved.model;
+
+    try {
+      const response = await client.chat.completions.create({
+        model: effectiveModel,
+        messages: option.messages,
+        temperature: option.temperature ?? 0.7,
+        max_tokens: option.maxToken ?? this.getMaxTokens(),
+      });
+
+      return response.choices[0]?.message?.content || "";
+    } catch (error) {
+      throw new Error(`AI Text Generation failed: ${error}`);
+    }
+  }
+
   async doChat(option: {
     system: string;
     user: string;

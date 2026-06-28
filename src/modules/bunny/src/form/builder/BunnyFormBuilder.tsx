@@ -10,7 +10,7 @@ import {
   cn,
 } from "@heroui/react";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useId, useState } from "react";
 import {
   BunnyFormConfig,
   BunnyFormField,
@@ -19,6 +19,18 @@ import {
 import BunnyMDXEditor from "./BunnyMDXEditor";
 import BunnyCodeEditor from "./BunnyCodeEditor";
 import { BunnyFormSlugField } from "./BunnyFormSlugField";
+import BunnyFormDisplayField from "./BunnyFormDisplayField";
+
+/** Maps colSpan values to Tailwind CSS grid classes (avoids JIT dynamic class issues). */
+const colSpanMap: Record<1 | 2 | 3 | 4 | 6 | 8 | 12, string> = {
+  1: "col-span-1",
+  2: "col-span-2",
+  3: "col-span-3",
+  4: "col-span-4",
+  6: "col-span-6",
+  8: "col-span-8",
+  12: "col-span-12",
+};
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -33,6 +45,9 @@ export function BunnyFormBuilder<T>({
   onChange,
   errors = {},
 }: BunnyFormBuilderProps<T>) {
+  // Unique instance ID to prevent field id collisions when multiple forms exist on the same page
+  const instanceId = useId();
+
   // Defensive guard: if config is somehow undefined, render nothing
   if (!config) return null;
 
@@ -48,7 +63,7 @@ export function BunnyFormBuilder<T>({
           <div
             key={field.name}
             className={cn(
-              field.colSpan ? `col-span-${field.colSpan}` : "",
+              field.colSpan ? colSpanMap[field.colSpan] : "",
               "w-full px-1",
             )}
           >
@@ -58,6 +73,7 @@ export function BunnyFormBuilder<T>({
               formData={formData as Record<string, unknown>}
               onChange={onChange}
               error={errors[field.name]}
+              instanceId={instanceId}
             />
           </div>
         ))}
@@ -74,6 +90,7 @@ interface FieldRendererProps {
   formData: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
   error?: string;
+  instanceId: string;
 }
 
 const FieldRenderer = memo(function FieldRenderer({
@@ -82,17 +99,10 @@ const FieldRenderer = memo(function FieldRenderer({
   formData,
   onChange,
   error,
+  instanceId,
 }: FieldRendererProps) {
-  const handleChange = (val: unknown) => {
-    // Safely cast numeric string IDs back to integers for form configuration
-    const sanitizedValue =
-      field.type === "select" && typeof val === "string" && !isNaN(Number(val))
-        ? Number(val)
-        : val;
-
-    onChange(field.name, sanitizedValue);
-  };
-  const fieldId = `field-${field.name}`;
+  // Unique per-form-instance ID prefix prevents collisions when multiple forms exist on the same page
+  const fieldId = `${instanceId}-field-${field.name}`;
   const showError = !!error;
   const isRequired = !!field.required;
 
@@ -101,6 +111,28 @@ const FieldRenderer = memo(function FieldRenderer({
     [],
   );
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+
+  const handleChange = useCallback((val: unknown) => {
+    if (field.type === "select") {
+      // Look up the original option to preserve its value type (string vs number).
+      // HeroUI Select coerces everything to string; we restore the original type
+      // so form data retains `"123"` (string) vs `123` (number) correctly.
+      const stringVal = String(val);
+      const matchedOption = computedOptions.find(
+        (o) => String(o.value) === stringVal,
+      );
+      const preservedValue =
+        matchedOption !== undefined
+          ? typeof matchedOption.value === "number"
+            ? Number(stringVal)
+            : stringVal
+          : val;
+      onChange(field.name, preservedValue);
+    } else {
+      onChange(field.name, val);
+    }
+  }, [field.type, field.name, onChange, computedOptions]);
 
   // Sync and resolve options configuration (runs explicitly for select fields)
   useEffect(() => {
@@ -120,6 +152,7 @@ const FieldRenderer = memo(function FieldRenderer({
         .then((resolvedData) => {
           if (isMounted) {
             setComputedOptions(resolvedData || []);
+            setOptionsError(null);
           }
         })
         .catch((err) => {
@@ -127,6 +160,9 @@ const FieldRenderer = memo(function FieldRenderer({
             `Failed to load options for field "${field.name}":`,
             err,
           );
+          if (isMounted) {
+            setOptionsError("Failed to load options");
+          }
         })
         .finally(() => {
           if (isMounted) setIsLoadingOptions(false);
@@ -159,41 +195,41 @@ const FieldRenderer = memo(function FieldRenderer({
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover>
-              {/* 
-                FIX 1: Keying the ListBox forces a total collection reset 
-                when switching states, safely avoiding cached node reuse.
-              */}
-              <ListBox key={isLoadingOptions ? "loading-state" : "ready-state"}>
-                {isLoadingOptions ? (
-                  <ListBox.Item
-                    key="loading-item" // FIX 2: Explicit React key
-                    id="loading"
-                    textValue="Loading options..."
-                    className="text-default-400 italic"
-                  >
-                    Loading options...
-                  </ListBox.Item>
-                ) : computedOptions.length === 0 ? (
-                  <ListBox.Item
-                    key="empty-item" // FIX 2: Explicit React key
-                    id="empty"
-                    textValue="No options found"
-                    className="text-default-400 italic"
-                  >
-                    No options available
-                  </ListBox.Item>
-                ) : (
-                  computedOptions.map((opt) => (
+              {optionsError ? (
+                <p className="px-3 py-2 text-sm text-red-500">{optionsError}</p>
+              ) : (
+                <ListBox key={isLoadingOptions ? "loading-state" : "ready-state"}>
+                  {isLoadingOptions ? (
                     <ListBox.Item
-                      key={String(opt.value)}
-                      id={String(opt.value)}
-                      textValue={opt.label}
+                      key="loading-item"
+                      id="loading"
+                      textValue="Loading options..."
+                      className="text-default-400 italic"
                     >
-                      {opt.label}
+                      Loading options...
                     </ListBox.Item>
-                  ))
-                )}
-              </ListBox>
+                  ) : computedOptions.length === 0 ? (
+                    <ListBox.Item
+                      key="empty-item"
+                      id="empty"
+                      textValue="No options found"
+                      className="text-default-400 italic"
+                    >
+                      No options available
+                    </ListBox.Item>
+                  ) : (
+                    computedOptions.map((opt) => (
+                      <ListBox.Item
+                        key={String(opt.value)}
+                        id={String(opt.value)}
+                        textValue={opt.label}
+                      >
+                        {opt.label}
+                      </ListBox.Item>
+                    ))
+                  )}
+                </ListBox>
+              )}
             </Select.Popover>
           </Select>
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
@@ -215,7 +251,7 @@ const FieldRenderer = memo(function FieldRenderer({
             onChange={(e) => handleChange(e.target.value)}
             className="min-h-[120px]"
             style={{
-              height: `${Math.max(4, (field as BunnyFormField<Record<string, unknown>>).rows ?? 4) * 1.5}rem`,
+              height: `${Math.max(4, field.rows ?? 4) * 1.5}rem`,
             }}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
@@ -230,7 +266,7 @@ const FieldRenderer = memo(function FieldRenderer({
               id={fieldId}
               isDisabled={field.disabled}
               isSelected={Boolean(value)}
-              onChange={handleChange}
+              onChange={(isSelected: boolean) => handleChange(isSelected)}
             />
             <Label htmlFor={fieldId} className="cursor-pointer">
               {field.label}
@@ -244,7 +280,7 @@ const FieldRenderer = memo(function FieldRenderer({
     case "slug":
       return (
         <BunnyFormSlugField
-          field={field as BunnyFormField<Record<string, unknown>>}
+          field={field}
           value={value}
           formData={formData}
           onChange={onChange}
@@ -275,10 +311,7 @@ const FieldRenderer = memo(function FieldRenderer({
           onChange={(val: string) => handleChange(val)}
           placeholder={field.placeholder}
           error={error}
-          language={
-            (field as BunnyFormField<Record<string, unknown>>).language ??
-            "typescript"
-          }
+          language={field.language ?? "typescript"}
         />
       );
 
@@ -301,7 +334,7 @@ const FieldRenderer = memo(function FieldRenderer({
             </Label>
           )}
           <CustomComponent
-            field={field as BunnyFormField<Record<string, unknown>>}
+            field={field}
             value={value}
             formData={formData}
             onChange={onChange}
@@ -329,7 +362,7 @@ const FieldRenderer = memo(function FieldRenderer({
             </Label>
           )}
           {renderFn({
-            field: field as BunnyFormField<Record<string, unknown>>,
+            field,
             value,
             formData,
             onChange,
@@ -339,6 +372,30 @@ const FieldRenderer = memo(function FieldRenderer({
         </div>
       );
     }
+
+    case "display":
+      // Dev-mode warnings for semantically invalid display field configuration
+      if (process.env.NODE_ENV === "development") {
+        if (field.required) {
+          console.warn(
+            `[BunnyForm] Field "${field.name}" has type "display" but is marked required — this has no effect.`,
+          );
+        }
+        if (field.rules && field.rules.length > 0) {
+          console.warn(
+            `[BunnyForm] Field "${field.name}" has type "display" but has validation rules — these will be ignored.`,
+          );
+        }
+      }
+      return (
+        <BunnyFormDisplayField
+          field={field}
+          value={value}
+          formData={formData}
+          onChange={onChange}
+          error={error}
+        />
+      );
 
     default: // text, email, password, number
       return (

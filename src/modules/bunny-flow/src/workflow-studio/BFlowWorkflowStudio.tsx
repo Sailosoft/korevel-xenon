@@ -181,15 +181,6 @@ export default function BFlowWorkflowStudio({
     [parseAndSetJobs],
   );
 
-  // Reset generative menu select after modal opens (allows re-triggering
-  // the same option without needing to dismiss and re-select)
-  useEffect(() => {
-    if (generativeMenuOption) {
-      const timer = setTimeout(() => setGenerativeMenuOption(null), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [generativeMenuOption]);
-
   // ── Initialise edit mode from URL on mount ───────────────────────
   useEffect(() => {
     const hasEdit = new URLSearchParams(window.location.search).has("edit");

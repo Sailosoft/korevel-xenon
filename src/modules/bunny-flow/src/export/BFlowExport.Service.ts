@@ -15,15 +15,18 @@
  *
  * - `markdown` (default) — hierarchical headings with job > step > output
  * - `html` — HTML document structure
+ * - `html-docs` — Renders only step output content through the **marked** parser,
+ *   producing a polished HTML document. Ideal for documentation-centric pipelines.
  * - `plain` — plain text without formatting
  */
 
+import { marked } from "marked";
 import type { BFlowWorkflowReport } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowJobRun, BFlowStepRun } from "../run/BFlowRun.Types";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type BFlowExportFormat = "markdown" | "html" | "plain";
+export type BFlowExportFormat = "markdown" | "html" | "html-docs" | "plain";
 
 export interface BFlowExportOptions {
   /** Report format. Defaults to "markdown". */
@@ -71,6 +74,8 @@ export class BFlowExportService {
     switch (opts.format) {
       case "html":
         return this.generateHtml(input, opts);
+      case "html-docs":
+        return this.generateHtmlDocs(input, opts);
       case "plain":
         return this.generatePlain(input, opts);
       case "markdown":
@@ -475,13 +480,303 @@ ${body}
   }
 
   /**
-   * Export pipeline run data to markdown and return as a downloadable blob.
+   * Generate an HTML document with only the output docs rendered through
+   * the marked parser. Focuses on the content — no job/step metadata included.
+   *
+   * Ideal for documentation-centric pipelines where you want a clean,
+   * polished HTML output of only the generated content.
+   */
+  private generateHtmlDocs(
+    input: BFlowExportInput,
+    opts: BFlowExportOptions,
+  ): string {
+    const title =
+      input.reports?.[0]?.label ?? input.pipelineName ?? "Pipeline Report";
+    const outputParts: string[] = [];
+
+    // ── Collect content from report configs ─────────────────────────
+    if (input.reports && input.reports.length > 0) {
+      for (const report of input.reports) {
+        const mdLines: string[] = [];
+        this.renderReportSection(mdLines, report, input, opts, 0);
+        const mdContent = mdLines.join("\n");
+        if (mdContent.trim()) {
+          outputParts.push(marked.parse(mdContent) as string);
+        }
+      }
+    } else {
+      // ── Default: collect all step outputs ─────────────────────────
+      for (const jobRun of input.jobRuns) {
+        const jobStepRuns = input.stepRuns.filter(
+          (sr) => sr.jobRunId === jobRun.id,
+        );
+
+        for (const stepRun of jobStepRuns) {
+          if (!stepRun.output) continue;
+
+          // Render step output through marked
+          const stepLabel = `${jobRun.jobName} / ${stepRun.stepName}`;
+          const rendered = marked.parse(stepRun.output) as string;
+
+          outputParts.push(`
+            <section class="step-output">
+              <div class="step-header">
+                <span class="step-badge">${this.escapeHtml(stepLabel)}</span>
+              </div>
+              <div class="step-body">
+                ${rendered}
+              </div>
+            </section>
+          `);
+        }
+      }
+    }
+
+    const bodyContent =
+      outputParts.length > 0
+        ? outputParts.join("\n")
+        : `<div class="empty-state">
+             <svg class="empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+             </svg>
+             <p>No output content available for this report.</p>
+           </div>`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.escapeHtml(title)}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: #1a1a2e;
+      background: #f8fafc;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 880px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* ── Header ─────────────────────────────────── */
+    header {
+      text-align: center;
+      padding: 3rem 1.5rem 2rem;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 2.5rem;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    header p.desc {
+      margin-top: 0.75rem;
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+    header .meta {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    header .meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+    }
+
+    /* ── Step output sections ────────────────────── */
+    .step-output {
+      margin-bottom: 2rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .step-header {
+      padding: 0.6rem 1.25rem;
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .step-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .step-body {
+      padding: 1.5rem 1.75rem;
+    }
+
+    /* ── Prose content (rendered from marked) ────── */
+    .step-body h1, .step-body h2, .step-body h3,
+    .step-body h4, .step-body h5, .step-body h6 {
+      color: #0f172a;
+      font-weight: 600;
+      line-height: 1.3;
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    .step-body h1 { font-size: 1.6rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+    .step-body h2 { font-size: 1.3rem; }
+    .step-body h3 { font-size: 1.1rem; }
+    .step-body p { margin-bottom: 1em; color: #334155; }
+    .step-body ul, .step-body ol { padding-left: 1.5em; margin-bottom: 1em; }
+    .step-body li { margin-bottom: 0.25em; }
+    .step-body strong { color: #0f172a; font-weight: 600; }
+    .step-body a { color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+    .step-body a:hover { color: #1d4ed8; }
+    .step-body blockquote {
+      border-left: 4px solid #2563eb;
+      padding: 0.5em 1em;
+      margin: 1em 0;
+      background: #f8fafc;
+      color: #475569;
+      border-radius: 0 6px 6px 0;
+    }
+    .step-body code {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: 0.88em;
+      background: #f1f5f9;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+    .step-body pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1em 1.25em;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1em 0;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+    .step-body pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+    .step-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1em 0;
+      font-size: 0.9rem;
+    }
+    .step-body th, .step-body td {
+      border: 1px solid #e2e8f0;
+      padding: 0.5em 0.75em;
+      text-align: left;
+    }
+    .step-body th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .step-body td { color: #334155; }
+    .step-body hr {
+      border: none;
+      border-top: 2px solid #e2e8f0;
+      margin: 2em 0;
+    }
+    .step-body img { max-width: 100%; border-radius: 8px; margin: 1em 0; }
+
+    /* ── Empty state ─────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #94a3b8;
+    }
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1rem;
+      color: #cbd5e1;
+    }
+    .empty-state p { font-size: 0.95rem; }
+
+    /* ── Footer ──────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 2rem 1.5rem 0;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 3rem;
+    }
+
+    /* ── Print ───────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .step-output { break-inside: avoid; box-shadow: none; border-color: #cbd5e1; }
+      .step-body pre { background: #f1f5f9 !important; color: #1a1a2e !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>${this.escapeHtml(title)}</h1>
+      ${
+        input.description
+          ? `<p class="desc">${this.escapeHtml(input.description)}</p>`
+          : ""
+      }
+      <div class="meta">
+        <span>${input.jobRuns.length} job${input.jobRuns.length !== 1 ? "s" : ""}</span>
+        <span>${input.stepRuns.length} step${input.stepRuns.length !== 1 ? "s" : ""}</span>
+        <span>${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
+      </div>
+    </header>
+
+    <main>
+      ${bodyContent}
+    </main>
+
+    <footer>
+      Generated by BunnyFlow &mdash; Docs Export
+    </footer>
+  </div>
+</body>
+</html>`;
+  }
+
+  /**
+   * Escape HTML special characters in a string.
+   */
+  private escapeHtml(str: string): string {
+    const amp = String.fromCharCode(38);
+    return str
+      .replace(/[&]/g, amp + "amp;")
+      .replace(/[<]/g, amp + "lt;")
+      .replace(/[>]/g, amp + "gt;")
+      .replace(/["]/g, amp + "quot;")
+      .replace(/[']/g, amp + "#x27;");
+  }
+
+  /**
+   * Export pipeline run data and return as a downloadable blob.
    */
   exportToBlob(input: BFlowExportInput, options?: BFlowExportOptions): Blob {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const content = this.generate(input, opts);
     const mimeType =
-      opts.format === "html"
+      opts.format === "html" || opts.format === "html-docs"
         ? "text/html"
         : opts.format === "plain"
           ? "text/plain"
@@ -500,7 +795,11 @@ ${body}
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const blob = this.exportToBlob(input, opts);
     const ext =
-      opts.format === "html" ? "html" : opts.format === "plain" ? "txt" : "md";
+      opts.format === "html" || opts.format === "html-docs"
+        ? "html"
+        : opts.format === "plain"
+          ? "txt"
+          : "md";
     const name =
       filename ?? `${input.pipelineName ?? "pipeline-report"}.${ext}`;
     const url = URL.createObjectURL(blob);
