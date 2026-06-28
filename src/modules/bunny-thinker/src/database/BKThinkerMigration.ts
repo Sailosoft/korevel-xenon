@@ -103,5 +103,11 @@ export function configureBKThinkerMigrations(
       table.index("status");
       table.index("name");
     });
+
+    // AI Settings — singleton record for the user's preferred AI provider + model
+    config.create("aiSettings", (table) => {
+      table.uuid();
+      table.index("provider");
+    });
   });
 }

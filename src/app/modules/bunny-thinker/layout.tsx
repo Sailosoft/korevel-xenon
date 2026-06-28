@@ -10,9 +10,11 @@ import {
   MemoryStick,
   Link2,
   Workflow,
+  Settings,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
+import { BKAISettingsProvider } from "@/src/modules/bunny-thinker/src/ai-settings/BKAISettings.Context";
 
 // ── Shell Configuration ──────────────────────────────────────────────────
 
@@ -72,6 +74,12 @@ const THINKER_SHELL_CONFIG: BUIDocumentShellConfig = {
       icon: MemoryStick,
       section: "Data",
     },
+    {
+      href: "/modules/bunny-thinker/settings",
+      label: "AI Settings",
+      icon: Settings,
+      section: "System",
+    },
   ],
 };
 
@@ -106,14 +114,16 @@ export default function BunnyThinkerLayout({
         </div>
       }
     >
-      <BUIDocumentShell
-        config={{
-          ...THINKER_SHELL_CONFIG,
-          theme: THINKER_THEME,
-        }}
-      >
-        {children}
-      </BUIDocumentShell>
+      <BKAISettingsProvider>
+        <BUIDocumentShell
+          config={{
+            ...THINKER_SHELL_CONFIG,
+            theme: THINKER_THEME,
+          }}
+        >
+          {children}
+        </BUIDocumentShell>
+      </BKAISettingsProvider>
     </Suspense>
   );
 }

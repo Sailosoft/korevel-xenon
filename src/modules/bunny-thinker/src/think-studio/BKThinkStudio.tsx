@@ -12,7 +12,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@heroui/react";
-import { RotateCcw, MessageSquareText, X, ChevronDown, ChevronRight } from "lucide-react";
+import { RotateCcw, MessageSquareText, X, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { executeThinkChatAction } from "../think/BKThink.Actions";
@@ -27,6 +27,8 @@ import type {
   BKAssociationSlotValue,
 } from "../thought-association/BKThoughtAssociation.Types";
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
+import { useAISettings } from "../ai-settings/BKAISettings.Context";
+import BKThinkMetaModal from "./BKThinkMetaModal";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -145,6 +147,7 @@ function BKStepPanel({
 // ─── Main Component ───────────────────────────────────────────────────────
 
 export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
+  const { aiConfig } = useAISettings();
   const [think, setThink] = useState<BKThink | null>(null);
   const [thought, setThought] = useState<BKThought | null>(null);
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
@@ -158,6 +161,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const [isThinking, setIsThinking] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
   const [result, setResult] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -345,6 +349,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           },
           craftFormat: step.craftId ? craftFormat : undefined,
           associationContext,
+          aiConfig,
         });
 
         if (!response.success) {
@@ -509,6 +514,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
             },
             craftFormat: step.craftId ? craftFormat : undefined,
             associationContext,
+            aiConfig,
           });
 
           if (!response.success) {
@@ -659,6 +665,17 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
             >
               Save to Memory
+            </Button>
+          )}
+          {think && (
+            <Button
+              variant="ghost"
+              size="sm"
+              isDisabled={isThinking}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              onPress={() => setShowMeta(true)}
+            >
+              <Info size={16} /> Meta
             </Button>
           )}
         </div>
@@ -943,6 +960,17 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Meta Modal ──────────────────────────────────────────── */}
+      {showMeta && think && (
+        <BKThinkMetaModal
+          think={think}
+          thought={thought!}
+          trainOfThoughts={trainOfThoughts}
+          aiConfig={aiConfig}
+          onClose={() => setShowMeta(false)}
+        />
       )}
     </div>
   );
