@@ -10,7 +10,7 @@ import {
   cn,
 } from "@heroui/react";
 
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useId, useState } from "react";
 import {
   BunnyFormConfig,
   BunnyFormField,
@@ -20,6 +20,17 @@ import BunnyMDXEditor from "./BunnyMDXEditor";
 import BunnyCodeEditor from "./BunnyCodeEditor";
 import { BunnyFormSlugField } from "./BunnyFormSlugField";
 import BunnyFormDisplayField from "./BunnyFormDisplayField";
+
+/** Maps colSpan values to Tailwind CSS grid classes (avoids JIT dynamic class issues). */
+const colSpanMap: Record<1 | 2 | 3 | 4 | 6 | 8 | 12, string> = {
+  1: "col-span-1",
+  2: "col-span-2",
+  3: "col-span-3",
+  4: "col-span-4",
+  6: "col-span-6",
+  8: "col-span-8",
+  12: "col-span-12",
+};
 
 interface BunnyFormBuilderProps<T> {
   config: BunnyFormConfig<T>;
@@ -34,6 +45,9 @@ export function BunnyFormBuilder<T>({
   onChange,
   errors = {},
 }: BunnyFormBuilderProps<T>) {
+  // Unique instance ID to prevent field id collisions when multiple forms exist on the same page
+  const instanceId = useId();
+
   // Defensive guard: if config is somehow undefined, render nothing
   if (!config) return null;
 
@@ -49,7 +63,7 @@ export function BunnyFormBuilder<T>({
           <div
             key={field.name}
             className={cn(
-              field.colSpan ? `col-span-${field.colSpan}` : "",
+              field.colSpan ? colSpanMap[field.colSpan] : "",
               "w-full px-1",
             )}
           >
@@ -59,6 +73,7 @@ export function BunnyFormBuilder<T>({
               formData={formData as Record<string, unknown>}
               onChange={onChange}
               error={errors[field.name]}
+              instanceId={instanceId}
             />
           </div>
         ))}
@@ -75,6 +90,7 @@ interface FieldRendererProps {
   formData: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
   error?: string;
+  instanceId: string;
 }
 
 const FieldRenderer = memo(function FieldRenderer({
@@ -83,8 +99,10 @@ const FieldRenderer = memo(function FieldRenderer({
   formData,
   onChange,
   error,
+  instanceId,
 }: FieldRendererProps) {
-  const fieldId = `field-${field.name}`;
+  // Unique per-form-instance ID prefix prevents collisions when multiple forms exist on the same page
+  const fieldId = `${instanceId}-field-${field.name}`;
   const showError = !!error;
   const isRequired = !!field.required;
 
@@ -248,7 +266,7 @@ const FieldRenderer = memo(function FieldRenderer({
               id={fieldId}
               isDisabled={field.disabled}
               isSelected={Boolean(value)}
-              onChange={handleChange}
+              onChange={(isSelected: boolean) => handleChange(isSelected)}
             />
             <Label htmlFor={fieldId} className="cursor-pointer">
               {field.label}
@@ -262,7 +280,7 @@ const FieldRenderer = memo(function FieldRenderer({
     case "slug":
       return (
         <BunnyFormSlugField
-          field={field as BunnyFormField<Record<string, unknown>>}
+          field={field}
           value={value}
           formData={formData}
           onChange={onChange}
@@ -316,7 +334,7 @@ const FieldRenderer = memo(function FieldRenderer({
             </Label>
           )}
           <CustomComponent
-            field={field as BunnyFormField<Record<string, unknown>>}
+            field={field}
             value={value}
             formData={formData}
             onChange={onChange}
@@ -344,7 +362,7 @@ const FieldRenderer = memo(function FieldRenderer({
             </Label>
           )}
           {renderFn({
-            field: field as BunnyFormField<Record<string, unknown>>,
+            field,
             value,
             formData,
             onChange,

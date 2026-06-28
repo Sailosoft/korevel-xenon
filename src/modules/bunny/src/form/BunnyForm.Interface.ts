@@ -91,7 +91,6 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   rows?: number;
   // Programming language for code-editor syntax highlighting (default: "typescript")
   language?: string;
-  // validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
   rules?: BunnyValidationRule[];
   /**
    * Configuration for "display" field type.

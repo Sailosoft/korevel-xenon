@@ -38,12 +38,12 @@ export default function BunnyFormDisplayField<TForm = Record<string, unknown>>({
 
   const title = useMemo(
     () => resolveValue(displayConfig?.title, formData),
-    [displayConfig?.title, formData],
+    [displayConfig?.title, formData, displayConfig],
   );
 
   const subtitle = useMemo(
     () => resolveValue(displayConfig?.subtitle, formData),
-    [displayConfig?.subtitle, formData],
+    [displayConfig?.subtitle, formData, displayConfig],
   );
 
   const mode = displayConfig?.mode ?? "card";

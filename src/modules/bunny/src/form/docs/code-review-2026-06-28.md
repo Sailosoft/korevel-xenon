@@ -2,7 +2,7 @@
 
 **Review Date:** 2026-06-28  
 **Reviewer:** Architecture Review  
-**Scope:** [`BunnyForm.Interface.ts`](../BunnyForm.Interface.ts), [`BunnyFormBuilder.tsx`](BunnyFormBuilder.tsx), [`BunnyFormDisplayField.tsx`](BunnyFormDisplayField.tsx), [`BunnyHeader.Action.Form.tsx`](../../header/BunnyHeader.Action.Form.tsx)
+**Scope:** [`BunnyForm.Interface.ts`](../BunnyForm.Interface.ts), [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx), [`BunnyFormDisplayField.tsx`](../builder/BunnyFormDisplayField.tsx), [`BunnyHeader.Action.Form.tsx`](../../header/BunnyHeader.Action.Form.tsx)
 
 ---
 
@@ -22,29 +22,15 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
 
 **Recommendation:** No change needed — this is a pragmatic trade-off. A more precise type would require mapping `TForm` keys to their value types per field, which adds considerable complexity without meaningful safety gains.
 
-### 1.2 Commented-Out Validation Property
+### 1.2 Removed Commented-Out Validation Property
+
+**Status:** ✅ **Fixed.** The commented-out `validation` property was removed. The `rules` array with `BunnyValidationRule` is the single canonical validation path.
 
 ```typescript
-// validation?: (value: unknown, formData?: unknown) => string | boolean | undefined;
 rules?: BunnyValidationRule[];
 ```
 
-**Observation:** The commented-out `validation` property and the active `rules` array appear to offer two parallel validation mechanisms. The `BunnyValidationRule` interface uses a discriminated `rule` field with an optional `validate` callback for `"custom"` rules.
-
-```typescript
-export interface BunnyValidationRule {
-  rule: "required" | "minLength" | "maxLength" | "email" | "custom";
-  message: string;
-  value?: unknown;
-  validate?: (value: unknown, formData: unknown) => boolean;
-}
-```
-
-**Issue:** There are **two conceptual paths** for custom validation:
-1. The commented `validation` callback — a single function with full control
-2. `BunnyValidationRule.rule === "custom"` with a `.validate` function
-
-**Recommendation:** Choose one canonical path and remove/deprecate the other. If the `rules` array with `BunnyValidationRule` is the primary mechanism, remove the commented code. Additionally, the `validate` function in `BunnyValidationRule` returns `boolean`, which provides no error message — yet the `rules` entry already has a `message` field. This is fine for simple validators but limits expressiveness. Consider allowing `validate` to return `string | boolean` where a string overrides `message`.
+The `BunnyValidationRule` interface uses a discriminated `rule` field with an optional `validate` callback for `"custom"` rules. When `rule === "custom"`, the `validate` function returns `boolean` and the error message comes from the `message` field. This is clean for simple validators but limits expressiveness — consider allowing `validate` to return `string | boolean` where a string overrides `message` if richer error feedback is needed in the future.
 
 ### 1.3 `BunnyDisplayFieldConfig` — Good Separation of Concerns
 
@@ -59,170 +45,99 @@ The `BunnyDisplayFieldConfig` is cleanly separated with:
 
 ## 2. `BunnyFormBuilder.tsx` — Field Rendering Engine
 
-### 2.1 CRITICAL: Select Value Type Mismatch
+### 2.1 ~~CRITICAL: Select Value Type Mismatch~~ ✅ **Fixed**
 
-```typescript
-// Line 153 — converting stored value to string for HeroUI Select
-value={value != null ? String(value) : null}
-
-// Lines 87-94 — converting the string back to number on change
-const handleChange = (val: unknown) => {
-  const sanitizedValue =
-    field.type === "select" && typeof val === "string" && !isNaN(Number(val))
-      ? Number(val)
-      : val;
-  onChange(field.name, sanitizedValue);
-};
-```
-
-**The problem:** `BunnySelectOption.value` is typed as `string | number`. The HeroUI `Select` component coerces *everything* to string internally because:
-- `value` prop is set as `String(value)` 
-- The `onChange` returns a string value
-
-The sanitization attempt `!isNaN(Number(val))` has a **false positive**: the string `"123"` (which should remain a string) gets converted to `123` (number), corrupting the data type.
-
-**Concrete example of the bug:**
-```typescript
-// Option definition
-{ label: "Room 123", value: "123" }  // string "123"
-
-// User selects it
-// onChange receives "123" (string) 
-// isNaN(Number("123")) → false → converts to 123 (number)
-// Now formData has 123 (number) instead of "123" (string) ✗
-```
-
-**Recommendation (immediate fix):** You cannot reliably round-trip the HeroUI Select's string coercion. The cleanest solution is to **store all select values as strings** in the form data and let consumers parse them when needed. Alternatively, use a custom comparator or rely on the `id` prop instead of `value` if HeroUI supports typed values.
-
-**Better alternative:** Wrap the Select to strip the type round-trip:
-
-```typescript
-// Store the original option's value type alongside the selection
-// Or simply accept the string coercion and document it:
-// "Select field values are stored as strings in form data"
-```
-
-### 2.2 `handleChange` Not Wrapped in `useCallback` (Performance)
-
-```typescript
-const FieldRenderer = memo(function FieldRenderer({...}: FieldRendererProps) {
-  const handleChange = (val: unknown) => { // ← Created every render
-    const sanitizedValue = ...
-    onChange(field.name, sanitizedValue);
-  };
-  // ...
-});
-```
-
-**Issue:** `FieldRenderer` is wrapped in `React.memo`, but `handleChange` is a new function reference on every render. Since `handleChange` is passed as the `onChange` prop to child components (`Input`, `Select`, `Switch`, etc.), those children will **always re-render** even when nothing has changed, defeating the memoization.
-
-**Recommendation:** Wrap `handleChange` in `useCallback`:
+The select value round-trip issue has been resolved with a **lookup-based approach** that preserves the original option's value type:
 
 ```typescript
 const handleChange = useCallback((val: unknown) => {
-  const sanitizedValue =
-    field.type === "select" && typeof val === "string" && !isNaN(Number(val))
-      ? Number(val)
-      : val;
-  onChange(field.name, sanitizedValue);
-}, [field.type, field.name, onChange]);
-```
-
-This also fixes a secondary issue: every render creates new inline arrow functions in the JSX (e.g., `onChange={(e) => handleChange(e.target.value)}` in `textarea` and `default` cases). These inline functions also break memoization. Use the stable `handleChange` directly where possible, or memoize them too.
-
-### 2.3 Unnecessary Type Cast on `field.rows`
-
-```typescript
-// Line 219 — BunnyFormBuilder.tsx
-style={{
-  height: `${Math.max(4, (field as BunnyFormField<Record<string, unknown>>).rows ?? 4) * 1.5}rem`,
-}}
-```
-
-**Issue:** The `field` parameter in `FieldRenderer` is already typed as `BunnyFormField<Record<string, unknown>>` in the component props (line 73). The `as` cast is a no-op.
-
-**Recommendation:** Remove the cast:
-
-```typescript
-style={{
-  height: `${Math.max(4, field.rows ?? 4) * 1.5}rem`,
-}}
-```
-
-Ditto for line 280 (`code-editor` language fallback) and line 348 (`display` case — `field as BunnyFormField<Record<string, unknown>>`). In the `display` case, the cast is also unnecessary.
-
-### 2.4 Switch `onChange` Type Mismatch
-
-```typescript
-<Switch
-  isSelected={Boolean(value)}
-  onChange={handleChange}
-/>
-```
-
-**Issue:** The HeroUI `Switch`'s `onChange` callback signature is `(isSelected: boolean) => void`, but `handleChange` expects `(val: unknown) => void`. The Switch passes a raw boolean, which skips the `field.type === "select"` branch — so it works, but only coincidentally.
-
-**Impact:** Low. It works because:
-1. The `field.type === "select"` guard prevents the number coercion
-2. `onChange(field.name, boolean)` stores the boolean correctly
-
-**Recommendation:** Add a dedicated handler or handle the boolean type explicitly in `handleChange`:
-
-```typescript
-const handleChange = useCallback((val: unknown) => {
-  if (field.type === "select" && typeof val === "string" && !isNaN(Number(val))) {
-    onChange(field.name, Number(val));
+  if (field.type === "select") {
+    const stringVal = String(val);
+    const matchedOption = computedOptions.find(
+      (o) => String(o.value) === stringVal,
+    );
+    const preservedValue =
+      matchedOption !== undefined
+        ? typeof matchedOption.value === "number"
+          ? Number(stringVal)
+          : stringVal
+        : val;
+    onChange(field.name, preservedValue);
   } else {
     onChange(field.name, val);
   }
-}, [field.type, field.name, onChange]);
+}, [field.type, field.name, onChange, computedOptions]);
 ```
 
-### 2.5 Select Options Loading — Edge Case: Empty Options from Async Function
+The handler looks up the original `BunnySelectOption` from `computedOptions` and preserves whether the value was originally `string` or `number`, preventing type corruption.
+
+### 2.2 ~~`handleChange` Not Wrapped in `useCallback` (Performance)~~ ✅ **Fixed**
+
+`handleChange` is now correctly wrapped in `useCallback` with `[field.type, field.name, onChange, computedOptions]` as dependencies. The `React.memo` on `FieldRenderer` is no longer defeated by a new function reference on every render.
+
+### 2.3 ~~Unnecessary Type Cast on `field`~~ ✅ **Fixed**
+
+All redundant `as BunnyFormField<Record<string, unknown>>` casts have been **removed** from:
+- Slug field (`BunnyFormSlugField` invocation)
+- Custom field (`CustomComponent` invocation)
+- Render field (`renderFn` invocation)
+
+The `field` parameter in `FieldRenderer` is already typed as `BunnyFormField<Record<string, unknown>>` in the component props, so these casts were no-ops.
+
+### 2.4 ~~Switch `onChange` Type Mismatch~~ ✅ **Fixed**
+
+The Switch `onChange` now uses an explicit boolean parameter:
 
 ```typescript
-Promise.resolve(field.options())
-  .then((resolvedData) => {
-    if (isMounted) {
-      setComputedOptions(resolvedData || []);
-    }
-  })
+<Switch
+  id={fieldId}
+  isDisabled={field.disabled}
+  isSelected={Boolean(value)}
+  onChange={(isSelected: boolean) => handleChange(isSelected)}
+/>
 ```
 
-**Issue:** If `field.options()` resolves to `null` or `undefined`, the fallback `|| []` is correct. However, there's no user-facing error state if the API fails (the `.catch` only logs). The select remains disabled with "Loading..." placeholder.
+This makes the type contract explicit: the `Switch` passes `boolean`, which gets correctly routed to `onChange(field.name, boolean)` without entering the select numeric coercion branch.
 
-**Recommendation:** Consider adding an error state that renders a meaningful message instead of getting stuck:
+### 2.5 ~~Select Options Loading — Error State~~ ✅ **Fixed**
+
+The async select options error handling is now complete:
 
 ```typescript
 const [optionsError, setOptionsError] = useState<string | null>(null);
 
 // In the useEffect catch:
 .catch((err) => {
-  console.error(...);
+  console.error(`Failed to load options for field "${field.name}":`, err);
   if (isMounted) {
     setOptionsError("Failed to load options");
-    setIsLoadingOptions(false);
   }
-});
+})
 
 // In the render:
 {optionsError ? (
-  <p className="text-sm text-red-500">{optionsError}</p>
+  <p className="px-3 py-2 text-sm text-red-500">{optionsError}</p>
 ) : ( /* ListBox */ )}
 ```
 
-### 2.6 Grid Column Classes Use Dynamic String Concatenation
+An `optionsError` state is set on failure, and the error message is rendered inside the `Select.Popover` instead of leaving the UI stuck on "Loading...".
+
+### 2.6 ~~Grid Column Classes Use Dynamic String Concatenation~~ ✅ **Fixed**
+
+The dynamic Tailwind class concatenation `` `col-span-${field.colSpan}` `` has been replaced with a static lookup map to ensure Tailwind JIT picks up all classes:
 
 ```typescript
-field.colSpan ? `col-span-${field.colSpan}` : "",
-```
+const colSpanMap: Record<1 | 2 | 3 | 4 | 6 | 8 | 12, string> = {
+  1: "col-span-1",
+  2: "col-span-2",
+  3: "col-span-3",
+  4: "col-span-4",
+  6: "col-span-6",
+  8: "col-span-8",
+  12: "col-span-12",
+};
 
-**Issue:** Tailwind CSS uses **static analysis** to generate its classes. Dynamic class names like `` `col-span-${field.colSpan}` `` may not be picked up by the Tailwind JIT compiler if the full string `"col-span-1", "col-span-2"` etc. doesn't appear literally somewhere in the source.
-
-**Recommendation:** If you notice missing column spans in production, add a safelist entry in `tailwind.config.js` or use a lookup map:
-
-```typescript
-const colSpanMap = { 1: "col-span-1", 2: "col-span-2", 3: "col-span-3", 4: "col-span-4", 6: "col-span-6", 8: "col-span-8", 12: "col-span-12" } as const;
+// Usage:
 field.colSpan ? colSpanMap[field.colSpan] : "",
 ```
 
@@ -230,41 +145,34 @@ field.colSpan ? colSpanMap[field.colSpan] : "",
 
 ## 3. `BunnyFormDisplayField.tsx` — Display Field Component
 
-### 3.1 Custom Mode Receives `formData` as `value`
+### 3.1 ~~Custom Mode Receives `formData` as `value`~~ ✅ **Fixed**
+
+The custom mode render now correctly passes `formData[field.name]` as `value` (consistent with other field types):
 
 ```typescript
+const fieldValue = (formData as Record<string, unknown>)[field.name];
 if (mode === "custom" && displayConfig?.render) {
-  return <>{displayConfig.render({
-    field,
-    value: formData,  // ← Entire formData, not the field's value
-    formData,
-    onChange: () => {},
-  })}</>;
+  return <>{displayConfig.render({ field, value: fieldValue, formData, onChange: () => {} })}</>;
 }
 ```
 
-**Observation:** In `BunnyFieldRendererProps`, `value` conventionally holds the **field's own value** (i.e., `formData[field.name]`). Here it's set to the entire `formData` object. This is inconsistent with how other field types pass `value` (e.g., `custom` and `render` cases in `BunnyFormBuilder.tsx` pass the actual field value).
+### 3.2 ~~Missing `useMemo` Dependencies — `displayConfig` Object~~ ✅ **Fixed**
 
-**Impact:** If a consumer writes a display field with `mode: "custom"` and accesses `props.value`, they'll get the entire form object instead of the field's value — a surprising API.
-
-**Recommendation:** Either:
-- Pass `formData[field.name]` as `value` (consistent with other field types)
-- Or clearly document that `value` in display fields receives `formData` (and rename to make it explicit)
-
-### 3.2 Missing `useMemo` Dependencies — `displayConfig` Object
+The `displayConfig` object reference has been added to both `useMemo` dependency arrays:
 
 ```typescript
 const title = useMemo(
   () => resolveValue(displayConfig?.title, formData),
-  [displayConfig?.title, formData],  // Dependencies use optional chaining
+  [displayConfig?.title, formData, displayConfig],
+);
+
+const subtitle = useMemo(
+  () => resolveValue(displayConfig?.subtitle, formData),
+  [displayConfig?.subtitle, formData, displayConfig],
 );
 ```
 
-**Issue:** `displayConfig?.title` uses optional chaining in the dependency array. If `displayConfig` itself changes (but `title` stays the same reference), the memo does not recompute. More critically, if `displayConfig.title` is a function, the function reference change is detected, but `displayConfig` object changes are missed.
-
-**Impact:** Low — in practice, the `displayConfig` is typically stable. But the dependency array is technically less precise than it should be.
-
-**Recommendation:** Either add `displayConfig` to the deps or accept the current trade-off with a comment explaining why.
+This ensures the memo recomputes when the `displayConfig` object itself changes, not just when `title`/`subtitle` references change.
 
 ---
 
@@ -341,27 +249,34 @@ In `BunnyHeader.Action.Form.tsx`, form data is initialized synchronously from `c
 
 **Recommendation:** If async initial data is a future requirement, add an `isLoading` state and a loading skeleton.
 
-### 5.2 Accessibility: `htmlFor` / `id` Mismatch
+### 5.2 ~~Accessibility: `htmlFor` / `id` Mismatch~~ ✅ **Fixed**
 
-In `BunnyFormBuilder.tsx`, the `fieldId` is computed as `` `field-${field.name}` `` and used as both `id` on the input and `htmlFor` on the label. If two forms are on the same page (e.g., in modals), the IDs can collide.
-
-**Recommendation:** Add a unique namespace or instance ID prefix:
+The `fieldId` now uses a unique `instanceId` prefix generated by React's `useId()` hook:
 
 ```typescript
-// Pass an instanceId prop to BunnyFormBuilder
+const instanceId = useId();
+// ...
 const fieldId = `${instanceId}-field-${field.name}`;
 ```
 
-### 5.3 Missing Test for "display" Type Validation
+The `instanceId` is created once per `BunnyFormBuilder` instance and passed down to `FieldRenderer`. This prevents ID collisions when multiple forms exist on the same page (e.g., in modals). React's `useId()` is SSR-safe and guaranteed unique within the React tree.
 
-The `"display"` field type is purely informational — it doesn't accept user input. However, there's no guard preventing it from being marked `required` or having `rules`, which would be semantically meaningless.
+### 5.3 ~~Missing Dev Warning for "display" Type Validation~~ ✅ **Fixed**
 
-**Recommendation:** Add a runtime warning in development:
+Dev-mode warnings are emitted when a `"display"` field has semantically invalid configuration:
 
 ```typescript
-if (process.env.NODE_ENV === "development" && field.type === "display") {
-  if (field.required) console.warn(`Field "${field.name}" has type "display" but is marked required — this has no effect.`);
-  if (field.rules?.length) console.warn(`Field "${field.name}" has type "display" but has validation rules — these will be ignored.`);
+if (process.env.NODE_ENV === "development") {
+  if (field.required) {
+    console.warn(
+      `[BunnyForm] Field "${field.name}" has type "display" but is marked required — this has no effect.`,
+    );
+  }
+  if (field.rules && field.rules.length > 0) {
+    console.warn(
+      `[BunnyForm] Field "${field.name}" has type "display" but has validation rules — these will be ignored.`,
+    );
+  }
 }
 ```
 
@@ -369,18 +284,18 @@ if (process.env.NODE_ENV === "development" && field.type === "display") {
 
 ## 6. Summary of Action Items
 
-| # | Severity | File | Issue | Recommendation |
-|---|----------|------|-------|----------------|
-| 1 | **High** | `BunnyFormBuilder.tsx:87-94,153` | Select value type round-trip corrupts `"123"` (string → number) | Document the string-coercion behavior or implement a lookup-based approach using the original option's value type |
-| 2 | **Medium** | `BunnyFormBuilder.tsx:87` | `handleChange` not wrapped in `useCallback` breaks memoization | Wrap in `useCallback` with `[field.type, field.name, onChange]` deps |
-| 3 | **Low** | `BunnyFormBuilder.tsx:219,280,347` | Unnecessary `as` type casts on `field` | Remove redundant casts |
-| 4 | **Low** | `BunnyFormBuilder.tsx:234` | Switch `onChange` type implicitly works but is untyped | Add explicit boolean handling or a dedicated handler |
-| 5 | **Low** | `BunnyFormBuilder.tsx:126-131` | Async select options error leaves UI stuck on "Loading..." | Add user-facing error state |
-| 6 | **Low** | `BunnyFormBuilder.tsx:51` | Tailwind dynamic class `col-span-${n}` may not be picked up | Use a static lookup map or safelist |
-| 7 | **Medium** | `BunnyFormDisplayField.tsx:53` | Custom mode passes `formData` as `value` (inconsistent API) | Pass `formData[field.name]` as `value` or document the divergence |
-| 8 | **Low** | `BunnyHeader.Action.Form.tsx:432-439` | Inline builder callback creates new config on every render | Document that consumers should use `useCallback` |
-| 9 | **Low** | `BunnyFormBuilder.tsx:96` | Accessible `id` may collide across multiple forms | Add instance ID prefix |
-| 10 | **Low** | `BunnyFormBuilder.tsx:344` | "display" fields accept `required`/`rules` silently | Add dev-mode warnings |
+| # | Severity | File | Issue | Status |
+|---|----------|------|-------|--------|
+| 1 | **High** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Select value type round-trip corrupts `"123"` (string → number) | ✅ **Fixed** — Lookup-based approach preserves original option type |
+| 2 | **Medium** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | `handleChange` not wrapped in `useCallback` breaks memoization | ✅ **Fixed** — Wrapped in `useCallback` with proper deps |
+| 3 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Unnecessary `as` type casts on `field` | ✅ **Fixed** — Removed redundant casts |
+| 4 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Switch `onChange` type implicitly works but is untyped | ✅ **Fixed** — Explicit `(isSelected: boolean) => handleChange(isSelected)` |
+| 5 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Async select options error leaves UI stuck on "Loading..." | ✅ **Fixed** — User-facing error state added |
+| 6 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Tailwind dynamic class `col-span-${n}` may not be picked up | ✅ **Fixed** — Static `colSpanMap` lookup |
+| 7 | **Medium** | [`BunnyFormDisplayField.tsx`](../builder/BunnyFormDisplayField.tsx) | Custom mode passes `formData` as `value` (inconsistent API) | ✅ **Fixed** — Passes `formData[field.name]` as `value` |
+| 8 | **Low** | [`BunnyHeader.Action.Form.tsx`](../../header/BunnyHeader.Action.Form.tsx) | Inline builder callback creates new config on every render | ⚠️ **Documented** — Consumers should use `useCallback` |
+| 9 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | Accessible `id` may collide across multiple forms | ✅ **Fixed** — Added `instanceId` prefix via `useId()` |
+| 10 | **Low** | [`BunnyFormBuilder.tsx`](../builder/BunnyFormBuilder.tsx) | "display" fields accept `required`/`rules` silently | ✅ **Fixed** — Dev-mode warnings added |
 
 ---
 
@@ -396,4 +311,4 @@ if (process.env.NODE_ENV === "development" && field.type === "display") {
 - ✅ `display` field type is a well-designed addition with clear modes
 - ✅ All naming follows the `{verb}Bunny{noun}` convention
 
-The main actionable item is **Item #1 (select value round-trip)** — this is a latent bug that will surface when consumers use string values that look like numbers. Items #2 and #7 are minor API/integrity concerns that should be addressed before production release.
+**All actionable items from the original review have been addressed.** The only remaining concern (Item #8) is a documentation-level recommendation — consumers should stabilize builder callbacks with `useCallback` to avoid unnecessary config recomputation.
