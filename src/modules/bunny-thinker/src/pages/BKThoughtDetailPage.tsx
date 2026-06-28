@@ -27,7 +27,7 @@ import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKCraftConfig, BKCraftFormat } from "../craft/BKCraft.Types";
 import { BKCraftFormats, BKCraftFormatDescriptions } from "../craft/BKCraft.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
@@ -163,13 +163,23 @@ export default function BKThoughtDetailPage({
         const totList = await bkThinkerDB.trainOfThoughtsRepo
           .getByThoughtId(thoughtId);
         setTrainOfThoughts(totList);
+
+        // Resolve craft formats from craftConfigs by craftId
+        const allCraftConfigs = await bkThinkerDB.craftConfigs
+          .toArray() as BKCraftConfig[];
+        const craftConfigMap = new Map(
+          allCraftConfigs.map((c) => [c.id, c.format]),
+        );
+
         setEditedSteps(
           totList.map((t) => ({
             id: t.id,
             name: t.name,
             thought: t.thought,
             order: t.order,
-            craftFormat: t.craftId ? "markdown" as BKCraftFormat : undefined,
+            craftFormat: t.craftId
+              ? (craftConfigMap.get(t.craftId) as BKCraftFormat)
+              : undefined,
           })),
         );
 
@@ -528,11 +538,11 @@ export default function BKThoughtDetailPage({
                     </Select.Trigger>
                     <Select.Popover>
                       <ListBox>
-                        <ListBox.Item key="" textValue="No craft format">
+                        <ListBox.Item key="" id="" textValue="No craft format">
                           None
                         </ListBox.Item>
                         {BKCraftFormats.map((format) => (
-                          <ListBox.Item key={format} textValue={format}>
+                          <ListBox.Item key={format} id={format} textValue={format}>
                             <div className="flex flex-col">
                               <span className="text-sm">{format}</span>
                               <span className="text-xs text-gray-400">

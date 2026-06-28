@@ -11,7 +11,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Brain, GitBranch, Link2, Lightbulb, Cpu, FileText } from "lucide-react";
+import { X, Brain, GitBranch, Link2, Lightbulb, Cpu, FileText, ChevronDown, ChevronRight, Palette } from "lucide-react";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { HELIX_PROVIDER_LABELS } from "@/src/modules/helix";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
@@ -21,6 +21,7 @@ import type { BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
 import type { BKIdea } from "../ideas/BKIdeas.Types";
+import type { BKCraftConfig } from "../craft/BKCraft.Types";
 
 // ─── Resolved data shape ─────────────────────────────────────────────────
 
@@ -36,6 +37,14 @@ interface BKThinkMetaData {
   // Pattern
   pattern: BKThoughtPattern | null;
   association: BKThoughtAssociation | null;
+
+  // Steps: title, prompt, craft mode
+  steps: Array<{
+    stepId: string;
+    stepName: string;
+    stepThought: string;
+    craftFormat: string | null;
+  }>;
 
   // Ideas per train-of-thought step
   stepIdeas: Array<{
@@ -68,6 +77,7 @@ export default function BKThinkMetaModal({
   onClose,
 }: BKThinkMetaModalProps) {
   const [metaData, setMetaData] = useState<BKThinkMetaData | null>(null);
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
@@ -116,7 +126,24 @@ export default function BKThinkMetaModal({
         }
       }
 
-      // 2. Load ideas linked to each train-of-thought step
+      // 2. Load craft configs to resolve format names for each step
+      const allCraftConfigs = await bkThinkerDB.craftConfigs
+        .toArray() as BKCraftConfig[];
+      const craftConfigMap = new Map(
+        allCraftConfigs.map((c) => [c.id, c.format]),
+      );
+
+      // 3. Build step metadata (title, prompt, craft mode)
+      const steps: BKThinkMetaData["steps"] = trainOfThoughts.map((s) => ({
+        stepId: s.id,
+        stepName: s.name,
+        stepThought: s.thought,
+        craftFormat: s.craftId
+          ? (craftConfigMap.get(s.craftId) ?? null)
+          : null,
+      }));
+
+      // 4. Load ideas linked to each train-of-thought step
       const allMappings = await bkThinkerDB.trainOfThoughtIdeas
         .toArray() as Array<{ id: string; ideaId: string; trainOfThoughtId: string }>;
 
@@ -142,7 +169,7 @@ export default function BKThinkMetaModal({
         });
       }
 
-      // 3. Build the resolved provider label
+      // 5. Build the resolved provider label
       const providerLabel =
         HELIX_PROVIDER_LABELS[aiConfig.provider as keyof typeof HELIX_PROVIDER_LABELS] ??
         aiConfig.provider;
@@ -154,6 +181,7 @@ export default function BKThinkMetaModal({
         thoughtPrompt: thought.thought,
         pattern,
         association,
+        steps,
         stepIdeas,
       });
     } catch (err) {
@@ -359,6 +387,92 @@ export default function BKThinkMetaModal({
                     {metaData.thoughtPrompt}
                   </pre>
                 </div>
+              </section>
+
+              {/* ─── Section: Chain of Thought Steps (Accordion) ── */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <GitBranch size={18} className="text-indigo-600" />
+                  <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                    Chain of Thought Steps
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      ({metaData.steps.length} step{metaData.steps.length !== 1 ? "s" : ""})
+                    </span>
+                  </h4>
+                </div>
+
+                {metaData.steps.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm text-gray-500 italic">
+                      No steps defined for this thought.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {metaData.steps.map((step, index) => {
+                      const isOpen = expandedStepId === step.stepId;
+                      return (
+                        <div
+                          key={step.stepId}
+                          className="bg-indigo-50 rounded-lg border border-indigo-100 overflow-hidden"
+                        >
+                          {/* Accordion Trigger */}
+                          <button
+                            onClick={() =>
+                              setExpandedStepId(isOpen ? null : step.stepId)
+                            }
+                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-indigo-100/50 transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs font-semibold text-indigo-400 w-6 shrink-0">
+                                #{index + 1}
+                              </span>
+                              <span className="text-sm font-medium text-indigo-900 truncate">
+                                {step.stepName || `Step ${index + 1}`}
+                              </span>
+                              {step.craftFormat && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full font-medium shrink-0">
+                                  <Palette size={10} />
+                                  {step.craftFormat}
+                                </span>
+                              )}
+                            </div>
+                            {isOpen ? (
+                              <ChevronDown size={16} className="text-indigo-400 shrink-0" />
+                            ) : (
+                              <ChevronRight size={16} className="text-indigo-400 shrink-0" />
+                            )}
+                          </button>
+
+                          {/* Accordion Content */}
+                          {isOpen && (
+                            <div className="px-4 pb-4 border-t border-indigo-100">
+                              {/* Step Prompt */}
+                              <div className="mt-3">
+                                <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
+                                  Prompt
+                                </span>
+                                <pre className="mt-1 text-sm text-indigo-800 whitespace-pre-wrap font-sans leading-relaxed bg-white rounded-md p-3 border border-indigo-100 max-h-32 overflow-y-auto">
+                                  {step.stepThought || "(empty)"}
+                                </pre>
+                              </div>
+
+                              {/* Craft Mode */}
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">
+                                  Craft Mode:
+                                </span>
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${step.craftFormat ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-400"}`}>
+                                  {step.craftFormat || "None"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
 
               {/* ─── Section: Connected Ideas ─────────────────── */}

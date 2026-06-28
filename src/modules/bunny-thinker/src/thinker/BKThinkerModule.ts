@@ -24,7 +24,7 @@ export const bkThinkerModule = BunnyFeature.create<BKThinker, BKThinker>(
 
     feature.configureForm((form) => {
       form.setOnSuccess({ mode: "closeOnly" });
-      form.setGridCols(2);
+      form.setGridCols(1);
       form.addFields([
         {
           name: "name",
@@ -62,7 +62,6 @@ export const bkThinkerModule = BunnyFeature.create<BKThinker, BKThinker>(
           placeholder: "Describe this thinker's perspective...",
           type: "textarea",
           required: true,
-          colSpan: 2,
           rows: 4,
         },
       ]);

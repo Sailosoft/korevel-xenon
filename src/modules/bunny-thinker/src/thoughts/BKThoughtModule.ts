@@ -59,7 +59,7 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
 
     feature.configureForm((form) => {
       form.setOnSuccess({ mode: "closeOnly" });
-      form.setGridCols(2);
+      form.setGridCols(1);
       form.addFields([
         {
           name: "name",
@@ -89,7 +89,7 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
           type: "textarea",
           required: true,
           rows: 8,
-          colSpan: 2,
+          // colSpan: 2,
         },
       ]);
     });

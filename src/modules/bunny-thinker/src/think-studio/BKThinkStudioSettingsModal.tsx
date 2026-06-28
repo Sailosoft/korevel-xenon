@@ -1,17 +1,19 @@
 /**
  * BKThinkStudioSettingsModal — Modal for configuring Think Studio settings.
  *
- * Currently provides:
+ * Provides:
  *  - Association Select: choose a thought association to override pattern
  *    memory slot values during the thinking process.
+ *  - Thinker Select: choose a thinker persona to apply during thinking.
  */
 
 "use client";
 
 import React from "react";
-import { X, Link2, Settings2 } from "lucide-react";
+import { X, Link2, Settings2, Brain } from "lucide-react";
 import { Select, ListBox } from "@heroui/react";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
+import type { BKThinker } from "../thinker/BKThinker.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -26,6 +28,13 @@ export interface BKThinkStudioSettingsModalProps {
   selectedAssociation: BKThoughtAssociation | null;
   associationSelectLoading: boolean;
   onAssociationChange: (val: unknown) => void;
+
+  // Thinker select state
+  thinkers: BKThinker[];
+  thinkersLoading: boolean;
+  selectedThinkerId?: string;
+  selectedThinker: BKThinker | null;
+  onThinkerChange: (val: unknown) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -39,6 +48,11 @@ export default function BKThinkStudioSettingsModal({
   selectedAssociation,
   associationSelectLoading,
   onAssociationChange,
+  thinkers,
+  thinkersLoading,
+  selectedThinkerId,
+  selectedThinker,
+  onThinkerChange,
 }: BKThinkStudioSettingsModalProps) {
   if (!isOpen) return null;
 
@@ -74,6 +88,135 @@ export default function BKThinkStudioSettingsModal({
 
         {/* ── Body ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {/* ─── Section: Thinker Persona ──────────────────────────── */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Brain size={18} className="text-purple-600" />
+              <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                Thinker Persona
+              </h4>
+            </div>
+
+            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 space-y-3">
+              <p className="text-xs text-purple-700 leading-relaxed">
+                Select a thinker persona to apply during the thinking process.
+                The thinker's name, role, and description will be injected into
+                the AI system prompt to shape its perspective.
+              </p>
+
+              <div className="space-y-2">
+                <label className="text-xs text-purple-600 font-medium uppercase tracking-wider">
+                  Thinker
+                </label>
+                <Select
+                  aria-label="Select thinker"
+                  value={selectedThinkerId ?? ""}
+                  onChange={onThinkerChange}
+                  placeholder={
+                    thinkersLoading
+                      ? "Loading..."
+                      : thinkers.length === 0
+                        ? "No thinkers"
+                        : "No persona (default)"
+                  }
+                  isDisabled={thinkersLoading}
+                  className="w-full"
+                >
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    {thinkersLoading ? (
+                      <ListBox key="loading">
+                        <ListBox.Item
+                          key="loading-item"
+                          id="loading"
+                          textValue="Loading thinkers..."
+                          className="text-default-400 italic"
+                        >
+                          Loading thinkers...
+                        </ListBox.Item>
+                      </ListBox>
+                    ) : thinkers.length === 0 ? (
+                      <ListBox key="empty">
+                        <ListBox.Item
+                          key="empty-item"
+                          id="empty"
+                          textValue="No thinkers found"
+                          className="text-default-400 italic"
+                        >
+                          No thinkers available — create one first
+                        </ListBox.Item>
+                      </ListBox>
+                    ) : (
+                      <ListBox key="ready">
+                        {/* Option to clear selection (no persona) */}
+                        <ListBox.Item
+                          key=""
+                          id=""
+                          textValue="No persona (default)"
+                        >
+                          <span className="text-gray-400">
+                            No persona (default)
+                          </span>
+                        </ListBox.Item>
+                        {thinkers.map((t) => (
+                          <ListBox.Item
+                            key={t.id}
+                            id={t.id}
+                            textValue={t.name}
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium">
+                                {t.name}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                                  {t.role.replace(/([A-Z])/g, " $1").trim()}
+                                </span>
+                                {t.specialization && (
+                                  <span className="text-xs text-gray-400 truncate max-w-[160px]">
+                                    {t.specialization}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    )}
+                  </Select.Popover>
+                </Select>
+
+                {/* Active thinker badge */}
+                {selectedThinker && (
+                  <div className="flex items-center gap-1.5 text-xs text-purple-700 bg-purple-100/60 px-2.5 py-1.5 rounded-md">
+                    <Brain size={12} className="shrink-0" />
+                    <span>
+                      <strong>{selectedThinker.name}</strong>
+                      {selectedThinker.role && (
+                        <span>
+                          {" "}
+                          —{" "}
+                          {selectedThinker.role
+                            .replace(/([A-Z])/g, " $1")
+                            .trim()}
+                        </span>
+                      )}
+                      {selectedThinker.description && (
+                        <span className="block text-purple-500 font-normal mt-0.5 leading-relaxed">
+                          {selectedThinker.description}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ─── Section: Association Override ──────────────────── */}
           {/* ─── Section: Association Override ──────────────────── */}
           <section>
             <div className="flex items-center gap-2 mb-3">

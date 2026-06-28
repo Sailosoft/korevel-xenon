@@ -157,6 +157,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     [],
   );
   const [thinker, setThinker] = useState<BKThinker | null>(null);
+  const [thinkers, setThinkers] = useState<BKThinker[]>([]);
+  const [thinkersLoading, setThinkersLoading] = useState(false);
   const [conversation, setConversation] = useState<BKConversationMessage[]>(
     [],
   );
@@ -186,6 +188,49 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   // another completed train of thought while generation continues.
   const isTabPinnedRef = useRef(false);
 
+  // ── Load Thinkers ───────────────────────────────────────────────────
+
+  const bkLoadThinkers = useCallback(async () => {
+    setThinkersLoading(true);
+    try {
+      const result = await bkThinkerDB.thinkersRepo.query.getAll({
+        page: 0,
+        pageSize: 9999,
+        filters: [],
+      });
+      setThinkers(result.data);
+    } catch (err) {
+      console.error("[BKThinkStudio] Failed to load thinkers:", err);
+    } finally {
+      setThinkersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    bkLoadThinkers();
+  }, [bkLoadThinkers]);
+
+  // ── Thinker selection handler ───────────────────────────────────────
+
+  const handleThinkerChange = useCallback(
+    async (val: unknown) => {
+      const thinkerId = String(val);
+      if (!thinkerId) {
+        setThinker(null);
+        return;
+      }
+      try {
+        const result = await bkThinkerDB.thinkersRepo.get(thinkerId);
+        if (result.isSuccess) {
+          setThinker(result.value);
+        }
+      } catch (err) {
+        console.error("[BKThinkStudio] Failed to load selected thinker:", err);
+      }
+    },
+    [],
+  );
+
   // ── Load existing think ──────────────────────────────────────────────
 
   useEffect(() => {
@@ -212,6 +257,17 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           loadAssociations(thoughtResult.value.patternId);
         }
       }
+
+      // Load train of thoughts for this thought
+      const allTrains = await bkThinkerDB.trainOfThoughtsRepo.query.getAll({
+        page: 0,
+        pageSize: 100,
+        filters: [],
+      });
+      const filteredTrains = allTrains.data
+        .filter((t: BKTrainOfThought) => t.thoughtId === loadedThink.thoughtId)
+        .sort((a: BKTrainOfThought, b: BKTrainOfThought) => a.order - b.order);
+      setTrainOfThoughts(filteredTrains);
 
       // If think has a saved association, pre-select it
       if (loadedThink.thoughtAssociationId) {
@@ -1125,6 +1181,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           selectedAssociation={selectedAssociation}
           associationSelectLoading={associationSelectLoading}
           onAssociationChange={handleAssociationChange}
+          thinkers={thinkers}
+          thinkersLoading={thinkersLoading}
+          selectedThinkerId={thinker?.id}
+          selectedThinker={thinker}
+          onThinkerChange={handleThinkerChange}
         />
       )}
 

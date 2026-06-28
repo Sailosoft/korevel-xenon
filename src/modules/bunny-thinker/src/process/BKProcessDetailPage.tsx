@@ -6,15 +6,16 @@
 // - View the process configuration (association + thought)
 // - Resolve association slot values into context (client-side IndexedDB)
 // - Execute the full pipeline (server-side AI chat via server action)
-// - Review execution results, conversation, and memory output
+// - Review execution results step-by-step, conversation, and memory output
 // - Re-run the process
 //
 // All IndexedDB operations happen client-side. The server action only
 // handles AI chat calls (Helix) and returns results to be saved locally.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { v7 as uuidv7 } from "uuid";
-import { Button, Card } from "@heroui/react";
+import ReactMarkdown from "react-markdown";
+import { Button, Card, Select, ListBox } from "@heroui/react";
 import {
   Play,
   RotateCcw,
@@ -23,6 +24,10 @@ import {
   AlertCircle,
   Loader2,
   ExternalLink,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  MessageSquareText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
@@ -33,8 +38,11 @@ import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssoc
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKThink } from "../think/BKThink.Types";
-import type { BKMemory, BKMemoryNeuron } from "../memory/BKMemory.Types";
+import type { BKConversationMessage } from "../thoughts/BKThoughts.Types";
+import type { BKMemory } from "../memory/BKMemory.Types";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKThinker } from "../thinker/BKThinker.Types";
+import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
 
 // ─── Props ───────────────────────────────────────────────────────────────
@@ -63,6 +71,114 @@ function StatusBadge({ status }: { status: string }) {
     >
       {status}
     </span>
+  );
+}
+
+// ─── Step Panel Component ───────────────────────────────────────────────
+
+function BKProcessStepPanel({
+  step,
+  index,
+  userMessage,
+  assistantMessage,
+}: {
+  step: BKTrainOfThought;
+  index: number;
+  userMessage?: BKConversationMessage;
+  assistantMessage?: BKConversationMessage;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* User Prompt Section */}
+      {userMessage && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+              User Prompt
+            </span>
+            <span className="text-xs text-gray-400">
+              Step {index + 1}: {step.name}
+            </span>
+          </div>
+          <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+            <div className="prose prose-sm max-w-none text-gray-700">
+              <ReactMarkdown>{step.thought}</ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Response Section */}
+      {assistantMessage ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-green-600 bg-green-50 px-2 py-0.5 rounded">
+              AI Response
+            </span>
+            <span className="text-xs text-gray-400">
+              {new Date(assistantMessage.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+            <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
+              <ReactMarkdown
+                components={{
+                  code({ className, children, ...props }) {
+                    const isInline = !className;
+                    const match = /language-(\w+)/.exec(className || "");
+                    const codeStr = String(children).replace(/\n$/, "");
+
+                    if (isInline) {
+                      return (
+                        <code
+                          className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    }
+
+                    return (
+                      <div className="relative group">
+                        <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                          <span>{match?.[1] || "code"}</span>
+                          <button
+                            onClick={() =>
+                              navigator.clipboard.writeText(codeStr)
+                            }
+                            className="hover:text-white transition-colors"
+                            title="Copy code"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        </pre>
+                      </div>
+                    );
+                  },
+                  pre({ children }) {
+                    return <>{children}</>;
+                  },
+                }}
+              >
+                {assistantMessage.content}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      ) : step.includeInMemory !== false ? (
+        <div className="p-6 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-center">
+          <p className="text-sm text-gray-400 italic">
+            Waiting for AI response...
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -102,7 +218,7 @@ export default function BKProcessDetailPage({
   const router = useRouter();
   const { aiConfig } = useAISettings();
 
-  // State
+  // Process state
   const [process, setProcess] = useState<BKProcess | null>(null);
   const [association, setAssociation] =
     useState<BKThoughtAssociation | null>(null);
@@ -117,6 +233,63 @@ export default function BKProcessDetailPage({
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
+
+  // Conversation state (like BKStudio)
+  const [conversation, setConversation] = useState<BKConversationMessage[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(-1);
+  const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
+  const [result, setResult] = useState<string>("");
+  const [showProcessedOutput, setShowProcessedOutput] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const isTabPinnedRef = useRef(false);
+
+  // Thinker state (like BKStudio)
+  const [thinker, setThinker] = useState<BKThinker | null>(null);
+  const [thinkers, setThinkers] = useState<BKThinker[]>([]);
+  const [thinkersLoading, setThinkersLoading] = useState(false);
+
+  // ── Load Thinkers ───────────────────────────────────────────────────
+
+  const bkLoadThinkers = useCallback(async () => {
+    setThinkersLoading(true);
+    try {
+      const result = await bkThinkerDB.thinkersRepo.query.getAll({
+        page: 0,
+        pageSize: 9999,
+        filters: [],
+      });
+      setThinkers(result.data);
+    } catch (err) {
+      console.error("[BKProcessDetail] Failed to load thinkers:", err);
+    } finally {
+      setThinkersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    bkLoadThinkers();
+  }, [bkLoadThinkers]);
+
+  // ── Thinker selection handler ───────────────────────────────────────
+
+  const handleThinkerChange = useCallback(
+    async (val: unknown) => {
+      const thinkerId = String(val);
+      if (!thinkerId) {
+        setThinker(null);
+        return;
+      }
+      try {
+        const result = await bkThinkerDB.thinkersRepo.get(thinkerId);
+        if (result.isSuccess) {
+          setThinker(result.value);
+        }
+      } catch (err) {
+        console.error("[BKProcessDetail] Failed to load selected thinker:", err);
+      }
+    },
+    [],
+  );
 
   // ── Load Process (client-side IndexedDB) ────────────────────────────
 
@@ -199,11 +372,17 @@ export default function BKProcessDetailPage({
 
     setIsExecuting(true);
     setError("");
+    setConversation([]);
+    setResult("");
+    setCurrentStepIndex(0);
+    setActiveStepIndex(0);
+    isTabPinnedRef.current = false;
 
     const log: string[] = [
       "🚀 Starting process execution...",
       `📋 Association: ${association?.name ?? process.associationId}`,
       `💭 Thought: ${thought.name}`,
+      thinker ? `🧠 Thinker: ${thinker.name} (${thinker.role})` : "🧠 Thinker: None (default)",
     ];
     setExecutionLog(log);
 
@@ -238,6 +417,9 @@ export default function BKProcessDetailPage({
       const request: BKProcessExecutionRequest = {
         thoughtName: thought.name,
         thoughtContent: thought.thought,
+        thinkerName: thinker?.name,
+        thinkerDescription: thinker?.description,
+        thinkerRole: thinker?.role,
         associationContext: slotContextStr || undefined,
         trainOfThoughts: trainOfThoughts.map((tot) => ({
           id: tot.id,
@@ -278,11 +460,24 @@ export default function BKProcessDetailPage({
         return;
       }
 
-      const conversation = result.conversation ?? [];
-      log.push(`✅ AI execution completed (${conversation.length} messages)`);
+      const responseConversation = result.conversation ?? [];
+      log.push(`✅ AI execution completed (${responseConversation.length} messages)`);
       setExecutionLog([...log]);
 
-      // ── 7. Create Think session in IndexedDB ─────────────────────
+      // ── 7. Set conversation state (like BKStudio) ────────────────
+      setConversation(responseConversation);
+
+      // Process final output through craft engine
+      if (responseConversation.length > 0) {
+        const lastMessage = responseConversation[responseConversation.length - 1];
+        const processed = BKCraftEngine.process(
+          lastMessage.content,
+          craftFormat,
+        );
+        setResult(processed.parsed);
+      }
+
+      // ── 8. Create Think session in IndexedDB ─────────────────────
       const thinkId = uuidv7();
       const thinkSlug = `${thought.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
 
@@ -293,14 +488,14 @@ export default function BKProcessDetailPage({
         description: `Auto-generated by process "${process.name}"${association ? ` using association "${association.name}"` : ""}`,
         thoughtId: thought.id,
         thoughtAssociationId: process.associationId,
-        thinkConversation: conversation,
+        thinkConversation: responseConversation,
         status: "completed",
         createdAt: Date.now(),
       } as BKThink);
 
       log.push(`🧠 Think session created: ${thinkId}`);
 
-      // ── 8. Export to Memory in IndexedDB ─────────────────────────
+      // ── 9. Export to Memory in IndexedDB ─────────────────────────
       const memoryId = uuidv7();
       const processedOutput = result.output ?? "";
 
@@ -309,35 +504,34 @@ export default function BKProcessDetailPage({
         thinkId,
         name: `Memory - ${process.name} - ${new Date().toLocaleDateString()}`,
         description: `Exported from process "${process.name}"`,
-        rawOutput: conversation[conversation.length - 1]?.content ?? "",
+        rawOutput: responseConversation[responseConversation.length - 1]?.content ?? "",
         processedOutput:
           processedOutput ||
-          (conversation[conversation.length - 1]?.content ?? ""),
+          (responseConversation[responseConversation.length - 1]?.content ?? ""),
         format: craftFormat,
         createdAt: Date.now(),
       } as BKMemory);
 
       // Create memory neurons for each assistant response
-      for (let i = 0; i < conversation.length; i++) {
-        const msg = conversation[i];
+      for (let i = 0; i < responseConversation.length; i++) {
+        const msg = responseConversation[i];
         if (msg.role === "assistant") {
-          const stepIndex = Math.floor(i / 2) - 1; // -1 to skip system message at index 0
+          const stepIndex = Math.floor(i / 2) - 1;
           const totStep = trainOfThoughts[stepIndex >= 0 ? stepIndex : 0];
+          // Use the raw BKMemoryNeuron structure (memoryId, name, value, order)
           await bkThinkerDB.memoryNeuronsRepo.create({
             id: uuidv7(),
             memoryId,
-            thoughtId: thought.id,
-            trainOfThoughtId: totStep?.id,
             name: totStep?.name ?? `Neuron ${Math.floor(i / 2) + 1}`,
             value: msg.content,
             order: Math.floor(i / 2),
-          } as BKMemoryNeuron);
+          } as any);
         }
       }
 
       log.push(`💾 Memory export: ${memoryId}`);
 
-      // ── 9. Finalize the Process in IndexedDB ─────────────────────
+      // ── 10. Finalize the Process in IndexedDB ────────────────────
       await bkThinkerDB.processesRepo.update(processId, {
         ...process,
         thinkId,
@@ -360,8 +554,9 @@ export default function BKProcessDetailPage({
       setError(message);
     } finally {
       setIsExecuting(false);
+      setCurrentStepIndex(-1);
     }
-  }, [process, thought, trainOfThoughts, association, pattern, craftFormat, processId, aiConfig]);
+  }, [process, thought, trainOfThoughts, association, pattern, craftFormat, processId, aiConfig, thinker]);
 
   // ── Helper: Mark process as errored ───────────────────────────────
 
@@ -388,6 +583,17 @@ export default function BKProcessDetailPage({
       console.error("[BKProcessDetail] Failed to mark error:", err);
     }
   };
+
+  // ── Derive completed steps with conversation pairs ─────────────────
+
+  const completedSteps = trainOfThoughts
+    .map((step, index) => ({
+      step,
+      index,
+      userMessage: conversation[1 + index * 2],
+      assistantMessage: conversation[2 + index * 2],
+    }))
+    .filter((entry) => entry.userMessage);
 
   // ── Render ─────────────────────────────────────────────────────────
 
@@ -452,6 +658,84 @@ export default function BKProcessDetailPage({
         </div>
 
         <div className="flex gap-2">
+          {/* Thinker Selector */}
+          <Select
+            aria-label="Select thinker"
+            value={thinker?.id ?? ""}
+            onChange={handleThinkerChange}
+            placeholder={
+              thinkersLoading
+                ? "Loading..."
+                : thinkers.length === 0
+                  ? "No thinkers"
+                  : "Select thinker"
+            }
+            isDisabled={thinkersLoading || isRunning}
+            className="w-48"
+          >
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              {thinkersLoading ? (
+                <ListBox key="loading">
+                  <ListBox.Item
+                    key="loading-item"
+                    id="loading"
+                    textValue="Loading thinkers..."
+                    className="text-default-400 italic"
+                  >
+                    Loading thinkers...
+                  </ListBox.Item>
+                </ListBox>
+              ) : thinkers.length === 0 ? (
+                <ListBox key="empty">
+                  <ListBox.Item
+                    key="empty-item"
+                    id="empty"
+                    textValue="No thinkers found"
+                    className="text-default-400 italic"
+                  >
+                    No thinkers available
+                  </ListBox.Item>
+                </ListBox>
+              ) : (
+                <ListBox key="ready">
+                  <ListBox.Item
+                    key=""
+                    id=""
+                    textValue="No persona (default)"
+                  >
+                    <span className="text-gray-400">
+                      No persona (default)
+                    </span>
+                  </ListBox.Item>
+                  {thinkers.map((t) => (
+                    <ListBox.Item
+                      key={t.id}
+                      id={t.id}
+                      textValue={t.name}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Brain size={14} className="text-purple-500 shrink-0" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            {t.name}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {t.role.replace(/([A-Z])/g, " $1").trim()}
+                            {t.specialization ? ` • ${t.specialization}` : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              )}
+            </Select.Popover>
+          </Select>
+
           {(isIdle || isErrored) && !isRunning && (
             <Button
               variant="primary"
@@ -586,6 +870,35 @@ export default function BKProcessDetailPage({
         </Card>
       </div>
 
+      {/* Active Thinker Badge */}
+      {thinker && (
+        <Card className="p-4 border-none shadow-sm border-l-4 border-l-purple-500">
+          <div className="flex items-start gap-3">
+            <Brain size={20} className="text-purple-500 mt-0.5 shrink-0" />
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Active Thinker Persona
+              </h3>
+              <p className="text-sm text-gray-700 mt-0.5 font-medium">
+                {thinker.name}
+                {thinker.role && (
+                  <span className="text-gray-500 font-normal">
+                    {" "}
+                    —{" "}
+                    {thinker.role.replace(/([A-Z])/g, " $1").trim()}
+                  </span>
+                )}
+              </p>
+              {thinker.description && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {thinker.description}
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Resolved Context Preview */}
       {resolvedContext && (
         <Card className="p-4 border-none shadow-sm">
@@ -658,6 +971,128 @@ export default function BKProcessDetailPage({
         </Card>
       )}
 
+      {/* ── Train of Thoughts Steps (like BKStudio) ──────────────── */}
+      {conversation.length > 0 && trainOfThoughts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-700">
+              Train of Thoughts Output
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => setShowHistory(true)}
+            >
+              <MessageSquareText size={14} /> Full History
+            </Button>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex flex-wrap gap-1.5 border-b border-gray-200 pb-1.5">
+            {trainOfThoughts.map((step, index) => {
+              const isCompleted = conversation.length > index * 2 + 1;
+              const isActive = index === activeStepIndex;
+
+              return (
+                <Button
+                  key={step.id}
+                  onPress={() => {
+                    if (isCompleted) {
+                      setActiveStepIndex(index);
+                    }
+                  }}
+                  isDisabled={!isCompleted}
+                  className={`flex items-center gap-1.5 px-3 rounded-lg py-2 text-xs font-medium rounded-t-lg transition-all min-w-0 h-auto bg-transparent data-[hover=true]:bg-transparent ${
+                    isActive
+                      ? "border-blue-500 text-blue-700 bg-blue-50/50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {/* Status indicator */}
+                  {isCompleted ? (
+                    <span className="w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center">
+                      <svg
+                        className="w-2 h-2 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span className="w-3.5 h-3.5 rounded-full bg-gray-200" />
+                  )}
+                  <span>{step.name}</span>
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Active Step Panel */}
+          <div>
+            {completedSteps
+              .filter((entry) => entry.index === activeStepIndex)
+              .map((entry) => (
+                <BKProcessStepPanel
+                  key={entry.step.id}
+                  step={entry.step}
+                  index={entry.index}
+                  userMessage={entry.userMessage}
+                  assistantMessage={entry.assistantMessage}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Progress indicator for running */}
+      {isRunning && (
+        <Card className="p-4 border-none shadow-sm border-l-4 border-l-purple-500">
+          <div className="flex items-center gap-3">
+            <Loader2 size={20} className="animate-spin text-purple-600" />
+            <div>
+              <p className="text-sm font-medium text-purple-700">
+                Process Running
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Executing: resolve association → run thought → export to memory
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Processed Output Accordion (like BKStudio) */}
+      {result && (
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowProcessedOutput(!showProcessedOutput)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+          >
+            <span className="text-sm font-medium text-gray-700">
+              Processed Output ({craftFormat})
+            </span>
+            {showProcessedOutput ? (
+              <ChevronDown size={16} className="text-gray-400" />
+            ) : (
+              <ChevronRight size={16} className="text-gray-400" />
+            )}
+          </button>
+          {showProcessedOutput && (
+            <div
+              className="p-4 bg-white prose prose-sm max-w-none border-t border-gray-200"
+              dangerouslySetInnerHTML={{ __html: result }}
+            />
+          )}
+        </div>
+      )}
+
       {/* Results Summary (completed) */}
       {isDone && (
         <Card className="p-4 border-none shadow-sm border-l-4 border-l-green-500">
@@ -705,21 +1140,147 @@ export default function BKProcessDetailPage({
         </Card>
       )}
 
-      {/* Progress indicator for running */}
-      {isRunning && (
-        <Card className="p-4 border-none shadow-sm border-l-4 border-l-purple-500">
-          <div className="flex items-center gap-3">
-            <Loader2 size={20} className="animate-spin text-purple-600" />
-            <div>
-              <p className="text-sm font-medium text-purple-700">
-                Process Running
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Executing: resolve association → run thought → export to memory
-              </p>
+      {/* ── History Modal ──────────────────────────────────────────── */}
+      {showHistory && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowHistory(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[85vh] mx-4 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Full Conversation History
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {conversation.length} messages across{" "}
+                  {completedSteps.length} step(s)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {conversation.map((msg, index) => {
+                const stepIndex = Math.floor(index / 2);
+                const step = trainOfThoughts[stepIndex];
+                return (
+                  <div key={index} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                          msg.role === "assistant"
+                            ? "bg-green-100 text-green-700"
+                            : msg.role === "system"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {msg.role === "system"
+                          ? "System Context"
+                          : msg.role === "user"
+                            ? "You"
+                            : "AI"}
+                      </span>
+                      {step && (
+                        <span className="text-xs text-gray-400">
+                          Step {stepIndex + 1}: {step.name}
+                        </span>
+                      )}
+                      {msg.timestamp && (
+                        <span className="text-xs text-gray-400 ml-auto">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={`p-3 rounded-xl border ${
+                        msg.role === "assistant"
+                          ? "bg-white border-gray-200"
+                          : msg.role === "system"
+                            ? "bg-purple-50 border-purple-100"
+                            : "bg-blue-50 border-blue-100"
+                      }`}
+                    >
+                      <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-700">
+                        <ReactMarkdown
+                          components={{
+                            code({ className, children, ...props }) {
+                              const isInline = !className;
+                              if (isInline) {
+                                return (
+                                  <code
+                                    className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                                    {...props}
+                                  >
+                                    {children}
+                                  </code>
+                                );
+                              }
+                              const codeStr = String(children).replace(
+                                /\n$/,
+                                "",
+                              );
+                              return (
+                                <div className="relative group my-2">
+                                  <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                                    <span>code</span>
+                                    <button
+                                      onClick={() =>
+                                        navigator.clipboard.writeText(codeStr)
+                                      }
+                                      className="hover:text-white transition-colors"
+                                      title="Copy code"
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
+                                  <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  </pre>
+                                </div>
+                              );
+                            },
+                            pre({ children }) {
+                              return <>{children}</>;
+                            },
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );
