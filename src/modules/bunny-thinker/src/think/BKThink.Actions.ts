@@ -193,7 +193,7 @@ export async function executeThinkChatAction(
     //    conversational history natively, just like a direct OpenAI SDK call.
     const output = await helix.doChatWithHistory({
       messages,
-      temperature: request.temperature ?? 0.7,
+      temperature: request.temperature ?? 0.5,
       maxToken: 8000,
     });
 

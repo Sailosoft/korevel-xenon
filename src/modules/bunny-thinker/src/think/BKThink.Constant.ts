@@ -15,7 +15,7 @@ export const bkThinkConstant = {
    * Lower values (0.5-0.7) produce more deterministic, focused output;
    * higher values (0.8-1.0) increase creativity.
    */
-  DEFAULT_JSON_TEMPERATURE: 0.7,
+  DEFAULT_JSON_TEMPERATURE: 0.5,
 
   /** Default maximum output tokens for thought generation. */
   DEFAULT_THOUGHT_MAX_TOKENS: 6000,
