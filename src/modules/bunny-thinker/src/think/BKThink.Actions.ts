@@ -11,6 +11,7 @@
 
 import HelixAIService from "@/src/modules/helix/src/HelixAIService";
 import HelixAISchemaService from "@/src/modules/helix/src/HelixAISchemaService";
+import HelixAIUtil from "@/src/modules/helix/src/HelixAIUtil";
 import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BKPromptBuildThoughtSystem } from "../thoughts/BKThoughts.Prompt";
@@ -18,6 +19,7 @@ import { BKPromptThinkerSwarm } from "../thinker/BKThinker.Prompt";
 import { BKPromptGenerateThought } from "../thoughts/BKThoughts.Prompt";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
 import { BKPromptCraftSystemSuffix } from "../craft/BKCraft.Prompt";
+import { bkThinkConstant } from "./BKThink.Constant";
 
 // ─── Message Types ───────────────────────────────────────────────────────
 
@@ -159,7 +161,12 @@ export async function executeThinkChatAction(
 
     // Inject resolved association context (slot key-value pairs) as reference data
     if (request.associationContext) {
-      systemContent += `\n\n--- Reference Context (Thought Association) ---\nThe following key-value pairs were resolved from the thought pattern/association. Use these values as context when executing the train-of-thought steps:\n${request.associationContext}`;
+      systemContent += `
+        \n\n--- Reference Context (Thought Association) ---
+        \nThe following key-value pairs were resolved from the thought pattern/association. 
+        \nUse these values as context when executing the train-of-thought steps:
+        \n${request.associationContext}
+        `;
     }
 
     // Append craft instruction if specified
@@ -168,7 +175,10 @@ export async function executeThinkChatAction(
     }
 
     // 2. Assemble the full messages array in OpenAI's natural conversation format
-    const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    const messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }> = [
       { role: "system", content: systemContent },
       // Include all prior conversation messages with their original roles
       ...request.messages,
@@ -213,29 +223,41 @@ export async function generateThinkersAction(
   request: BKGenerateThinkersRequest,
 ): Promise<BKGenerateThinkersResponse> {
   try {
-    const helix = createHelixService(request.aiConfig);
+    if (!request.request?.trim()) {
+      return {
+        success: false,
+        thinkers: [],
+        error: "Generation request cannot be empty",
+      };
+    }
 
-    // Use prompt from BKThinker.Prompt
+    const helix = createHelixService(request.aiConfig);
     const prompt = BKPromptThinkerSwarm(request.request);
 
     const output = await helix.doChat({
-      system:
-        "You are a JSON-only response generator. Output ONLY valid JSON arrays, no markdown, no explanations.",
+      system: bkThinkConstant.SYSTEM_JSON_ONLY_ARRAY,
       user: prompt,
-      temperature: 0.8,
-      maxToken: 4000,
+      temperature: bkThinkConstant.DEFAULT_JSON_TEMPERATURE,
+      maxToken: bkThinkConstant.DEFAULT_SWARM_MAX_TOKENS,
     });
 
-    // Try to parse the output as JSON
-    const cleaned = output
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-    const thinkers = JSON.parse(cleaned);
+    // HelixAIUtil.safeJSONParse<T> applies 5 recovery strategies: direct parse,
+    // repair, extract, extract+repair, and unquoted-key fix. This is far more
+    // robust than the ad-hoc fence-stripping regex used previously.
+    const parsed =
+      HelixAIUtil.safeJSONParse<
+        Array<BKGenerateThinkersResponse["thinkers"][number]>
+      >(output);
+
+    if (!parsed.success) {
+      throw new Error(
+        `Failed to parse AI response as JSON array. ${parsed.error}`,
+      );
+    }
 
     return {
       success: true,
-      thinkers: Array.isArray(thinkers) ? thinkers : [],
+      thinkers: Array.isArray(parsed.data) ? parsed.data : [],
     };
   } catch (error) {
     const message =
@@ -259,24 +281,28 @@ export async function generateThoughtAction(
   request: BKGenerateThoughtRequest,
 ): Promise<BKGenerateThoughtResponse> {
   try {
-    const helix = createHelixService(request.aiConfig);
+    if (!request.request?.trim()) {
+      return {
+        success: false,
+        error: "Generation request cannot be empty",
+      };
+    }
 
-    // Use prompt from BKThoughts.Prompt
+    const helix = createHelixService(request.aiConfig);
     const prompt = BKPromptGenerateThought(request.request);
 
-    const output = await helix.doChat({
-      system:
-        "You are a JSON-only response generator. Output ONLY valid JSON objects, no markdown, no explanations.",
+    // Use doChatStructuredFallback with a typed schema for:
+    //   1. Type-safe structured output via HelixInferSchemaProps
+    //   2. Automatic JSON repair & fallback (5 recovery strategies)
+    //   3. Schema-enforced response format instructions in the prompt
+    //   4. No manual fence-stripping or ad-hoc regex cleanup
+    const result = await helix.doChatStructuredFallback({
+      system: bkThinkConstant.SYSTEM_JSON_ONLY_OBJECT,
       user: prompt,
-      temperature: 0.7,
-      maxToken: 6000,
+      temperature: bkThinkConstant.DEFAULT_JSON_TEMPERATURE,
+      maxToken: bkThinkConstant.DEFAULT_THOUGHT_MAX_TOKENS,
+      schema: bkThinkConstant.THOUGHT_GENERATION_SCHEMA,
     });
-
-    const cleaned = output
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-    const result = JSON.parse(cleaned);
 
     return {
       success: true,

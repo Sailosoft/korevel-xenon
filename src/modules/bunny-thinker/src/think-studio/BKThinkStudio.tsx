@@ -12,8 +12,18 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
-import { Button } from "@heroui/react";
-import { ArrowLeft, RotateCcw, MessageSquareText, X, ChevronDown, ChevronRight, Info, List, Settings2 } from "lucide-react";
+import { Button, Select, ListBox } from "@heroui/react";
+import {
+  ArrowLeft,
+  RotateCcw,
+  MessageSquareText,
+  X,
+  ChevronDown,
+  ChevronRight,
+  Info,
+  List,
+  Settings2,
+} from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { executeThinkChatAction } from "../think/BKThink.Actions";
@@ -31,11 +41,12 @@ import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThinkMetaModal from "./BKThinkMetaModal";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
+import BKThinkStudioAnon from "./BKThinkStudioAnon";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
 export interface BKThinkStudioProps {
-  thinkId?: string; // Load existing think
+  thinkId?: string; // Load existing think; when omitted, runs in anonymous mode
 }
 
 // ─── Step Panel Component ────────────────────────────────────────────────
@@ -151,6 +162,12 @@ function BKStepPanel({
 export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const router = useRouter();
   const { aiConfig } = useAISettings();
+
+  // ── Anonymous mode: delegate to BKThinkStudioAnon ─────────────────
+  if (!thinkId) {
+    return <BKThinkStudioAnon aiConfig={aiConfig} />;
+  }
+
   const [think, setThink] = useState<BKThink | null>(null);
   const [thought, setThought] = useState<BKThought | null>(null);
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
@@ -159,9 +176,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [thinker, setThinker] = useState<BKThinker | null>(null);
   const [thinkers, setThinkers] = useState<BKThinker[]>([]);
   const [thinkersLoading, setThinkersLoading] = useState(false);
-  const [conversation, setConversation] = useState<BKConversationMessage[]>(
-    [],
-  );
+  const [conversation, setConversation] = useState<BKConversationMessage[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(-1);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const [isThinking, setIsThinking] = useState(false);
@@ -212,24 +227,21 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
 
   // ── Thinker selection handler ───────────────────────────────────────
 
-  const handleThinkerChange = useCallback(
-    async (val: unknown) => {
-      const thinkerId = String(val);
-      if (!thinkerId) {
-        setThinker(null);
-        return;
+  const handleThinkerChange = useCallback(async (val: unknown) => {
+    const thinkerId = String(val);
+    if (!thinkerId) {
+      setThinker(null);
+      return;
+    }
+    try {
+      const result = await bkThinkerDB.thinkersRepo.get(thinkerId);
+      if (result.isSuccess) {
+        setThinker(result.value);
       }
-      try {
-        const result = await bkThinkerDB.thinkersRepo.get(thinkerId);
-        if (result.isSuccess) {
-          setThinker(result.value);
-        }
-      } catch (err) {
-        console.error("[BKThinkStudio] Failed to load selected thinker:", err);
-      }
-    },
-    [],
-  );
+    } catch (err) {
+      console.error("[BKThinkStudio] Failed to load selected thinker:", err);
+    }
+  }, []);
 
   // ── Load existing think ──────────────────────────────────────────────
 
@@ -311,28 +323,25 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
 
   // ── Handle association selection change ─────────────────────────────
 
-  const handleAssociationChange = useCallback(
-    async (val: unknown) => {
-      const assocId = String(val);
-      setSelectedAssociationId(assocId || undefined);
-      if (!assocId) {
-        setSelectedAssociation(null);
-        return;
+  const handleAssociationChange = useCallback(async (val: unknown) => {
+    const assocId = String(val);
+    setSelectedAssociationId(assocId || undefined);
+    if (!assocId) {
+      setSelectedAssociation(null);
+      return;
+    }
+    try {
+      const result = await bkThinkerDB.thoughtAssociationsRepo.get(assocId);
+      if (result.isSuccess) {
+        setSelectedAssociation(result.value);
       }
-      try {
-        const result = await bkThinkerDB.thoughtAssociationsRepo.get(assocId);
-        if (result.isSuccess) {
-          setSelectedAssociation(result.value);
-        }
-      } catch (err) {
-        console.error(
-          "[BKThinkStudio] Failed to load selected association:",
-          err,
-        );
-      }
-    },
-    [],
-  );
+    } catch (err) {
+      console.error(
+        "[BKThinkStudio] Failed to load selected association:",
+        err,
+      );
+    }
+  }, []);
 
   // ── Run the thinking process ─────────────────────────────────────────
 
@@ -382,8 +391,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
             const slotValue = slotOverrides?.find(
               (sv) => sv.slotId === slot.id,
             );
-            const resolvedValue =
-              slotValue?.value ?? slot.defaultValue ?? "";
+            const resolvedValue = slotValue?.value ?? slot.defaultValue ?? "";
             const label = slot.label || slot.name;
             if (resolvedValue) {
               lines.push(`  - ${label}: ${resolvedValue}`);
@@ -533,8 +541,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
 
       // Process final output through craft engine
       if (initialConversation.length > 0) {
-        const lastMessage =
-          initialConversation[initialConversation.length - 1];
+        const lastMessage = initialConversation[initialConversation.length - 1];
         const processed = BKCraftEngine.process(
           lastMessage.content,
           craftFormat,
@@ -542,9 +549,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         setResult(processed.parsed);
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unknown thinking error",
-      );
+      setError(err instanceof Error ? err.message : "Unknown thinking error");
     } finally {
       setIsThinking(false);
       setCurrentStepIndex(-1);
@@ -585,8 +590,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               const slotValue = slotOverrides?.find(
                 (sv) => sv.slotId === slot.id,
               );
-              const resolvedValue =
-                slotValue?.value ?? slot.defaultValue ?? "";
+              const resolvedValue = slotValue?.value ?? slot.defaultValue ?? "";
               const label = slot.label || slot.name;
               if (resolvedValue) {
                 lines.push(`  - ${label}: ${resolvedValue}`);
@@ -716,7 +720,15 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         setCurrentStepIndex(-1);
       }
     },
-    [think, thought, thinker, conversation, trainOfThoughts, craftFormat, selectedAssociation],
+    [
+      think,
+      thought,
+      thinker,
+      conversation,
+      trainOfThoughts,
+      craftFormat,
+      selectedAssociation,
+    ],
   );
 
   // ── Generate Memory ─────────────────────────────────────────────────
@@ -766,7 +778,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         err instanceof Error ? err.message : "Failed to generate memory",
       );
     }
-  }, [think, conversation, result, craftFormat]);
+  }, [think, thought, thinker, conversation, result, craftFormat]);
 
   // ── Derive completed steps with conversation pairs ───────────────────
 
@@ -804,9 +816,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 size="sm"
                 isIconOnly
                 aria-label="Thought List"
-                onPress={() =>
-                  router.push("/modules/bunny-thinker/thoughts")
-                }
+                onPress={() => router.push("/modules/bunny-thinker/thoughts")}
               >
                 <List size={18} />
               </Button>
@@ -905,8 +915,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           <div className="flex flex-wrap gap-1.5 border-b border-gray-200 pb-1.5">
             {trainOfThoughts.map((step, index) => {
               const isCompleted = conversation.length > index * 2 + 1;
-              const isProcessing =
-                isThinking && index === currentStepIndex;
+              const isProcessing = isThinking && index === currentStepIndex;
               const isActive = index === activeStepIndex;
 
               return (
@@ -965,9 +974,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           <div className="flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm text-blue-700">
-              Processing step {currentStepIndex + 1} of{" "}
-              {trainOfThoughts.length}:{" "}
-              {trainOfThoughts[currentStepIndex]?.name}
+              Processing step {currentStepIndex + 1} of {trainOfThoughts.length}
+              : {trainOfThoughts[currentStepIndex]?.name}
             </span>
           </div>
         </div>
@@ -978,9 +986,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         <div className="space-y-3">
           {/* Step header with rethink button */}
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">
-              Step Details
-            </h3>
+            <h3 className="text-sm font-medium text-gray-700">Step Details</h3>
             <Button
               variant="ghost"
               size="sm"
@@ -1057,8 +1063,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                   Full Conversation History
                 </h3>
                 <p className="text-sm text-gray-500">
-                  {conversation.length} messages across{" "}
-                  {completedSteps.length} step(s)
+                  {conversation.length} messages across {completedSteps.length}{" "}
+                  step(s)
                 </p>
               </div>
               <button

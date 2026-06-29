@@ -11,6 +11,7 @@ import {
   Link2,
   Workflow,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
@@ -36,6 +37,11 @@ const THINKER_SHELL_CONFIG: BUIDocumentShellConfig = {
       href: "/modules/bunny-thinker",
       label: "Dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      href: "/modules/bunny-thinker/think-studio",
+      label: "Think Studio",
+      icon: Sparkles,
     },
     {
       href: "/modules/bunny-thinker/thinkers",
