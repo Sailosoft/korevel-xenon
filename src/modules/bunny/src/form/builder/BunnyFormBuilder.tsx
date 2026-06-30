@@ -59,24 +59,31 @@ export function BunnyFormBuilder<T>({
           config.gridCols === 2 ? "grid-cols-2" : "grid-cols-1",
         )}
       >
-        {config.fields.map((field) => (
-          <div
-            key={field.name}
-            className={cn(
-              field.colSpan ? colSpanMap[field.colSpan] : "",
-              "w-full px-1",
-            )}
-          >
-            <FieldRenderer
-              field={field as BunnyFormField<Record<string, unknown>>}
-              value={(formData as Record<string, unknown>)[field.name]}
-              formData={formData as Record<string, unknown>}
-              onChange={onChange}
-              error={errors[field.name]}
-              instanceId={instanceId}
-            />
-          </div>
-        ))}
+        {config.fields.map((field) => {
+          const rawValue = (formData as Record<string, unknown>)[field.name];
+          const formattedValue = field.format
+            ? field.format(rawValue, formData)
+            : rawValue;
+
+          return (
+            <div
+              key={field.name}
+              className={cn(
+                field.colSpan ? colSpanMap[field.colSpan] : "",
+                "w-full px-1",
+              )}
+            >
+              <FieldRenderer
+                field={field as BunnyFormField<Record<string, unknown>>}
+                value={formattedValue}
+                formData={formData as Record<string, unknown>}
+                onChange={onChange}
+                error={errors[field.name]}
+                instanceId={instanceId}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

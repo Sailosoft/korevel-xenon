@@ -29,10 +29,10 @@ export const bkThinkConstant = {
    * markdown fences, preamble text, or explanatory prose.
    */
   SYSTEM_JSON_ONLY_OBJECT:
-    "You are a JSON-only response generator. Output ONLY valid JSON objects, no markdown, no explanations.",
+    "You are a JSON-only response generator. Output ONLY a valid JSON object. Do not wrap the JSON in markdown code blocks (do not use triple-backticks) and do not provide any explanations or conversational text outside of the JSON structure itself. However, the text values inside the JSON keys SHOULD be rich, highly detailed, and use markdown formatting (such as headers, bolding, lists, and code blocks) and explanations where appropriate.",
 
   SYSTEM_JSON_ONLY_ARRAY:
-    "You are a JSON-only response generator. Output ONLY valid JSON arrays, no markdown, no explanations.",
+    "You are a JSON-only response generator. Output ONLY a valid JSON array. Do not wrap the JSON in markdown code blocks (do not use triple-backticks) and do not provide any explanations or conversational text outside of the JSON structure itself. However, the text values inside the JSON keys SHOULD be rich, highly detailed, and use markdown formatting (such as headers, bolding, lists, and code blocks) and explanations where appropriate.",
 
   /**
    * Schema for structured thought generation output.

@@ -14,8 +14,18 @@ export const bkMemoryModule = BunnyFeature.create<BKMemory, BKMemory>(
     feature.configureTable((table) => {
       table.addColumns([
         { field: "name", header: "Name", sortable: true, isRowHeader: true },
-        { field: "format", header: "Format", sortable: true },
-        { field: "createdAt", header: "Created", sortable: true },
+        {
+          field: "format",
+          header: "Format",
+          sortable: true,
+          format: (val) => (val ? String(val).toUpperCase() : ""),
+        },
+        {
+          field: "createdAt",
+          header: "Created",
+          sortable: true,
+          format: (val) => (val ? new Date(val).toLocaleString() : ""),
+        },
       ]);
     });
 

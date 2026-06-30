@@ -168,7 +168,15 @@ function MobileCardCell<TRow>({
               </Checkbox>
             )}
             <span className="font-semibold text-sm">
-              {String(row[columns[0]?.field as keyof TRow] ?? "").slice(0, 50)}
+              {(() => {
+                const firstCol = columns[0];
+                if (!firstCol) return "";
+                const val = row[firstCol.field as keyof TRow];
+                const formatted = firstCol.format
+                  ? firstCol.format(val, row, firstCol)
+                  : val;
+                return String(formatted ?? "").slice(0, 50);
+              })()}
             </span>
           </div>
 
@@ -220,21 +228,27 @@ function MobileCardCell<TRow>({
         ) : (
           /* Default Value Grid mapping fallback */
           <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-            {columns.map((col, index) => (
-              <div
-                key={`cell-${String(col.field)}-${index}`}
-                className="contents"
-              >
-                <span className="text-default-500 font-medium">
-                  {String(col.header)}:
-                </span>
-                <span className="text-default-800 text-right truncate">
-                  {col.render
-                    ? col.render(row, col)
-                    : String(row[col.field as keyof TRow] ?? "")}
-                </span>
-              </div>
-            ))}
+            {columns.map((col, index) => {
+              const rawValue = row[col.field as keyof TRow];
+              const formattedValue = col.format
+                ? col.format(rawValue, row, col)
+                : rawValue;
+              return (
+                <div
+                  key={`cell-${String(col.field)}-${index}`}
+                  className="contents"
+                >
+                  <span className="text-default-500 font-medium">
+                    {String(col.header)}:
+                  </span>
+                  <span className="text-default-800 text-right truncate">
+                    {col.render
+                      ? col.render(row, col)
+                      : String(formattedValue ?? "")}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -265,13 +279,19 @@ function DesktopRowCells<TRow>({
         </Table.Cell>
       )}
 
-      {columns.map((col, index) => (
-        <Table.Cell key={`cell-${String(col.field)}-${index}`}>
-          {col.render
-            ? col.render(row, col)
-            : String(row[col.field as keyof TRow] ?? "").slice(0, 50)}
-        </Table.Cell>
-      ))}
+      {columns.map((col, index) => {
+        const rawValue = row[col.field as keyof TRow];
+        const formattedValue = col.format
+          ? col.format(rawValue, row, col)
+          : rawValue;
+        return (
+          <Table.Cell key={`cell-${String(col.field)}-${index}`}>
+            {col.render
+              ? col.render(row, col)
+              : String(formattedValue ?? "").slice(0, 50)}
+          </Table.Cell>
+        );
+      })}
 
       {actions && (
         <Table.Cell>

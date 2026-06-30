@@ -16,7 +16,12 @@ export const bkIdeaModule = BunnyFeature.create<BKIdea, BKIdea>(
         { field: "name", header: "Name", sortable: true, isRowHeader: true },
         { field: "tags", header: "Tags", sortable: true },
         { field: "idea", header: "Content", sortable: false },
-        { field: "createdAt", header: "Created", sortable: true },
+        {
+          field: "createdAt",
+          header: "Created",
+          sortable: true,
+          format: (val) => (val ? new Date(val).toLocaleString() : ""),
+        },
       ]);
     });
 
