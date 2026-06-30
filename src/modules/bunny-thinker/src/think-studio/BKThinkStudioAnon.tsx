@@ -7,7 +7,7 @@
 // page, run the thinking process, review results, export as JSON, or save
 // as a full persistent thought (redirects to think studio on save).
 
-import React, { useCallback, useRef, useEffect, useMemo } from "react";
+import React, { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { Button, Select, ListBox } from "@heroui/react";
@@ -35,6 +35,9 @@ import {
 import { useAnonymousMode } from "./BKThinkStudioAnonHooks";
 import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
 import type { HelixAIOption } from "@/src/modules/helix";
+import { BKCraftEngine } from "../craft/BKCraft.Engine";
+import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import { MermaidGraph } from "mermaid-graph";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 
 // ─── Props ───────────────────────────────────────────────────────────────
@@ -45,17 +48,144 @@ export interface BKThinkStudioAnonProps {
 
 // ─── Step Panel Component ────────────────────────────────────────────────
 
+function renderCraftContent(
+  content: string,
+  craftFormat: BKCraftFormat,
+  viewMode: "view" | "raw",
+) {
+  // Raw mode OR markdown: always render through ReactMarkdown
+  if (viewMode === "raw" || craftFormat === "markdown") {
+    return (
+      <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
+        <ReactMarkdown
+          components={{
+            code({ className, children, ...props }) {
+              const isInline = !className;
+              const match = /language-(\w+)/.exec(className || "");
+              const codeStr = String(children).replace(/\n$/, "");
+
+              if (isInline) {
+                return (
+                  <code
+                    className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                );
+              }
+
+              return (
+                <div className="relative group">
+                  <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                    <span>{match?.[1] || "code"}</span>
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(codeStr)
+                      }
+                      className="hover:text-white transition-colors"
+                      title="Copy code"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  </pre>
+                </div>
+              );
+            },
+            pre({ children }) {
+              return <>{children}</>;
+            },
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  // View mode for non-markdown formats — use the Craft Engine
+  const processed = BKCraftEngine.process(content, craftFormat);
+
+  switch (craftFormat) {
+    case "html":
+      return (
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processed.parsed }}
+        />
+      );
+    case "tailwind":
+      return (
+        <iframe
+          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${content}</body></html>`}
+          className="w-full border-0 rounded-lg"
+          title="Tailwind Preview"
+          style={{ minHeight: 400 }}
+        />
+      );
+    case "csv":
+      return (
+        <div
+          className="prose prose-sm max-w-none overflow-x-auto"
+          dangerouslySetInnerHTML={{ __html: processed.parsed }}
+        />
+      );
+    case "json":
+      return (
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processed.parsed }}
+        />
+      );
+    case "imageList":
+      return (
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processed.parsed }}
+        />
+      );
+    case "mermaid":
+      return (
+        <div className="bg-white p-4 rounded-lg">
+          <MermaidGraph graphCode={content} />
+        </div>
+      );
+    case "plain":
+      return (
+        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
+          {content}
+        </pre>
+      );
+    default:
+      return (
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processed.parsed }}
+        />
+      );
+  }
+}
+
 function BKStepPanel({
   step,
   index,
   userMessage,
   assistantMessage,
+  craftFormat,
 }: {
   step: { name: string; thought: string };
   index: number;
   userMessage?: { role: string; content: string; timestamp: number };
   assistantMessage?: { role: string; content: string; timestamp: number };
+  craftFormat: BKCraftFormat;
 }) {
+  const [viewMode, setViewMode] = useState<"view" | "raw">("view");
+
   return (
     <div className="space-y-4">
       {userMessage && (
@@ -85,57 +215,41 @@ function BKStepPanel({
             <span className="text-xs text-gray-400">
               {new Date(assistantMessage.timestamp).toLocaleTimeString()}
             </span>
+            {/* View / Raw toggle — only for non-markdown formats */}
+            {craftFormat !== "markdown" && (
+              <div className="ml-auto">
+                <div
+                  role="group"
+                  className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("view")}
+                    className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                      viewMode === "view"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("raw")}
+                    className={`px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200 ${
+                      viewMode === "raw"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Raw
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
-              <ReactMarkdown
-                components={{
-                  code({ className, children, ...props }) {
-                    const isInline = !className;
-                    const match = /language-(\w+)/.exec(className || "");
-                    const codeStr = String(children).replace(/\n$/, "");
-
-                    if (isInline) {
-                      return (
-                        <code
-                          className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <div className="relative group">
-                        <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                          <span>{match?.[1] || "code"}</span>
-                          <button
-                            onClick={() =>
-                              navigator.clipboard.writeText(codeStr)
-                            }
-                            className="hover:text-white transition-colors"
-                            title="Copy code"
-                          >
-                            Copy
-                          </button>
-                        </div>
-                        <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        </pre>
-                      </div>
-                    );
-                  },
-                  pre({ children }) {
-                    return <>{children}</>;
-                  },
-                }}
-              >
-                {assistantMessage.content}
-              </ReactMarkdown>
-            </div>
+            {renderCraftContent(assistantMessage.content, craftFormat, viewMode)}
           </div>
         </div>
       ) : (
@@ -188,6 +302,7 @@ export default function BKThinkStudioAnon({
     activeStepIndex,
     error,
     result,
+    rawResult,
     craftFormat,
     trainOfThoughts,
     showProcessedOutput,
@@ -226,6 +341,7 @@ export default function BKThinkStudioAnon({
   const [showHistory, setShowHistory] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<"view" | "raw">("view");
 
   // ── Handle save ────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
@@ -1102,6 +1218,7 @@ export default function BKThinkStudioAnon({
                   index={entry.index}
                   userMessage={entry.userMessage}
                   assistantMessage={entry.assistantMessage}
+                  craftFormat={craftFormat}
                 />
               ))}
           </div>
@@ -1125,17 +1242,169 @@ export default function BKThinkStudioAnon({
             <span className="text-sm font-medium text-gray-700">
               Processed Output ({craftFormat})
             </span>
-            {showProcessedOutput ? (
-              <ChevronDown size={16} className="text-gray-400" />
-            ) : (
-              <ChevronRight size={16} className="text-gray-400" />
-            )}
+            <div className="flex items-center gap-2">
+              {/* View / Raw toggle — only when craft is enabled and not markdown */}
+              {craftFormat !== "markdown" && result && (
+                <div
+                  role="group"
+                  className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMode("view");
+                    }}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      viewMode === "view"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMode("raw");
+                    }}
+                    className={`px-3 py-1 text-xs font-medium transition-colors border-l border-gray-200 ${
+                      viewMode === "raw"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Raw
+                  </button>
+                </div>
+              )}
+              {showProcessedOutput ? (
+                <ChevronDown size={16} className="text-gray-400" />
+              ) : (
+                <ChevronRight size={16} className="text-gray-400" />
+              )}
+            </div>
           </button>
           {showProcessedOutput && (
-            <div
-              className="p-4 bg-white prose prose-sm max-w-none border-t border-gray-200"
-              dangerouslySetInnerHTML={{ __html: result }}
-            />
+            <div className="p-4 bg-white border-t border-gray-200">
+              {viewMode === "view" && craftFormat !== "markdown" ? (
+                /* ── View mode: format-specific rendering ── */
+                (() => {
+                  const displayContent = rawResult || result;
+                  switch (craftFormat) {
+                    case "html":
+                      return (
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: displayContent }}
+                        />
+                      );
+                    case "tailwind":
+                      return (
+                        <iframe
+                          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${displayContent}</body></html>`}
+                          className="w-full border-0 rounded-lg"
+                          title="Tailwind Preview"
+                          style={{ minHeight: 400 }}
+                        />
+                      );
+                    case "csv":
+                      return (
+                        <div
+                          className="prose prose-sm max-w-none overflow-x-auto"
+                          dangerouslySetInnerHTML={{ __html: result }}
+                        />
+                      );
+                    case "json":
+                      return (
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: result }}
+                        />
+                      );
+                    case "imageList":
+                      return (
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: result }}
+                        />
+                      );
+                    case "mermaid":
+                      return (
+                        <div className="bg-white p-4 rounded-lg">
+                          <MermaidGraph graphCode={displayContent} />
+                        </div>
+                      );
+                    case "plain":
+                      return (
+                        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
+                          {displayContent}
+                        </pre>
+                      );
+                    default:
+                      return (
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: result }}
+                        />
+                      );
+                  }
+                })()
+              ) : (
+                /* ── Raw mode OR markdown: show raw content via ReactMarkdown ── */
+                <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
+                  <ReactMarkdown
+                    components={{
+                      code({ className, children, ...props }) {
+                        const isInline = !className;
+                        const match = /language-(\w+)/.exec(className || "");
+                        const codeStr = String(children).replace(/\n$/, "");
+
+                        if (isInline) {
+                          return (
+                            <code
+                              className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          );
+                        }
+
+                        return (
+                          <div className="relative group">
+                            <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                              <span>{match?.[1] || "code"}</span>
+                              <button
+                                onClick={() =>
+                                  navigator.clipboard.writeText(codeStr)
+                                }
+                                className="hover:text-white transition-colors"
+                                title="Copy code"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                            <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                              <code className={className} {...props}>
+                                {children}
+                              </code>
+                            </pre>
+                          </div>
+                        );
+                      },
+                      pre({ children }) {
+                        return <>{children}</>;
+                      },
+                    }}
+                  >
+                    {rawResult || result}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -16,7 +16,7 @@ import type { BKThinkMessage } from "../think/BKThink.Actions";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKConversationMessage } from "../thoughts/BKThoughts.Types";
 import type { BKThinker } from "../thinker/BKThinker.Types";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
 import type {
   BKThoughtAssociation,
   BKAssociationSlotValue,
@@ -70,6 +70,7 @@ export interface UseAnonymousModeReturn {
   activeStepIndex: number;
   error: string;
   result: string;
+  rawResult: string;
   craftFormat: BKCraftFormat;
   trainOfThoughts: BKTrainOfThought[];
   showProcessedOutput: boolean;
@@ -189,6 +190,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [rawResult, setRawResult] = useState("");
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
     [],
@@ -533,7 +535,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
             newMessage: { name: step.name, content: step.thought },
-            craftFormat: undefined,
+            craftFormat,
             associationContext,
             aiConfig,
           });
@@ -560,6 +562,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         if (initialConversation.length > 0) {
           const lastMessage =
             initialConversation[initialConversation.length - 1];
+          setRawResult(lastMessage.content);
           const processed = BKCraftEngine.process(
             lastMessage.content,
             craftFormat,
@@ -621,7 +624,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
             newMessage: { name: step.name, content: step.thought },
-            craftFormat: undefined,
+            craftFormat,
             associationContext,
             aiConfig,
           });
@@ -648,6 +651,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         if (truncatedConversation.length > 0) {
           const lastMessage =
             truncatedConversation[truncatedConversation.length - 1];
+          setRawResult(lastMessage.content);
           const processed = BKCraftEngine.process(
             lastMessage.content,
             craftFormat,
@@ -811,6 +815,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     setActiveStepIndex(0);
     setError("");
     setResult("");
+    setRawResult("");
     setTrainOfThoughts([]);
     setShowProcessedOutput(false);
   }, []);
@@ -840,6 +845,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     activeStepIndex,
     error,
     result,
+    rawResult,
     craftFormat,
     trainOfThoughts,
     showProcessedOutput,
