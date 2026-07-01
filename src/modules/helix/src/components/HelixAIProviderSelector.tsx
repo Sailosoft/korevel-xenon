@@ -1,3 +1,4 @@
+"use client"
 /**
  * ───────────────────────────────────────────────────────────────────────────────
  * HelixAIProviderSelector — Generic AI Provider Selection Component
