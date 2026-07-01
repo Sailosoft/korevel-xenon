@@ -11,6 +11,9 @@ export const BKCraftFormats = [
   "imageList",
   "mermaid",
   "plain",
+  "architecture",
+  "agentSwarm",
+  "docker",
 ] as const;
 
 export const BKCraftFormatEnum = z.enum(BKCraftFormats);
@@ -53,6 +56,12 @@ export const BKCraftFormatDescriptions: Record<BKCraftFormat, string> = {
     "Mermaid diagram code. Output should be Mermaid syntax compatible with mermaid. Use ```mermaid fences only if you are explicitly providing a fenced block.",
   plain:
     "Plain text output only. No Markdown code fences and no Markdown formatting syntax. Keep it readable using paragraph breaks and simple line-based structure (e.g., numbered lines like '1. ...' or short bullet-like lines). Do not wrap the text in backticks.",
+  architecture:
+    "Architecture document output. Generates a comprehensive Architecture.md file describing the full system architecture, components, data flow, design decisions, and setup instructions for agentic coding assistants to read and understand the codebase. Use Markdown syntax with headings, lists, code blocks, and diagrams.",
+  agentSwarm:
+    "Agent Swarm document output. Generates an Agent.md file with instructions, capabilities, behavioral guidelines, and swarm coordination rules for AI agents operating within the system. Compatible with standard agentic coding conventions (CLAUDE.md, AGENTS.md). Use clear Markdown with structured sections.",
+  docker:
+    "Docker Compose YAML output. Generates valid docker-compose YAML configuration for services, networks, and volumes. Output clean YAML without explanatory text. The craft engine renders it in a Monaco editor with YAML syntax highlighting for review.",
 };
 
 

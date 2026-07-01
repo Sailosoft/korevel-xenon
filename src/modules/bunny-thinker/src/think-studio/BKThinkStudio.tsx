@@ -12,6 +12,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
+import Editor from "@monaco-editor/react";
 import { MermaidGraph } from "mermaid-graph";
 import { Button, Select, ListBox } from "@heroui/react";
 import {
@@ -57,8 +58,13 @@ function renderCraftContent(
   craftFormat: BKCraftFormat,
   viewMode: "view" | "raw",
 ) {
-  // Raw mode OR markdown: always render through ReactMarkdown
-  if (viewMode === "raw" || craftFormat === "markdown") {
+  // Raw mode OR markdown-like formats: always render through ReactMarkdown
+  if (
+    viewMode === "raw" ||
+    craftFormat === "markdown" ||
+    craftFormat === "architecture" ||
+    craftFormat === "agentSwarm"
+  ) {
     return (
       <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
         <ReactMarkdown
@@ -153,10 +159,40 @@ function renderCraftContent(
           dangerouslySetInnerHTML={{ __html: processed.parsed }}
         />
       );
-    case "mermaid":
+    case "mermaid": {
+      // Strip ```mermaid fences — pass raw diagram value only, no code wrap
+      const mermaidMatch = content.match(/```mermaid\n?([\s\S]*?)```/);
+      const diagram = mermaidMatch ? mermaidMatch[1].trim() : content.trim();
       return (
         <div className="bg-white p-4 rounded-lg">
-          <MermaidGraph graphCode={content} />
+          <MermaidGraph graphCode={diagram} />
+        </div>
+      );
+    }
+    case "docker":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>docker-compose.yaml</span>
+            <span className="text-gray-500">YAML</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="yaml"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
         </div>
       );
     case "plain":
@@ -221,8 +257,10 @@ function BKStepPanel({
             <span className="text-xs text-gray-400">
               {new Date(assistantMessage.timestamp).toLocaleTimeString()}
             </span>
-            {/* View / Raw toggle — only for non-markdown formats */}
-            {craftFormat !== "markdown" && (
+            {/* View / Raw toggle — only for non-markdown-like formats */}
+            {craftFormat !== "markdown" &&
+              craftFormat !== "architecture" &&
+              craftFormat !== "agentSwarm" && (
               <div className="ml-auto">
                 <div
                   role="group"
@@ -301,6 +339,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [error, setError] = useState<string>("");
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
   const [viewMode, setViewMode] = useState<"view" | "raw">("view");
+  const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
 
   // ── Association Select State ──────────────────────────────────────────
   const [associations, setAssociations] = useState<BKThoughtAssociation[]>([]);
@@ -394,6 +433,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         .filter((t: BKTrainOfThought) => t.thoughtId === loadedThink.thoughtId)
         .sort((a: BKTrainOfThought, b: BKTrainOfThought) => a.order - b.order);
       setTrainOfThoughts(filteredTrains);
+
+      // Load craft configs for per-step craft format resolution
+      const allCraftConfigs = await bkThinkerDB.craftConfigs
+        .toArray() as BKCraftConfig[];
+      setCraftConfigs(allCraftConfigs);
 
       // If think has a saved association, pre-select it
       if (loadedThink.thoughtAssociationId) {
@@ -925,12 +969,21 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   // ── Derive completed steps with conversation pairs ───────────────────
 
   const completedSteps = trainOfThoughts
-    .map((step, index) => ({
-      step,
-      index,
-      userMessage: conversation[1 + index * 2],
-      assistantMessage: conversation[2 + index * 2],
-    }))
+    .map((step, index) => {
+      // Resolve per-step craft format from the step's craftId → BKCraftConfig
+      const stepCraftConfig = step.craftId
+        ? craftConfigs.find((c) => c.id === step.craftId)
+        : null;
+      const resolvedCraftFormat = stepCraftConfig?.format ?? craftFormat;
+
+      return {
+        step,
+        index,
+        userMessage: conversation[1 + index * 2],
+        assistantMessage: conversation[2 + index * 2],
+        resolvedCraftFormat,
+      };
+    })
     .filter((entry) => entry.userMessage);
 
   // ── Render ──────────────────────────────────────────────────────────
@@ -1148,7 +1201,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                   index={entry.index}
                   userMessage={entry.userMessage}
                   assistantMessage={entry.assistantMessage}
-                  craftFormat={craftFormat}
+                  craftFormat={entry.resolvedCraftFormat}
                 />
               ))}
           </div>
@@ -1175,8 +1228,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               Processed Output ({craftFormat})
             </span>
             <div className="flex items-center gap-2">
-              {/* View / Raw toggle — only when craft is enabled and not markdown */}
-              {craftFormat !== "markdown" && result && (
+              {/* View / Raw toggle — only when craft is enabled and not markdown-like */}
+              {craftFormat !== "markdown" &&
+                craftFormat !== "architecture" &&
+                craftFormat !== "agentSwarm" &&
+                result && (
                 <div
                   role="group"
                   className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden"
@@ -1221,7 +1277,10 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           </button>
           {showProcessedOutput && (
             <div className="p-4 bg-white border-t border-gray-200">
-              {viewMode === "view" && craftFormat !== "markdown" ? (
+              {viewMode === "view" &&
+              craftFormat !== "markdown" &&
+              craftFormat !== "architecture" &&
+              craftFormat !== "agentSwarm" ? (
                 /* ── View mode: format-specific rendering ── */
                 (() => {
                   const displayContent = rawResult || result;
@@ -1263,10 +1322,40 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                           dangerouslySetInnerHTML={{ __html: result }}
                         />
                       );
-                    case "mermaid":
+                    case "mermaid": {
+                      // Strip ```mermaid fences — pass raw diagram value only
+                      const mermaidMatch = displayContent.match(/```mermaid\n?([\s\S]*?)```/);
+                      const diagram = mermaidMatch ? mermaidMatch[1].trim() : displayContent.trim();
                       return (
                         <div className="bg-white p-4 rounded-lg">
-                          <MermaidGraph graphCode={displayContent} />
+                          <MermaidGraph graphCode={diagram} />
+                        </div>
+                      );
+                    }
+                    case "docker":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>docker-compose.yaml</span>
+                            <span className="text-gray-500">YAML</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="yaml"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
                         </div>
                       );
                     case "plain":
