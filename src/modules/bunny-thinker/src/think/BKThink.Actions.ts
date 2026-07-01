@@ -65,6 +65,8 @@ export interface BKThinkChatRequest {
   aiConfig?: HelixAIOption;
   /** Craft format for output */
   craftFormat?: BKCraftFormat;
+  /** Custom instruction from BKCraftConfig for more specific formatting directives */
+  craftInstruction?: string;
   /** Temperature override */
   temperature?: number;
 }
@@ -169,9 +171,12 @@ export async function executeThinkChatAction(
         `;
     }
 
-    // Append craft instruction if specified
+    // Append craft instruction if specified, passing custom instruction from BKCraftConfig
     if (request.craftFormat) {
-      systemContent += BKPromptCraftSystemSuffix(request.craftFormat);
+      systemContent += BKPromptCraftSystemSuffix(
+        request.craftFormat,
+        request.craftInstruction,
+      );
     }
 
     // 2. Assemble the full messages array in OpenAI's natural conversation format

@@ -18,7 +18,12 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
       table.addColumns([
         { field: "name", header: "Name", sortable: true, isRowHeader: true },
         { field: "description", header: "Description", sortable: false },
-        { field: "createdAt", header: "Created", sortable: true },
+        {
+          field: "createdAt",
+          header: "Created",
+          sortable: true,
+          format: (val) => (val ? new Date(val).toLocaleString() : ""),
+        },
       ]);
     });
 

@@ -45,6 +45,12 @@ export class BKCraftEngine {
         return BKCraftEngine.processMermaid(raw);
       case "plain":
         return BKCraftEngine.processPlain(raw);
+      case "architecture":
+        return BKCraftEngine.processArchitecture(raw);
+      case "agentSwarm":
+        return BKCraftEngine.processAgentSwarm(raw);
+      case "docker":
+        return BKCraftEngine.processDocker(raw);
       default:
         return BKCraftEngine.processMarkdown(raw);
     }
@@ -197,8 +203,18 @@ export class BKCraftEngine {
     html += "</div>";
 
     if (images.length === 0) {
-      // No images found, just return raw with note
-      html = `<p class="text-gray-500 italic">No images found from supported sources. Raw output:</p><pre class="mt-2 bg-gray-50 p-4 rounded-lg text-sm">${raw}</pre>`;
+      if (foundUrls.length > 0) {
+        // Show all found URLs as clickable links so user can visit the source sites
+        const links = foundUrls
+          .map(
+            (url) =>
+              `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline block mb-1 break-all">${url}</a>`,
+          )
+          .join("");
+        html = `<div class="space-y-1 text-sm">${links}</div>`;
+      } else {
+        html = `<p class="text-gray-500 italic">No images or links found.</p>`;
+      }
     }
 
     return { raw, parsed: html, format: "imageList", images };
@@ -225,5 +241,38 @@ export class BKCraftEngine {
   private static processPlain(raw: string): BKCraftEngineResult {
     const html = `<div class="bk-craft-plain whitespace-pre-wrap font-mono text-sm">${raw}</div>`;
     return { raw, parsed: html, format: "plain" };
+  }
+
+  /**
+   * Process Architecture — markdown document for agentic coding setup.
+   * Generates Architecture.md describing system architecture for AI agents to read.
+   */
+  private static processArchitecture(raw: string): BKCraftEngineResult {
+    // Wrap in a styled markdown container — content rendered via ReactMarkdown in the UI
+    const html = `<div class="bk-craft-architecture prose prose-sm max-w-none">${raw}</div>`;
+    return { raw, parsed: html, format: "architecture" };
+  }
+
+  /**
+   * Process AgentSwarm — markdown document for agent behavioral guidelines.
+   * Generates Agent.md compatible with agentic coding conventions (CLAUDE.md, AGENTS.md).
+   */
+  private static processAgentSwarm(raw: string): BKCraftEngineResult {
+    const html = `<div class="bk-craft-agent-swarm prose prose-sm max-w-none">${raw}</div>`;
+    return { raw, parsed: html, format: "agentSwarm" };
+  }
+
+  /**
+   * Process Docker — YAML output for docker-compose configuration.
+   * Displayed in Monaco editor with YAML syntax highlighting.
+   */
+  private static processDocker(raw: string): BKCraftEngineResult {
+    // Wrap YAML content in a pre/code block for raw fallback rendering
+    const escaped = raw
+      .replace(/&/g, "&")
+      .replace(/</g, "<")
+      .replace(/>/g, ">");
+    const html = `<div class="bk-craft-docker"><pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>${escaped}</code></pre></div>`;
+    return { raw, parsed: html, format: "docker" };
   }
 }

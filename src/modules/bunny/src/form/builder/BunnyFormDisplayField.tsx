@@ -30,16 +30,21 @@ function resolveValue<TForm = Record<string, unknown>>(
  */
 export default function BunnyFormDisplayField<TForm = Record<string, unknown>>({
   field,
+  value,
   formData,
+  onChange,
+  error,
 }: BunnyFieldRendererProps<TForm>) {
   const displayConfig = field.display as
     | BunnyDisplayFieldConfig<TForm>
     | undefined;
 
-  const title = useMemo(
-    () => resolveValue(displayConfig?.title, formData),
-    [displayConfig?.title, formData, displayConfig],
-  );
+  const title = useMemo(() => {
+    if (displayConfig?.title !== undefined) {
+      return resolveValue(displayConfig.title, formData);
+    }
+    return value !== undefined && value !== null ? String(value) : "";
+  }, [displayConfig?.title, formData, value]);
 
   const subtitle = useMemo(
     () => resolveValue(displayConfig?.subtitle, formData),
@@ -49,11 +54,8 @@ export default function BunnyFormDisplayField<TForm = Record<string, unknown>>({
   const mode = displayConfig?.mode ?? "card";
 
   // Custom mode — delegate to user-provided render function.
-  // `value` is set to the field's own value (formData[field.name]) for consistency
-  // with other field types (custom, render).
-  const fieldValue = (formData as Record<string, unknown>)[field.name];
   if (mode === "custom" && displayConfig?.render) {
-    return <>{displayConfig.render({ field, value: fieldValue, formData, onChange: () => {} })}</>;
+    return <>{displayConfig.render({ field, value, formData, onChange })}</>;
   }
 
   switch (mode) {

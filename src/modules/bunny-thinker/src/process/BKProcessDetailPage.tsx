@@ -40,7 +40,7 @@ import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKThink } from "../think/BKThink.Types";
 import type { BKConversationMessage } from "../thoughts/BKThoughts.Types";
 import type { BKMemory } from "../memory/BKMemory.Types";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
 import type { BKThinker } from "../thinker/BKThinker.Types";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
@@ -413,6 +413,13 @@ export default function BKProcessDetailPage({
         prev ? { ...prev, status: "ready" as const } : prev,
       );
 
+      // Load craft configs to resolve per-step craft formats
+      const allCraftConfigs = await bkThinkerDB.craftConfigs
+        .toArray() as BKCraftConfig[];
+      const craftConfigMap = new Map(
+        allCraftConfigs.map((c) => [c.id, c]),
+      );
+
       // ── 4. Build the server action request ───────────────────────
       const request: BKProcessExecutionRequest = {
         thoughtName: thought.name,
@@ -421,12 +428,19 @@ export default function BKProcessDetailPage({
         thinkerDescription: thinker?.description,
         thinkerRole: thinker?.role,
         associationContext: slotContextStr || undefined,
-        trainOfThoughts: trainOfThoughts.map((tot) => ({
-          id: tot.id,
-          name: tot.name,
-          thought: tot.thought,
-          craftId: tot.craftId,
-        })),
+        trainOfThoughts: trainOfThoughts.map((tot) => {
+          const craftConfig = tot.craftId
+            ? craftConfigMap.get(tot.craftId)
+            : null;
+          return {
+            id: tot.id,
+            name: tot.name,
+            thought: tot.thought,
+            craftId: tot.craftId,
+            craftFormat: craftConfig?.format ?? null,
+            craftInstruction: craftConfig?.instruction ?? null,
+          };
+        }),
         craftFormat,
         aiConfig: aiConfig
           ? { provider: aiConfig.provider, model: aiConfig.model }

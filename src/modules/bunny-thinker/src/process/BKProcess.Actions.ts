@@ -45,6 +45,10 @@ export interface BKProcessExecutionRequest {
     name: string;
     thought: string;
     craftId?: string | null;
+    /** Resolved craft format for this specific step (from BKCraftConfig) */
+    craftFormat?: BKCraftFormat | null;
+    /** Resolved craft instruction for this specific step (from BKCraftConfig) */
+    craftInstruction?: string | null;
   }>;
   /** Craft format for output processing */
   craftFormat?: BKCraftFormat;
@@ -137,6 +141,10 @@ export async function bkProcessExecuteAction(
     for (let i = 0; i < trainOfThoughts.length; i++) {
       const step = trainOfThoughts[i];
 
+      // Resolve per-step craft format and instruction
+      const stepCraftFormat = step.craftFormat ?? craftFormat;
+      const stepCraftInstruction = step.craftInstruction ?? undefined;
+
       // Build messages for this step (includes prior conversation)
       const messages: BKThinkMessage[] = conversation.map((msg) => ({
         role: msg.role === "system" ? "system" : msg.role,
@@ -157,7 +165,8 @@ export async function bkProcessExecuteAction(
           name: step.name,
           content: step.thought,
         },
-        craftFormat: step.craftId ? craftFormat : undefined,
+        craftFormat: stepCraftFormat,
+        craftInstruction: stepCraftInstruction,
         aiConfig,
       });
 
@@ -188,9 +197,12 @@ export async function bkProcessExecuteAction(
     let processedOutput = "";
     if (conversation.length > 0) {
       const lastMessage = conversation[conversation.length - 1];
+      // Use the last step's craft format for post-processing
+      const lastStep = trainOfThoughts[trainOfThoughts.length - 1];
+      const finalFormat = lastStep?.craftFormat ?? craftFormat ?? "markdown";
       const processed = BKCraftEngine.process(
         lastMessage.content,
-        craftFormat ?? "markdown",
+        finalFormat,
       );
       processedOutput = processed.parsed;
     }

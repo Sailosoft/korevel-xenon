@@ -80,6 +80,8 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   label: string;
   placeholder?: string;
   type: BunnyFieldType;
+  /** Custom formatter function to format the value for display/rendering */
+  format?: (value: any, formData: TForm) => any;
   options?:
     | BunnySelectOption[]
     | (() => BunnySelectOption[] | Promise<BunnySelectOption[]>);

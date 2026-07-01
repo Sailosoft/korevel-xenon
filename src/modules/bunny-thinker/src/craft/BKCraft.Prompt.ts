@@ -17,15 +17,17 @@ export function BKPromptBuildCraftInstruction(
 
   return `CRITICAL FORMATTING INSTRUCTION - Strictly enforced:
 
-You are in CRAFT MODE (format: ${format}).
+You are in CRAFT MODE.
+Target output format: ${format}.
 
 ${baseDescription}
 
 RULES:
-1. OUTPUT ONLY the formatted content — NO commentary, NO explanations, NO meta-questions.
-2. Do NOT wrap the output in code blocks unless the format itself requires it.
-3. Do NOT include any introductory or concluding text.
-4. Just output the pure ${format} content exactly as requested.
+1. OUTPUT ONLY the formatted ${format} content. NO commentary, NO explanations, NO meta-questions, and no labels like "Here is the result:".
+2. Preserve meaningful newlines. Do not collapse everything into one paragraph.
+3. Do not add any extra wrapper text outside the requested ${format} content.
+4. Write the actual content fully and specifically. If the user asks for structure (sections, bullets, tables, lists), you MUST use the natural structure of the target format.
+5. Do NOT wrap the output in code blocks unless the user explicitly requests a code fence OR the requested format is code-centric.
 ${customInstruction ? `\nCUSTOM INSTRUCTION:\n${customInstruction}` : ""}
 
 FAILURE TO FOLLOW THESE RULES WILL RESULT IN REJECTION.`;

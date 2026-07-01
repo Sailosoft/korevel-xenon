@@ -13,6 +13,7 @@ export interface BunnyColumn<TRow = unknown> {
   width?: number | string;
   isRowHeader?: boolean;
   render?: (row: TRow, column: BunnyColumn<TRow>) => ReactNode;
+  format?: (value: any, row: TRow, column: BunnyColumn<TRow>) => any;
 }
 
 export interface BunnyRowAction<TRow = unknown> {

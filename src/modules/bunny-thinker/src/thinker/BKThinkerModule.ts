@@ -15,10 +15,21 @@ export const bkThinkerModule = BunnyFeature.create<BKThinker, BKThinker>(
     feature.configureTable((table) => {
       table.addColumns([
         { field: "name", header: "Name", sortable: true, isRowHeader: true },
-        { field: "role", header: "Role", sortable: true },
+        {
+          field: "role",
+          header: "Role",
+          sortable: true,
+          format: (val) =>
+            val ? String(val).replace(/([A-Z])/g, " $1").trim() : "",
+        },
         { field: "specialization", header: "Specialization", sortable: true },
         { field: "description", header: "Description", sortable: false },
-        { field: "createdAt", header: "Created", sortable: true },
+        {
+          field: "createdAt",
+          header: "Created",
+          sortable: true,
+          format: (val) => (val ? new Date(val).toLocaleString() : ""),
+        },
       ]);
     });
 

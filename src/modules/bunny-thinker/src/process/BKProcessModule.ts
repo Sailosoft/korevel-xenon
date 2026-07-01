@@ -23,8 +23,21 @@ export const bkProcessModule = BunnyFeature.create<BKProcess, BKProcess>(
       table.addColumns([
         { field: "name", header: "Name", sortable: true, isRowHeader: true },
         { field: "associationId", header: "Association", sortable: true },
-        { field: "status", header: "Status", sortable: true },
-        { field: "createdAt", header: "Created", sortable: true },
+        {
+          field: "status",
+          header: "Status",
+          sortable: true,
+          format: (val) =>
+            val
+              ? String(val).charAt(0).toUpperCase() + String(val).slice(1)
+              : "",
+        },
+        {
+          field: "createdAt",
+          header: "Created",
+          sortable: true,
+          format: (val) => (val ? new Date(val).toLocaleString() : ""),
+        },
       ]);
     });
 

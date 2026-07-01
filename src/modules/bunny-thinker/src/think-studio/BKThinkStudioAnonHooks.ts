@@ -16,7 +16,7 @@ import type { BKThinkMessage } from "../think/BKThink.Actions";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKConversationMessage } from "../thoughts/BKThoughts.Types";
 import type { BKThinker } from "../thinker/BKThinker.Types";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
 import type {
   BKThoughtAssociation,
   BKAssociationSlotValue,
@@ -70,7 +70,9 @@ export interface UseAnonymousModeReturn {
   activeStepIndex: number;
   error: string;
   result: string;
+  rawResult: string;
   craftFormat: BKCraftFormat;
+  craftInstruction: string;
   trainOfThoughts: BKTrainOfThought[];
   showProcessedOutput: boolean;
 
@@ -90,6 +92,7 @@ export interface UseAnonymousModeReturn {
   setThoughtDescription: (desc: string) => void;
   setThoughtContent: (content: string) => void;
   setCraftFormat: (format: BKCraftFormat) => void;
+  setCraftInstruction: (instruction: string) => void;
   setActiveStepIndex: (index: number) => void;
   setShowProcessedOutput: (show: boolean) => void;
 
@@ -189,7 +192,9 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [rawResult, setRawResult] = useState("");
   const [craftFormat, setCraftFormat] = useState<BKCraftFormat>("markdown");
+  const [craftInstruction, setCraftInstruction] = useState<string>("");
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
     [],
   );
@@ -509,6 +514,13 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         ];
         setConversation(initialConversation);
 
+        // Load craft configs to resolve per-step craft formats
+        const allCraftConfigs = await bkThinkerDB.craftConfigs
+          .toArray() as BKCraftConfig[];
+        const craftConfigMap = new Map(
+          allCraftConfigs.map((c) => [c.id, c]),
+        );
+
         // Execute each step sequentially
         for (let i = 0; i < stepTrains.length; i++) {
           const step = stepTrains[i];
@@ -516,6 +528,11 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
           if (!isTabPinnedRef.current) {
             setActiveStepIndex(i);
           }
+
+          // Resolve per-step craft format and instruction from BKCraftConfig
+          const stepCraftConfig = step.craftId
+            ? craftConfigMap.get(step.craftId)
+            : null;
 
           const conversationMessages: BKThinkMessage[] =
             initialConversation.map((msg) => ({
@@ -533,7 +550,8 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
             newMessage: { name: step.name, content: step.thought },
-            craftFormat: undefined,
+            craftFormat: stepCraftConfig?.format ?? craftFormat,
+            craftInstruction: stepCraftConfig?.instruction ?? (craftInstruction || undefined),
             associationContext,
             aiConfig,
           });
@@ -560,6 +578,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         if (initialConversation.length > 0) {
           const lastMessage =
             initialConversation[initialConversation.length - 1];
+          setRawResult(lastMessage.content);
           const processed = BKCraftEngine.process(
             lastMessage.content,
             craftFormat,
@@ -598,12 +617,24 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         const associationContext = await resolveAssociationContext();
         const remainingSteps = trainOfThoughts.slice(stepIndex);
 
+        // Load craft configs to resolve per-step craft formats (same as startThinking)
+        const allCraftConfigs = await bkThinkerDB.craftConfigs
+          .toArray() as BKCraftConfig[];
+        const rethinkCraftConfigMap = new Map(
+          allCraftConfigs.map((c) => [c.id, c]),
+        );
+
         for (let i = 0; i < remainingSteps.length; i++) {
           const step = remainingSteps[i];
           setCurrentStepIndex(stepIndex + i);
           if (!isTabPinnedRef.current) {
             setActiveStepIndex(stepIndex + i);
           }
+
+          // Resolve per-step craft format and instruction from BKCraftConfig
+          const stepCraftConfig = step.craftId
+            ? rethinkCraftConfigMap.get(step.craftId)
+            : null;
 
           const conversationMessages: BKThinkMessage[] =
             truncatedConversation.map((msg) => ({
@@ -621,7 +652,8 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
             newMessage: { name: step.name, content: step.thought },
-            craftFormat: undefined,
+            craftFormat: stepCraftConfig?.format ?? craftFormat,
+            craftInstruction: stepCraftConfig?.instruction ?? (craftInstruction || undefined),
             associationContext,
             aiConfig,
           });
@@ -648,6 +680,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         if (truncatedConversation.length > 0) {
           const lastMessage =
             truncatedConversation[truncatedConversation.length - 1];
+          setRawResult(lastMessage.content);
           const processed = BKCraftEngine.process(
             lastMessage.content,
             craftFormat,
@@ -670,6 +703,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       thoughtContent,
       selectedThinker,
       craftFormat,
+      craftInstruction,
       resolveAssociationContext,
     ],
   );
@@ -811,6 +845,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     setActiveStepIndex(0);
     setError("");
     setResult("");
+    setRawResult("");
     setTrainOfThoughts([]);
     setShowProcessedOutput(false);
   }, []);
@@ -840,7 +875,9 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     activeStepIndex,
     error,
     result,
+    rawResult,
     craftFormat,
+    craftInstruction,
     trainOfThoughts,
     showProcessedOutput,
     isReadyToThink,
@@ -851,6 +888,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     setThoughtDescription,
     setThoughtContent,
     setCraftFormat,
+    setCraftInstruction,
     setActiveStepIndex,
     setShowProcessedOutput,
     loadExistingThought,
