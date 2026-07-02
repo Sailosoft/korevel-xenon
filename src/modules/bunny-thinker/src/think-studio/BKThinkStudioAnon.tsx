@@ -36,8 +36,9 @@ import { useAnonymousMode } from "./BKThinkStudioAnonHooks";
 import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
-import Mermaid from "react-mermaid";
+import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
+import { BKCraftFormatDescriptions } from "../craft/BKCraft.Types";
+import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 
 // ─── Props ───────────────────────────────────────────────────────────────
@@ -149,12 +150,16 @@ function renderCraftContent(
           dangerouslySetInnerHTML={{ __html: processed.parsed }}
         />
       );
-    case "mermaid":
+    case "mermaid": {
+      // Strip ```mermaid fences — pass raw diagram value only
+      const mermaidMatch = content.match(/```mermaid\n?([\s\S]*?)```/);
+      const diagram = mermaidMatch ? mermaidMatch[1].trim() : content.trim();
       return (
         <div className="bg-white p-4 rounded-lg">
-          <Mermaid>{content}</Mermaid>
+          <MermaidRenderer chart={diagram} />
         </div>
       );
+    }
     case "plain":
       return (
         <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
@@ -215,9 +220,12 @@ function BKStepPanel({
             <span className="text-xs text-gray-400">
               {new Date(assistantMessage.timestamp).toLocaleTimeString()}
             </span>
-            {/* View / Raw toggle — only for non-markdown formats */}
-            {craftFormat !== "markdown" && (
-              <div className="ml-auto">
+            {/* Craft format badge + View/Raw toggle */}
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                {craftFormat}
+              </span>
+              {craftFormat !== "markdown" && (
                 <div
                   role="group"
                   className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden"
@@ -245,8 +253,8 @@ function BKStepPanel({
                     Raw
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
           <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
             {renderCraftContent(assistantMessage.content, craftFormat, viewMode)}
@@ -279,6 +287,8 @@ export default function BKThinkStudioAnon({
     thinkersLoading,
     patterns,
     patternsLoading,
+    craftConfigs,
+    craftConfigsLoading,
     associations,
     associationSelectLoading,
 
@@ -729,6 +739,99 @@ export default function BKThinkStudioAnon({
                     className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none resize-y font-mono"
                   />
                 </div>
+
+                {/* ── Craft Selector ───────────────────────────────── */}
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">
+                    Craft Output Format <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <Select
+                    aria-label="Select craft format"
+                    value={step.craftId ?? ""}
+                    placeholder={
+                      craftConfigsLoading
+                        ? "Loading craft configs..."
+                        : craftConfigs.length === 0
+                          ? "No craft configs"
+                          : "markdown"
+                    }
+                    isDisabled={craftConfigsLoading}
+                    onChange={(val: unknown) => {
+                      const id = String(val);
+                      updateStep(index, "craftId", id);
+                    }}
+                    className="w-full"
+                  >
+                    <Select.Trigger className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      {craftConfigsLoading ? (
+                        <ListBox key="loading">
+                          <ListBox.Item
+                            key="loading-item"
+                            id="loading"
+                            textValue="Loading..."
+                            className="text-default-400 italic"
+                          >
+                            Loading craft configs...
+                          </ListBox.Item>
+                        </ListBox>
+                      ) : (
+                        <ListBox key="ready">
+                          <ListBox.Item key="" id="" textValue="markdown">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-gray-400">markdown</span>
+                              <span className="text-[10px] text-gray-400">Standard Markdown — plain readable output</span>
+                            </div>
+                          </ListBox.Item>
+                          {craftConfigs.map((cfg) => {
+                            const formatDesc = BKCraftFormatDescriptions[cfg.format];
+                            return (
+                              <ListBox.Item key={cfg.id} id={cfg.id} textValue={cfg.format}>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{cfg.format}</span>
+                                  {cfg.description && (
+                                    <span className="text-xs text-gray-400 mt-0.5 truncate max-w-[280px]">
+                                      {cfg.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </ListBox.Item>
+                            );
+                          })}
+                        </ListBox>
+                      )}
+                    </Select.Popover>
+                  </Select>
+                  {(() => {
+                    const selectedCfg = step.craftId
+                      ? craftConfigs.find((c) => c.id === step.craftId)
+                      : null;
+                    if (!selectedCfg) return null;
+                    const formatDesc = BKCraftFormatDescriptions[selectedCfg.format];
+                    return (
+                      <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
+                        {(selectedCfg.description || formatDesc) && (
+                          <p className="text-xs text-amber-800 leading-relaxed">
+                            {selectedCfg.description || formatDesc}
+                          </p>
+                        )}
+                        {selectedCfg.instruction && (
+                          <div>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+                              Craft Prompt
+                            </span>
+                            <p className="text-xs text-amber-700 mt-0.5 font-mono leading-relaxed whitespace-pre-wrap line-clamp-3">
+                              {selectedCfg.instruction}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             ))}
           </div>
@@ -1110,6 +1213,99 @@ export default function BKThinkStudioAnon({
                       className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none resize-y font-mono"
                     />
                   </div>
+
+                  {/* ── Craft Selector ───────────────────────────────── */}
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-0.5">
+                      Craft Output Format <span className="text-gray-400">(optional)</span>
+                    </label>
+                    <Select
+                      aria-label="Select craft format"
+                      value={step.craftId ?? ""}
+                      placeholder={
+                        craftConfigsLoading
+                          ? "Loading craft configs..."
+                          : craftConfigs.length === 0
+                            ? "No craft configs"
+                            : "markdown"
+                      }
+                      isDisabled={craftConfigsLoading}
+                      onChange={(val: unknown) => {
+                        const id = String(val);
+                        updateStep(index, "craftId", id);
+                      }}
+                      className="w-full"
+                    >
+                      <Select.Trigger className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                        <Select.Value />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        {craftConfigsLoading ? (
+                          <ListBox key="loading">
+                            <ListBox.Item
+                              key="loading-item"
+                              id="loading"
+                              textValue="Loading..."
+                              className="text-default-400 italic"
+                            >
+                              Loading craft configs...
+                            </ListBox.Item>
+                          </ListBox>
+                        ) : (
+                          <ListBox key="ready">
+                            <ListBox.Item key="" id="" textValue="markdown">
+                              <div className="flex flex-col">
+                                <span className="text-sm text-gray-400">markdown</span>
+                                <span className="text-[10px] text-gray-400">Standard Markdown — plain readable output</span>
+                              </div>
+                            </ListBox.Item>
+                            {craftConfigs.map((cfg) => {
+                              const formatDesc = BKCraftFormatDescriptions[cfg.format];
+                              return (
+                                <ListBox.Item key={cfg.id} id={cfg.id} textValue={cfg.format}>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{cfg.format}</span>
+                                    {cfg.description && (
+                                      <span className="text-xs text-gray-400 mt-0.5 truncate max-w-[280px]">
+                                        {cfg.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </ListBox.Item>
+                              );
+                            })}
+                          </ListBox>
+                        )}
+                      </Select.Popover>
+                    </Select>
+                    {(() => {
+                      const selectedCfg = step.craftId
+                        ? craftConfigs.find((c) => c.id === step.craftId)
+                        : null;
+                      if (!selectedCfg) return null;
+                      const formatDesc = BKCraftFormatDescriptions[selectedCfg.format];
+                      return (
+                        <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
+                          {(selectedCfg.description || formatDesc) && (
+                            <p className="text-xs text-amber-800 leading-relaxed">
+                              {selectedCfg.description || formatDesc}
+                            </p>
+                          )}
+                          {selectedCfg.instruction && (
+                            <div>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+                                Craft Prompt
+                              </span>
+                              <p className="text-xs text-amber-700 mt-0.5 font-mono leading-relaxed whitespace-pre-wrap line-clamp-3">
+                                {selectedCfg.instruction}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1218,7 +1414,7 @@ export default function BKThinkStudioAnon({
                   index={entry.index}
                   userMessage={entry.userMessage}
                   assistantMessage={entry.assistantMessage}
-                  craftFormat={craftFormat}
+                  craftFormat={entry.resolvedCraftFormat}
                 />
               ))}
           </div>
@@ -1331,12 +1527,16 @@ export default function BKThinkStudioAnon({
                           dangerouslySetInnerHTML={{ __html: result }}
                         />
                       );
-                    case "mermaid":
+                    case "mermaid": {
+                      // Strip ```mermaid fences — pass raw diagram value only
+                      const mermaidMatch = displayContent.match(/```mermaid\n?([\s\S]*?)```/);
+                      const diagram = mermaidMatch ? mermaidMatch[1].trim() : displayContent.trim();
                       return (
                         <div className="bg-white p-4 rounded-lg">
-                          <Mermaid>{displayContent}</Mermaid>
+                          <MermaidRenderer chart={diagram} />
                         </div>
                       );
+                    }
                     case "plain":
                       return (
                         <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">

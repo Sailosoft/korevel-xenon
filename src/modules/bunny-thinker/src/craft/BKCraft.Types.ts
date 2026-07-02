@@ -53,7 +53,7 @@ export const BKCraftFormatDescriptions: Record<BKCraftFormat, string> = {
   imageList:
     "Image list output. Include image URLs (from Pexels, Unsplash, Pixabay, Pinterest, StockSnap when possible). The craft engine will extract URLs and render a gallery.",
   mermaid:
-    "Mermaid diagram code. Output should be Mermaid syntax compatible with mermaid. Use ```mermaid fences only if you are explicitly providing a fenced block.",
+    "Mermaid diagram code. Output ONLY the raw Mermaid diagram syntax — do NOT wrap in ```mermaid code fences or any other formatting. No explanation, no labels, no surrounding text. Just the diagram code.",
   plain:
     "Plain text output only. No Markdown code fences and no Markdown formatting syntax. Keep it readable using paragraph breaks and simple line-based structure (e.g., numbered lines like '1. ...' or short bullet-like lines). Do not wrap the text in backticks.",
   architecture:

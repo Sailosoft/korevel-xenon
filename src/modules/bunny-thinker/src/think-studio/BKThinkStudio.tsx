@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
 import Editor from "@monaco-editor/react";
-import Mermaid from "react-mermaid";
+import MermaidRenderer from "../components/MermaidRenderer";
 import { Button, Select, ListBox } from "@heroui/react";
 import {
   ArrowLeft,
@@ -165,7 +165,7 @@ function renderCraftContent(
       const diagram = mermaidMatch ? mermaidMatch[1].trim() : content.trim();
       return (
         <div className="bg-white p-4 rounded-lg">
-          <Mermaid>{diagram}</Mermaid>
+          <MermaidRenderer chart={diagram} />
         </div>
       );
     }
@@ -1328,7 +1328,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                       const diagram = mermaidMatch ? mermaidMatch[1].trim() : displayContent.trim();
                       return (
                         <div className="bg-white p-4 rounded-lg">
-                          <Mermaid>{diagram}</Mermaid>
+                          <MermaidRenderer chart={diagram} />
                         </div>
                       );
                     }
