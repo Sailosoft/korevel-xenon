@@ -7,7 +7,7 @@
 // from scratch on the page without DB persistence, then optionally save
 // as a full thought.
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
@@ -31,6 +31,8 @@ export interface BKThinkStudioAnonStep {
   name: string;
   thought: string;
   order: number;
+  /** Optional craft config ID to apply per-step formatting */
+  craftId?: string;
 }
 
 // ─── Hook return type ────────────────────────────────────────────────
@@ -47,6 +49,10 @@ export interface UseAnonymousModeReturn {
   // Patterns
   patterns: BKThoughtPattern[];
   patternsLoading: boolean;
+
+  // Craft configs
+  craftConfigs: BKCraftConfig[];
+  craftConfigsLoading: boolean;
 
   // Editable thought fields
   thoughtName: string;
@@ -83,6 +89,7 @@ export interface UseAnonymousModeReturn {
     index: number;
     userMessage?: BKConversationMessage;
     assistantMessage?: BKConversationMessage;
+    resolvedCraftFormat: BKCraftFormat;
   }>;
   isProcessingComplete: boolean;
   isTabPinnedRef: React.MutableRefObject<boolean>;
@@ -103,7 +110,7 @@ export interface UseAnonymousModeReturn {
   selectAssociation: (associationId: string) => Promise<void>;
   addStep: () => void;
   removeStep: (index: number) => void;
-  updateStep: (index: number, field: "name" | "thought", value: string) => void;
+  updateStep: (index: number, field: "name" | "thought" | "craftId", value: string) => void;
   startThinking: (aiConfig: HelixAIOption) => Promise<void>;
   rethinkFromStep: (
     stepIndex: number,
@@ -158,6 +165,10 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const [associationSelectLoading, setAssociationSelectLoading] =
     useState(false);
 
+  // ── Craft configs ─────────────────────────────────────────────────
+  const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
+  const [craftConfigsLoading, setCraftConfigsLoading] = useState(false);
+
   // ── Selections ────────────────────────────────────────────────────
   const [selectedPattern, setSelectedPattern] =
     useState<BKThoughtPattern | null>(null);
@@ -204,17 +215,29 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const isReadyToThink =
     !!thoughtName && !!thoughtContent && steps.some((s) => s.name && s.thought);
 
+  // Build a craft config map for quick lookups
+  const craftConfigMap = useMemo(
+    () => new Map(craftConfigs.map((c) => [c.id, c])),
+    [craftConfigs],
+  );
+
   const completedSteps = trainOfThoughts
-    .map((step, index) => ({
-      step,
-      index,
-      userMessage: conversation[1 + index * 2] as
-        | BKConversationMessage
-        | undefined,
-      assistantMessage: conversation[2 + index * 2] as
-        | BKConversationMessage
-        | undefined,
-    }))
+    .map((step, index) => {
+      const stepCraftConfig = step.craftId
+        ? craftConfigMap.get(step.craftId)
+        : null;
+      return {
+        step,
+        index,
+        userMessage: conversation[1 + index * 2] as
+          | BKConversationMessage
+          | undefined,
+        assistantMessage: conversation[2 + index * 2] as
+          | BKConversationMessage
+          | undefined,
+        resolvedCraftFormat: stepCraftConfig?.format ?? craftFormat,
+      };
+    })
     .filter((entry) => entry.userMessage);
 
   const isProcessingComplete = completedSteps.length > 0;
@@ -282,6 +305,23 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     loadAllPatterns();
   }, [loadAllPatterns]);
 
+  // ── Load craft configs ────────────────────────────────────────────
+  const loadCraftConfigs = useCallback(async () => {
+    setCraftConfigsLoading(true);
+    try {
+      const all = await bkThinkerDB.craftConfigs.toArray() as BKCraftConfig[];
+      setCraftConfigs(all);
+    } catch (err) {
+      console.error("[BKThinkStudioAnon] Failed to load craft configs:", err);
+    } finally {
+      setCraftConfigsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCraftConfigs();
+  }, [loadCraftConfigs]);
+
   // ── Load existing thought (populate form) ─────────────────────────
   const loadExistingThought = useCallback(async (thoughtId: string) => {
     if (!thoughtId) return;
@@ -317,6 +357,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
                 name: tr.name,
                 thought: tr.thought,
                 order: tr.order,
+                craftId: tr.craftId,
               }))
             : [{ id: uuidv7(), name: "", thought: "", order: 0 }],
         );
@@ -429,7 +470,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   }, []);
 
   const updateStep = useCallback(
-    (index: number, field: "name" | "thought", value: string) => {
+    (index: number, field: "name" | "thought" | "craftId", value: string) => {
       setSteps((prev) =>
         prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
       );
@@ -483,6 +524,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thought: s.thought,
             order: i,
             includeInMemory: true,
+            craftId: s.craftId,
           }));
 
         setTrainOfThoughts(stepTrains);
@@ -727,7 +769,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             }
           : null,
         craftFormat,
-        steps: steps.map((s) => ({ name: s.name, thought: s.thought })),
+        steps: steps.map((s) => ({ name: s.name, thought: s.thought, craftId: s.craftId })),
         conversation: conversation.map((msg) => ({
           role: msg.role,
           content: msg.content,
@@ -794,6 +836,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
           thought: s.thought,
           order: i,
           includeInMemory: true,
+          craftId: s.craftId,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
@@ -860,6 +903,8 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     patternsLoading,
     associations,
     associationSelectLoading,
+    craftConfigs,
+    craftConfigsLoading,
     thoughtName,
     thoughtDescription,
     thoughtContent,
