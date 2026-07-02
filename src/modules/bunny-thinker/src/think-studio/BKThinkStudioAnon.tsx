@@ -37,7 +37,7 @@ import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
-import { MermaidGraph } from "mermaid-graph";
+import Mermaid from "react-mermaid";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 
 // ─── Props ───────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ function renderCraftContent(
     case "mermaid":
       return (
         <div className="bg-white p-4 rounded-lg">
-          <MermaidGraph graphCode={content} />
+          <Mermaid>{content}</Mermaid>
         </div>
       );
     case "plain":
@@ -1334,7 +1334,7 @@ export default function BKThinkStudioAnon({
                     case "mermaid":
                       return (
                         <div className="bg-white p-4 rounded-lg">
-                          <MermaidGraph graphCode={displayContent} />
+                          <Mermaid>{displayContent}</Mermaid>
                         </div>
                       );
                     case "plain":
