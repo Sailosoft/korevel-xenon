@@ -58,13 +58,8 @@ function renderCraftContent(
   craftFormat: BKCraftFormat,
   viewMode: "view" | "raw",
 ) {
-  // Raw mode OR markdown-like formats: always render through ReactMarkdown
-  if (
-    viewMode === "raw" ||
-    craftFormat === "markdown" ||
-    craftFormat === "architecture" ||
-    craftFormat === "agentSwarm"
-  ) {
+  // Raw mode OR markdown: render through ReactMarkdown
+  if (viewMode === "raw" || craftFormat === "markdown") {
     return (
       <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
         <ReactMarkdown
@@ -169,6 +164,58 @@ function renderCraftContent(
         </div>
       );
     }
+    case "architecture":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>ARCHITECTURE.md</span>
+            <span className="text-gray-500">Markdown</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="markdown"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
+        </div>
+      );
+    case "agentSwarm":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>AGENT.md</span>
+            <span className="text-gray-500">Markdown</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="markdown"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
+        </div>
+      );
     case "docker":
       return (
         <div
@@ -257,10 +304,8 @@ function BKStepPanel({
             <span className="text-xs text-gray-400">
               {new Date(assistantMessage.timestamp).toLocaleTimeString()}
             </span>
-            {/* View / Raw toggle — only for non-markdown-like formats */}
-            {craftFormat !== "markdown" &&
-              craftFormat !== "architecture" &&
-              craftFormat !== "agentSwarm" && (
+            {/* View / Raw toggle — available for all except plain markdown */}
+            {craftFormat !== "markdown" && (
               <div className="ml-auto">
                 <div
                   role="group"
@@ -1228,11 +1273,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               Processed Output ({craftFormat})
             </span>
             <div className="flex items-center gap-2">
-              {/* View / Raw toggle — only when craft is enabled and not markdown-like */}
-              {craftFormat !== "markdown" &&
-                craftFormat !== "architecture" &&
-                craftFormat !== "agentSwarm" &&
-                result && (
+              {/* View / Raw toggle — available for all except plain markdown */}
+              {craftFormat !== "markdown" && result && (
                 <div
                   role="group"
                   className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden"
@@ -1277,10 +1319,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           </button>
           {showProcessedOutput && (
             <div className="p-4 bg-white border-t border-gray-200">
-              {viewMode === "view" &&
-              craftFormat !== "markdown" &&
-              craftFormat !== "architecture" &&
-              craftFormat !== "agentSwarm" ? (
+              {viewMode === "view" && craftFormat !== "markdown" ? (
                 /* ── View mode: format-specific rendering ── */
                 (() => {
                   const displayContent = rawResult || result;
@@ -1332,6 +1371,58 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                         </div>
                       );
                     }
+                    case "architecture":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>ARCHITECTURE.md</span>
+                            <span className="text-gray-500">Markdown</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="markdown"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      );
+                    case "agentSwarm":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>AGENT.md</span>
+                            <span className="text-gray-500">Markdown</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="markdown"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      );
                     case "docker":
                       return (
                         <div
