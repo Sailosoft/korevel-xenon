@@ -27,6 +27,7 @@ export default function BUIBookChapterComponentPipeline({
   // Pipeline Processing States
   const [isProcessing, setIsProcessing] = useState(false);
   const [promptType, setPromptType] = useState<string>("default");
+  const [useAuthorProfile, setUseAuthorProfile] = useState(true);
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
   const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<
@@ -71,6 +72,7 @@ export default function BUIBookChapterComponentPipeline({
           promptType,
           undefined,
           useAuthorSkills,
+          useAuthorProfile,
         );
 
         // Mid-execution interface stream sync update
@@ -172,6 +174,15 @@ export default function BUIBookChapterComponentPipeline({
                 </div>
 
                 <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useAuthorProfile}
+                      onChange={(e) => setUseAuthorProfile(e.target.checked)}
+                      className="rounded border-default-300 accent-primary"
+                    />
+                    Align writing with Author Profile
+                  </label>
                   <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                     <input
                       type="checkbox"

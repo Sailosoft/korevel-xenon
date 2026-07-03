@@ -10,6 +10,7 @@
 import React, { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import Editor from "@monaco-editor/react";
 import { Button, Select, ListBox } from "@heroui/react";
 import {
   ArrowLeft,
@@ -160,6 +161,84 @@ function renderCraftContent(
         </div>
       );
     }
+    case "architecture":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>ARCHITECTURE.md</span>
+            <span className="text-gray-500">Markdown</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="markdown"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
+        </div>
+      );
+    case "agentSwarm":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>AGENT.md</span>
+            <span className="text-gray-500">Markdown</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="markdown"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
+        </div>
+      );
+    case "docker":
+      return (
+        <div
+          className="border border-gray-200 rounded-lg overflow-hidden"
+          style={{ minHeight: 420 }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+            <span>docker-compose.yaml</span>
+            <span className="text-gray-500">YAML</span>
+          </div>
+          <Editor
+            height="380px"
+            defaultLanguage="yaml"
+            value={content}
+            theme="vs-dark"
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
+        </div>
+      );
     case "plain":
       return (
         <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
@@ -1537,6 +1616,84 @@ export default function BKThinkStudioAnon({
                         </div>
                       );
                     }
+                    case "architecture":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>ARCHITECTURE.md</span>
+                            <span className="text-gray-500">Markdown</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="markdown"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      );
+                    case "agentSwarm":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>AGENT.md</span>
+                            <span className="text-gray-500">Markdown</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="markdown"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      );
+                    case "docker":
+                      return (
+                        <div
+                          className="border border-gray-200 rounded-lg overflow-hidden"
+                          style={{ minHeight: 420 }}
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
+                            <span>docker-compose.yaml</span>
+                            <span className="text-gray-500">YAML</span>
+                          </div>
+                          <Editor
+                            height="380px"
+                            defaultLanguage="yaml"
+                            value={displayContent}
+                            theme="vs-dark"
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              lineNumbers: "on",
+                              scrollBeyondLastLine: false,
+                              wordWrap: "on",
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      );
                     case "plain":
                       return (
                         <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">

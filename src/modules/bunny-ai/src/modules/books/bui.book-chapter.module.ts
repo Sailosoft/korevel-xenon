@@ -17,6 +17,7 @@ import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.genera
 import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
+import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import BUIBookComponentExportPreview from "./bui.book.export.component.chapter";
 import BUISettingsRepository from "../settings/bui.settings.repository";
 
@@ -165,29 +166,43 @@ export const buiBookChapterModule = (
               label: "Persona Framing",
               type: "select",
               defaultValue: "default",
-              options: [
-                { label: "Default Architect", value: "default" },
-                { label: "Character-Driven", value: "character_driven" },
-                {
-                  label: "Software Engineering",
-                  value: "software_engineering",
-                },
-                { label: "Technology", value: "technology" },
-                { label: "Medical", value: "medical" },
-                { label: "Motivational", value: "motivational" },
-              ],
+              options: buiChapterPromptContent.prompt.map((entry) => ({
+                label: entry.label,
+                value: entry.key,
+              })),
+            },
+            {
+              name: "useAuthorProfile",
+              label: "Align writing with Author Profile",
+              type: "checkbox",
+              defaultValue: "true",
+            },
+            {
+              name: "useAuthorSkills",
+              label: "Include Author Skills in chapter content",
+              type: "checkbox",
+              defaultValue: "false",
             },
           ],
           onConfirm: async ({ form }) => {
-            const { promptType } = Object.fromEntries(form) as Record<
+            const formData = Object.fromEntries(form) as Record<
               string,
               string
             >;
+            const promptType = formData.promptType;
+            const useAuthorProfile = formData.useAuthorProfile === "true";
+            const useAuthorSkills = formData.useAuthorSkills === "true";
             context.adminPanel.dialog.setLoading(true);
             try {
               const settingsRepo = new BUISettingsRepository();
               const aiConfig = await settingsRepo.getActiveAIConfig();
-              await generateChapterContentAction(row.id!, promptType, aiConfig);
+              await generateChapterContentAction(
+                row.id!,
+                promptType,
+                aiConfig,
+                useAuthorSkills,
+                useAuthorProfile,
+              );
               context.adminPanel.table.refresh?.();
               return {
                 success: true,

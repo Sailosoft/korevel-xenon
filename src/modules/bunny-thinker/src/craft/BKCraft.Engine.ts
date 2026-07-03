@@ -246,33 +246,29 @@ export class BKCraftEngine {
   /**
    * Process Architecture — markdown document for agentic coding setup.
    * Generates Architecture.md describing system architecture for AI agents to read.
+   * Displayed in Monaco editor with Markdown syntax highlighting in view mode.
+   * Raw content is the markdown source directly.
    */
   private static processArchitecture(raw: string): BKCraftEngineResult {
-    // Wrap in a styled markdown container — content rendered via ReactMarkdown in the UI
-    const html = `<div class="bk-craft-architecture prose prose-sm max-w-none">${raw}</div>`;
-    return { raw, parsed: html, format: "architecture" };
+    // Return raw markdown content — Monaco editor handles syntax highlighting
+    return { raw, parsed: raw, format: "architecture" };
   }
 
   /**
    * Process AgentSwarm — markdown document for agent behavioral guidelines.
    * Generates Agent.md compatible with agentic coding conventions (CLAUDE.md, AGENTS.md).
+   * Displayed in Monaco editor with Markdown syntax highlighting in view mode.
    */
   private static processAgentSwarm(raw: string): BKCraftEngineResult {
-    const html = `<div class="bk-craft-agent-swarm prose prose-sm max-w-none">${raw}</div>`;
-    return { raw, parsed: html, format: "agentSwarm" };
+    return { raw, parsed: raw, format: "agentSwarm" };
   }
 
   /**
    * Process Docker — YAML output for docker-compose configuration.
    * Displayed in Monaco editor with YAML syntax highlighting.
+   * Raw content is the YAML source directly.
    */
   private static processDocker(raw: string): BKCraftEngineResult {
-    // Wrap YAML content in a pre/code block for raw fallback rendering
-    const escaped = raw
-      .replace(/&/g, "&")
-      .replace(/</g, "<")
-      .replace(/>/g, ">");
-    const html = `<div class="bk-craft-docker"><pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>${escaped}</code></pre></div>`;
-    return { raw, parsed: html, format: "docker" };
+    return { raw, parsed: raw, format: "docker" };
   }
 }
