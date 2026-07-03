@@ -1,6 +1,6 @@
 import { useBunnyKernel } from "@/src/modules/bunny/src/kernel";
 import { Button, Modal } from "@heroui/react";
-import { LoaderIcon, Rocket } from "lucide-react";
+import { LoaderIcon, Rocket, AlertTriangle } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
 import { BUIBookRepository } from "./bui.book.repository";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
@@ -9,6 +9,8 @@ import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import { BUIBookEntity } from "./bui.book.entity";
 import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
+
+type ConflictMode = "overwrite" | "skip" | "extend";
 
 interface BUIBookChapterComponentGenerateProps {
   bookId: number;
@@ -23,6 +25,8 @@ export default function BUIBookChapterComponentGenerate({
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
   const [templateType, setTemplateType] = useState<string>("default");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [existingChaptersCount, setExistingChaptersCount] = useState(0);
+  const [conflictMode, setConflictMode] = useState<ConflictMode>("overwrite");
 
   useEffect(() => {
     async function loadContext() {
@@ -33,6 +37,11 @@ export default function BUIBookChapterComponentGenerate({
         if (bookResponse) {
           setBookData(bookResponse);
         }
+
+        // Check for existing chapters to handle conflict resolution
+        const chapterRepo = new BUIBookChapterRepository();
+        const chapters = await chapterRepo.getChaptersByBook(bookId);
+        setExistingChaptersCount(chapters.length);
       } catch (error) {
         console.error("Failed loading configuration profiles:", error);
       }
@@ -46,6 +55,19 @@ export default function BUIBookChapterComponentGenerate({
     kernel.adminPanel.table.loadingOn();
 
     try {
+      const chapterRepo = new BUIBookChapterRepository();
+
+      // Overwrite: delete all existing chapters before generating
+      if (conflictMode === "overwrite") {
+        const existingChapters = await chapterRepo.getChaptersByBook(bookId);
+        if (existingChapters.length > 0) {
+          const deletePromises = existingChapters
+            .filter((ch) => ch.id)
+            .map((ch) => chapterRepo.delete(ch.id!));
+          await Promise.all(deletePromises);
+        }
+      }
+
       // Fetch author skills if requested
       let skills: BUIAuthorSkill[] | undefined;
       if (useAuthorSkills && bookData.authorId) {
@@ -66,13 +88,22 @@ export default function BUIBookChapterComponentGenerate({
 
       // Raw array parse pipeline execution
       const generatedChapters = JSON.parse(response);
-      const chapterRepo = new BUIBookChapterRepository();
+      const chapterRepoForCreate = new BUIBookChapterRepository();
 
       if (Array.isArray(generatedChapters)) {
+        // Extend: compute starting number offset to append after existing chapters
+        let numberOffset = 0;
+        if (conflictMode === "extend") {
+          const existing = await chapterRepoForCreate.getChaptersByBook(bookId);
+          if (existing.length > 0) {
+            numberOffset = Math.max(...existing.map((ch) => ch.number));
+          }
+        }
+
         for (const item of generatedChapters) {
-          await chapterRepo.panelCreate({
+          await chapterRepoForCreate.panelCreate({
             bookId,
-            number: item.number,
+            number: item.number + numberOffset,
             title: item.title,
             description: item.description,
             status: "pending",
@@ -94,16 +125,50 @@ export default function BUIBookChapterComponentGenerate({
     useAuthorProfile,
     useAuthorSkills,
     templateType,
+    conflictMode,
   ]);
+
+  const conflictOptions: {
+    mode: ConflictMode;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      mode: "overwrite",
+      label: "Overwrite",
+      description: "Clear all chapters then generate new ones",
+    },
+    {
+      mode: "skip",
+      label: "Skip",
+      description: "Keep existing chapters, do nothing",
+    },
+    {
+      mode: "extend",
+      label: "Extend",
+      description: "Keep existing chapters, add new ones after",
+    },
+  ];
+
+  // Loading state displayed inline when generation is in progress
+  if (isGenerating) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-lg shadow-sm animate-pulse">
+        <LoaderIcon className="w-4 h-4 text-primary animate-spin" />
+        <span className="text-sm font-medium text-primary-700">
+          Generating Chapters...
+        </span>
+      </div>
+    );
+  }
 
   return (
     <Modal>
       <Button variant="secondary">
-        <LoaderIcon />
-        <span className="hidden sm:inline ml-1">
-          {isGenerating ? "Generating Chapters..." : "Generate Chapters"}
-        </span>
+        <Rocket />
+        <span className="hidden sm:inline ml-1">Generate Chapters</span>
       </Button>
+
       <Modal.Backdrop>
         <Modal.Container>
           <Modal.Dialog className="sm:max-w-[460px]">
@@ -119,6 +184,50 @@ export default function BUIBookChapterComponentGenerate({
                 Configure execution parameters to populate missing structural
                 modules.
               </p>
+
+              {/* Conflict resolution — shown only when chapters already exist */}
+              {existingChaptersCount > 0 && (
+                <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                    <span className="text-sm font-semibold text-warning-800">
+                      Chapters Already Exist ({existingChaptersCount})
+                    </span>
+                  </div>
+                  <p className="text-xs text-warning-700 -mt-1">
+                    This book already has chapters. Choose how to handle them:
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {conflictOptions.map((option) => (
+                      <label
+                        key={option.mode}
+                        className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+                          conflictMode === option.mode
+                            ? "border-warning-500 bg-warning-100/50"
+                            : "border-warning-200/60 bg-transparent hover:border-warning-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="conflictMode"
+                          value={option.mode}
+                          checked={conflictMode === option.mode}
+                          onChange={() => setConflictMode(option.mode)}
+                          className="mt-0.5 accent-warning"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-warning-800">
+                            {option.label}
+                          </span>
+                          <span className="text-xs text-warning-600">
+                            {option.description}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
                 <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
@@ -150,23 +259,11 @@ export default function BUIBookChapterComponentGenerate({
                   onChange={(e) => setTemplateType(e.target.value)}
                   className="w-full bg-default-100 p-2 rounded-md text-sm outline-none border border-transparent focus:border-primary"
                 >
-                  <option value="default">Standard Chronological Layout</option>
-                  <option value="draft">Detailed Blueprint Engine</option>
-                  <option value="three_act">
-                    Three-Act Narrative Blueprint
-                  </option>
-                  <option value="hero_journey">
-                    The Hero Journey Archetype
-                  </option>
-                  <option value="non_fiction">
-                    Modular Non-Fiction Blueprint
-                  </option>
-                  <option value="sci_fi_world">
-                    Sci-Fi Worldbuilding Emphasis
-                  </option>
-                  <option value="mystery_pacing">
-                    Mystery Suspense Arc Curves
-                  </option>
+                  {buiChapterPrompt.generateChapters.map((entry) => (
+                    <option key={entry.key} value={entry.key}>
+                      {entry.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -188,11 +285,19 @@ export default function BUIBookChapterComponentGenerate({
                 className="w-full"
                 variant="outline"
                 isDisabled={isGenerating || !bookData}
-                onClick={handleGenerate}
+                onClick={async () => {
+                  // Skip mode: do nothing, user can close modal manually
+                  if (conflictMode === "skip" && existingChaptersCount > 0) {
+                    return;
+                  }
+                  await handleGenerate();
+                }}
               >
                 {isGenerating
                   ? "Processing Modules..."
-                  : "Confirm & Launch Engine"}
+                  : conflictMode === "skip" && existingChaptersCount > 0
+                    ? "Close this window to cancel"
+                    : "Confirm & Launch Engine"}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
