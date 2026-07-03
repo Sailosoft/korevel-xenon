@@ -17,6 +17,7 @@ import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.genera
 import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
+import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import BUIBookComponentExportPreview from "./bui.book.export.component.chapter";
 import BUISettingsRepository from "../settings/bui.settings.repository";
 
@@ -165,17 +166,10 @@ export const buiBookChapterModule = (
               label: "Persona Framing",
               type: "select",
               defaultValue: "default",
-              options: [
-                { label: "Default Architect", value: "default" },
-                { label: "Character-Driven", value: "character_driven" },
-                {
-                  label: "Software Engineering",
-                  value: "software_engineering",
-                },
-                { label: "Technology", value: "technology" },
-                { label: "Medical", value: "medical" },
-                { label: "Motivational", value: "motivational" },
-              ],
+              options: buiChapterPromptContent.prompt.map((entry) => ({
+                label: entry.label,
+                value: entry.key,
+              })),
             },
           ],
           onConfirm: async ({ form }) => {
