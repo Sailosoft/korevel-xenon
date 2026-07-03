@@ -337,6 +337,15 @@ export default function AppPage() {
       latency: "-",
       icon: <Brain />,
     },
+    {
+      id: 8,
+      name: "Lemon Coder",
+      url: "/modules/lemon-coder",
+      status: "Active",
+      category: "AI",
+      latency: "-",
+      icon: <Icons.Zap fill="currentColor" />,
+    },
   ]);
 
   const categories = [

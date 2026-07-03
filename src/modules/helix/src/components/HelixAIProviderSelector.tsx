@@ -103,19 +103,23 @@ export function HelixAIProviderSelector<T extends Table<HelixAISettings>>({
     const models = HELIX_AI_MODELS[provider] ?? [];
     const newModel = models[0] ?? "";
 
-    await table.put(
-      { provider, model: newModel },
-      settingsKey,
-    );
+    // Include key in the object to match Dexie schema keyPath "key"
+    await table.put({
+      key: settingsKey,
+      provider,
+      model: newModel,
+    });
     setIsOpen(false);
   };
 
   // Handle model change
   const handleModelChange = async (model: string) => {
-    await table.put(
-      { provider: currentProvider, model },
-      settingsKey,
-    );
+    // Include key in the object to match Dexie schema keyPath "key"
+    await table.put({
+      key: settingsKey,
+      provider: currentProvider,
+      model,
+    });
     setModelDropdownOpen(false);
   };
 
