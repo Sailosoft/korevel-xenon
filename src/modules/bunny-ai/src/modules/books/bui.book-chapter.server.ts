@@ -4,16 +4,12 @@ import { buiContainer } from "../../container/bui.container";
 import { BUIAuthor } from "../authors/bui.author.entity";
 import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import Handlebars from "handlebars";
-import { BUIBookChapterEntity, BUIBookEntity } from "./bui.book.entity";
+import { BUIBookEntity } from "./bui.book.entity";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
 
 export async function buiChapterServerGenerate(
-  params: {
-    book: BUIBookEntity;
-    author?: BUIAuthor;
-    existingChapters?: BUIBookChapterEntity[];
-  },
+  params: { book: BUIBookEntity; author?: BUIAuthor },
   type: string = "draft",
   useAuthorProfile: boolean = true,
   aiConfig?: HelixAIOption,
@@ -26,13 +22,10 @@ export async function buiChapterServerGenerate(
     buiChapterPrompt.generateChapters.find((p) => p.key === type) ||
     buiChapterPrompt.generateChapters[0];
 
-  // Augment params with skills and existing chapters if provided
+  // Augment params with skills if provided
   const promptParams = {
     ...params,
     skills: skills || [],
-    hasExistingChapters:
-      Array.isArray(params.existingChapters) &&
-      params.existingChapters.length > 0,
   };
 
   // Choose correct structural layout template injection based on configuration toggle

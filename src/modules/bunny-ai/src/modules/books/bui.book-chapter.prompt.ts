@@ -28,12 +28,6 @@ Author Skills:
 - {{this.name}}: {{this.description}}
 {{/each}}
 {{/if}}
-{{#if hasExistingChapters}}
-Already Published Chapters (do NOT re-generate these — skip their numbers):
-{{#each existingChapters}}
-- Chapter {{this.number}}: {{this.title}}
-{{/each}}
-{{/if}}
   `,
   generateUserPromptWithoutAuthor: `
 Book Title: {{book.title}}
@@ -42,12 +36,6 @@ Book Description: {{book.description}}
 Author Skills:
 {{#each skills}}
 - {{this.name}}: {{this.description}}
-{{/each}}
-{{/if}}
-{{#if hasExistingChapters}}
-Already Published Chapters (do NOT re-generate these — skip their numbers):
-{{#each existingChapters}}
-- Chapter {{this.number}}: {{this.title}}
 {{/each}}
 {{/if}}
   `,
