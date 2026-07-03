@@ -18,6 +18,7 @@ export async function generateChapterContentAction(
   promptType: string = "default",
   aiConfig?: HelixAIOption,
   useAuthorSkills: boolean = false,
+  useAuthorProfile: boolean = true,
 ) {
   const chapterRepo = new BUIBookChapterRepository();
   const bookRepo = new BUIBookRepository();
@@ -70,8 +71,12 @@ export async function generateChapterContentAction(
     }
 
     // 4b. Transform into prompt-ready properties
+    // When useAuthorProfile is disabled, nullify author metadata so
+    // Handlebars templates render without author-specific context.
     const promptPayload: BUIBookChapterParams = {
-      author: { name: authorName, description: authorDesc },
+      author: useAuthorProfile
+        ? { name: authorName, description: authorDesc }
+        : { name: "", description: "" },
       book: {
         title: book?.title || "Untitled Blueprint Book",
         chapters: allChapters.map((ch) => ({

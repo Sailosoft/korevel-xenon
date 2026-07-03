@@ -171,17 +171,38 @@ export const buiBookChapterModule = (
                 value: entry.key,
               })),
             },
+            {
+              name: "useAuthorProfile",
+              label: "Align writing with Author Profile",
+              type: "checkbox",
+              defaultValue: "true",
+            },
+            {
+              name: "useAuthorSkills",
+              label: "Include Author Skills in chapter content",
+              type: "checkbox",
+              defaultValue: "false",
+            },
           ],
           onConfirm: async ({ form }) => {
-            const { promptType } = Object.fromEntries(form) as Record<
+            const formData = Object.fromEntries(form) as Record<
               string,
               string
             >;
+            const promptType = formData.promptType;
+            const useAuthorProfile = formData.useAuthorProfile === "true";
+            const useAuthorSkills = formData.useAuthorSkills === "true";
             context.adminPanel.dialog.setLoading(true);
             try {
               const settingsRepo = new BUISettingsRepository();
               const aiConfig = await settingsRepo.getActiveAIConfig();
-              await generateChapterContentAction(row.id!, promptType, aiConfig);
+              await generateChapterContentAction(
+                row.id!,
+                promptType,
+                aiConfig,
+                useAuthorSkills,
+                useAuthorProfile,
+              );
               context.adminPanel.table.refresh?.();
               return {
                 success: true,
