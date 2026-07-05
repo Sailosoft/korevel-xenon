@@ -90,6 +90,79 @@ export class LCDatabase extends Dexie {
     await this.projects.update(id, { lastOpened: new Date() });
   }
 
+  async updateProjectName(id: string, name: string): Promise<void> {
+    await this.projects.update(id, { name });
+  }
+
+  async getAllProjects(): Promise<LCProject[]> {
+    return this.projects.orderBy("lastOpened").reverse().toArray();
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    // Delete the project handle
+    await this.projectHandles.delete(id);
+
+    // Delete all chat sessions for this project
+    const sessions = await this.chatSessions
+      .where("projectId")
+      .equals(id)
+      .toArray();
+    const sessionIds = sessions.map((s) => s.id);
+
+    // Collect all message IDs from those sessions
+    const messageIds = sessions.flatMap((s) =>
+      s.messages.map((m) => m.id),
+    );
+
+    // Delete chat messages
+    if (messageIds.length > 0) {
+      await this.chatMessages.bulkDelete(messageIds);
+    }
+
+    // Delete chat sessions
+    if (sessionIds.length > 0) {
+      await this.chatSessions.bulkDelete(sessionIds);
+    }
+
+    // Delete context stash items associated with this project
+    // Since stash items don't have projectId, we'll keep them as is
+
+    // Delete the project itself
+    await this.projects.delete(id);
+  }
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    const session = await this.chatSessions.get(sessionId);
+    if (session) {
+      // Delete all messages in the session
+      const messageIds = session.messages.map((m) => m.id);
+      if (messageIds.length > 0) {
+        await this.chatMessages.bulkDelete(messageIds);
+      }
+      // Delete the session
+      await this.chatSessions.delete(sessionId);
+    }
+  }
+
+  async clearAllChatSessions(projectId: string): Promise<void> {
+    const sessions = await this.chatSessions
+      .where("projectId")
+      .equals(projectId)
+      .toArray();
+
+    const allMessageIds = sessions.flatMap((s) =>
+      s.messages.map((m) => m.id),
+    );
+    const sessionIds = sessions.map((s) => s.id);
+
+    if (allMessageIds.length > 0) {
+      await this.chatMessages.bulkDelete(allMessageIds);
+    }
+    if (sessionIds.length > 0) {
+      await this.chatSessions.bulkDelete(sessionIds);
+    }
+  }
+
   /**
    * Remove all recent projects and their associated data:
    * - Cached directory handles (projectHandles)

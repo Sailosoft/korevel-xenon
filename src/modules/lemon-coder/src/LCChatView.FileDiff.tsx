@@ -16,9 +16,10 @@ import {
   GitMerge,
   ListTree,
   Eye,
+  CheckCheck,
 } from "lucide-react";
 import LCDiffDisplay from "./LCDiffDisplay";
-import type { LCFileActionResult } from "./LCInterface";
+import type { LCFileActionResult, LCApplyStatus } from "./LCInterface";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,12 @@ export interface InlineFileDiffProps {
   onReadFileForDiff?: (filePath: string) => Promise<string>;
 }
 
+const applyStatusConfig: Record<LCApplyStatus, { label: string; color: string; icon: React.ReactNode }> = {
+  apply: { label: "Apply", color: "text-[#98c379] hover:bg-[#98c379]/10", icon: <Check className="w-3 h-3" /> },
+  applying: { label: "Applying...", color: "text-[#e5c07b] hover:bg-[#e5c07b]/10", icon: <Loader2 className="w-3 h-3 animate-spin" /> },
+  applied: { label: "Applied", color: "text-[#858585] hover:bg-[#858585]/10", icon: <CheckCheck className="w-3 h-3" /> },
+};
+
 export function InlineFileDiff({
   msgId,
   idx,
@@ -58,6 +65,7 @@ export function InlineFileDiff({
 }: InlineFileDiffProps) {
   // undefined = collapsed, "loading" = loading, string|null = loaded content
   const [diffState, setDiffState] = useState<string | null | "loading" | undefined>(undefined);
+  const [localApplyStatus, setLocalApplyStatus] = useState<LCApplyStatus>(file.applyStatus ?? "apply");
 
   const handleToggle = useCallback(async () => {
     if (diffState !== undefined) {
@@ -84,6 +92,16 @@ export function InlineFileDiff({
     setDiffState(originalContent ?? "");
   }, [diffState, file, onReadFileForDiff]);
 
+  const handleApply = useCallback(() => {
+    if (localApplyStatus !== "apply") return;
+    setLocalApplyStatus("applying");
+    onApplyFileChanges([{ ...file, applyStatus: "applied" }]);
+    // The parent will trigger a re-render eventually; optimistically mark as applied
+    setTimeout(() => setLocalApplyStatus("applied"), 500);
+  }, [file, localApplyStatus, onApplyFileChanges]);
+
+  const statusStyle = applyStatusConfig[localApplyStatus];
+
   return (
     <div>
       {/* File action header row */}
@@ -96,22 +114,34 @@ export function InlineFileDiff({
           <span className="truncate max-w-[150px] group-hover:underline decoration-dotted underline-offset-2">
             {getFilePath(file)}
           </span>
-          <Chip
-            size="sm"
-            variant="soft"
-            className={`text-[10px] h-5 ${
-              file.ExistingFile
-                ? "bg-[#e5c07b]/10 text-[#e5c07b]"
-                : "bg-[#98c379]/10 text-[#98c379]"
-            }`}
-          >
-            {file.ExistingFile ? "Update" : "New"}
-          </Chip>
+          {localApplyStatus === "applied" && (
+            <Chip
+              size="sm"
+              variant="soft"
+              className="text-[10px] h-5 bg-[#98c379]/20 text-[#98c379]"
+            >
+              <CheckCheck className="w-2.5 h-2.5 inline mr-0.5" />
+              Applied
+            </Chip>
+          )}
+          {localApplyStatus !== "applied" && (
+            <Chip
+              size="sm"
+              variant="soft"
+              className={`text-[10px] h-5 ${
+                file.ExistingFile
+                  ? "bg-[#e5c07b]/10 text-[#e5c07b]"
+                  : "bg-[#98c379]/10 text-[#98c379]"
+              }`}
+            >
+              {file.ExistingFile ? "Update" : "New"}
+            </Chip>
+          )}
         </button>
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0">
-          {onPreviewDiff && (
+          {onPreviewDiff && localApplyStatus !== "applied" && (
             <Button
               size="sm"
               variant="ghost"
@@ -125,11 +155,12 @@ export function InlineFileDiff({
           <Button
             size="sm"
             variant="ghost"
-            className="text-xs h-6 text-[#98c379] hover:bg-[#98c379]/10"
-            onPress={() => onApplyFileChanges([file])}
+            className={`text-xs h-6 ${statusStyle.color}`}
+            isDisabled={localApplyStatus !== "apply"}
+            onPress={handleApply}
           >
-            <Check className="w-3 h-3" />
-            Apply
+            {statusStyle.icon}
+            {statusStyle.label}
           </Button>
         </div>
       </div>
@@ -187,6 +218,8 @@ export function ViewAllChangesModal({
   const [viewAllExpanded, setViewAllExpanded] = useState(false);
   const [viewAllToggleKey, setViewAllToggleKey] = useState(0);
   const prevOpenRef = useRef(isOpen);
+  // Track per-file apply status in the View All modal
+  const [fileApplyStatuses, setFileApplyStatuses] = useState<Record<number, LCApplyStatus>>({});
 
   // Load diffs when the modal opens
   useEffect(() => {
@@ -226,14 +259,33 @@ export function ViewAllChangesModal({
 
   const handleAcceptAll = useCallback(() => {
     if (latestFileActions && latestFileActions.length > 0) {
-      onApplyFileChanges(latestFileActions);
-      onClose();
+      // Mark all as applying
+      const applyingStatuses: Record<number, LCApplyStatus> = {};
+      latestFileActions.forEach((_, idx) => { applyingStatuses[idx] = "applying"; });
+      setFileApplyStatuses(applyingStatuses);
+
+      // Apply changes
+      onApplyFileChanges(latestFileActions.map(f => ({ ...f, applyStatus: "applied" })));
+
+      // Mark all as applied after a short delay
+      setTimeout(() => {
+        const appliedStatuses: Record<number, LCApplyStatus> = {};
+        latestFileActions.forEach((_, idx) => { appliedStatuses[idx] = "applied"; });
+        setFileApplyStatuses(appliedStatuses);
+      }, 600);
+
+      // Close after a brief delay so user sees the "applied" state
+      setTimeout(() => onClose(), 1000);
     }
   }, [latestFileActions, onApplyFileChanges, onClose]);
 
   const handleAcceptFile = useCallback(
-    (fileAction: LCFileActionResult) => {
-      onApplyFileChanges([fileAction]);
+    (idx: number, fileAction: LCFileActionResult) => {
+      setFileApplyStatuses(prev => ({ ...prev, [idx]: "applying" }));
+      onApplyFileChanges([{ ...fileAction, applyStatus: "applied" }]);
+      setTimeout(() => {
+        setFileApplyStatuses(prev => ({ ...prev, [idx]: "applied" }));
+      }, 500);
     },
     [onApplyFileChanges],
   );
@@ -342,15 +394,36 @@ export function ViewAllChangesModal({
                             <ArrowLeftRight className="w-3 h-3" />
                             Full Diff
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-6 text-[#98c379] hover:bg-[#98c379]/10"
-                            onPress={() => handleAcceptFile(file)}
-                          >
-                            <Check className="w-3 h-3" />
-                            Accept
-                          </Button>
+                          {fileApplyStatuses[idx] === "applied" ? (
+                            <Chip
+                              size="sm"
+                              variant="soft"
+                              className="text-[10px] h-5 bg-[#98c379]/20 text-[#98c379]"
+                            >
+                              <CheckCheck className="w-2.5 h-2.5 inline mr-0.5" />
+                              Applied
+                            </Chip>
+                          ) : fileApplyStatuses[idx] === "applying" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              isDisabled
+                              className="text-xs h-6 text-[#e5c07b] hover:bg-[#e5c07b]/10"
+                            >
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Applying...
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-6 text-[#98c379] hover:bg-[#98c379]/10"
+                              onPress={() => handleAcceptFile(idx, file)}
+                            >
+                              <Check className="w-3 h-3" />
+                              Accept
+                            </Button>
+                          )}
                         </div>
                       </div>
 

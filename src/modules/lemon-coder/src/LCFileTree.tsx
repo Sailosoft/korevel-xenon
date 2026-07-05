@@ -10,11 +10,43 @@ import {
   ChevronRight,
   ChevronDown,
   File,
+  FileText,
   Folder,
   FolderOpen,
   Plus,
+  Code2,
+  Terminal,
+  Globe,
+  Braces,
+  FileJson,
+  FileType,
+  Info,
 } from "lucide-react";
 import type { LCFileTreeItem } from "./LCInterface";
+
+/** Map file extensions to distinct icons and colors */
+function getFileIcon(name: string, isDirectory: boolean): { icon: React.ReactNode; color: string } {
+  if (isDirectory) {
+    return { icon: <Folder className="w-4 h-4" />, color: "#e5c07b" };
+  }
+
+  const ext = name.split(".").pop()?.toLowerCase() || "";
+  const iconMap: Record<string, { icon: React.ReactNode; color: string }> = {
+    md: { icon: <FileText className="w-4 h-4" />, color: "#42a5f5" },
+    ts: { icon: <FileType className="w-4 h-4" />, color: "#3178c6" },
+    tsx: { icon: <Code2 className="w-4 h-4" />, color: "#3178c6" },
+    js: { icon: <FileType className="w-4 h-4" />, color: "#f7df1e" },
+    jsx: { icon: <Code2 className="w-4 h-4" />, color: "#f7df1e" },
+    json: { icon: <Braces className="w-4 h-4" />, color: "#89e051" },
+    html: { icon: <Globe className="w-4 h-4" />, color: "#e44d26" },
+    css: { icon: <FileJson className="w-4 h-4" />, color: "#42a5f5" },
+    scss: { icon: <FileJson className="w-4 h-4" />, color: "#cc6699" },
+    py: { icon: <Terminal className="w-4 h-4" />, color: "#3776ab" },
+    rs: { icon: <Terminal className="w-4 h-4" />, color: "#dea584" },
+    go: { icon: <Terminal className="w-4 h-4" />, color: "#00add8" },
+  };
+  return iconMap[ext] || { icon: <File className="w-4 h-4" />, color: "#abb2bf" };
+}
 
 export interface LCFileTreeProps {
   items: LCFileTreeItem[];
@@ -24,6 +56,10 @@ export interface LCFileTreeProps {
   onAddToStash: (item: LCFileTreeItem) => void;
   onNewItem: (parentPath: string, type: "file" | "directory") => void;
   isLoading: boolean;
+  /** Whether to show the floating tooltip on hover */
+  showTooltip?: boolean;
+  /** Callback to toggle tooltip display */
+  onToggleTooltip?: () => void;
 }
 
 // ── Hover Tooltip ────────────────────────────────────────────────────────────
@@ -45,9 +81,7 @@ function FileTreeTooltip({
     const rect = tooltipRef.current.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // If tooltip would overflow right edge, flip to left of cursor
     const overflowX = mouseX + 16 + rect.width > vw;
-    // If tooltip would overflow bottom edge, flip above cursor
     const overflowY = mouseY + 16 + rect.height > vh;
     setOffset({
       x: overflowX ? -rect.width - 12 : 12,
@@ -55,10 +89,11 @@ function FileTreeTooltip({
     });
   }, [mouseX, mouseY]);
 
-  // Break the path into directory and filename parts
   const lastSlashIdx = item.path.lastIndexOf("/");
   const dirPart = lastSlashIdx >= 0 ? item.path.slice(0, lastSlashIdx) : "";
   const filePart = lastSlashIdx >= 0 ? item.path.slice(lastSlashIdx + 1) : item.path;
+
+  const fileIcon = getFileIcon(item.name, item.isDirectory);
 
   return (
     <div
@@ -70,19 +105,15 @@ function FileTreeTooltip({
       }}
     >
       <div className="bg-[#2d2d2d] border border-[#444444] rounded-md shadow-xl px-3 py-2 min-w-[160px] max-w-[320px]">
-        {/* Header: icon + filename */}
         <div className="flex items-center gap-2 mb-1.5">
-          {item.isDirectory ? (
-            <Folder className="w-3.5 h-3.5 text-[#e5c07b] shrink-0" />
-          ) : (
-            <File className="w-3.5 h-3.5 text-[#abb2bf] shrink-0" />
-          )}
+          <span className="shrink-0" style={{ color: fileIcon.color }}>
+            {fileIcon.icon}
+          </span>
           <span className="text-xs font-medium text-[#d4d4d4] break-all">
             {item.name}
           </span>
         </div>
 
-        {/* Full path */}
         {dirPart && (
           <div className="text-[10px] text-[#858585] leading-relaxed">
             <span className="text-[#666]">Path: </span>
@@ -91,10 +122,9 @@ function FileTreeTooltip({
           </div>
         )}
 
-        {/* Hint */}
         <div className="mt-1.5 pt-1.5 border-t border-[#444444]/50 text-[10px] text-[#555]">
           {item.isDirectory ? (
-            <>Click to {isExpanded(item) ? "collapse" : "expand"}</>
+            <>Click to {item.expanded ? "collapse" : "expand"}</>
           ) : (
             <>Click to open</>
           )}
@@ -102,11 +132,6 @@ function FileTreeTooltip({
       </div>
     </div>
   );
-}
-
-/** Helper — checks expanded state via a recursive climb; used inside tooltip render */
-function isExpanded(item: LCFileTreeItem): boolean {
-  return item.expanded ?? false;
 }
 
 // ── File Tree Item ───────────────────────────────────────────────────────────
@@ -122,6 +147,7 @@ function FileTreeItem({
   hoveredItem,
   onHover,
   onUnhover,
+  showTooltip,
 }: {
   item: LCFileTreeItem;
   depth?: number;
@@ -133,30 +159,32 @@ function FileTreeItem({
   hoveredItem: { item: LCFileTreeItem; x: number; y: number } | null;
   onHover: (item: LCFileTreeItem, x: number, y: number) => void;
   onUnhover: () => void;
+  showTooltip?: boolean;
 }) {
   const isSelected = selectedFile?.id === item.id;
   const itemExpanded = item.expanded ?? false;
   const rowRef = useRef<HTMLDivElement>(null);
+  const fileIcon = getFileIcon(item.name, item.isDirectory);
 
   const handleMouseEnter = useCallback(
     (e: React.MouseEvent) => {
-      // Use the row element for position, but pass the actual mouse coords
+      if (!showTooltip) return;
       const rect = rowRef.current?.getBoundingClientRect();
       if (rect) {
         onHover(item, e.clientX, e.clientY);
       }
     },
-    [item, onHover],
+    [item, onHover, showTooltip],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      // Update position on mousemove so tooltip follows cursor
+      if (!showTooltip) return;
       if (hoveredItem?.item.id === item.id) {
         onHover(item, e.clientX, e.clientY);
       }
     },
-    [item, hoveredItem?.item.id, onHover],
+    [item, hoveredItem?.item.id, onHover, showTooltip],
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -173,6 +201,7 @@ function FileTreeItem({
         onMouseEnter={handleMouseEnter}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        title={!showTooltip ? `${item.name}\n${item.path}` : undefined}
         onClick={() => {
           if (item.isDirectory) {
             onToggleExpand(item);
@@ -194,16 +223,12 @@ function FileTreeItem({
           <span className="w-4 h-4" />
         )}
 
-        {/* File/Folder Icon */}
-        <span className="w-4 h-4 flex items-center justify-center shrink-0">
-          {item.isDirectory ? (
-            itemExpanded ? (
-              <FolderOpen className="w-4 h-4 text-[#e5c07b]" />
-            ) : (
-              <Folder className="w-4 h-4 text-[#e5c07b]" />
-            )
+        {/* File/Folder Icon with per-filetype icons */}
+        <span className="w-4 h-4 flex items-center justify-center shrink-0" style={{ color: fileIcon.color }}>
+          {item.isDirectory && itemExpanded ? (
+            <FolderOpen className="w-4 h-4" style={{ color: "#e5c07b" }} />
           ) : (
-            <File className="w-4 h-4 text-[#abb2bf]" />
+            fileIcon.icon
           )}
         </span>
 
@@ -281,6 +306,7 @@ function FileTreeItem({
               hoveredItem={hoveredItem}
               onHover={onHover}
               onUnhover={onUnhover}
+              showTooltip={showTooltip}
             />
           ))}
         </div>
@@ -299,6 +325,8 @@ export default function LCFileTree({
   onAddToStash,
   onNewItem,
   isLoading,
+  showTooltip = true,
+  onToggleTooltip,
 }: LCFileTreeProps) {
   const [hoveredItem, setHoveredItem] = useState<{
     item: LCFileTreeItem;
@@ -310,7 +338,6 @@ export default function LCFileTree({
 
   const handleHover = useCallback(
     (item: LCFileTreeItem, x: number, y: number) => {
-      // Clear any pending hide timeout
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = null;
@@ -321,13 +348,11 @@ export default function LCFileTree({
   );
 
   const handleUnhover = useCallback(() => {
-    // Small delay so moving between child items doesn't flicker
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredItem(null);
     }, 80);
   }, []);
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
@@ -366,11 +391,12 @@ export default function LCFileTree({
           hoveredItem={hoveredItem}
           onHover={handleHover}
           onUnhover={handleUnhover}
+          showTooltip={showTooltip}
         />
       ))}
 
-      {/* Tooltip overlay */}
-      {hoveredItem && (
+      {/* Tooltip overlay (only when enabled) */}
+      {showTooltip && hoveredItem && (
         <FileTreeTooltip
           item={hoveredItem.item}
           mouseX={hoveredItem.x}
@@ -380,4 +406,3 @@ export default function LCFileTree({
     </div>
   );
 }
-

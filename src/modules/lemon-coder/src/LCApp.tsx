@@ -70,10 +70,14 @@ export default function LCApp() {
     activeSession,
     messages,
     isSending,
+    promptMode,
+    setPromptMode,
     createSession: createChatSession,
     selectSession,
     sendMessage,
     applyFileChanges,
+    deleteSession,
+    clearAllSessions,
   } = useLCChat();
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
@@ -81,6 +85,15 @@ export default function LCApp() {
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
+  const [showTooltip, setShowTooltip] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("lc_show_tooltip");
+        return stored !== null ? stored === "true" : true;
+      } catch { /* ignore */ }
+    }
+    return true;
+  });
   const isOpeningRef = useRef(false);
 
   // Live query for stash items
@@ -380,6 +393,12 @@ export default function LCApp() {
             setNewFileType(type);
             setIsNewItemModalOpen(true);
           }}
+          showTooltip={showTooltip}
+          onToggleTooltip={() => {
+            const next = !showTooltip;
+            setShowTooltip(next);
+            try { localStorage.setItem("lc_show_tooltip", String(next)); } catch { /* ignore */ }
+          }}
         />
 
         {/* Main Content */}
@@ -402,6 +421,9 @@ export default function LCApp() {
             if (!item) throw new Error(`File not found: ${filePath}`);
             return readFileContent(item);
           }}
+          promptMode={promptMode}
+          onPromptModeChange={setPromptMode}
+          sessionTitle={activeSession?.title}
         />
 
         {/* Right Sidebar */}
@@ -419,6 +441,8 @@ export default function LCApp() {
             setIsRightSidebarExpanded(!isRightSidebarExpanded)
           }
           onKeepOnlyFolder={handleKeepOnlyFolder}
+          onDeleteSession={deleteSession}
+          onClearSessions={() => currentProject && clearAllSessions(currentProject.id)}
         />
       </div>
 

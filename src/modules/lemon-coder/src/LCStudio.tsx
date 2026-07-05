@@ -96,10 +96,14 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     activeSession,
     messages,
     isSending,
+    promptMode,
+    setPromptMode,
     createSession: createChatSession,
     selectSession,
     sendMessage,
     applyFileChanges,
+    deleteSession,
+    clearAllSessions,
   } = useLCChat();
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
@@ -109,6 +113,15 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
   const [permissionExpired, setPermissionExpired] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("lc_show_tooltip");
+        return stored !== null ? stored === "true" : true;
+      } catch { /* ignore */ }
+    }
+    return true;
+  });
   const cachedDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
 
   // Live query for stash items
@@ -390,6 +403,12 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             setNewFileType(type);
             setIsNewItemModalOpen(true);
           }}
+          showTooltip={showTooltip}
+          onToggleTooltip={() => {
+            const next = !showTooltip;
+            setShowTooltip(next);
+            try { localStorage.setItem("lc_show_tooltip", String(next)); } catch { /* ignore */ }
+          }}
         />
 
         <LCMainContent
@@ -412,6 +431,9 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             return readFileContent(item);
           }}
           onRetryMessage={handleSendMessage}
+          promptMode={promptMode}
+          onPromptModeChange={setPromptMode}
+          sessionTitle={activeSession?.title}
         />
 
         <LCRightSidebar
@@ -428,6 +450,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             setIsRightSidebarExpanded(!isRightSidebarExpanded)
           }
           onKeepOnlyFolder={handleKeepOnlyFolder}
+          onDeleteSession={deleteSession}
+          onClearSessions={() => currentProject && clearAllSessions(currentProject.id)}
         />
       </div>
 

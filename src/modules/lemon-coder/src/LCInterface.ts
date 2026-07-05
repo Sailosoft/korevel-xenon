@@ -80,6 +80,9 @@ export interface LCChatMessage {
   error?: LCErrorInfo;
 }
 
+/** Status of a file diff application */
+export type LCApplyStatus = "apply" | "applying" | "applied";
+
 /** AI response containing file actions */
 export interface LCFileActionResult {
   FileName: string;
@@ -87,6 +90,8 @@ export interface LCFileActionResult {
   FileDirectory: string;
   Description: string;
   Content: string;
+  /** Track the application status of this file action */
+  applyStatus?: LCApplyStatus;
 }
 
 /** AI response structure from Helix */

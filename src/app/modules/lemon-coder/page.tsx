@@ -6,6 +6,7 @@ import { useLCProject } from "@/src/modules/lemon-coder/src/useLCProject";
 import { registerHandle } from "@/src/modules/lemon-coder/src/LCHandleRegistry";
 import LCLandingScreen from "@/src/modules/lemon-coder/src/LCLandingScreen";
 import LCHelixConfigModal from "@/src/modules/lemon-coder/src/LCHelixConfigModal";
+import LCCreateProjectModal from "@/src/modules/lemon-coder/src/LCCreateProjectModal";
 
 /**
  * Extract the root FileSystemDirectoryHandle from a directoryOpen() result.
@@ -60,6 +61,7 @@ export default function LemonCoderLandingPage() {
   const { recentProjects, isLoading, openProjectFromHandle, selectRecentProject, clearRecentProjects } =
     useLCProject();
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const isOpeningRef = useRef(false);
 
   const navigateToStudio = useCallback(
@@ -155,10 +157,41 @@ export default function LemonCoderLandingPage() {
     [recentProjects, selectRecentProject, navigateToStudio],
   );
 
+  const handleCreateProject = useCallback(
+    async (name: string, _folderPath: string) => {
+      try {
+        let dirHandle: FileSystemDirectoryHandle;
+
+        if (typeof (window as any).showDirectoryPicker === "function") {
+          dirHandle = await (window as any).showDirectoryPicker({
+            mode: "readwrite",
+          });
+        } else {
+          const { directoryOpen } = await import("browser-fs-access");
+          const result = await directoryOpen({ recursive: true, mode: "readwrite" });
+          dirHandle = extractRootHandle(result);
+        }
+
+        // Use the custom name instead of the directory name
+        const project = await openProjectFromHandle(name, dirHandle);
+
+        registerHandle(project.id, dirHandle);
+
+        navigateToStudio(project.id);
+      } catch (error: any) {
+        if (error.name !== "AbortError" && error.name !== "SecurityError") {
+          console.error("Failed to create project:", error);
+        }
+      }
+    },
+    [openProjectFromHandle, navigateToStudio],
+  );
+
   return (
     <>
       <LCLandingScreen
         onOpenProject={handleOpenProject}
+        onOpenCreateProject={() => setIsCreateProjectOpen(true)}
         recentProjects={recentProjects}
         onSelectRecentProject={handleSelectRecentProject}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
@@ -168,6 +201,12 @@ export default function LemonCoderLandingPage() {
       <LCHelixConfigModal
         isOpen={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
+      />
+
+      <LCCreateProjectModal
+        isOpen={isCreateProjectOpen}
+        onOpenChange={setIsCreateProjectOpen}
+        onCreateProject={handleCreateProject}
       />
     </>
   );

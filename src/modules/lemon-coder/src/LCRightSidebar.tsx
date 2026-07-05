@@ -4,8 +4,8 @@
 
 "use client";
 
-import { useState } from "react";
-import { Button } from "@heroui/react";
+import { useState, useCallback } from "react";
+import { Button, Modal } from "@heroui/react";
 import {
   Layers,
   X,
@@ -37,6 +37,10 @@ export interface LCRightSidebarProps {
    * folder reference (directory path) in the context stash.
    */
   onKeepOnlyFolder?: (folderId: string) => void;
+  /** Delete a specific chat session */
+  onDeleteSession?: (sessionId: string) => void;
+  /** Clear all chat sessions for the current project */
+  onClearSessions?: () => void;
 }
 
 export default function LCRightSidebar({
@@ -51,6 +55,8 @@ export default function LCRightSidebar({
   isExpanded,
   onToggleExpand,
   onKeepOnlyFolder,
+  onDeleteSession,
+  onClearSessions,
 }: LCRightSidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
@@ -276,15 +282,33 @@ export default function LCRightSidebar({
             <div className="flex items-center gap-1.5">
               <MessageSquare className="w-3.5 h-3.5 text-[#e5c07b]" />
               <span className="text-xs text-[#abb2bf]">Sessions</span>
+              {chatSessions.length > 0 && (
+                <span className="text-[10px] text-[#858585]">
+                  ({chatSessions.length})
+                </span>
+              )}
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onPress={onCreateSession}
-              className="text-xs h-6 text-[#e5c07b] min-w-0 px-2"
-            >
-              + New
-            </Button>
+            <div className="flex items-center gap-0.5">
+              {chatSessions.length > 0 && onClearSessions && (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  onPress={onClearSessions}
+                  className="w-5 h-5 min-w-0 text-[#858585] hover:text-red-400"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={onCreateSession}
+                className="text-xs h-6 text-[#e5c07b] min-w-0 px-2"
+              >
+                + New
+              </Button>
+            </div>
           </div>
 
           {chatSessions.length === 0 ? (
@@ -296,15 +320,29 @@ export default function LCRightSidebar({
               {chatSessions.map((session) => (
                 <div
                   key={session.id}
-                  onClick={() => onSelectSession(session)}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${
+                  className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-xs transition-colors group ${
                     activeSessionId === session.id
                       ? "bg-[#333333] text-white"
                       : "text-[#abb2bf] hover:bg-[#2a2d2e]"
                   }`}
+                  onClick={() => onSelectSession(session)}
                 >
                   <MessageSquare className="w-3 h-3 text-[#e5c07b] shrink-0" />
-                  <span className="truncate">{session.title}</span>
+                  <span className="truncate flex-1">{session.title}</span>
+                  {onDeleteSession && (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
+                      className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-red-400 shrink-0"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

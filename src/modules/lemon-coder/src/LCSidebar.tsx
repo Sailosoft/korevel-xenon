@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Info,
 } from "lucide-react";
 import type { LCFileTreeItem, LCSidebarIconButton } from "./LCInterface";
 import LCFileTree from "./LCFileTree";
@@ -32,6 +33,10 @@ export interface LCSidebarProps {
   onNewItem: (parentPath: string, type: "file" | "directory") => void;
   /** Strategy 3 — Explicit refresh of the file tree */
   onRefreshFileTree?: () => void;
+  /** Whether the enhanced tooltip is shown on file hover */
+  showTooltip?: boolean;
+  /** Toggle tooltip display */
+  onToggleTooltip?: () => void;
 }
 
 export default function LCSidebar({
@@ -43,6 +48,8 @@ export default function LCSidebar({
   onAddToStash,
   onNewItem,
   onRefreshFileTree,
+  showTooltip = true,
+  onToggleTooltip,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const [activeIcon, setActiveIcon] = useState<string>("files");
@@ -204,15 +211,34 @@ export default function LCSidebar({
                   : "Extensions"}
             </span>
 
-            {/* Refresh Explorer button — Strategy 3: Explicit Refresh UI */}
-            {activeIcon === "files" && onRefreshFileTree && (
-              <button
-                onClick={onRefreshFileTree}
-                title="Refresh Explorer"
-                className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+            {/* Actions for Files view */}
+            {activeIcon === "files" && (
+              <div className="flex items-center gap-0.5">
+                {/* Tooltip Toggle */}
+                {onToggleTooltip && (
+                  <button
+                    onClick={onToggleTooltip}
+                    title={showTooltip ? "Disable enhanced tooltip" : "Enable enhanced tooltip"}
+                    className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                      showTooltip
+                        ? "text-[#e5c07b] hover:bg-[#e5c07b]/20"
+                        : "text-[#858585] hover:text-white hover:bg-[#333333]"
+                    }`}
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {/* Refresh Explorer button — Strategy 3: Explicit Refresh UI */}
+                {onRefreshFileTree && (
+                  <button
+                    onClick={onRefreshFileTree}
+                    title="Refresh Explorer"
+                    className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -227,6 +253,8 @@ export default function LCSidebar({
                 onAddToStash={onAddToStash}
                 onNewItem={onNewItem}
                 isLoading={isFileTreeLoading}
+                showTooltip={showTooltip}
+                onToggleTooltip={onToggleTooltip}
               />
             )}
             {activeIcon === "search" && (

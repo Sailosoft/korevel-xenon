@@ -20,6 +20,7 @@ import {
   Code2,
   AlertTriangle,
   RefreshCw,
+  MessageSquare,
 } from "lucide-react";
 import { lcDB } from "./LCDatabase";
 import { HELIX_PROVIDER_LABELS } from "@/src/modules/helix";
@@ -28,6 +29,8 @@ import type {
   LCContextStashItem,
   LCFileActionResult,
 } from "./LCInterface";
+import type { LCPromptModeType } from "./LCPromptMode";
+import { PROMPT_MODE_LABELS } from "./LCPromptMode";
 import LCChatViewEditor from "./LCChatView.Editor";
 import { InlineFileDiff, ViewAllChangesModal } from "./LCChatView.FileDiff";
 import LCChatViewDetailView from "./LCChatView.DetailView";
@@ -49,7 +52,19 @@ export interface LCChatViewProps {
    * Callback to retry a failed message. Receives the original user content that failed.
    */
   onRetryMessage?: (content: string) => void;
+  /** Current prompt mode (Agent/Plan/Ask) */
+  promptMode?: LCPromptModeType;
+  /** Callback to change the prompt mode */
+  onPromptModeChange?: (mode: LCPromptModeType) => void;
+  /** Current session title to display */
+  sessionTitle?: string;
 }
+
+const modeIcons: Record<LCPromptModeType, React.ReactNode> = {
+  agent: <Bot className="w-3 h-3" />,
+  plan: <Layers className="w-3 h-3" />,
+  ask: <MessageSquare className="w-3 h-3" />,
+};
 
 export default function LCChatView({
   messages,
@@ -60,6 +75,9 @@ export default function LCChatView({
   onPreviewDiff,
   onReadFileForDiff,
   onRetryMessage,
+  promptMode = "agent",
+  onPromptModeChange,
+  sessionTitle,
 }: LCChatViewProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -152,7 +170,16 @@ export default function LCChatView({
             </>
           )}
         </span>
-        {stashItems.length > 0 && (
+
+        {/* Session Name Display (Request 9) */}
+        {sessionTitle && (
+          <span className="ml-auto flex items-center gap-1 text-[11px] text-[#61afef] bg-[#61afef]/10 px-2 py-0.5 rounded-full max-w-[200px] truncate">
+            <MessageSquare className="w-3 h-3 shrink-0" />
+            <span className="truncate">{sessionTitle}</span>
+          </span>
+        )}
+
+        {!sessionTitle && stashItems.length > 0 && (
           <span className="ml-auto flex items-center gap-1 text-[11px] text-[#98c379] bg-[#98c379]/10 px-2 py-0.5 rounded-full">
             <Layers className="w-3 h-3" />
             {stashItems.length} file{stashItems.length !== 1 ? "s" : ""} in context
@@ -377,20 +404,43 @@ export default function LCChatView({
             </div>
 
             {/* Action buttons row below input */}
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={handleOpenInEditor}
-                disabled={isSending}
-                className="flex items-center gap-1 text-[10px] text-[#858585] hover:text-[#e5c07b] transition-colors px-2 py-1 rounded hover:bg-[#2d2d2d] disabled:opacity-40"
-                title="Open in Monaco Editor"
-              >
-                <Code2 className="w-3 h-3" />
-                Open in Editor
-              </button>
-              <span className="text-[#444] text-[10px]">|</span>
-              <span className="text-[10px] text-[#555]">
-                <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Enter</kbd> send · <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Shift+Enter</kbd> new line
-              </span>
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleOpenInEditor}
+                  disabled={isSending}
+                  className="flex items-center gap-1 text-[10px] text-[#858585] hover:text-[#e5c07b] transition-colors px-2 py-1 rounded hover:bg-[#2d2d2d] disabled:opacity-40"
+                  title="Open in Monaco Editor"
+                >
+                  <Code2 className="w-3 h-3" />
+                  Open in Editor
+                </button>
+                <span className="text-[#444] text-[10px]">|</span>
+                <span className="text-[10px] text-[#555]">
+                  <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Enter</kbd> send · <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Shift+Enter</kbd> new line
+                </span>
+              </div>
+
+              {/* Mode Selector (moved to below input) */}
+              {onPromptModeChange && (
+                <div className="flex items-center gap-0.5 bg-[#2d2d2d] rounded-md p-0.5 border border-[#333333]">
+                  {(Object.keys(PROMPT_MODE_LABELS) as LCPromptModeType[]).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => onPromptModeChange(mode)}
+                      className={`flex items-center gap-1 text-[10px] h-5 px-1.5 rounded transition-colors ${
+                        promptMode === mode
+                          ? "bg-[#e5c07b] text-[#1e1e1e]"
+                          : "text-[#858585] hover:text-white"
+                      }`}
+                      title={PROMPT_MODE_LABELS[mode]}
+                    >
+                      {modeIcons[mode]}
+                      {PROMPT_MODE_LABELS[mode]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

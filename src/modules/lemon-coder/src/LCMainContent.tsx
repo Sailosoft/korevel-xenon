@@ -16,6 +16,7 @@ import type {
   LCExternalChangeStatus,
   LCDiffPreview,
 } from "./LCInterface";
+import type { LCPromptModeType } from "./LCPromptMode";
 import LCChatView from "./LCChatView";
 import LCFileView from "./LCFileView";
 
@@ -46,6 +47,12 @@ export interface LCMainContentProps {
    * Callback to retry a failed message. Receives the original user content that failed.
    */
   onRetryMessage?: (content: string) => void;
+  /** Current prompt mode (Agent/Plan/Ask) */
+  promptMode?: LCPromptModeType;
+  /** Callback to change the prompt mode */
+  onPromptModeChange?: (mode: LCPromptModeType) => void;
+  /** Current session title to display */
+  sessionTitle?: string;
 }
 
 export default function LCMainContent({
@@ -64,6 +71,9 @@ export default function LCMainContent({
   onSave,
   onReadFileContent,
   onRetryMessage,
+  promptMode,
+  onPromptModeChange,
+  sessionTitle,
 }: LCMainContentProps) {
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
@@ -190,15 +200,15 @@ export default function LCMainContent({
           )}
         </div>
 
-        {/* Right: Add Code Button (hidden during diff preview) */}
+        {/* Right: New Session Button (hidden during diff preview) — replaces Add Code button */}
         {viewMode !== "diff" && (
           <Button
             size="sm"
             variant="ghost"
             className="text-xs h-7 text-[#e5c07b] hover:bg-[#e5c07b]/10"
           >
-            <FileCode className="w-3.5 h-3.5" />
-            Add Code
+            <MessageSquare className="w-3.5 h-3.5" />
+            New Session
           </Button>
         )}
       </div>
@@ -215,6 +225,9 @@ export default function LCMainContent({
             onPreviewDiff={handlePreviewDiff}
             onReadFileForDiff={onReadFileContent}
             onRetryMessage={onRetryMessage}
+            promptMode={promptMode}
+            onPromptModeChange={onPromptModeChange}
+            sessionTitle={sessionTitle}
           />
         ) : viewMode === "diff" && diffPreview ? (
           <LCFileView

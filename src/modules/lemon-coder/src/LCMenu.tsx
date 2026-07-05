@@ -5,12 +5,14 @@
 "use client";
 
 import { Button, Dropdown } from "@heroui/react";
+import { useRouter } from "next/navigation";
 import {
   FolderOpen,
   History,
   Plus,
   FileCode,
   Bot,
+  LayoutList,
 } from "lucide-react";
 
 export interface LCMenuProps {
@@ -31,6 +33,8 @@ export default function LCMenu({
   recentProjects,
   onSelectRecentProject,
 }: LCMenuProps) {
+  const router = useRouter();
+
   return (
     <header className="flex items-center justify-between px-4 h-12 bg-[#1e1e1e] border-b border-[#333333] select-none shrink-0">
       {/* Left - Brand */}
@@ -61,6 +65,16 @@ export default function LCMenu({
         >
           <FolderOpen className="w-3.5 h-3.5" />
           Open Project
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => router.push("/modules/lemon-coder/projects")}
+          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
+        >
+          <LayoutList className="w-3.5 h-3.5" />
+          Projects
         </Button>
 
         {recentProjects.length > 0 ? (

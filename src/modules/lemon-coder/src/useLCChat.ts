@@ -14,13 +14,17 @@ import type {
   LCFileActionResult,
   LCErrorInfo,
 } from "./LCInterface";
+import type { LCPromptModeType } from "./LCPromptMode";
+import { buildAgentPrompt, buildPlanPrompt, buildAskPrompt } from "./LCPromptMode";
 
 export interface UseLCChatReturn {
   sessions: LCChatSession[];
   activeSession: LCChatSession | null;
   messages: LCChatMessage[];
   isSending: boolean;
-  createSession: (projectId: string) => Promise<LCChatSession>;
+  promptMode: LCPromptModeType;
+  setPromptMode: (mode: LCPromptModeType) => void;
+  createSession: (projectId: string, sessionTitle?: string) => Promise<LCChatSession>;
   selectSession: (session: LCChatSession) => void;
   sendMessage: (
     content: string,
@@ -36,6 +40,10 @@ export interface UseLCChatReturn {
   applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
   /** Gather all file actions from the most recent assistant message */
   getLatestAssistantFileActions: () => LCFileActionResult[];
+  /** Delete a specific chat session */
+  deleteSession: (sessionId: string) => Promise<void>;
+  /** Clear all sessions for the current project */
+  clearAllSessions: (projectId: string) => Promise<void>;
 }
 
 export function useLCChat(): UseLCChatReturn {
@@ -45,19 +53,20 @@ export function useLCChat(): UseLCChatReturn {
   );
   const [messages, setMessages] = useState<LCChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [promptMode, setPromptMode] = useState<LCPromptModeType>("agent");
 
   // ── Refs to avoid stale closures in async callbacks ──────────────────────
   const activeSessionRef = useRef<LCChatSession | null>(null);
   const messagesRef = useRef<LCChatMessage[]>([]);
+  const promptModeRef = useRef<LCPromptModeType>("agent");
   // Keep refs in sync with state
   activeSessionRef.current = activeSession;
   messagesRef.current = messages;
+  promptModeRef.current = promptMode;
 
-  const createSession = useCallback(async (projectId: string): Promise<LCChatSession> => {
-    const session = await lcDB.createChatSession(
-      projectId,
-      `Session ${new Date().toLocaleDateString()}`,
-    );
+  const createSession = useCallback(async (projectId: string, sessionTitle?: string): Promise<LCChatSession> => {
+    const title = sessionTitle || `Session ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const session = await lcDB.createChatSession(projectId, title);
     setSessions((prev) => [session, ...prev]);
     setActiveSession(session);
     setMessages([]);
@@ -128,28 +137,20 @@ export function useLCChat(): UseLCChatReturn {
           stashContext = fileSections.join("\n\n");
         }
 
-        // ── Build the prompt for the AI ─────────────────────────────────────
-        const prompt = `
-Project: ${projectName}
+        // ── Include session title in the first prompt (Request 9) ──────────
+        const sessionContext = session.title
+          ? `\n### Session: ${session.title}\n`
+          : "";
 
-### Stashed Context Files (full contents):
-${stashContext || "(No files stashed)"}
-
-### User Instruction:
-${content}
-
-### Response Format:
-You MUST respond with a valid JSON object containing exactly these two fields:
-1. "AIMessage": A string — your explanation or response to the user.
-2. "FileContents": An array of file objects. Each file object has:
-   - "FileName": string — the file name (e.g. "App.tsx")
-   - "ExistingFile": boolean — true if the file already exists, false if new
-   - "FileDirectory": string — the directory path relative to project root
-   - "Description": string — brief description of what changed
-   - "Content": string — the COMPLETE file content, ready to copy-paste. NOT a diff or snippet. The full file from first line to last.
-
-IMPORTANT: The "Content" field must contain the ENTIRE file — not just the changed parts, not a code snippet, not a diff. The complete source code that can be written directly to the file.
-`;
+        // ── Build the prompt for the AI using the selected mode (Request 7) ─
+        const promptBuilders: Record<LCPromptModeType, (p: typeof promptParams) => string> = {
+          agent: buildAgentPrompt,
+          plan: buildPlanPrompt,
+          ask: buildAskPrompt,
+        };
+        const promptParams = { projectName, stashContext, userContent: content };
+        const basePrompt = promptBuilders[promptModeRef.current]?.(promptParams) ?? buildAgentPrompt(promptParams);
+        const prompt = sessionContext + basePrompt;
 
         // Read AI settings from Dexie and forward to server action
         const settings = await lcDB.aiSettings.get("default");
@@ -252,15 +253,35 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
     return [];
   }, []);
 
+  const deleteSession = useCallback(async (sessionId: string) => {
+    await lcDB.deleteChatSession(sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (activeSessionRef.current?.id === sessionId) {
+      setActiveSession(null);
+      setMessages([]);
+    }
+  }, []);
+
+  const clearAllSessions = useCallback(async (projectId: string) => {
+    await lcDB.clearAllChatSessions(projectId);
+    setSessions([]);
+    setActiveSession(null);
+    setMessages([]);
+  }, []);
+
   return {
     sessions,
     activeSession,
     messages,
     isSending,
+    promptMode,
+    setPromptMode,
     createSession,
     selectSession,
     sendMessage,
     applyFileChanges,
     getLatestAssistantFileActions,
+    deleteSession,
+    clearAllSessions,
   };
 }
