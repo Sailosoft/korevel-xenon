@@ -78,6 +78,8 @@ export interface LCChatMessage {
   fileContents?: LCFileActionResult[];
   /** Error details if this message represents a failed AI response */
   error?: LCErrorInfo;
+  /** Selectable question/option bubbles from Plan mode */
+  questions?: string[];
 }
 
 /** Status of a file diff application */
@@ -99,6 +101,8 @@ export interface LCAIResponse {
   SessionID: string;
   AIMessage: string;
   FileContents: LCFileActionResult[];
+  /** Selectable question/option suggestions (Plan mode) */
+  Questions?: string[];
 }
 
 /** Tracking info for external file change detection */

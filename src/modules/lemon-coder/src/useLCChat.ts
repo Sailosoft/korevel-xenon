@@ -274,6 +274,9 @@ export function useLCChat(): UseLCChatReturn {
           fileContents: Array.isArray(aiResponse.FileContents)
             ? aiResponse.FileContents
             : undefined,
+          questions: Array.isArray(aiResponse.Questions) && aiResponse.Questions.length > 0
+            ? aiResponse.Questions
+            : undefined,
         });
 
         setMessages((prev) => [...prev, aiMsg]);

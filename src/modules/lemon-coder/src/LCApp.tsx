@@ -326,11 +326,15 @@ export default function LCApp() {
     [findItemByPath, selectFile],
   );
 
-  const handleCreateSession = useCallback(() => {
+  const handleCreateSession = useCallback(async () => {
     if (currentProject) {
       // Clear context stash for a fresh context
-      clearStash();
-      createChatSession(currentProject.id);
+      try {
+        await clearStash();
+      } catch (err) {
+        console.error("[lemon-coder] Failed to clear stash on new session:", err);
+      }
+      await createChatSession(currentProject.id);
     }
   }, [currentProject, createChatSession, clearStash]);
 
@@ -454,6 +458,7 @@ export default function LCApp() {
           sessionTitle={activeSession?.title}
           onRemoveFromStash={removeFromStash}
           onAddToStash={addToStash}
+          onNewSession={handleCreateSession}
         />
 
         {/* Right Sidebar */}

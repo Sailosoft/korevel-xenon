@@ -57,6 +57,8 @@ export interface LCMainContentProps {
   onRemoveFromStash?: (id: string) => void;
   /** Add the currently selected file to the context stash */
   onAddToStash?: (item: LCFileTreeItem) => void;
+  /** Create a new chat session */
+  onNewSession?: () => void;
 }
 
 export default function LCMainContent({
@@ -80,6 +82,7 @@ export default function LCMainContent({
   sessionTitle,
   onRemoveFromStash,
   onAddToStash,
+  onNewSession,
 }: LCMainContentProps) {
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
@@ -211,6 +214,7 @@ export default function LCMainContent({
           <Button
             size="sm"
             variant="ghost"
+            onPress={onNewSession}
             className="text-xs h-7 text-[#e5c07b] hover:bg-[#e5c07b]/10"
           >
             <MessageSquare className="w-3.5 h-3.5" />

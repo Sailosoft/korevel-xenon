@@ -27,7 +27,7 @@ export default function LCNewItemModal({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+      <Modal.Container>
         <Modal.Dialog className="sm:max-w-[360px] bg-[#1e1e1e] text-white">
           <Modal.CloseTrigger />
           <Modal.Header>

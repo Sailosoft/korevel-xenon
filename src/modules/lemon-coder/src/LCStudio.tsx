@@ -302,10 +302,14 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     [findItemByPath, selectFile],
   );
 
-  const handleCreateSession = useCallback(() => {
+  const handleCreateSession = useCallback(async () => {
     if (currentProject) {
-      clearStash();
-      createChatSession(currentProject.id);
+      try {
+        await clearStash();
+      } catch (err) {
+        console.error("[lemon-coder] Failed to clear stash on new session:", err);
+      }
+      await createChatSession(currentProject.id);
     }
   }, [currentProject, createChatSession, clearStash]);
 
@@ -463,6 +467,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           sessionTitle={activeSession?.title}
           onRemoveFromStash={removeFromStash}
           onAddToStash={addToStash}
+          onNewSession={handleCreateSession}
         />
 
         <LCRightSidebar

@@ -101,8 +101,6 @@ function getLanguage(fileName: string): string {
   return languageMap[ext] || "plaintext";
 }
 
-import { useEffect } from "react";
-
 export default function LCFileView({
   selectedFile,
   content,

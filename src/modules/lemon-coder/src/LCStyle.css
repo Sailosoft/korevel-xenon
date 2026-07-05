@@ -6,25 +6,26 @@
 /* Thin scrollbar - for chat messages area and compact panels */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #444 transparent;
+  scrollbar-color: #555 #2a2a2a;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+  background: #4e4e4e;
+  border-radius: 4px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #444;
-  border-radius: 3px;
+  background: #555;
+  border-radius: 4px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: #555;
+  background: #bbb;
 }
 
 /* Medium scrollbar - for sidebar and file tree panels */
