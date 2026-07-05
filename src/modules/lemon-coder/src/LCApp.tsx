@@ -229,7 +229,7 @@ export default function LCApp() {
       for (const action of fileActions) {
         try {
           const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`
+            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
             : action.FileName;
 
           // Write directly to the filesystem via the cached directory handle

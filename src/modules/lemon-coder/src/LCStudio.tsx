@@ -210,7 +210,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       for (const action of fileActions) {
         try {
           const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`
+            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
             : action.FileName;
 
           await writeFile(filePath, action.Content);

@@ -22,10 +22,10 @@ import type { LCFileActionResult } from "./LCInterface";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Build the display file path from a file action */
+/** Build the display file path from a file action (normalises double slashes) */
 function getFilePath(file: LCFileActionResult): string {
   return file.FileDirectory
-    ? `${file.FileDirectory}/${file.FileName}`
+    ? `${file.FileDirectory}/${file.FileName}`.replace(/\/+/g, "/")
     : file.FileName;
 }
 

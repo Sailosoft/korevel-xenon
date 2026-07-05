@@ -214,7 +214,7 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
       for (const action of fileActions) {
         try {
           const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`
+            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
             : action.FileName;
 
           console.log(

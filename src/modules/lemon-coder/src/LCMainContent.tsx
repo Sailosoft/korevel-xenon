@@ -82,7 +82,7 @@ export default function LCMainContent({
   const handlePreviewDiff = useCallback(
     async (fileAction: LCFileActionResult) => {
       const filePath = fileAction.FileDirectory
-        ? `${fileAction.FileDirectory}/${fileAction.FileName}`
+        ? `${fileAction.FileDirectory}/${fileAction.FileName}`.replace(/\/+/g, "/")
         : fileAction.FileName;
 
       let originalContent = "";
