@@ -230,6 +230,10 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             }
           }
         },
+        // Clear stash after conversation-mode sends (Agent/Plan/Ask)
+        clearStash: async () => {
+          await clearStash();
+        },
       };
 
       if (!activeSession) {
@@ -242,7 +246,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         await sendMessage(content, stashItems, currentProject.name, sendOptions);
       }
     },
-    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash],
+    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash, clearStash],
   );
 
   const handleApplyFileChanges = useCallback(
@@ -468,6 +472,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           onRemoveFromStash={removeFromStash}
           onAddToStash={addToStash}
           onNewSession={handleCreateSession}
+          onClearStash={clearStash}
         />
 
         <LCRightSidebar

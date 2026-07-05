@@ -256,6 +256,13 @@ export class LCDatabase extends Dexie {
       .sortBy("updatedAt");
   }
 
+  async updateChatSessionTitle(
+    sessionId: string,
+    title: string,
+  ): Promise<void> {
+    await this.chatSessions.update(sessionId, { title });
+  }
+
   // ── Context Stash helpers ─────────────────────────────────────────────────
 
   async addToStash(item: Omit<LCContextStashItem, "id" | "addedAt">): Promise<LCContextStashItem> {

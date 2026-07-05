@@ -1,21 +1,80 @@
 // ───────────────────────────────────────────────────────────────────────────────
 // Lemon Coder — useLCChat Hook
 // ───────────────────────────────────────────────────────────────────────────────
+// Manages chat sessions, message history, and AI communication.
+//
+// Key behaviors by mode:
+//   Agent / Plan / Ask — Full conversation history is sent to the AI,
+//                         preserving context build-up across turns.
+//                         Stash is cleared after each send.
+//   Code               — Single-turn prompt only (no conversation history).
+//                         Stash is NOT cleared — kept across turns.
+// ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
 import { useState, useCallback, useRef } from "react";
 import { lcDB } from "./LCDatabase";
-import { callHelixAI } from "./actions";
+import { callHelixAI, callHelixAIWithConversation } from "./actions";
 import type {
   LCChatSession,
   LCChatMessage,
   LCContextStashItem,
   LCFileActionResult,
   LCErrorInfo,
+  LCAIConversationMessage,
 } from "./LCInterface";
 import type { LCPromptModeType } from "./LCPromptMode";
-import { buildAgentPrompt, buildPlanPrompt, buildAskPrompt } from "./LCPromptMode";
+import {
+  buildAgentPrompt,
+  buildPlanPrompt,
+  buildAskPrompt,
+  buildCodePrompt,
+} from "./LCPromptMode";
+
+/**
+ * Extract a short session title from the first AI response content.
+ * Takes the first meaningful sentence/phrase, strips markdown formatting,
+ * and truncates to a reasonable length for display.
+ * Returns null if no suitable title can be derived.
+ */
+export function extractTitleFromAIResponse(content: string): string | null {
+  // Strip markdown formatting: bold, italic, inline code, links
+  const clean = content
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .trim();
+
+  if (!clean) return null;
+
+  // Take the first sentence (up to first period, exclamation, or question mark)
+  const sentenceMatch = clean.match(/^(.+?)[.!?](?:\s|$)/);
+  let title = sentenceMatch ? sentenceMatch[1].trim() : "";
+
+  // If no sentence boundary found, take the first line
+  if (!title) {
+    const firstLine = clean.split("\n")[0]?.trim();
+    title = firstLine || "";
+  }
+
+  // If still empty, take the first ~50 chars
+  if (!title) {
+    title = clean.slice(0, 50).trim();
+  }
+
+  // Clean up: remove leading/trailing quotes
+  title = title.replace(/^["'""']+|["'""']+$/g, "").trim();
+
+  // Truncate to 60 chars max with ellipsis
+  if (title.length > 60) {
+    title = title.slice(0, 57).trim() + "...";
+  }
+
+  return title || null;
+}
 
 export interface UseLCChatReturn {
   sessions: LCChatSession[];
@@ -39,6 +98,8 @@ export interface UseLCChatReturn {
       fileTree?: Array<{ path: string; isDirectory: boolean }>;
       /** Callback when plan mode identifies relevant files */
       onFilesIdentified?: (filePaths: string[]) => void;
+      /** Clear the context stash after the message is sent (non-Code modes) */
+      clearStash?: () => Promise<void>;
     },
   ) => Promise<void>;
   applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
@@ -48,6 +109,8 @@ export interface UseLCChatReturn {
   deleteSession: (sessionId: string) => Promise<void>;
   /** Clear all sessions for the current project */
   clearAllSessions: (projectId: string) => Promise<void>;
+  /** The current conversation mode label (derived from promptMode) */
+  conversationModeLabel: string;
 }
 
 export function useLCChat(): UseLCChatReturn {
@@ -57,12 +120,12 @@ export function useLCChat(): UseLCChatReturn {
   );
   const [messages, setMessages] = useState<LCChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [promptMode, setPromptMode] = useState<LCPromptModeType>("agent");
+  const [promptMode, setPromptMode] = useState<LCPromptModeType>("code");
 
   // ── Refs to avoid stale closures in async callbacks ──────────────────────
   const activeSessionRef = useRef<LCChatSession | null>(null);
   const messagesRef = useRef<LCChatMessage[]>([]);
-  const promptModeRef = useRef<LCPromptModeType>("agent");
+  const promptModeRef = useRef<LCPromptModeType>("code");
   // Keep refs in sync with state
   activeSessionRef.current = activeSession;
   messagesRef.current = messages;
@@ -175,6 +238,7 @@ export function useLCChat(): UseLCChatReturn {
         sessionOverride?: LCChatSession;
         fileTree?: Array<{ path: string; isDirectory: boolean }>;
         onFilesIdentified?: (filePaths: string[]) => void;
+        clearStash?: () => Promise<void>;
       },
     ) => {
       // Use the session override if provided (fixes stale-closure issue on first send),
@@ -183,14 +247,23 @@ export function useLCChat(): UseLCChatReturn {
       if (!session) return;
 
       const failedContent = content;
+      const currentMode = promptModeRef.current;
+      const isConversationMode = currentMode !== "code";
 
       setIsSending(true);
 
       try {
-        // Add user message to DB
+        // ── Gather context file names for the bubble display ───────────────
+        const contextFileNames = stashItems
+          .filter((s) => !s.isDirectory)
+          .map((s) => s.name);
+
+        // Add user message to DB (with context files attached)
         const userMsg = await lcDB.addChatMessage(session.id, {
           role: "user",
           content,
+          contextFiles:
+            contextFileNames.length > 0 ? contextFileNames : undefined,
         });
 
         setMessages((prev) => [...prev, userMsg]);
@@ -231,11 +304,12 @@ export function useLCChat(): UseLCChatReturn {
           ? `\n### Session: ${session.title}\n`
           : "";
 
-        // ── Build the prompt for the AI using the selected mode (Request 7) ─
+        // ── Build the prompt for the AI using the selected mode ────────────
         const promptBuilders: Record<LCPromptModeType, (p: typeof promptParams) => string> = {
           agent: buildAgentPrompt,
           plan: buildPlanPrompt,
           ask: buildAskPrompt,
+          code: buildCodePrompt,
         };
         const promptParams = {
           projectName,
@@ -243,7 +317,9 @@ export function useLCChat(): UseLCChatReturn {
           userContent: content,
           fileTree: options?.fileTree,
         };
-        const basePrompt = promptBuilders[promptModeRef.current]?.(promptParams as any) ?? buildAgentPrompt(promptParams as any);
+        const basePrompt =
+          promptBuilders[currentMode]?.(promptParams as any) ??
+          buildAgentPrompt(promptParams as any);
         const prompt = sessionContext + basePrompt;
 
         // Read AI settings from Dexie and forward to server action
@@ -251,42 +327,128 @@ export function useLCChat(): UseLCChatReturn {
         const providerName = settings?.provider ?? "default";
         const model = settings?.model ?? "";
 
-        // Call Helix AI via server action (API keys stay server-side)
-        const aiResponse = await callHelixAI({
-          prompt,
-          provider: providerName,
-          model,
-        });
+        // ── AI Call: Conversation modes vs Code mode ───────────────────────
+        let aiResponse: Awaited<ReturnType<typeof callHelixAI>>;
 
-        // ── Plan mode: cross-check file paths in the response ──────────────
-        if (promptModeRef.current === "plan" && options?.fileTree && options?.onFilesIdentified) {
-          const extractedPaths = extractFilePathsFromResponse(aiResponse.AIMessage);
-          const matchedPaths = crossCheckFilePaths(extractedPaths, options.fileTree);
-          if (matchedPaths.length > 0) {
-            options.onFilesIdentified(matchedPaths);
+        if (isConversationMode) {
+          // ── Agent / Plan / Ask: Pass full conversation history ───────────
+          // Collect all previous messages (user + assistant) from history
+          const prevMessages = messagesRef.current;
+
+          // Build the conversation array:
+          // System message + previous turns + new user prompt
+          const conversationMessages: LCAIConversationMessage[] = [
+            // Static system instructions shared across all turns
+            {
+              role: "system",
+              content:
+                "You are Lemon Coder, an AI coding assistant. You help users write and modify code files. " +
+                "You MUST respond with a valid JSON object containing exactly the fields requested in the user prompt. " +
+                "When providing file Content, always output the COMPLETE file from the first line to the last — " +
+                "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
+                "The Content field must be ready to copy-paste and write directly to the file as-is.",
+            },
+          ];
+
+          // Add previous turns (excluding the user message we just added,
+          // since it will be included in the full prompt below)
+          for (const msg of prevMessages) {
+            if (msg.role === "user" || msg.role === "assistant") {
+              conversationMessages.push({
+                role: msg.role,
+                content: msg.content,
+              });
+            }
           }
+
+          // The new user turn includes the full built prompt (system instructions + stash + user content)
+          // This ensures the AI has the latest stash context for this turn.
+          conversationMessages.push({
+            role: "user",
+            content: prompt,
+          });
+
+          aiResponse = await callHelixAIWithConversation({
+            messages: conversationMessages,
+            provider: providerName,
+            model,
+          });
+        } else {
+          // ── Code mode: Single-turn prompt (keep stash) ───────────────────
+          aiResponse = await callHelixAI({
+            prompt,
+            provider: providerName,
+            model,
+          });
         }
 
-        // Add AI response to DB
+        // Add AI response to DB (with context files attached)
         const aiMsg = await lcDB.addChatMessage(session.id, {
           role: "assistant",
           content: aiResponse.AIMessage,
           fileContents: Array.isArray(aiResponse.FileContents)
             ? aiResponse.FileContents
             : undefined,
-          questions: Array.isArray(aiResponse.Questions) && aiResponse.Questions.length > 0
-            ? aiResponse.Questions
-            : undefined,
+          questions:
+            Array.isArray(aiResponse.Questions) &&
+            aiResponse.Questions.length > 0
+              ? aiResponse.Questions
+              : undefined,
+          contextFiles:
+            contextFileNames.length > 0 ? contextFileNames : undefined,
         });
 
         setMessages((prev) => [...prev, aiMsg]);
+
+        // ── Auto-rename session from the first AI response ──────────────
+        // If no assistant messages existed before this response, derive a
+        // short title from the AI response content and update the session.
+        const prevMsgs = messagesRef.current;
+        const hasAssistant = prevMsgs.some((m) => m.role === "assistant");
+        if (!hasAssistant) {
+          const aiTitle = extractTitleFromAIResponse(aiResponse.AIMessage);
+          if (aiTitle) {
+            await lcDB.updateChatSessionTitle(session.id, aiTitle);
+            setActiveSession((prev) =>
+              prev ? { ...prev, title: aiTitle } : null,
+            );
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.id === session.id ? { ...s, title: aiTitle } : s,
+              ),
+            );
+          }
+        }
+
+        // ── Clear old stash context FIRST, then set new identified files ──
+        // Code mode keeps the stash intact across turns.
+        if (isConversationMode && options?.clearStash) {
+          await options.clearStash();
+        }
+
+        // ── Plan mode: cross-check file paths in the response ──────────────
+        if (currentMode === "plan" && options?.fileTree && options?.onFilesIdentified) {
+          const extractedPaths = extractFilePathsFromResponse(
+            aiResponse.AIMessage,
+          );
+          const matchedPaths = crossCheckFilePaths(
+            extractedPaths,
+            options.fileTree,
+          );
+          if (matchedPaths.length > 0) {
+            options.onFilesIdentified(matchedPaths);
+          }
+        }
       } catch (error) {
         console.error("Failed to send message:", error);
 
         const currentSession = activeSessionRef.current;
         if (currentSession) {
           const errorInfo: LCErrorInfo = {
-            message: error instanceof Error ? error.message : "Failed to process request",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Failed to process request",
             stack: error instanceof Error ? error.stack : undefined,
             name: error instanceof Error ? error.name : undefined,
             timestamp: new Date(),
@@ -375,6 +537,12 @@ export function useLCChat(): UseLCChatReturn {
     setMessages([]);
   }, []);
 
+  // Derived label describing the current conversation mode behavior
+  const conversationModeLabel =
+    promptMode === "code"
+      ? "Single-turn · Stash kept"
+      : "Multi-turn · Stash cleared";
+
   return {
     sessions,
     activeSession,
@@ -389,5 +557,6 @@ export function useLCChat(): UseLCChatReturn {
     getLatestAssistantFileActions,
     deleteSession,
     clearAllSessions,
+    conversationModeLabel,
   };
 }

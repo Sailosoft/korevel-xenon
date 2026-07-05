@@ -59,6 +59,8 @@ export interface LCMainContentProps {
   onAddToStash?: (item: LCFileTreeItem) => void;
   /** Create a new chat session */
   onNewSession?: () => void;
+  /** Clear the entire context stash */
+  onClearStash?: () => Promise<void>;
 }
 
 export default function LCMainContent({
@@ -83,6 +85,7 @@ export default function LCMainContent({
   onRemoveFromStash,
   onAddToStash,
   onNewSession,
+  onClearStash,
 }: LCMainContentProps) {
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
@@ -239,6 +242,7 @@ export default function LCMainContent({
             onPromptModeChange={onPromptModeChange}
             sessionTitle={sessionTitle}
             onRemoveFromStash={onRemoveFromStash}
+            onClearStash={onClearStash}
           />
         ) : viewMode === "diff" && diffPreview ? (
           <LCFileView

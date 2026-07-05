@@ -80,6 +80,8 @@ export interface LCChatMessage {
   error?: LCErrorInfo;
   /** Selectable question/option bubbles from Plan mode */
   questions?: string[];
+  /** File names from the context stash that were attached when this message was sent */
+  contextFiles?: string[];
 }
 
 /** Status of a file diff application */
@@ -103,6 +105,12 @@ export interface LCAIResponse {
   FileContents: LCFileActionResult[];
   /** Selectable question/option suggestions (Plan mode) */
   Questions?: string[];
+}
+
+/** A single message in the AI conversation array for multi-turn chat */
+export interface LCAIConversationMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
 }
 
 /** Tracking info for external file change detection */

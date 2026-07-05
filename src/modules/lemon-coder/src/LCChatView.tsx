@@ -26,6 +26,7 @@ import {
   X,
   Copy,
   Check,
+  Terminal,
 } from "lucide-react";
 import { lcDB } from "./LCDatabase";
 import { HELIX_PROVIDER_LABELS } from "@/src/modules/helix";
@@ -65,12 +66,15 @@ export interface LCChatViewProps {
   sessionTitle?: string;
   /** Remove a specific item from the context stash */
   onRemoveFromStash?: (id: string) => void;
+  /** Clear the entire context stash (called after send in conversation modes) */
+  onClearStash?: () => Promise<void>;
 }
 
 const modeIcons: Record<LCPromptModeType, React.ReactNode> = {
   agent: <Bot className="w-3 h-3" />,
   plan: <Layers className="w-3 h-3" />,
   ask: <MessageSquare className="w-3 h-3" />,
+  code: <Terminal className="w-3 h-3" />,
 };
 
 export default function LCChatView({
@@ -329,6 +333,25 @@ export default function LCChatView({
                 )}
               </div>
 
+              {/* Attached context files badge */}
+              {msg.contextFiles && msg.contextFiles.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-[#333333]/50 flex flex-wrap gap-1">
+                  <span className="text-[10px] text-[#858585] mr-0.5 leading-5">
+                    <FileCode className="w-3 h-3 inline mr-0.5 -mt-0.5" />
+                    Context:
+                  </span>
+                  {msg.contextFiles.map((fileName, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] text-[#98c379] bg-[#98c379]/10 px-1.5 py-0.5 rounded-full truncate max-w-[120px]"
+                      title={fileName}
+                    >
+                      {fileName}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {/* Question option bubbles (Plan mode) */}
               {msg.questions && msg.questions.length > 0 && (
                 <div className="mt-3 pt-2 border-t border-[#333333] space-y-1.5">
@@ -340,9 +363,14 @@ export default function LCChatView({
                       <button
                         key={qIdx}
                         onClick={() => {
-                          setInput(question);
-                          // Focus the textarea so user can edit or press Enter to send
-                          textareaRef.current?.focus();
+                          if (promptMode === "plan") {
+                            // Plan mode: auto-send the selected option
+                            onSendMessage(question);
+                          } else {
+                            // Other modes: set input and focus textarea
+                            setInput(question);
+                            textareaRef.current?.focus();
+                          }
                         }}
                         className="text-xs px-3 py-1.5 rounded-full border border-[#e5c07b]/30 bg-[#e5c07b]/5 text-[#e5c07b] hover:bg-[#e5c07b]/15 hover:border-[#e5c07b]/60 transition-colors text-left"
                       >
