@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { directoryOpen } from "browser-fs-access";
+import "./LCStyle.css";
 import { useLiveQuery } from "dexie-react-hooks";
 import { lcDB } from "./LCDatabase";
 import { useLCProject } from "./useLCProject";
@@ -201,6 +202,22 @@ export default function LCApp() {
     }
   }, [loadDirectory, openProjectFromHandle, clearStash, extractRootHandle]);
 
+  /** Flatten the file tree to a list of { path, isDirectory } for plan mode cross-referencing */
+  const flattenFileTree = useCallback(
+    (items: LCFileTreeItem[]): Array<{ path: string; isDirectory: boolean }> => {
+      const result: Array<{ path: string; isDirectory: boolean }> = [];
+      const walk = (nodes: LCFileTreeItem[]) => {
+        for (const node of nodes) {
+          result.push({ path: node.path, isDirectory: node.isDirectory });
+          if (node.children) walk(node.children);
+        }
+      };
+      walk(items);
+      return result;
+    },
+    [],
+  );
+
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!currentProject) return;
@@ -213,6 +230,17 @@ export default function LCApp() {
           // readFileContent expects a tree item, but we need one by path
           // Re-use selectFile's logic — use findItemByPath to get the item
           return readFileContent(item);
+        },
+        // Pass file tree for plan mode cross-referencing
+        fileTree: flattenFileTree(fileTree),
+        // Auto-add identified files to stash in plan mode
+        onFilesIdentified: (filePaths: string[]) => {
+          for (const fp of filePaths) {
+            const item = findItemByPath(fp);
+            if (item) {
+              addToStash(item);
+            }
+          }
         },
       };
 
@@ -227,7 +255,7 @@ export default function LCApp() {
         await sendMessage(content, stashItems, currentProject.name, sendOptions);
       }
     },
-    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent],
+    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash],
   );
 
   /**
@@ -424,6 +452,8 @@ export default function LCApp() {
           promptMode={promptMode}
           onPromptModeChange={setPromptMode}
           sessionTitle={activeSession?.title}
+          onRemoveFromStash={removeFromStash}
+          onAddToStash={addToStash}
         />
 
         {/* Right Sidebar */}

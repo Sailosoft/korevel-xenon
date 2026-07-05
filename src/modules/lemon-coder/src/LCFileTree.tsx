@@ -378,7 +378,7 @@ export default function LCFileTree({
   }
 
   return (
-    <div className="overflow-auto h-full relative">
+    <div className="h-full relative">
       {items.map((item) => (
         <FileTreeItem
           key={item.id}

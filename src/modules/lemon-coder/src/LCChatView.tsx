@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   RefreshCw,
   MessageSquare,
+  X,
 } from "lucide-react";
 import { lcDB } from "./LCDatabase";
 import { HELIX_PROVIDER_LABELS } from "@/src/modules/helix";
@@ -58,6 +59,8 @@ export interface LCChatViewProps {
   onPromptModeChange?: (mode: LCPromptModeType) => void;
   /** Current session title to display */
   sessionTitle?: string;
+  /** Remove a specific item from the context stash */
+  onRemoveFromStash?: (id: string) => void;
 }
 
 const modeIcons: Record<LCPromptModeType, React.ReactNode> = {
@@ -78,9 +81,11 @@ export default function LCChatView({
   promptMode = "agent",
   onPromptModeChange,
   sessionTitle,
+  onRemoveFromStash,
 }: LCChatViewProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Monaco Editor Modal for text input ───────────────────────────────────
@@ -102,10 +107,10 @@ export default function LCChatView({
     : "Not configured";
   const modelLabel = aiSettings?.model || "—";
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or when AI finishes sending
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isSending]);
 
   // Auto-resize textarea when input changes
   useEffect(() => {
@@ -187,8 +192,11 @@ export default function LCChatView({
         )}
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* Messages Area — with custom scrollbar styling */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-[#444] scrollbar-track-transparent hover:scrollbar-thumb-[#555]"
+      >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Bot className="w-12 h-12 text-[#e5c07b] mb-4 opacity-50" />
@@ -331,7 +339,7 @@ export default function LCChatView({
 
       {/* Chat Input Area */}
       <div className="border-t border-[#333333]">
-        {/* Attached Context */}
+        {/* Attached Context — with remove buttons */}
         {stashItems.length > 0 && (
           <div className="px-4 pt-3 pb-2 border-b border-[#333333]/50">
             <div className="flex items-center gap-1.5 mb-2">
@@ -354,13 +362,27 @@ export default function LCChatView({
                   ) : (
                     <FileCode className="w-3 h-3 text-[#98c379] shrink-0" />
                   )}
-                  <span className="truncate max-w-[160px]" title={item.path}>
+                  <span className="truncate max-w-[140px]" title={item.path}>
                     {item.name}
                   </span>
-                  <span className="hidden group-hover:inline text-[10px] text-[#555] ml-0.5 truncate max-w-[120px]">
+                  <span className="hidden group-hover:inline text-[10px] text-[#555] ml-0.5 truncate max-w-[100px]">
                     {item.path.replace(/^.*[\\/]/, "") !== item.name &&
                       `— ${item.path}`}
                   </span>
+
+                  {/* Remove button for attached context item */}
+                  {onRemoveFromStash && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveFromStash(item.id);
+                      }}
+                      className="w-4 h-4 flex items-center justify-center rounded text-[#858585] hover:text-red-400 hover:bg-red-400/10 transition-colors ml-0.5 shrink-0"
+                      title="Remove from context"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

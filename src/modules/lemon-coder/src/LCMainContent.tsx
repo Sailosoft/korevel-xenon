@@ -53,6 +53,10 @@ export interface LCMainContentProps {
   onPromptModeChange?: (mode: LCPromptModeType) => void;
   /** Current session title to display */
   sessionTitle?: string;
+  /** Remove a specific item from the context stash */
+  onRemoveFromStash?: (id: string) => void;
+  /** Add the currently selected file to the context stash */
+  onAddToStash?: (item: LCFileTreeItem) => void;
 }
 
 export default function LCMainContent({
@@ -74,6 +78,8 @@ export default function LCMainContent({
   promptMode,
   onPromptModeChange,
   sessionTitle,
+  onRemoveFromStash,
+  onAddToStash,
 }: LCMainContentProps) {
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
@@ -228,6 +234,7 @@ export default function LCMainContent({
             promptMode={promptMode}
             onPromptModeChange={onPromptModeChange}
             sessionTitle={sessionTitle}
+            onRemoveFromStash={onRemoveFromStash}
           />
         ) : viewMode === "diff" && diffPreview ? (
           <LCFileView
@@ -253,6 +260,11 @@ export default function LCMainContent({
             onReloadFromDisk={onReloadFromDisk}
             onAcknowledgeExternalChange={onAcknowledgeExternalChange}
             onSave={onSave}
+            onAddToStash={
+              onAddToStash && selectedFile
+                ? () => onAddToStash(selectedFile)
+                : undefined
+            }
           />
         )}
       </div>

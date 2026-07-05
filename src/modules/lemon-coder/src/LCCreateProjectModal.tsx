@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button, Modal } from "@heroui/react";
 import { Input } from "@/src/shadcnui/components/ui/input";
 import { Label } from "@/src/shadcnui/components/ui/label";
@@ -15,7 +15,7 @@ import { LCTheme } from "./LCTheme";
 export interface LCCreateProjectModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateProject: (name: string, folderPath: string) => void;
+  onCreateProject: (name: string, dirHandle: FileSystemDirectoryHandle) => void;
 }
 
 export default function LCCreateProjectModal({
@@ -26,28 +26,37 @@ export default function LCCreateProjectModal({
   const [projectName, setProjectName] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [isSelectingFolder, setIsSelectingFolder] = useState(false);
+  const dirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
 
   const handleSelectFolder = async () => {
     setIsSelectingFolder(true);
     try {
+      let dirHandle: FileSystemDirectoryHandle;
+
       if (typeof (window as any).showDirectoryPicker === "function") {
-        const dirHandle = await (window as any).showDirectoryPicker({
+        dirHandle = await (window as any).showDirectoryPicker({
           mode: "readwrite",
         });
-        setFolderPath(dirHandle.name);
       } else {
         const { directoryOpen } = await import("browser-fs-access");
         const result = await directoryOpen({ recursive: true, mode: "readwrite" });
-        // Extract the directory handle name
+        // Extract the directory handle from result
         if (result && result.length > 0) {
           const first = (result as any[])[0];
-          const name =
-            first && typeof first.kind === "string" && first.kind === "directory"
-              ? (first as any).name
-              : (first as any)?.webkitRelativePath?.split("/")[0] || "selected-folder";
-          setFolderPath(name);
+          if (first && typeof first.kind === "string" && first.kind === "directory") {
+            dirHandle = first as FileSystemDirectoryHandle;
+          } else if (first?.directoryHandle) {
+            dirHandle = first.directoryHandle as FileSystemDirectoryHandle;
+          } else {
+            throw new Error("Could not obtain directory handle");
+          }
+        } else {
+          throw new Error("No directory selected");
         }
       }
+
+      dirHandleRef.current = dirHandle;
+      setFolderPath(dirHandle.name);
     } catch (error: any) {
       if (error.name !== "AbortError" && error.name !== "SecurityError") {
         console.error("Failed to select folder:", error);
@@ -58,14 +67,15 @@ export default function LCCreateProjectModal({
   };
 
   const handleCreate = () => {
-    if (projectName.trim() && folderPath) {
-      onCreateProject(projectName.trim(), folderPath);
+    if (projectName.trim() && dirHandleRef.current) {
+      onCreateProject(projectName.trim(), dirHandleRef.current);
       setProjectName("");
       setFolderPath("");
+      dirHandleRef.current = null;
     }
   };
 
-  const isValid = projectName.trim().length > 0 && folderPath.length > 0;
+  const isValid = projectName.trim().length > 0 && dirHandleRef.current !== null;
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>

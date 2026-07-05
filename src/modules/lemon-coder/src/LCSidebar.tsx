@@ -198,83 +198,99 @@ export default function LCSidebar({
       {/* File Tree Panel (resizable) */}
       {isFileTreeVisible && (
         <div
-          className="bg-[#252526] border-r border-[#333333] flex flex-col overflow-hidden relative"
+          className="bg-[#252526] flex flex-row overflow-hidden"
           style={{ width: sidebarWidth }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-3 h-9 border-b border-[#333333] shrink-0">
-            <span className="text-xs font-semibold text-[#cccccc] uppercase tracking-wider">
-              {activeIcon === "files"
-                ? "Files"
-                : activeIcon === "search"
-                  ? "Search"
-                  : "Extensions"}
-            </span>
+          {/* Inner panel — contains header + scrollable content */}
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[#333333] shrink-0">
+              <span className="text-xs font-semibold text-[#cccccc] uppercase tracking-wider">
+                {activeIcon === "files"
+                  ? "Files"
+                  : activeIcon === "search"
+                    ? "Search"
+                    : "Extensions"}
+              </span>
 
-            {/* Actions for Files view */}
-            {activeIcon === "files" && (
-              <div className="flex items-center gap-0.5">
-                {/* Tooltip Toggle */}
-                {onToggleTooltip && (
-                  <button
-                    onClick={onToggleTooltip}
-                    title={showTooltip ? "Disable enhanced tooltip" : "Enable enhanced tooltip"}
-                    className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
-                      showTooltip
-                        ? "text-[#e5c07b] hover:bg-[#e5c07b]/20"
-                        : "text-[#858585] hover:text-white hover:bg-[#333333]"
-                    }`}
-                  >
-                    <Info className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                {/* Refresh Explorer button — Strategy 3: Explicit Refresh UI */}
-                {onRefreshFileTree && (
-                  <button
-                    onClick={onRefreshFileTree}
-                    title="Refresh Explorer"
-                    className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
+              {/* Actions for Files view */}
+              {activeIcon === "files" && (
+                <div className="flex items-center gap-0.5">
+                  {/* Tooltip Toggle */}
+                  {onToggleTooltip && (
+                    <button
+                      onClick={onToggleTooltip}
+                      title={showTooltip ? "Disable enhanced tooltip" : "Enable enhanced tooltip"}
+                      className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                        showTooltip
+                          ? "text-[#e5c07b] hover:bg-[#e5c07b]/20"
+                          : "text-[#858585] hover:text-white hover:bg-[#333333]"
+                      }`}
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {/* Refresh Explorer button — Strategy 3: Explicit Refresh UI */}
+                  {onRefreshFileTree && (
+                    <button
+                      onClick={onRefreshFileTree}
+                      title="Refresh Explorer"
+                      className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Content — scrollable area with styled scrollbar */}
+            <div
+              className="flex-1 overflow-auto"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#555 transparent",
+              } as React.CSSProperties}
+            >
+              {activeIcon === "files" && (
+                <LCFileTree
+                  items={fileTreeItems}
+                  selectedFile={selectedFile}
+                  onSelectFile={onSelectFile}
+                  onToggleExpand={onToggleExpand}
+                  onAddToStash={onAddToStash}
+                  onNewItem={onNewItem}
+                  isLoading={isFileTreeLoading}
+                  showTooltip={showTooltip}
+                  onToggleTooltip={onToggleTooltip}
+                />
+              )}
+              {activeIcon === "search" && (
+                <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
+                  Search functionality coming soon.
+                </div>
+              )}
+              {activeIcon === "extensions" && (
+                <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
+                  Extensions coming soon.
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-hidden">
-            {activeIcon === "files" && (
-              <LCFileTree
-                items={fileTreeItems}
-                selectedFile={selectedFile}
-                onSelectFile={onSelectFile}
-                onToggleExpand={onToggleExpand}
-                onAddToStash={onAddToStash}
-                onNewItem={onNewItem}
-                isLoading={isFileTreeLoading}
-                showTooltip={showTooltip}
-                onToggleTooltip={onToggleTooltip}
-              />
-            )}
-            {activeIcon === "search" && (
-              <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
-                Search functionality coming soon.
-              </div>
-            )}
-            {activeIcon === "extensions" && (
-              <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
-                Extensions coming soon.
-              </div>
-            )}
-          </div>
-
-          {/* Drag Handle */}
+          {/* Dedicated visible resize handle column */}
           <div
-            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-[#e5c07b]/70 active:bg-[#e5c07b] transition-colors z-10 group"
+            className="w-2 shrink-0 cursor-col-resize bg-[#252526] hover:bg-[#e5c07b]/20 active:bg-[#e5c07b]/30 transition-colors border-l border-[#333333] flex items-center justify-center group relative"
             onMouseDown={handleResizeStart}
+            title="Drag to resize"
           >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full bg-[#555] opacity-0 group-hover:opacity-100 transition-opacity" />
+            {/* Vertical grip dots */}
+            <div className="flex flex-col items-center gap-0.5 opacity-40 group-hover:opacity-80 transition-opacity pointer-events-none">
+              <div className="w-0.5 h-0.5 rounded-full bg-[#858585]" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#858585]" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#858585]" />
+              <div className="w-0.5 h-0.5 rounded-full bg-[#858585]" />
+            </div>
           </div>
         </div>
       )}

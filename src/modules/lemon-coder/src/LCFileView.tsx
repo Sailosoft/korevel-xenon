@@ -13,6 +13,7 @@ import {
   ArrowLeftRight,
   Check,
   X,
+  Plus,
 } from "lucide-react";
 import type { LCFileTreeItem, LCExternalChangeStatus, LCFileActionResult } from "./LCInterface";
 
@@ -65,6 +66,8 @@ export interface LCFileViewProps {
   onRejectDiff?: () => void;
   /** Label shown in the diff header */
   diffLabel?: string;
+  /** Add the currently open file to the context stash */
+  onAddToStash?: () => void;
 }
 
 function getLanguage(fileName: string): string {
@@ -113,6 +116,7 @@ export default function LCFileView({
   onAcceptDiff,
   onRejectDiff,
   diffLabel,
+  onAddToStash,
 }: LCFileViewProps) {
   // ── Diff Preview Mode ────────────────────────────────────────────────────
   const isDiffMode = diffContent !== undefined && selectedFile !== null;
@@ -172,14 +176,26 @@ export default function LCFileView({
             </button>
           </div>
         ) : (
-          <button
-            onClick={onSave}
-            className="flex items-center gap-1.5 text-xs h-7 px-3 rounded bg-[#e5c07b] text-[#1e1e1e] font-medium hover:bg-[#d4a84b] transition-colors"
-            title="Save file (Ctrl+S)"
-          >
-            <Save className="w-3.5 h-3.5" />
-            Save
-          </button>
+          <div className="flex items-center gap-2">
+            {onAddToStash && (
+              <button
+                onClick={onAddToStash}
+                className="flex items-center gap-1.5 text-xs h-7 px-3 rounded border border-[#444444] text-[#858585] hover:text-[#e5c07b] hover:border-[#e5c07b]/40 transition-colors"
+                title="Add to context stash"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Stash
+              </button>
+            )}
+            <button
+              onClick={onSave}
+              className="flex items-center gap-1.5 text-xs h-7 px-3 rounded bg-[#e5c07b] text-[#1e1e1e] font-medium hover:bg-[#d4a84b] transition-colors"
+              title="Save file (Ctrl+S)"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save
+            </button>
+          </div>
         )}
       </div>
 

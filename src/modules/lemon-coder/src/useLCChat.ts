@@ -35,6 +35,10 @@ export interface UseLCChatReturn {
       readFileContent?: (filePath: string) => Promise<string>;
       /** If provided, use this session instead of activeSession (avoids stale closure on first send) */
       sessionOverride?: LCChatSession;
+      /** File tree listing for plan mode cross-referencing */
+      fileTree?: Array<{ path: string; isDirectory: boolean }>;
+      /** Callback when plan mode identifies relevant files */
+      onFilesIdentified?: (filePaths: string[]) => void;
     },
   ) => Promise<void>;
   applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
@@ -78,6 +82,89 @@ export function useLCChat(): UseLCChatReturn {
     setMessages(session.messages || []);
   }, []);
 
+  /** Parse the AI response for file path references (e.g. "@/src/modules/...", "../modules/...") */
+  const extractFilePathsFromResponse = useCallback(
+    (responseContent: string): string[] => {
+      const patterns = [
+        // Match @/src/... paths
+        /@\/src\/[^\s'"`,)\]]+/g,
+        // Match relative paths starting with ../
+        /\.\.\/[^\s'"`,)\]]+/g,
+        // Match relative paths starting with ./
+        /\.\/[^\s'"`,)\]]+/g,
+        // Match src/... paths
+        /src\/[^\s'"`,)\]]+/g,
+      ];
+
+      const foundPaths = new Set<string>();
+      for (const pattern of patterns) {
+        const matches = responseContent.match(pattern);
+        if (matches) {
+          for (const match of matches) {
+            // Normalize: remove trailing punctuation
+            const clean = match.replace(/[.,;:!?]$/, "");
+            foundPaths.add(clean);
+          }
+        }
+      }
+
+      return Array.from(foundPaths);
+    },
+    [],
+  );
+
+  /** Cross-check extracted file paths against the available file tree */
+  const crossCheckFilePaths = useCallback(
+    (extractedPaths: string[], fileTree: Array<{ path: string; isDirectory: boolean }>): string[] => {
+      if (!fileTree || fileTree.length === 0) return [];
+
+      const matchedPaths: string[] = [];
+      const allPaths = fileTree.map((f) => f.path);
+
+      for (const extractedPath of extractedPaths) {
+        // Normalize the extracted path: remove @/ prefix, resolve relative paths
+        let normalizedPath = extractedPath;
+
+        // Handle @/src/... → src/...
+        if (normalizedPath.startsWith("@/")) {
+          normalizedPath = normalizedPath.slice(2);
+        }
+
+        // Handle relative paths by resolving against project root
+        // For simplicity, just check against known paths
+        // Exact match
+        if (allPaths.includes(normalizedPath)) {
+          matchedPaths.push(normalizedPath);
+          continue;
+        }
+
+        // Fuzzy match: find paths that end with the same filename
+        const fileName = normalizedPath.split("/").pop() || "";
+        if (fileName) {
+          const fuzzyMatches = allPaths.filter((p) => p.endsWith(`/${fileName}`) || p === fileName);
+          if (fuzzyMatches.length > 0) {
+            matchedPaths.push(...fuzzyMatches);
+            continue;
+          }
+        }
+
+        // Partial path match: check if any part of the path matches
+        const pathParts = normalizedPath.split("/");
+        for (let i = pathParts.length - 1; i >= 0; i--) {
+          const partial = pathParts.slice(i).join("/");
+          if (partial && allPaths.includes(partial)) {
+            matchedPaths.push(partial);
+            break;
+          }
+        }
+      }
+
+      // Remove duplicates
+      return Array.from(new Set(matchedPaths));
+    },
+    [],
+  );
+
   const sendMessage = useCallback(
     async (
       content: string,
@@ -86,6 +173,8 @@ export function useLCChat(): UseLCChatReturn {
       options?: {
         readFileContent?: (filePath: string) => Promise<string>;
         sessionOverride?: LCChatSession;
+        fileTree?: Array<{ path: string; isDirectory: boolean }>;
+        onFilesIdentified?: (filePaths: string[]) => void;
       },
     ) => {
       // Use the session override if provided (fixes stale-closure issue on first send),
@@ -148,8 +237,13 @@ export function useLCChat(): UseLCChatReturn {
           plan: buildPlanPrompt,
           ask: buildAskPrompt,
         };
-        const promptParams = { projectName, stashContext, userContent: content };
-        const basePrompt = promptBuilders[promptModeRef.current]?.(promptParams) ?? buildAgentPrompt(promptParams);
+        const promptParams = {
+          projectName,
+          stashContext,
+          userContent: content,
+          fileTree: options?.fileTree,
+        };
+        const basePrompt = promptBuilders[promptModeRef.current]?.(promptParams as any) ?? buildAgentPrompt(promptParams as any);
         const prompt = sessionContext + basePrompt;
 
         // Read AI settings from Dexie and forward to server action
@@ -163,6 +257,15 @@ export function useLCChat(): UseLCChatReturn {
           provider: providerName,
           model,
         });
+
+        // ── Plan mode: cross-check file paths in the response ──────────────
+        if (promptModeRef.current === "plan" && options?.fileTree && options?.onFilesIdentified) {
+          const extractedPaths = extractFilePathsFromResponse(aiResponse.AIMessage);
+          const matchedPaths = crossCheckFilePaths(extractedPaths, options.fileTree);
+          if (matchedPaths.length > 0) {
+            options.onFilesIdentified(matchedPaths);
+          }
+        }
 
         // Add AI response to DB
         const aiMsg = await lcDB.addChatMessage(session.id, {
@@ -200,7 +303,7 @@ export function useLCChat(): UseLCChatReturn {
     },
     // activeSession deliberately omitted: we use activeSessionRef.current instead
     // to avoid stale-closure bugs when sendMessage is called after createSession.
-    [],
+    [extractFilePathsFromResponse, crossCheckFilePaths],
   );
 
   /**

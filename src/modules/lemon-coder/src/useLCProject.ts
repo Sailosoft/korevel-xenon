@@ -73,8 +73,10 @@ export function useLCProject(): UseLCProjectReturn {
       name: string,
       dirHandle: FileSystemDirectoryHandle,
     ): Promise<LCProject> => {
-      // Create the project entry
-      const project = await lcDB.createProject(name, name);
+      // Use the actual directory name as the folder path so the user can
+      // see where the project files are located on disk.
+      const actualFolderPath = dirHandle.name;
+      const project = await lcDB.createProject(name, actualFolderPath);
       // Cache the directory handle in Dexie (structured-clonable)
       await lcDB.saveProjectHandle(project.id, dirHandle);
       // Set as current project

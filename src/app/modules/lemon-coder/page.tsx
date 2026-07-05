@@ -158,20 +158,8 @@ export default function LemonCoderLandingPage() {
   );
 
   const handleCreateProject = useCallback(
-    async (name: string, _folderPath: string) => {
+    async (name: string, dirHandle: FileSystemDirectoryHandle) => {
       try {
-        let dirHandle: FileSystemDirectoryHandle;
-
-        if (typeof (window as any).showDirectoryPicker === "function") {
-          dirHandle = await (window as any).showDirectoryPicker({
-            mode: "readwrite",
-          });
-        } else {
-          const { directoryOpen } = await import("browser-fs-access");
-          const result = await directoryOpen({ recursive: true, mode: "readwrite" });
-          dirHandle = extractRootHandle(result);
-        }
-
         // Use the custom name instead of the directory name
         const project = await openProjectFromHandle(name, dirHandle);
 

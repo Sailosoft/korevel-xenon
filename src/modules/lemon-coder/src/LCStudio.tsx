@@ -193,6 +193,22 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     setIsLeaveStudioOpen(true);
   }, []);
 
+  /** Flatten the file tree to a list of { path, isDirectory } for plan mode cross-referencing */
+  const flattenFileTree = useCallback(
+    (items: LCFileTreeItem[]): Array<{ path: string; isDirectory: boolean }> => {
+      const result: Array<{ path: string; isDirectory: boolean }> = [];
+      const walk = (nodes: LCFileTreeItem[]) => {
+        for (const node of nodes) {
+          result.push({ path: node.path, isDirectory: node.isDirectory });
+          if (node.children) walk(node.children);
+        }
+      };
+      walk(items);
+      return result;
+    },
+    [],
+  );
+
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!currentProject) return;
@@ -202,6 +218,17 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           const item = findItemByPath(filePath);
           if (!item) throw new Error(`File not found in tree: ${filePath}`);
           return readFileContent(item);
+        },
+        // Pass file tree for plan mode cross-referencing
+        fileTree: flattenFileTree(fileTree),
+        // Auto-add identified files to stash in plan mode
+        onFilesIdentified: (filePaths: string[]) => {
+          for (const fp of filePaths) {
+            const item = findItemByPath(fp);
+            if (item) {
+              addToStash(item);
+            }
+          }
         },
       };
 
@@ -215,7 +242,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         await sendMessage(content, stashItems, currentProject.name, sendOptions);
       }
     },
-    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent],
+    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash],
   );
 
   const handleApplyFileChanges = useCallback(
@@ -434,6 +461,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           promptMode={promptMode}
           onPromptModeChange={setPromptMode}
           sessionTitle={activeSession?.title}
+          onRemoveFromStash={removeFromStash}
+          onAddToStash={addToStash}
         />
 
         <LCRightSidebar
