@@ -21,7 +21,7 @@ export interface LCFileTreeProps {
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
-  onNewItem: (parentPath: string) => void;
+  onNewItem: (parentPath: string, type: "file" | "directory") => void;
   isLoading: boolean;
 }
 
@@ -40,7 +40,7 @@ function FileTreeItem({
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
-  onNewItem: (parentPath: string) => void;
+  onNewItem: (parentPath: string, type: "file" | "directory") => void;
 }) {
   const isSelected = selectedFile?.id === item.id;
   const isExpanded = item.expanded ?? false;
@@ -100,21 +100,35 @@ function FileTreeItem({
           {item.name}
         </span>
 
-        {/* Actions (Stash / New) */}
+        {/* Actions (Stash / New File / New Folder) */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {item.isDirectory && (
-            <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                onNewItem(item.path);
-              }}
-            >
-              <Plus className="w-3 h-3" />
-            </Button>
+            <>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onNewItem(item.path, "file");
+                }}
+              >
+                <File className="w-3 h-3" />
+              </Button>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onNewItem(item.path, "directory");
+                }}
+              >
+                <Folder className="w-3 h-3" />
+              </Button>
+            </>
           )}
           <Button
             isIconOnly

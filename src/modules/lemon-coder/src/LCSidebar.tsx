@@ -24,7 +24,7 @@ export interface LCSidebarProps {
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
-  onNewItem: (parentPath: string) => void;
+  onNewItem: (parentPath: string, type: "file" | "directory") => void;
   /** Strategy 3 — Explicit refresh of the file tree */
   onRefreshFileTree?: () => void;
 }
@@ -49,8 +49,12 @@ export default function LCSidebar({
       label: "Files",
       active: activeIcon === "files",
       onClick: () => {
-        setActiveIcon("files");
-        setIsFileTreeVisible(true);
+        if (activeIcon === "files") {
+          setIsFileTreeVisible(!isFileTreeVisible);
+        } else {
+          setActiveIcon("files");
+          setIsFileTreeVisible(true);
+        }
       },
     },
     {
@@ -84,11 +88,10 @@ export default function LCSidebar({
             key={btn.id}
             onClick={btn.onClick}
             title={btn.label}
-            className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${
-              btn.active
+            className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${btn.active
                 ? "bg-[#e5c07b]/20 text-[#e5c07b] border border-[#e5c07b]/30"
                 : "text-[#858585] hover:text-white hover:bg-[#3c3c3c]"
-            }`}
+              }`}
           >
             {btn.icon}
           </button>

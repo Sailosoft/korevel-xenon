@@ -44,6 +44,7 @@ const MonacoDiffEditor = dynamic(
 export interface LCFileViewProps {
   selectedFile: LCFileTreeItem | null;
   content: string;
+  isDirty?: boolean;
   onContentChange: (content: string) => void;
   /** External change status for the active file */
   externalChangeStatus: LCExternalChangeStatus;
@@ -97,9 +98,12 @@ function getLanguage(fileName: string): string {
   return languageMap[ext] || "plaintext";
 }
 
+import { useEffect } from "react";
+
 export default function LCFileView({
   selectedFile,
   content,
+  isDirty,
   onContentChange,
   externalChangeStatus,
   onReloadFromDisk,
@@ -138,7 +142,7 @@ export default function LCFileView({
           <span className="text-xs text-[#d4d4d4]">
             {isDiffMode
               ? `Diff: ${diffLabel || selectedFile.name}`
-              : selectedFile.name}
+              : `${selectedFile.name}${isDirty ? " *" : ""}`}
           </span>
           {isDiffMode && (
             <span className="text-[10px] text-[#98c379] bg-[#98c379]/10 px-1.5 py-0.5 rounded-full">
@@ -224,6 +228,7 @@ export default function LCFileView({
       <div className="flex-1 overflow-hidden">
         {isDiffMode ? (
           <MonacoDiffEditor
+            key={`diff-${selectedFile.path}`}
             height="100%"
             language={getLanguage(selectedFile.name)}
             original={content}
@@ -239,6 +244,12 @@ export default function LCFileView({
                 noSyntaxValidation: true,
               });
             }}
+            // Prevent "TextModel got disposed before DiffEditorWidget model got reset"
+            // when switching away from diff mode. The models are kept alive so the
+            // internal DiffEditorWidget can safely reset its model references before
+            // the underlying Monaco editor instance is disposed.
+            keepCurrentOriginalModel
+            keepCurrentModifiedModel
             options={{
               renderSideBySide: true,
               minimap: { enabled: true },
@@ -252,10 +263,17 @@ export default function LCFileView({
           />
         ) : (
           <MonacoEditor
+            key={selectedFile.path}
             height="100%"
             language={getLanguage(selectedFile.name)}
             value={content}
             onChange={(val) => onContentChange(val || "")}
+            onMount={(editor, monaco) => {
+              editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+                onSave,
+              );
+            }}
             theme="vs-dark"
             beforeMount={(monaco) => {
               monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({

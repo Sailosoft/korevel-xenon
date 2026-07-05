@@ -9,8 +9,9 @@
 
 import { Table } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { CheckIcon } from "lucide-react";
+import { Key } from "react";
+import { Select, Label, ListBox } from "@heroui/react";
 
 import { cn } from "@/src/shadcnui/lib/utils";
 import {
@@ -58,13 +59,10 @@ export function HelixAIProviderSelector<T extends Table<HelixAISettings>>({
   className,
 }: HelixAIProviderSelectorProps<T>) {
   // Live query the current settings from the table
-  const settings = useLiveQuery(
+    const settings = useLiveQuery(
     () => table.get(settingsKey),
     [table, settingsKey],
   );
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   // Determine available providers (exclude "default" which is a meta-provider)
   const providers = (Object.keys(HELIX_PROVIDER_LABELS) as HelixAIProvider[]).filter(
@@ -86,127 +84,81 @@ export function HelixAIProviderSelector<T extends Table<HelixAISettings>>({
     ? resolvedModel
     : modelsForProvider[0] ?? "";
 
-  // Toggle provider dropdown
-  const toggleProviderDropdown = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) setModelDropdownOpen(false);
-  };
-
-  // Toggle model dropdown
-  const toggleModelDropdown = () => {
-    setModelDropdownOpen(!modelDropdownOpen);
-    if (!modelDropdownOpen) setIsOpen(false);
-  };
-
-  // Handle provider change
-  const handleProviderChange = async (provider: HelixAIProvider) => {
-    const models = HELIX_AI_MODELS[provider] ?? [];
+    // Handle provider change
+  const handleProviderChange = async (provider: Key | null) => {
+    if (provider === null) return;
+    const providerKey = provider.toString() as HelixAIProvider;
+    const models = HELIX_AI_MODELS[providerKey] ?? [];
     const newModel = models[0] ?? "";
 
     // Include key in the object to match Dexie schema keyPath "key"
     await table.put({
       key: settingsKey,
-      provider,
+      provider: providerKey,
       model: newModel,
     });
-    setIsOpen(false);
   };
 
   // Handle model change
-  const handleModelChange = async (model: string) => {
+  const handleModelChange = async (model: Key | null) => {
+    if (model === null) return;
     // Include key in the object to match Dexie schema keyPath "key"
     await table.put({
       key: settingsKey,
       provider: currentProvider,
-      model,
+      model: model.toString(),
     });
-    setModelDropdownOpen(false);
   };
 
-  return (
+    return (
     <div className={cn("flex flex-col gap-4 min-w-80", className)}>
-      {/* Provider Select */}
-      <div className="relative">
-        <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+      <Select value={currentProvider} onChange={handleProviderChange}>
+        <Label className="text-sm font-medium text-muted-foreground mb-1.5 block">
           AI Provider
-        </label>
-        <button
-          type="button"
-          onClick={toggleProviderDropdown}
-          className="flex w-full items-center justify-between gap-1.5 rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 hover:bg-input/50"
-        >
-          <span className="flex items-center gap-2">
-            {HELIX_PROVIDER_LABELS[currentProvider]}
-          </span>
-          <ChevronDownIcon className={cn("size-4 transition-transform", isOpen && "rotate-180")} />
-        </button>
-
-        {/* Provider Dropdown */}
-        {isOpen && (
-          <div className="absolute z-50 mt-1 w-full rounded-xl border bg-popover p-1 shadow-lg shadow-black/5 ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95">
+        </Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
             {providers.map((provider) => (
-              <button
-                key={provider}
-                type="button"
-                onClick={() => handleProviderChange(provider)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
-                  provider === currentProvider
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-input/50",
-                )}
-              >
-                <span>{HELIX_PROVIDER_LABELS[provider]}</span>
-                {provider === currentProvider && (
-                  <CheckIcon className="size-4 text-emerald-500" />
-                )}
-              </button>
+              <ListBox.Item key={provider} id={provider} textValue={HELIX_PROVIDER_LABELS[provider]}>
+                {HELIX_PROVIDER_LABELS[provider]}
+                <ListBox.ItemIndicator>
+                  <CheckIcon className="size-4" />
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
             ))}
-          </div>
-        )}
-      </div>
+          </ListBox>
+        </Select.Popover>
+      </Select>
 
-      {/* Model Select */}
-      <div className="relative">
-        <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+      <Select
+        value={currentModel}
+        onChange={handleModelChange}
+        isDisabled={modelsForProvider.length === 0}
+      >
+        <Label className="text-sm font-medium text-muted-foreground mb-1.5 block">
           Model
-        </label>
-        <button
-          type="button"
-          onClick={toggleModelDropdown}
-          disabled={modelsForProvider.length === 0}
-          className="flex w-full items-center justify-between gap-1.5 rounded-xl border border-input bg-input/30 px-3 py-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 hover:bg-input/50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <span className="flex items-center gap-2 truncate">
-            {currentModel || "Select a provider first"}
-          </span>
-          <ChevronDownIcon className={cn("size-4 transition-transform shrink-0", modelDropdownOpen && "rotate-180")} />
-        </button>
-
-        {/* Model Dropdown */}
-        {modelDropdownOpen && modelsForProvider.length > 0 && (
-          <div className="absolute z-50 mt-1 w-full rounded-xl border bg-popover p-1 shadow-lg shadow-black/5 ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95 max-h-60 overflow-y-auto">
+        </Label>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
             {modelsForProvider.map((model) => (
-              <button
-                key={model}
-                type="button"
-                onClick={() => handleModelChange(model)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
-                  model === currentModel
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-input/50",
-                )}
-              >
-                <span className="truncate">{model}</span>
-                {model === currentModel && (
-                  <CheckIcon className="size-4 text-emerald-500 shrink-0" />
-                )}
-              </button>
+              <ListBox.Item key={model} id={model} textValue={model}>
+                {model}
+                <ListBox.ItemIndicator>
+                  <CheckIcon className="size-4" />
+                </ListBox.ItemIndicator>
+              </ListBox.Item>
             ))}
-          </div>
-        )}
-      </div>
+          </ListBox>
+        </Select.Popover>
+      </Select>
     </div>
   );
 }

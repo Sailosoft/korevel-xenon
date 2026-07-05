@@ -1,13 +1,16 @@
 // ───────────────────────────────────────────────────────────────────────────────
-// Lemon Coder — LCApp Main Component
+// Lemon Coder — LCStudio Component
+// Main workspace view shown when a project is loaded (the "studio" experience)
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { directoryOpen } from "browser-fs-access";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
+import { Modal, Button } from "@heroui/react";
 import { lcDB } from "./LCDatabase";
+import { getHandle, removeHandle } from "./LCHandleRegistry";
 import { useLCProject } from "./useLCProject";
 import { useLCFileSystem } from "./useLCFileSystem";
 import { useLCChat } from "./useLCChat";
@@ -16,7 +19,6 @@ import LCSidebar from "./LCSidebar";
 import LCMainContent from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
-import LCLandingScreen from "./LCLandingScreen";
 import LCNewItemModal from "./LCNewItemModal";
 import type {
   LCProject,
@@ -27,16 +29,40 @@ import type {
 } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
 
-export default function LCApp() {
+interface LCStudioProps {
+  projectId: string;
+}
+
+export default function LCStudio({ projectId }: LCStudioProps) {
+  const router = useRouter();
+  const [currentProject, setCurrentProject] = useState<LCProject | null>(null);
+  const [isProjectLoading, setIsProjectLoading] = useState(true);
+
+  // Load the project from Dexie on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProject() {
+      try {
+        const project = await lcDB.getProject(projectId);
+        if (!cancelled) {
+          setCurrentProject(project ?? null);
+        }
+      } catch (error) {
+        console.error("[lemon-coder] Failed to load project:", error);
+      } finally {
+        if (!cancelled) setIsProjectLoading(false);
+      }
+    }
+    loadProject();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
   const {
-    currentProject,
     recentProjects,
-    isLoading: isProjectLoading,
-    openProject,
     openProjectFromHandle,
     selectRecentProject,
     selectRecentProjectNoHandle,
-    clearRecentProjects,
+    isLoading: isRecentLoading,
   } = useLCProject();
 
   const {
@@ -78,9 +104,9 @@ export default function LCApp() {
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  const [isLeaveStudioOpen, setIsLeaveStudioOpen] = useState(false);
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
-  const isOpeningRef = useRef(false);
 
   // Live query for stash items
   const stashItems =
@@ -93,116 +119,58 @@ export default function LCApp() {
       [currentProject?.id],
     ) || [];
 
-  /**
-   * Extract the root FileSystemDirectoryHandle from a directoryOpen() result.
-   * - Empty dirs: directoryOpen returns [handle] — the handle itself.
-   * - Non-empty dirs: returns File[] — root-level files have .directoryHandle
-   *   pointing to the root directory handle.
-   *
-   * NOTE: Root-level files (direct children of the selected directory) have
-   *       webkitRelativePath with 1 segment (e.g. "file.txt"), NOT 2 segments.
-   *       Files with 2 segments (e.g. "subdir/file.txt") are one level deep,
-   *       and their directoryHandle points to the subdirectory, not the root.
-   */
-  const extractRootHandle = useCallback(
-    (result: any): FileSystemDirectoryHandle => {
-      if (!result || result.length === 0) {
-        throw new Error("No files or handle returned from directory picker");
+  // Attempt to restore the directory handle when project loads
+  useEffect(() => {
+    if (!currentProject) return;
+
+    let cancelled = false;
+    async function restoreHandle() {
+      try {
+        // Priority 1: In-memory registry (handle from the directory picker,
+        // passed across the landing → studio navigation without Dexie serialization)
+        const registeredHandle = getHandle(currentProject!.id);
+        if (registeredHandle) {
+          removeHandle(currentProject!.id);
+          await clearStash();
+          await loadDirectory(registeredHandle);
+          return;
+        }
+
+        // Priority 2: Dexie-cached handle (for page refreshes / direct URL access)
+        const cached = await lcDB.getProjectHandle(currentProject!.id);
+        if (cancelled || !cached?.dirHandle) return;
+
+        const success = await loadFromCachedHandle(cached.dirHandle);
+        if (success) {
+          await clearStash();
+        }
+      } catch (error) {
+        console.error(
+          "[lemon-coder] Could not restore cached handle:",
+          error,
+        );
       }
-
-      const first = result[0];
-
-      // Empty directory case: result is [FileSystemDirectoryHandle]
-      if (first && typeof first.kind === "string" && first.kind === "directory") {
-        return first as FileSystemDirectoryHandle;
-      }
-
-      // Non-empty directory case: result is FileWithDirectoryAndFileHandle[]
-      // Root-level files (direct children of the selected dir) have
-      // webkitRelativePath = "filename" (1 segment — no slash).
-      // Their directoryHandle IS the root handle.
-      const rootLevelFile = result.find(
-        (f: any) =>
-          f.directoryHandle &&
-          (!f.webkitRelativePath || f.webkitRelativePath.split("/").length === 1),
-      );
-      if (rootLevelFile?.directoryHandle) {
-        return rootLevelFile.directoryHandle as FileSystemDirectoryHandle;
-      }
-
-      // Fallback: use the first file's directoryHandle.
-      // NOTE: When the selected directory contains only subdirectories
-      // (no root-level files), this handle may point to a subdirectory,
-      // not the root. Use showDirectoryPicker() as a more reliable
-      // alternative when possible (see handleOpenFolder).
-      if (first?.directoryHandle) {
-        return first.directoryHandle as FileSystemDirectoryHandle;
-      }
-
-      throw new Error("Could not obtain directory handle from selected folder");
-    },
-    [],
-  );
-
-  const handleOpenFolder = useCallback(async (createProjectEntry = true) => {
-    // Prevent concurrent directory picker invocations
-    if (isOpeningRef.current) return;
-    isOpeningRef.current = true;
-    try {
-      let dirHandle: FileSystemDirectoryHandle;
-
-      // Try the native File System Access API directly first.
-      // This is more reliable than extracting the root handle from
-      // browser-fs-access's directoryOpen() result, which can return
-      // a subdirectory handle when the selected folder contains only
-      // subdirectories (no root-level files).
-      if (typeof (window as any).showDirectoryPicker === "function") {
-        dirHandle = await (window as any).showDirectoryPicker({
-          mode: "readwrite",
-        });
-      } else {
-        // Fallback: use browser-fs-access for older browsers
-        const result = await directoryOpen({
-          recursive: true,
-          mode: "readwrite",
-        });
-        dirHandle = extractRootHandle(result);
-      }
-
-      // Clear context stash before loading new project
-      await clearStash();
-      await loadDirectory(dirHandle);
-
-      // Create project entry only when opening a brand-new project,
-      // and cache the directory handle for future auto-load
-      if (createProjectEntry) {
-        await openProjectFromHandle(dirHandle.name, dirHandle);
-      }
-    } catch (error: any) {
-      if (error.name !== "AbortError" && error.name !== "SecurityError") {
-        console.error("Failed to open folder:", error);
-      }
-    } finally {
-      isOpeningRef.current = false;
     }
-  }, [loadDirectory, openProjectFromHandle, clearStash, extractRootHandle]);
+    restoreHandle();
+    return () => { cancelled = true; };
+  }, [currentProject, loadDirectory, loadFromCachedHandle, clearStash]);
+
+  const handleOpenProjectFromStudio = useCallback(() => {
+    setIsLeaveStudioOpen(true);
+  }, []);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!currentProject) return;
 
-      // Build the send options with the file-reader for stash context
       const sendOptions = {
         readFileContent: async (filePath: string) => {
           const item = findItemByPath(filePath);
           if (!item) throw new Error(`File not found in tree: ${filePath}`);
-          // readFileContent expects a tree item, but we need one by path
-          // Re-use selectFile's logic — use findItemByPath to get the item
           return readFileContent(item);
         },
       };
 
-      // Create session if none exists and send with sessionOverride to avoid stale closure
       if (!activeSession) {
         const newSession = await createChatSession(currentProject.id);
         await sendMessage(content, stashItems, currentProject.name, {
@@ -216,13 +184,6 @@ export default function LCApp() {
     [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent],
   );
 
-  /**
-   * Apply file changes by writing AI-generated content directly to disk
-   * using the File System Access API (via useLCFileSystem.writeFile).
-   * Falls back to the download-blob approach from useLCChat.applyFileChanges
-   * if writeFile is unavailable. Refreshes the file tree afterward so new
-   * files appear immediately.
-   */
   const handleApplyFileChanges = useCallback(
     async (fileActions: LCFileActionResult[]) => {
       for (const action of fileActions) {
@@ -231,7 +192,6 @@ export default function LCApp() {
             ? `${action.FileDirectory}/${action.FileName}`
             : action.FileName;
 
-          // Write directly to the filesystem via the cached directory handle
           await writeFile(filePath, action.Content);
 
           console.log(
@@ -243,7 +203,6 @@ export default function LCApp() {
             error,
           );
 
-          // Fallback: browser download via blob URL
           const blob = new Blob([action.Content], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
@@ -262,8 +221,6 @@ export default function LCApp() {
 
   const handleKeepOnlyFolder = useCallback(
     async (folderId: string) => {
-      // Remove all child items of this folder from the stash,
-      // keeping only the folder reference itself.
       const children = stashItems.filter((s) => s.parentId === folderId);
       for (const child of children) {
         await removeFromStash(child.id);
@@ -286,7 +243,6 @@ export default function LCApp() {
 
   const handleCreateSession = useCallback(() => {
     if (currentProject) {
-      // Clear context stash for a fresh context
       clearStash();
       createChatSession(currentProject.id);
     }
@@ -297,50 +253,35 @@ export default function LCApp() {
       const project = recentProjects.find((p) => p.id === id);
       if (!project) return;
 
-      // Try to restore the cached directory handle
       const cachedHandle = await selectRecentProject(project);
 
       if (cachedHandle) {
-        // Attempt to load from the cached handle (with permission re-check)
         const success = await loadFromCachedHandle(cachedHandle);
         if (success) {
-          // Clear stash for the restored project
           await clearStash();
           return;
         }
-        // Permission denied — cached handle is stale,
-        // fall through to just select the project (user will click "Open Folder")
         console.log(
           "[lemon-coder] Cached handle permission expired for",
           project.name,
           "— user needs to re-select the folder.",
         );
       } else {
-        // No cached handle — just select the project
         await selectRecentProjectNoHandle(project);
       }
     },
     [recentProjects, selectRecentProject, selectRecentProjectNoHandle, loadFromCachedHandle, clearStash],
   );
 
-  // Landing screen when no project is selected
-  if (!currentProject) {
+  // Loading state
+  if (isProjectLoading || !currentProject) {
     return (
-      <>
-        <LCLandingScreen
-          onOpenProject={() => handleOpenFolder()}
-          recentProjects={recentProjects}
-          onSelectRecentProject={handleSelectRecentProject}
-          onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
-          onClearRecentProjects={clearRecentProjects}
-        />
-
-        {/* Helix AI Config Modal */}
-        <LCHelixConfigModal
-          isOpen={isHelixConfigOpen}
-          onOpenChange={setIsHelixConfigOpen}
-        />
-      </>
+      <div
+        className="flex items-center justify-center h-screen"
+        style={{ backgroundColor: LCTheme.colors.background, color: LCTheme.colors.text }}
+      >
+        <p className="text-sm opacity-60">Loading project…</p>
+      </div>
     );
   }
 
@@ -350,9 +291,8 @@ export default function LCApp() {
       className="flex flex-col h-screen overflow-hidden"
       style={{ backgroundColor: LCTheme.colors.background, color: LCTheme.colors.text }}
     >
-      {/* Top Menu — "New Session" now creates a new chat session instead of resetting the project */}
       <LCMenu
-        onOpenProject={() => handleOpenFolder()}
+        onOpenProject={handleOpenProjectFromStudio}
         onNewSession={handleCreateSession}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
         projectName={currentProject.name}
@@ -360,9 +300,7 @@ export default function LCApp() {
         onSelectRecentProject={handleSelectRecentProject}
       />
 
-      {/* Main Layout: Sidebar | Content | RightSidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar (Icon Bar + File Tree) */}
         <LCSidebar
           fileTreeItems={fileTree}
           selectedFile={selectedFile}
@@ -378,7 +316,6 @@ export default function LCApp() {
           }}
         />
 
-        {/* Main Content */}
         <LCMainContent
           selectedFile={selectedFile}
           selectedFileContent={selectedFileContent}
@@ -398,9 +335,9 @@ export default function LCApp() {
             if (!item) throw new Error(`File not found: ${filePath}`);
             return readFileContent(item);
           }}
+          onRetryMessage={handleSendMessage}
         />
 
-        {/* Right Sidebar */}
         <LCRightSidebar
           stashItems={stashItems}
           chatSessions={chatSessions}
@@ -418,13 +355,11 @@ export default function LCApp() {
         />
       </div>
 
-      {/* Helix AI Config Modal */}
       <LCHelixConfigModal
         isOpen={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
       />
 
-      {/* New File/Folder Modal */}
       <LCNewItemModal
         isOpen={isNewItemModalOpen}
         onOpenChange={setIsNewItemModalOpen}
@@ -434,6 +369,41 @@ export default function LCApp() {
         defaultPath={newFileParentPath}
         defaultType={newFileType}
       />
+
+      {/* Leave Studio Confirmation Modal */}
+      <Modal.Backdrop isOpen={isLeaveStudioOpen} onOpenChange={setIsLeaveStudioOpen}>
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white">
+                Open New Project
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-sm text-gray-300">
+                Opening a new project will close the current project. Do you want to proceed?
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="secondary"
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                onPress={() => router.push("/modules/lemon-coder")}
+                className="text-xs"
+              >
+                Confirm
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 }

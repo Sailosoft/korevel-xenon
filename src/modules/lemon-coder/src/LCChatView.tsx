@@ -6,8 +6,21 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Button, Input, Chip } from "@heroui/react";
-import { Send, Bot, User, Loader2, Check, FileCode, BrainCircuit, Layers, ArrowLeftRight } from "lucide-react";
+import { Button, Chip } from "@heroui/react";
+import {
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Eye,
+  FileCode,
+  BrainCircuit,
+  Layers,
+  GitMerge,
+  Code2,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 import { lcDB } from "./LCDatabase";
 import { HELIX_PROVIDER_LABELS } from "@/src/modules/helix";
 import type {
@@ -15,7 +28,9 @@ import type {
   LCContextStashItem,
   LCFileActionResult,
 } from "./LCInterface";
-import LCDiffDisplay from "./LCDiffDisplay";
+import LCChatViewEditor from "./LCChatView.Editor";
+import { InlineFileDiff, ViewAllChangesModal } from "./LCChatView.FileDiff";
+import LCChatViewDetailView from "./LCChatView.DetailView";
 
 export interface LCChatViewProps {
   messages: LCChatMessage[];
@@ -30,6 +45,10 @@ export interface LCChatViewProps {
    * If not provided, the inline diff will show all content as new.
    */
   onReadFileForDiff?: (filePath: string) => Promise<string>;
+  /**
+   * Callback to retry a failed message. Receives the original user content that failed.
+   */
+  onRetryMessage?: (content: string) => void;
 }
 
 export default function LCChatView({
@@ -40,19 +59,26 @@ export default function LCChatView({
   onApplyFileChanges,
   onPreviewDiff,
   onReadFileForDiff,
+  onRetryMessage,
 }: LCChatViewProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Track which file actions have their inline diff expanded
-  // Key: "msgId:fileIdx" — value: the original content (or null while loading)
-  const [expandedDiffs, setExpandedDiffs] = useState<Record<string, string | null | "loading">>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Live query for Helix AI settings — shows active provider/model
+  // ── Monaco Editor Modal for text input ───────────────────────────────────
+  const [isInputEditorOpen, setIsInputEditorOpen] = useState(false);
+
+  // ── View All Changes Modal ───────────────────────────────────────────────
+  const [isViewAllChangesOpen, setIsViewAllChangesOpen] = useState(false);
+
+  // ── Error Detail View Modal ──────────────────────────────────────────────
+  const [detailViewError, setDetailViewError] = useState<LCChatMessage | null>(null);
+
+  // Live query for Helix AI settings
   const aiSettings = useLiveQuery(
     () => lcDB.aiSettings.get("default"),
   );
 
-  // Resolve the provider label for display
   const providerLabel = aiSettings?.provider
     ? HELIX_PROVIDER_LABELS[aiSettings.provider] ?? aiSettings.provider
     : "Not configured";
@@ -62,6 +88,15 @@ export default function LCChatView({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-resize textarea when input changes
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = "auto";
+      ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+    }
+  }, [input]);
 
   const handleSend = () => {
     if (!input.trim() || isSending) return;
@@ -76,9 +111,36 @@ export default function LCChatView({
     }
   };
 
+  // ── Open Monaco Editor Modal with current input ──────────────────────────
+  const handleOpenInEditor = () => {
+    setIsInputEditorOpen(true);
+  };
+
+  const handleEditorSave = (content: string) => {
+    setInput(content);
+    setIsInputEditorOpen(false);
+  };
+
+  // ── Accept All: gather all file actions from the latest assistant message ─
+  const latestFileActions = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.fileContents && msg.fileContents.length > 0) {
+        return msg.fileContents;
+      }
+    }
+    return null;
+  })();
+
+  const handleAcceptAll = () => {
+    if (latestFileActions && latestFileActions.length > 0) {
+      onApplyFileChanges(latestFileActions);
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 bg-[#1e1e1e]">
-      {/* AI Provider Info Bar — also shows stash context status */}
+      {/* AI Provider Info Bar */}
       <div className="flex items-center gap-2 px-4 py-1.5 bg-[#252526] border-b border-[#333333] shrink-0">
         <BrainCircuit className="w-3.5 h-3.5 text-[#e5c07b]" />
         <span className="text-[11px] text-[#858585]">
@@ -90,7 +152,6 @@ export default function LCChatView({
             </>
           )}
         </span>
-        {/* Stash context indicator — visible when stash items are present */}
         {stashItems.length > 0 && (
           <span className="ml-auto flex items-center gap-1 text-[11px] text-[#98c379] bg-[#98c379]/10 px-2 py-0.5 rounded-full">
             <Layers className="w-3 h-3" />
@@ -148,122 +209,78 @@ export default function LCChatView({
                 {msg.content}
               </p>
 
-              {/* File Actions (if any) — with inline diff and monaco diff preview */}
+              {/* Error actions: View Details + Retry */}
+              {msg.error && (
+                <div className="mt-2 pt-2 border-t border-[#e06c75]/20 flex items-center gap-2">
+                  <Chip
+                    size="sm"
+                    variant="soft"
+                    className="text-[10px] h-5 bg-[#e06c75]/10 text-[#e06c75]"
+                  >
+                    <AlertTriangle className="w-3 h-3 inline mr-0.5" />
+                    {msg.error.name || "Error"}
+                  </Chip>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-6 text-[#e06c75] hover:bg-[#e06c75]/10 border-0"
+                    onPress={() => setDetailViewError(msg)}
+                  >
+                    <Eye className="w-3 h-3" />
+                    View Details
+                  </Button>
+                  {onRetryMessage && msg.error.failedContent && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-6 text-[#e5c07b] hover:bg-[#e5c07b]/10 border-0"
+                      onPress={() => msg.error?.failedContent && onRetryMessage(msg.error.failedContent)}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* File Actions with inline diff and accept per file */}
               {msg.fileContents && msg.fileContents.length > 0 && (
                 <div className="mt-3 pt-2 border-t border-[#333333] space-y-2">
-                  {msg.fileContents.map((file, idx) => {
-                    const diffKey = `${msg.id}:${idx}`;
-                    const diffState = expandedDiffs[diffKey];
+                  {msg.fileContents.map((file, idx) => (
+                    <InlineFileDiff
+                      key={idx}
+                      msgId={msg.id}
+                      idx={idx}
+                      file={file}
+                      onApplyFileChanges={onApplyFileChanges}
+                      onPreviewDiff={onPreviewDiff}
+                      onReadFileForDiff={onReadFileForDiff}
+                    />
+                  ))}
 
-                    const handleToggleDiff = async () => {
-                      if (diffState !== undefined) {
-                        // Already expanded — collapse
-                        setExpandedDiffs((prev) => {
-                          const next = { ...prev };
-                          delete next[diffKey];
-                          return next;
-                        });
-                        return;
-                      }
-
-                      // Mark as loading
-                      setExpandedDiffs((prev) => ({
-                        ...prev,
-                        [diffKey]: "loading",
-                      }));
-
-                      // Read original content
-                      let originalContent: string | null = null;
-                      const filePath = file.FileDirectory
-                        ? `${file.FileDirectory}/${file.FileName}`
-                        : file.FileName;
-
-                      if (onReadFileForDiff && file.ExistingFile) {
-                        try {
-                          originalContent = await onReadFileForDiff(filePath);
-                        } catch {
-                          // Fall through — show all as new
-                        }
-                      }
-
-                      setExpandedDiffs((prev) => ({
-                        ...prev,
-                        [diffKey]: originalContent ?? "",
-                      }));
-                    };
-
-                    return (
-                      <div key={idx}>
-                        {/* File action header row */}
-                        <div className="flex items-center justify-between gap-2">
-                          {/* Clickable file info */}
-                          <button
-                            onClick={handleToggleDiff}
-                            className="flex items-center gap-1.5 text-xs text-[#abb2bf] hover:text-[#e5c07b] transition-colors text-left flex-1 min-w-0 group"
-                          >
-                            <FileCode className="w-3 h-3 text-[#e5c07b] shrink-0" />
-                            <span className="truncate max-w-[150px] group-hover:underline decoration-dotted underline-offset-2">
-                              {file.FileDirectory}/{file.FileName}
-                            </span>
-                            <Chip
-                              size="sm"
-                              variant="soft"
-                              className={`text-[10px] h-5 ${
-                                file.ExistingFile
-                                  ? "bg-[#e5c07b]/10 text-[#e5c07b]"
-                                  : "bg-[#98c379]/10 text-[#98c379]"
-                              }`}
-                            >
-                              {file.ExistingFile ? "Update" : "New"}
-                            </Chip>
-                          </button>
-
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            {onPreviewDiff && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs h-6 text-[#61afef] hover:bg-[#61afef]/10"
-                                onPress={() => onPreviewDiff(file)}
-                              >
-                                <ArrowLeftRight className="w-3 h-3" />
-                                Diff
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs h-6 text-[#98c379] hover:bg-[#98c379]/10"
-                              onPress={() => onApplyFileChanges([file])}
-                            >
-                              <Check className="w-3 h-3" />
-                              Apply
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Inline diff display */}
-                        {diffState && diffState !== "loading" && (
-                          <div className="mt-2">
-                            <LCDiffDisplay
-                              original={diffState}
-                              modified={file.Content}
-                              fileName={`${file.FileDirectory}/${file.FileName}`}
-                              isExisting={file.ExistingFile}
-                              defaultCollapsed={false}
-                            />
-                          </div>
-                        )}
-                        {diffState === "loading" && (
-                          <div className="mt-2 flex items-center gap-2 px-3 py-2 text-[11px] text-[#858585] bg-[#252526] rounded-md">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Loading diff...
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* Accept All / View All Changes — shown on the latest assistant message with file actions */}
+                  {latestFileActions === msg.fileContents && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#333333]/50">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7 bg-[#98c379]/15 text-[#98c379] hover:bg-[#98c379]/25 flex-1 border-0"
+                        onPress={handleAcceptAll}
+                      >
+                        <GitMerge className="w-3.5 h-3.5" />
+                        Accept All ({latestFileActions.length} files)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7 bg-[#61afef]/15 text-[#61afef] hover:bg-[#61afef]/25 border-0"
+                        onPress={() => setIsViewAllChangesOpen(true)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View All Changes
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -285,9 +302,9 @@ export default function LCChatView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input */}
+      {/* Chat Input Area */}
       <div className="border-t border-[#333333]">
-        {/* Attached Context — stash items shown as attachment chips above the input */}
+        {/* Attached Context */}
         {stashItems.length > 0 && (
           <div className="px-4 pt-3 pb-2 border-b border-[#333333]/50">
             <div className="flex items-center gap-1.5 mb-2">
@@ -325,34 +342,85 @@ export default function LCChatView({
 
         {/* Input Row */}
         <div className="px-4 py-3">
-          <div className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                stashItems.length > 0
-                  ? `Ask with ${stashItems.length} file${stashItems.length !== 1 ? "s" : ""} in context...`
-                  : "Ask Lemon Coder to help with your code..."
-              }
-              disabled={isSending}
-              className="flex-1 bg-[#3c3c3c] text-sm text-[#d4d4d4] placeholder:text-[#858585] border border-[#333333] rounded-lg px-3 py-2 outline-none focus:border-[#e5c07b] transition-colors"
-            />
-            <Button
-              isIconOnly
-              onPress={handleSend}
-              isDisabled={!input.trim() || isSending}
-              className="bg-[#e5c07b] text-[#1e1e1e] hover:bg-[#d4a84b] min-w-[40px] h-[40px]"
-            >
-              {isSending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
+          <div className="flex flex-col gap-2">
+            {/* Textarea + Send Button Row */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    stashItems.length > 0
+                      ? `Ask with ${stashItems.length} file${stashItems.length !== 1 ? "s" : ""} in context...`
+                      : "Ask Lemon Coder to help with your code..."
+                  }
+                  disabled={isSending}
+                  rows={1}
+                  className="w-full bg-[#3c3c3c] text-sm text-[#d4d4d4] placeholder:text-[#858585] border border-[#333333] rounded-lg px-3 py-2 outline-none focus:border-[#e5c07b] transition-colors resize-none overflow-y-auto min-h-[40px] max-h-[200px]"
+                  style={{ scrollbarWidth: "thin" }}
+                />
+              </div>
+              <Button
+                isIconOnly
+                onPress={handleSend}
+                isDisabled={!input.trim() || isSending}
+                className="bg-[#e5c07b] text-[#1e1e1e] hover:bg-[#d4a84b] min-w-[40px] h-[40px] shrink-0"
+              >
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+
+            {/* Action buttons row below input */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleOpenInEditor}
+                disabled={isSending}
+                className="flex items-center gap-1 text-[10px] text-[#858585] hover:text-[#e5c07b] transition-colors px-2 py-1 rounded hover:bg-[#2d2d2d] disabled:opacity-40"
+                title="Open in Monaco Editor"
+              >
+                <Code2 className="w-3 h-3" />
+                Open in Editor
+              </button>
+              <span className="text-[#444] text-[10px]">|</span>
+              <span className="text-[10px] text-[#555]">
+                <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Enter</kbd> send · <kbd className="text-[#858585] bg-[#2d2d2d] px-1 rounded">Shift+Enter</kbd> new line
+              </span>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Monaco Editor Modal (for text input) */}
+      <LCChatViewEditor
+        isOpen={isInputEditorOpen}
+        initialContent={input}
+        onSave={handleEditorSave}
+        onClose={() => setIsInputEditorOpen(false)}
+      />
+
+      {/* View All Changes Modal */}
+      <ViewAllChangesModal
+        isOpen={isViewAllChangesOpen}
+        onClose={() => setIsViewAllChangesOpen(false)}
+        latestFileActions={latestFileActions}
+        onApplyFileChanges={onApplyFileChanges}
+        onPreviewDiff={onPreviewDiff}
+        onReadFileForDiff={onReadFileForDiff}
+      />
+
+      {/* Error Detail View Modal */}
+      <LCChatViewDetailView
+        isOpen={detailViewError !== null}
+        onClose={() => setDetailViewError(null)}
+        error={detailViewError?.error ?? null}
+        onRetry={onRetryMessage ? (content) => onRetryMessage(content) : undefined}
+      />
     </div>
   );
 }

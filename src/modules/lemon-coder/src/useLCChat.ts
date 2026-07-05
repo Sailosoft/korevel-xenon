@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { lcDB } from "./LCDatabase";
 import { callHelixAI } from "./actions";
 import type {
@@ -12,6 +12,7 @@ import type {
   LCChatMessage,
   LCContextStashItem,
   LCFileActionResult,
+  LCErrorInfo,
 } from "./LCInterface";
 
 export interface UseLCChatReturn {
@@ -19,7 +20,7 @@ export interface UseLCChatReturn {
   activeSession: LCChatSession | null;
   messages: LCChatMessage[];
   isSending: boolean;
-  createSession: (projectId: string) => Promise<void>;
+  createSession: (projectId: string) => Promise<LCChatSession>;
   selectSession: (session: LCChatSession) => void;
   sendMessage: (
     content: string,
@@ -28,9 +29,13 @@ export interface UseLCChatReturn {
     options?: {
       /** Read the actual content of a stashed file by its relative path */
       readFileContent?: (filePath: string) => Promise<string>;
+      /** If provided, use this session instead of activeSession (avoids stale closure on first send) */
+      sessionOverride?: LCChatSession;
     },
   ) => Promise<void>;
   applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
+  /** Gather all file actions from the most recent assistant message */
+  getLatestAssistantFileActions: () => LCFileActionResult[];
 }
 
 export function useLCChat(): UseLCChatReturn {
@@ -41,7 +46,14 @@ export function useLCChat(): UseLCChatReturn {
   const [messages, setMessages] = useState<LCChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
 
-  const createSession = useCallback(async (projectId: string) => {
+  // ── Refs to avoid stale closures in async callbacks ──────────────────────
+  const activeSessionRef = useRef<LCChatSession | null>(null);
+  const messagesRef = useRef<LCChatMessage[]>([]);
+  // Keep refs in sync with state
+  activeSessionRef.current = activeSession;
+  messagesRef.current = messages;
+
+  const createSession = useCallback(async (projectId: string): Promise<LCChatSession> => {
     const session = await lcDB.createChatSession(
       projectId,
       `Session ${new Date().toLocaleDateString()}`,
@@ -49,6 +61,7 @@ export function useLCChat(): UseLCChatReturn {
     setSessions((prev) => [session, ...prev]);
     setActiveSession(session);
     setMessages([]);
+    return session;
   }, []);
 
   const selectSession = useCallback((session: LCChatSession) => {
@@ -63,14 +76,21 @@ export function useLCChat(): UseLCChatReturn {
       projectName: string,
       options?: {
         readFileContent?: (filePath: string) => Promise<string>;
+        sessionOverride?: LCChatSession;
       },
     ) => {
-      if (!activeSession) return;
+      // Use the session override if provided (fixes stale-closure issue on first send),
+      // otherwise fall back to the ref which always tracks the latest activeSession.
+      const session = options?.sessionOverride ?? activeSessionRef.current;
+      if (!session) return;
+
+      const failedContent = content;
+
       setIsSending(true);
 
       try {
         // Add user message to DB
-        const userMsg = await lcDB.addChatMessage(activeSession.id, {
+        const userMsg = await lcDB.addChatMessage(session.id, {
           role: "user",
           content,
         });
@@ -78,7 +98,6 @@ export function useLCChat(): UseLCChatReturn {
         setMessages((prev) => [...prev, userMsg]);
 
         // ── Build context from stash items ──────────────────────────────────
-        // Collect file-level stash items (skip directories; only files have content)
         const fileStashItems = stashItems.filter((s) => !s.isDirectory);
 
         let stashContext = "";
@@ -89,7 +108,6 @@ export function useLCChat(): UseLCChatReturn {
             let fileContent = "";
             let readError = "";
 
-            // Try to read the actual file content from disk
             if (options?.readFileContent) {
               try {
                 fileContent = await options.readFileContent(item.path);
@@ -133,7 +151,7 @@ You MUST respond with a valid JSON object containing exactly these two fields:
 IMPORTANT: The "Content" field must contain the ENTIRE file — not just the changed parts, not a code snippet, not a diff. The complete source code that can be written directly to the file.
 `;
 
-        // Read AI settings from Dexie (client-side) and forward to server action
+        // Read AI settings from Dexie and forward to server action
         const settings = await lcDB.aiSettings.get("default");
         const providerName = settings?.provider ?? "default";
         const model = settings?.model ?? "";
@@ -146,7 +164,7 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
         });
 
         // Add AI response to DB
-        const aiMsg = await lcDB.addChatMessage(activeSession.id, {
+        const aiMsg = await lcDB.addChatMessage(session.id, {
           role: "assistant",
           content: aiResponse.AIMessage,
           fileContents: Array.isArray(aiResponse.FileContents)
@@ -158,11 +176,20 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
       } catch (error) {
         console.error("Failed to send message:", error);
 
-        // Add error message
-        if (activeSession) {
-          const errorMsg = await lcDB.addChatMessage(activeSession.id, {
+        const currentSession = activeSessionRef.current;
+        if (currentSession) {
+          const errorInfo: LCErrorInfo = {
+            message: error instanceof Error ? error.message : "Failed to process request",
+            stack: error instanceof Error ? error.stack : undefined,
+            name: error instanceof Error ? error.name : undefined,
+            timestamp: new Date(),
+            failedContent,
+          };
+
+          const errorMsg = await lcDB.addChatMessage(currentSession.id, {
             role: "assistant",
-            content: `Error: ${error instanceof Error ? error.message : "Failed to process request"}`,
+            content: `Error: ${errorInfo.message}`,
+            error: errorInfo,
           });
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -170,7 +197,9 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
         setIsSending(false);
       }
     },
-    [activeSession],
+    // activeSession deliberately omitted: we use activeSessionRef.current instead
+    // to avoid stale-closure bugs when sendMessage is called after createSession.
+    [],
   );
 
   /**
@@ -208,6 +237,21 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
     [],
   );
 
+  /**
+   * Get all file actions from the most recent assistant message.
+   * Used for "Accept All" and "View All Changes" features.
+   */
+  const getLatestAssistantFileActions = useCallback((): LCFileActionResult[] => {
+    const msgs = messagesRef.current;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const msg = msgs[i];
+      if (msg.role === "assistant" && msg.fileContents && msg.fileContents.length > 0) {
+        return msg.fileContents;
+      }
+    }
+    return [];
+  }, []);
+
   return {
     sessions,
     activeSession,
@@ -217,5 +261,6 @@ IMPORTANT: The "Content" field must contain the ENTIRE file — not just the cha
     selectSession,
     sendMessage,
     applyFileChanges,
+    getLatestAssistantFileActions,
   };
 }

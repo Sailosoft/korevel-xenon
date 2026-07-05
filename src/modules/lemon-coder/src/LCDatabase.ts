@@ -6,6 +6,7 @@ import Dexie, { type Table } from "dexie";
 import { v4 as uuidv4 } from "uuid";
 import type {
   LCProject,
+  LCProjectHandle,
   LCChatSession,
   LCChatMessage,
   LCContextStashItem,
@@ -14,6 +15,7 @@ import type { HelixAISettings } from "@/src/modules/helix";
 
 export class LCDatabase extends Dexie {
   projects!: Table<LCProject, string>;
+  projectHandles!: Table<LCProjectHandle, string>;
   chatSessions!: Table<LCChatSession, string>;
   chatMessages!: Table<LCChatMessage, string>;
   contextStash!: Table<LCContextStashItem, string>;
@@ -22,8 +24,9 @@ export class LCDatabase extends Dexie {
   constructor() {
     super("lemon-coder");
 
-    this.version(2).stores({
+    this.version(3).stores({
       projects: "id, name, lastOpened",
+      projectHandles: "projectId",
       chatSessions: "id, projectId, title, createdAt",
       chatMessages: "id, role, timestamp",
       contextStash: "id, path, addedAt",
@@ -60,12 +63,73 @@ export class LCDatabase extends Dexie {
       .toArray();
   }
 
+  // ── Project Handle helpers ─────────────────────────────────────────────────
+
+  async saveProjectHandle(projectId: string, dirHandle: FileSystemDirectoryHandle): Promise<void> {
+    const entry: LCProjectHandle = {
+      projectId,
+      dirHandle,
+      lastVerified: new Date(),
+    };
+    await this.projectHandles.put(entry);
+  }
+
+  async getProjectHandle(projectId: string): Promise<LCProjectHandle | undefined> {
+    return this.projectHandles.get(projectId);
+  }
+
+  async deleteProjectHandle(projectId: string): Promise<void> {
+    await this.projectHandles.delete(projectId);
+  }
+
   async getProject(id: string): Promise<LCProject | undefined> {
     return this.projects.get(id);
   }
 
   async updateLastOpened(id: string): Promise<void> {
     await this.projects.update(id, { lastOpened: new Date() });
+  }
+
+  /**
+   * Remove all recent projects and their associated data:
+   * - Cached directory handles (projectHandles)
+   * - Chat sessions for those projects
+   * - Chat messages belonging to those sessions
+   */
+  async clearRecentProjects(): Promise<void> {
+    // Get all project IDs to scope chat data deletion
+    const allProjects = await this.projects.toArray();
+    const projectIds = allProjects.map((p) => p.id);
+
+    if (projectIds.length > 0) {
+      // Collect all chat session IDs for these projects
+      const sessions = await this.chatSessions
+        .where("projectId")
+        .anyOf(projectIds)
+        .toArray();
+
+      const sessionIds = sessions.map((s) => s.id);
+
+      // Collect all message IDs from those sessions
+      const messageIds = sessions.flatMap((s) =>
+        s.messages.map((m) => m.id),
+      );
+
+      // Delete chat messages (bulk delete by primary key)
+      if (messageIds.length > 0) {
+        await this.chatMessages.bulkDelete(messageIds);
+      }
+
+      // Delete chat sessions for these projects
+      if (sessionIds.length > 0) {
+        await this.chatSessions.bulkDelete(sessionIds);
+      }
+    }
+
+    // Clear cached directory handles
+    await this.projectHandles.clear();
+    // Clear all project entries
+    await this.projects.clear();
   }
 
   // ── Chat Session helpers ─────────────────────────────────────────────────

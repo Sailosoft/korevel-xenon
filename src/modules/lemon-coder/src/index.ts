@@ -4,6 +4,7 @@
 
 export { LCDatabase, lcDB } from "./LCDatabase";
 export { default as LCApp } from "./LCApp";
+export { default as LCStudio } from "./LCStudio";
 export { default as LCMenu } from "./LCMenu";
 export { default as LCSidebar } from "./LCSidebar";
 export { default as LCMainContent } from "./LCMainContent";
@@ -22,6 +23,7 @@ export type {
   LCChatSession,
   LCChatMessage,
   LCFileActionResult,
+  LCErrorInfo,
   LCAIResponse,
   LCMainViewMode,
   LCSidebarIconButton,

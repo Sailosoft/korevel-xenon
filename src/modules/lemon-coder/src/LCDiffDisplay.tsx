@@ -87,7 +87,7 @@ export default function LCDiffDisplay({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const { lines, added, removed } = useMemo(
-    () => buildLines(diffLines(original, modified)),
+    () => buildLines(diffLines(original ?? "", modified ?? "")),
     [original, modified],
   );
 

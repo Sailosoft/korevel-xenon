@@ -28,11 +28,17 @@ export interface UseLCFileSystemReturn {
   fileTree: LCFileTreeItem[];
   selectedFile: LCFileTreeItem | null;
   selectedFileContent: string;
-  stashItems: LCContextStashItem[];
+  isDirty: boolean;
   isLoading: boolean;
   /** Current external-change status for the active file */
   externalChangeStatus: LCExternalChangeStatus;
   loadDirectory: (dirHandle: FileSystemDirectoryHandle) => Promise<void>;
+  /**
+   * Load a directory from a cached handle, re-requesting permission if needed.
+   * Returns true if the handle was usable, false if permission was denied
+   * (caller should re-prompt the user to pick the folder).
+   */
+  loadFromCachedHandle: (dirHandle: FileSystemDirectoryHandle) => Promise<boolean>;
   selectFile: (item: LCFileTreeItem) => void;
   toggleExpand: (item: LCFileTreeItem) => void;
   addToStash: (item: LCFileTreeItem) => Promise<void>;
@@ -162,8 +168,10 @@ async function writeFileContentToHandle(
   let currentHandle: FileSystemDirectoryHandle = rootHandle;
 
   // Navigate through directory parts (all except the last which is the filename)
+  // Create intermediate directories if they don't exist (important for new files
+  // in subdirectories that haven't been created yet).
   for (let i = 0; i < parts.length - 1; i++) {
-    currentHandle = await currentHandle.getDirectoryHandle(parts[i]);
+    currentHandle = await currentHandle.getDirectoryHandle(parts[i], { create: true });
   }
 
   // Get or create the file handle for the last part (the filename)
@@ -226,7 +234,8 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
   const [fileTree, setFileTree] = useState<LCFileTreeItem[]>([]);
   const [selectedFile, setSelectedFile] = useState<LCFileTreeItem | null>(null);
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
-  const [stashItems, setStashItems] = useState<LCContextStashItem[]>([]);
+  const [originalFileContent, setOriginalFileContent] = useState<string>("");
+  const isDirty = selectedFileContent !== originalFileContent;
   const [isLoading, setIsLoading] = useState(false);
   const [externalChangeStatus, setExternalChangeStatus] = useState<LCExternalChangeStatus>({
     hasExternalChange: false,
@@ -241,6 +250,10 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
   const observerRef = useRef<any>(null);
   // Preserve the expanded-state tree so we can restore it after a full re-read
   const expandedPathsRef = useRef<Set<string>>(new Set());
+  // Sync ref with state so async callbacks always see the latest selectedFile
+  // without causing dependency changes on setupFileObserver / loadDirectory.
+  const selectedFileRef = useRef(selectedFile);
+  selectedFileRef.current = selectedFile;
 
   // ────────────────────────────────────────────────────────────────────────────
   // File watching setup / teardown
@@ -306,7 +319,11 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
                 }
 
                 // If this is the currently open file, signal external change
-                if (selectedFile && selectedFile.path === affectedPath) {
+                // Use the ref to avoid capturing selectedFile in the closure,
+                // which would make setupFileObserver depend on selectedFile
+                // and cascade into loadDirectory → restoreHandle effect re-runs.
+                const currentFile = selectedFileRef.current;
+                if (currentFile && currentFile.path === affectedPath) {
                   const diskTs =
                     lastModifiedMapRef.current.get(affectedPath) ?? 0;
                   setExternalChangeStatus({
@@ -326,7 +343,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
         console.warn("[lemon-coder] FileSystemObserver setup failed:", err);
       }
     },
-    [selectedFile],
+    [],
   );
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -358,6 +375,45 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     [setupFileObserver],
   );
 
+  /**
+   * Load a directory from a cached FileSystemDirectoryHandle.
+   * Checks permission first, re-requesting if needed.
+   * Returns true if the handle was usable, false if permission was denied.
+   */
+  const loadFromCachedHandle = useCallback(
+    async (dirHandle: FileSystemDirectoryHandle): Promise<boolean> => {
+      try {
+        // queryPermission / requestPermission exist at runtime on FileSystemHandle
+        // but aren't in TS 5.5 DOM types yet — cast via browser-fs-access types
+        const handle = dirHandle as unknown as import("browser-fs-access").FileSystemHandle;
+
+        // Step 1: Check current permission state
+        let permission = await handle.queryPermission({ mode: "readwrite" });
+
+        // Step 2: If prompt state, re-request permission from the user
+        if (permission === "prompt") {
+          permission = await handle.requestPermission({ mode: "readwrite" });
+        }
+
+        // Step 3: If denied, return false so the caller can prompt the user to re-pick
+        if (permission !== "granted") {
+          console.warn(
+            "[lemon-coder] Cached directory handle permission denied — user must re-select the folder.",
+          );
+          return false;
+        }
+
+        // Step 4: Permission is granted — load the directory
+        await loadDirectory(dirHandle);
+        return true;
+      } catch (error) {
+        console.error("[lemon-coder] Failed to use cached directory handle:", error);
+        return false;
+      }
+    },
+    [loadDirectory],
+  );
+
   const selectFile = useCallback(
     async (item: LCFileTreeItem) => {
       if (!item.isDirectory) {
@@ -375,6 +431,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
           // Store the known last-modified timestamp for external-change detection
           lastModifiedMapRef.current.set(item.path, lastModified);
           setSelectedFileContent(content);
+          setOriginalFileContent(content);
         } catch (error) {
           console.error("Failed to read file content:", error);
           setSelectedFileContent(
@@ -420,32 +477,29 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       });
       // Add first-level files as children of the folder group
       const files = item.children.filter((c) => !c.isDirectory);
-      const childItems: LCContextStashItem[] = [];
       for (const child of files) {
-        const stashChild = await lcDB.addToStash({
+        await lcDB.addToStash({
           name: child.name,
           path: child.path,
           isDirectory: false,
           parentId: parentStash.id,
         });
-        childItems.push(stashChild);
       }
-      setStashItems((prev) => [...prev, parentStash, ...childItems]);
     } else if (!item.isDirectory) {
-      const stashItem = await lcDB.addToStash({
+      await lcDB.addToStash({
         name: item.name,
         path: item.path,
         isDirectory: false,
       });
-      setStashItems((prev) => [...prev, stashItem]);
     }
   }, []);
 
   const removeFromStash = useCallback(async (id: string) => {
-    // When removing a folder group, also remove its children
-    const target = stashItems.find((s) => s.id === id);
+    // Query Dexie directly to find the target and its children
+    const allItems = await lcDB.contextStash.toArray();
+    const target = allItems.find((s) => s.id === id);
     if (target?.isDirectory) {
-      const childIds = stashItems
+      const childIds = allItems
         .filter((s) => s.parentId === id)
         .map((s) => s.id);
       for (const childId of childIds) {
@@ -453,12 +507,10 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       }
     }
     await lcDB.removeFromStash(id);
-    setStashItems((prev) => prev.filter((s) => s.id !== id && s.parentId !== id));
-  }, [stashItems]);
+  }, []);
 
   const clearStash = useCallback(async () => {
     await lcDB.clearStash();
-    setStashItems([]);
   }, []);
 
   const readFileContent = useCallback(
@@ -534,6 +586,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       );
       lastModifiedMapRef.current.set(selectedFile.path, lastModified);
       setSelectedFileContent(content);
+      setOriginalFileContent(content);
       setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
       console.log("[lemon-coder] Active file reloaded from disk.");
     } catch (error) {
@@ -569,6 +622,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       // Update the last-modified timestamp so external-change detection resets
       const diskTs = await getFileLastModified(dirHandleRef.current, selectedFile.path);
       lastModifiedMapRef.current.set(selectedFile.path, diskTs);
+      setOriginalFileContent(selectedFileContent);
       setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
       console.log(`[lemon-coder] Saved: ${selectedFile.path}`);
     } catch (error) {
@@ -625,10 +679,11 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     fileTree,
     selectedFile,
     selectedFileContent,
-    stashItems,
+    isDirty,
     isLoading,
     externalChangeStatus,
     loadDirectory,
+    loadFromCachedHandle,
     selectFile,
     toggleExpand,
     addToStash,

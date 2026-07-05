@@ -7,22 +7,37 @@
 
 import LCMenu from "./LCMenu";
 import type { LCProject } from "./LCInterface";
+import { LCTheme } from "./LCTheme";
 
 export interface LCLandingScreenProps {
   onOpenProject: () => void;
   recentProjects: LCProject[];
   onSelectRecentProject: (id: string) => void;
   onOpenHelixConfig: () => void;
+  onClearRecentProjects?: () => void;
 }
+
+const s = {
+  brand: LCTheme.colors.brand,
+  background: LCTheme.colors.background,
+  text: LCTheme.colors.text,
+  textSecondary: LCTheme.colors.textSecondary,
+  border: LCTheme.colors.border,
+  hover: LCTheme.colors.hover,
+};
 
 export default function LCLandingScreen({
   onOpenProject,
   recentProjects,
   onSelectRecentProject,
   onOpenHelixConfig,
+  onClearRecentProjects,
 }: LCLandingScreenProps) {
   return (
-    <div className="flex flex-col h-screen bg-[#1e1e1e] text-[#d4d4d4]">
+    <div
+      className="flex flex-col h-screen overflow-hidden"
+      style={{ backgroundColor: s.background, color: s.text }}
+    >
       {/* Menu Bar — New Session is disabled on landing screen (no active project) */}
       <LCMenu
         onOpenProject={onOpenProject}
@@ -36,17 +51,33 @@ export default function LCLandingScreen({
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-6">🍋</div>
-          <h1 className="text-2xl font-bold text-[#e5c07b] mb-3">
+          <h1
+            className="text-2xl font-bold mb-3"
+            style={{ color: s.brand }}
+          >
             Welcome to Lemon Coder
           </h1>
-          <p className="text-sm text-[#858585] mb-8">
+          <p
+            className="text-sm mb-8"
+            style={{ color: s.textSecondary }}
+          >
             Your AI-powered code assistant. Open a project to get started.
           </p>
 
           <div className="space-y-3">
             <button
               onClick={onOpenProject}
-              className="w-full max-w-xs mx-auto flex items-center justify-center gap-3 bg-[#e5c07b] text-[#1e1e1e] px-6 py-3 rounded-lg font-semibold hover:bg-[#d4a84b] transition-colors"
+              className="w-full max-w-xs mx-auto flex items-center justify-center gap-3 px-6 py-3 rounded-lg font-semibold transition-colors"
+              style={{
+                backgroundColor: s.brand,
+                color: s.background,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = s.hover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = s.brand;
+              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -65,20 +96,52 @@ export default function LCLandingScreen({
             </button>
 
             {recentProjects.length > 0 && (
-              <div className="pt-6 border-t border-[#333333]">
-                <p className="text-xs text-[#858585] mb-3 uppercase tracking-wider font-semibold">
+              <div
+                className="pt-6 border-t"
+                style={{ borderColor: s.border }}
+              >
+                <p
+                  className="text-xs mb-3 uppercase tracking-wider font-semibold"
+                  style={{ color: s.textSecondary }}
+                >
                   Recent Projects
                 </p>
                 <div className="space-y-1">
-                  {recentProjects.map((project) => (
+                  {recentProjects.slice(0, 5).map((project) => (
                     <button
                       key={project.id}
                       onClick={() => onSelectRecentProject(project.id)}
-                      className="w-full text-left px-4 py-2 text-sm text-[#abb2bf] hover:bg-[#333333] rounded-lg transition-colors"
+                      className="w-full text-left px-4 py-2 text-sm rounded-lg transition-colors"
+                      style={{
+                        color: s.text,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = s.border;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
                     >
                       {project.name}
                     </button>
                   ))}
+                  {onClearRecentProjects && (
+                    <button
+                      onClick={onClearRecentProjects}
+                      className="w-full text-left px-4 py-2 text-xs rounded-lg transition-colors opacity-60 hover:opacity-100"
+                      style={{
+                        color: s.textSecondary,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = s.border;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      Clear Recent Projects
+                    </button>
+                  )}
                 </div>
               </div>
             )}

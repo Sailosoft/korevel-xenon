@@ -22,6 +22,7 @@ import LCFileView from "./LCFileView";
 export interface LCMainContentProps {
   selectedFile: LCFileTreeItem | null;
   selectedFileContent: string;
+  isDirty?: boolean;
   messages: LCChatMessage[];
   stashItems: LCContextStashItem[];
   isSending: boolean;
@@ -41,11 +42,16 @@ export interface LCMainContentProps {
    * Used to fetch the original file content for diff preview.
    */
   onReadFileContent?: (filePath: string) => Promise<string>;
+  /**
+   * Callback to retry a failed message. Receives the original user content that failed.
+   */
+  onRetryMessage?: (content: string) => void;
 }
 
 export default function LCMainContent({
   selectedFile,
   selectedFileContent,
+  isDirty,
   messages,
   stashItems,
   isSending,
@@ -57,11 +63,14 @@ export default function LCMainContent({
   onAcknowledgeExternalChange,
   onSave,
   onReadFileContent,
+  onRetryMessage,
 }: LCMainContentProps) {
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
 
-  // Auto-switch to file view when a file is selected from tree
+  // Auto-switch to file view when a file is selected from tree.
+  // Only triggers on file id changes so the user can freely switch to/from
+  // chat view without being forced back to file view.
   useEffect(() => {
     if (selectedFile && viewMode !== "diff") {
       setViewMode("file");
@@ -100,18 +109,30 @@ export default function LCMainContent({
   );
 
   const handleAcceptDiff = useCallback(() => {
-    if (diffPreview) {
-      // Apply the AI-generated content to the filesystem
-      onApplyFileChanges([diffPreview.fileAction]);
-      // Close the diff preview
-      setDiffPreview(null);
+    if (!diffPreview) return;
+
+    const action = diffPreview.fileAction;
+
+    // Step 1: Close the diff preview first, which triggers Monaco DiffEditor
+    // to begin its model cleanup while LCFileView is still mounted.
+    setDiffPreview(null);
+
+    // Step 2: Defer the view-mode switch and file write to the next animation
+    // frame, giving Monaco enough time to dispose of its TextModels *before*
+    // the component unmounts. This prevents the race condition:
+    //   "TextModel got disposed before DiffEditorWidget model got reset"
+    requestAnimationFrame(() => {
+      onApplyFileChanges([action]);
       setViewMode("chat");
-    }
+    });
   }, [diffPreview, onApplyFileChanges]);
 
   const handleRejectDiff = useCallback(() => {
+    // Same deferred approach — close the diff preview now, switch view later
     setDiffPreview(null);
-    setViewMode("chat");
+    requestAnimationFrame(() => {
+      setViewMode("chat");
+    });
   }, []);
 
   // ── Diff preview creates a synthetic "selected file" for LCFileView ─────
@@ -193,11 +214,13 @@ export default function LCMainContent({
             onApplyFileChanges={onApplyFileChanges}
             onPreviewDiff={handlePreviewDiff}
             onReadFileForDiff={onReadFileContent}
+            onRetryMessage={onRetryMessage}
           />
         ) : viewMode === "diff" && diffPreview ? (
           <LCFileView
             selectedFile={diffFileItem}
             content={diffPreview.originalContent}
+            isDirty={isDirty}
             onContentChange={() => {}}
             externalChangeStatus={{ hasExternalChange: false, diskLastModified: null }}
             onReloadFromDisk={() => {}}

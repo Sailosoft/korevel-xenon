@@ -11,6 +11,19 @@ export interface LCProject {
   createdAt: Date;
 }
 
+/**
+ * A serialised FileSystemDirectoryHandle cached in IndexedDB.
+ * Handles are structured-clonable, so we store them directly in a dedicated table.
+ */
+export interface LCProjectHandle {
+  /** Matches LCProject.id */
+  projectId: string;
+  /** The root directory handle for this project */
+  dirHandle: FileSystemDirectoryHandle;
+  /** When this handle was last verified to have valid permission */
+  lastVerified: Date;
+}
+
 /** A single item in the file tree */
 export interface LCFileTreeItem {
   id: string;
@@ -42,6 +55,20 @@ export interface LCChatSession {
   updatedAt: Date;
 }
 
+/** Error information attached to a failed message */
+export interface LCErrorInfo {
+  /** The error message string */
+  message: string;
+  /** Optional stack trace */
+  stack?: string;
+  /** The error name/type (e.g. "Error", "TypeError", "APIError") */
+  name?: string;
+  /** Timestamp when the error occurred */
+  timestamp: Date;
+  /** The user's original content that failed (for retry) */
+  failedContent?: string;
+}
+
 /** A single message in a chat session */
 export interface LCChatMessage {
   id: string;
@@ -49,6 +76,8 @@ export interface LCChatMessage {
   content: string;
   timestamp: Date;
   fileContents?: LCFileActionResult[];
+  /** Error details if this message represents a failed AI response */
+  error?: LCErrorInfo;
 }
 
 /** AI response containing file actions */

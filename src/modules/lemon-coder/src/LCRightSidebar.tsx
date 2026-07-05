@@ -17,6 +17,7 @@ import {
   Trash2,
   MessageSquare,
   Settings,
+  FolderMinus,
 } from "lucide-react";
 import type { LCContextStashItem, LCChatSession } from "./LCInterface";
 
@@ -31,6 +32,11 @@ export interface LCRightSidebarProps {
   onCreateSession: () => void;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  /**
+   * Remove all child items from a folder stash entry, keeping only the
+   * folder reference (directory path) in the context stash.
+   */
+  onKeepOnlyFolder?: (folderId: string) => void;
 }
 
 export default function LCRightSidebar({
@@ -44,6 +50,7 @@ export default function LCRightSidebar({
   onCreateSession,
   isExpanded,
   onToggleExpand,
+  onKeepOnlyFolder,
 }: LCRightSidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
@@ -159,18 +166,36 @@ export default function LCRightSidebar({
                           {item.name}
                         </span>
                       </div>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          onRemoveFromStash(item.id);
-                        }}
-                        className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-red-400 shrink-0"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {/* Keep Only Folder — removes children but keeps the folder reference */}
+                        {onKeepOnlyFolder && (childrenByParent.get(item.id) || []).length > 0 && (
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              onKeepOnlyFolder(item.id);
+                            }}
+                            className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-[#e5c07b] shrink-0"
+                            aria-label="Keep only this folder, remove its children"
+                          >
+                            <FolderMinus className="w-2.5 h-2.5" />
+                          </Button>
+                        )}
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            onRemoveFromStash(item.id);
+                          }}
+                          className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-red-400 shrink-0"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </Button>
+                      </div>
                     </div>
                     {/* Children (expandable) */}
                     {expandedFolders.has(item.id) && (
