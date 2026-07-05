@@ -63,35 +63,37 @@ export default function LCMenu({
           Open Project
         </Button>
 
-        <Dropdown>
-          <Dropdown.Trigger>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
-              isDisabled={recentProjects.length === 0}
-            >
-              <History className="w-3.5 h-3.5" />
-              Recent
-            </Button>
-          </Dropdown.Trigger>
-          <Dropdown.Popover>
-            <Dropdown.Menu
-              aria-label="Recent projects"
-              onAction={(key) => onSelectRecentProject(key as string)}
-              className="bg-[#252526] border border-[#333333]"
-            >
-              {recentProjects.map((project) => (
-                <Dropdown.Item
-                  key={project.id}
-                  className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
-                >
-                  {project.name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
+        {recentProjects.length > 0 ? (
+          <Dropdown>
+            <Dropdown.Trigger>
+              <span className="inline-flex items-center gap-1 px-3 h-8 rounded-md text-xs text-[#abb2bf] hover:text-white hover:bg-[#333333] cursor-pointer transition-colors">
+                <History className="w-3.5 h-3.5" />
+                Recent
+              </span>
+            </Dropdown.Trigger>
+            <Dropdown.Popover>
+              <Dropdown.Menu
+                aria-label="Recent projects"
+                onAction={(key) => onSelectRecentProject(key as string)}
+                className="bg-[#252526] border border-[#333333]"
+              >
+                {recentProjects.map((project) => (
+                  <Dropdown.Item
+                    key={project.id}
+                    className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
+                  >
+                    {project.name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-3 h-8 rounded-md text-xs text-[#555] cursor-not-allowed transition-colors">
+            <History className="w-3.5 h-3.5" />
+            Recent
+          </span>
+        )}
 
         <Button
           variant="ghost"

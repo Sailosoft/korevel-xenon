@@ -16,6 +16,7 @@ import LCMainContent from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
 import LCLandingScreen from "./LCLandingScreen";
+import LCNewItemModal from "./LCNewItemModal";
 import type {
   LCProject,
   LCFileTreeItem,
@@ -53,6 +54,7 @@ export default function LCApp() {
     acknowledgeExternalChange,
     saveFile,
     writeFile,
+    createItem,
   } = useLCFileSystem();
 
   const {
@@ -68,6 +70,8 @@ export default function LCApp() {
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  const [newFileParentPath, setNewFileParentPath] = useState("");
   const isOpeningRef = useRef(false);
 
   // Live query for stash items
@@ -248,6 +252,10 @@ export default function LCApp() {
           onToggleExpand={toggleExpand}
           onAddToStash={addToStash}
           onRefreshFileTree={refreshFileTree}
+          onNewItem={(parentPath) => {
+            setNewFileParentPath(parentPath);
+            setIsNewItemModalOpen(true);
+          }}
         />
 
         {/* Main Content */}
@@ -292,6 +300,16 @@ export default function LCApp() {
       <LCHelixConfigModal
         open={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
+      />
+
+      {/* New File/Folder Modal */}
+      <LCNewItemModal
+        isOpen={isNewItemModalOpen}
+        onOpenChange={setIsNewItemModalOpen}
+        onCreate={(name, type) => {
+          createItem(newFileParentPath, name, type);
+        }}
+        defaultPath={newFileParentPath}
       />
     </div>
   );

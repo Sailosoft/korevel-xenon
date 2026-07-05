@@ -54,6 +54,10 @@ export interface UseLCFileSystemReturn {
    * creating or overwriting the file at that path.
    */
   writeFile: (filePath: string, content: string) => Promise<void>;
+  /**
+   * Create a new file or folder at the specified path.
+   */
+  createItem: (path: string, name: string, type: "file" | "directory") => Promise<void>;
 }
 
 /**
@@ -164,12 +168,34 @@ async function writeFileContentToHandle(
 
   // Get or create the file handle for the last part (the filename)
   const fileName = parts[parts.length - 1];
-  const fileHandle = await currentHandle.getFileHandle(fileName);
+  const fileHandle = await currentHandle.getFileHandle(fileName, { create: true });
 
   // Create a writable stream and write the content
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();
+}
+
+async function createItemInHandle(
+  rootHandle: FileSystemDirectoryHandle,
+  parentPath: string,
+  name: string,
+  type: "file" | "directory",
+): Promise<void> {
+  let currentHandle: FileSystemDirectoryHandle = rootHandle;
+
+  if (parentPath) {
+    const parts = parentPath.split("/");
+    for (const part of parts) {
+      currentHandle = await currentHandle.getDirectoryHandle(part);
+    }
+  }
+
+  if (type === "directory") {
+    await currentHandle.getDirectoryHandle(name, { create: true });
+  } else {
+    await currentHandle.getFileHandle(name, { create: true });
+  }
 }
 
 function findItemByPathRecursive(
@@ -569,6 +595,18 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     console.log(`[lemon-coder] Written: ${filePath}`);
   }, [selectedFile]);
 
+  const createItem = useCallback(
+    async (parentPath: string, name: string, type: "file" | "directory") => {
+      if (!dirHandleRef.current) {
+        throw new Error("No project directory handle available. Open a project first.");
+      }
+      await createItemInHandle(dirHandleRef.current, parentPath, name, type);
+      await refreshFileTree();
+      console.log(`[lemon-coder] Created ${type}: ${parentPath}/${name}`);
+    },
+    [refreshFileTree],
+  );
+
   // Cleanup observer on unmount
   useEffect(() => {
     return () => {
@@ -604,5 +642,6 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     acknowledgeExternalChange,
     saveFile,
     writeFile,
+    createItem,
   };
 }

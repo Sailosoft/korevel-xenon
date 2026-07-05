@@ -24,6 +24,7 @@ export interface LCSidebarProps {
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
+  onNewItem: (parentPath: string) => void;
   /** Strategy 3 — Explicit refresh of the file tree */
   onRefreshFileTree?: () => void;
 }
@@ -35,6 +36,7 @@ export default function LCSidebar({
   onSelectFile,
   onToggleExpand,
   onAddToStash,
+  onNewItem,
   onRefreshFileTree,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
@@ -143,6 +145,7 @@ export default function LCSidebar({
                 onSelectFile={onSelectFile}
                 onToggleExpand={onToggleExpand}
                 onAddToStash={onAddToStash}
+                onNewItem={onNewItem}
                 isLoading={isFileTreeLoading}
               />
             )}

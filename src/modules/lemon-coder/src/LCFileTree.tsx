@@ -21,6 +21,7 @@ export interface LCFileTreeProps {
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
+  onNewItem: (parentPath: string) => void;
   isLoading: boolean;
 }
 
@@ -31,6 +32,7 @@ function FileTreeItem({
   onSelectFile,
   onToggleExpand,
   onAddToStash,
+  onNewItem,
 }: {
   item: LCFileTreeItem;
   depth?: number;
@@ -38,6 +40,7 @@ function FileTreeItem({
   onSelectFile: (item: LCFileTreeItem) => void;
   onToggleExpand: (item: LCFileTreeItem) => void;
   onAddToStash: (item: LCFileTreeItem) => void;
+  onNewItem: (parentPath: string) => void;
 }) {
   const isSelected = selectedFile?.id === item.id;
   const isExpanded = item.expanded ?? false;
@@ -97,19 +100,35 @@ function FileTreeItem({
           {item.name}
         </span>
 
-        {/* Add to Stash Button */}
-        <Button
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          className="w-5 h-5 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-[#e5c07b]"
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            onAddToStash(item);
-          }}
-        >
-          <Plus className="w-3 h-3" />
-        </Button>
+        {/* Actions (Stash / New) */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {item.isDirectory && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                onNewItem(item.path);
+              }}
+            >
+              <Plus className="w-3 h-3" />
+            </Button>
+          )}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              onAddToStash(item);
+            }}
+          >
+            <Plus className="w-3 h-3" />
+          </Button>
+        </div>
       </div>
 
       {/* Children (if directory and expanded) */}
@@ -124,6 +143,7 @@ function FileTreeItem({
               onSelectFile={onSelectFile}
               onToggleExpand={onToggleExpand}
               onAddToStash={onAddToStash}
+              onNewItem={onNewItem}
             />
           ))}
         </div>
@@ -138,6 +158,7 @@ export default function LCFileTree({
   onSelectFile,
   onToggleExpand,
   onAddToStash,
+  onNewItem,
   isLoading,
 }: LCFileTreeProps) {
   if (isLoading) {
@@ -166,6 +187,7 @@ export default function LCFileTree({
           onSelectFile={onSelectFile}
           onToggleExpand={onToggleExpand}
           onAddToStash={onAddToStash}
+          onNewItem={onNewItem}
         />
       ))}
     </div>
