@@ -20,14 +20,13 @@ import {
 } from "lucide-react";
 import LCDiffDisplay from "./LCDiffDisplay";
 import type { LCFileActionResult, LCApplyStatus } from "./LCInterface";
+import { resolveFilePath } from "./LCInterface";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Build the display file path from a file action (normalises double slashes) */
 function getFilePath(file: LCFileActionResult): string {
-  return file.FileDirectory
-    ? `${file.FileDirectory}/${file.FileName}`.replace(/\/+/g, "/")
-    : file.FileName;
+  return resolveFilePath(file);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

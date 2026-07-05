@@ -19,13 +19,17 @@ import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
 import LCLandingScreen from "./LCLandingScreen";
 import LCNewItemModal from "./LCNewItemModal";
+import LCDeepstashSaveModal from "./LCDeepstashSaveModal";
 import type {
   LCProject,
   LCFileTreeItem,
   LCContextStashItem,
+  LCDeepstash,
+  LCDeepstashMergeStrategy,
   LCChatSession,
   LCFileActionResult,
 } from "./LCInterface";
+import { resolveFilePath } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
 
 export default function LCApp() {
@@ -87,6 +91,8 @@ export default function LCApp() {
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
+  const [isDeepstashSaveOpen, setIsDeepstashSaveOpen] = useState(false);
+  const [isDeepstashPopOpen, setIsDeepstashPopOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -106,6 +112,13 @@ export default function LCApp() {
   const chatSessions =
     useLiveQuery(
       () => (currentProject ? lcDB.getChatSessions(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
+
+  // Live query for deepstashes
+  const deepstashes =
+    useLiveQuery(
+      () => (currentProject ? lcDB.getDeepstashes(currentProject.id) : []),
       [currentProject?.id],
     ) || [];
 
@@ -270,9 +283,7 @@ export default function LCApp() {
     async (fileActions: LCFileActionResult[]) => {
       for (const action of fileActions) {
         try {
-          const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
-            : action.FileName;
+          const filePath = resolveFilePath(action);
 
           // Write directly to the filesystem via the cached directory handle
           await writeFile(filePath, action.Content);
@@ -372,6 +383,95 @@ export default function LCApp() {
     },
     [recentProjects, selectRecentProject, requestHandlePermission, loadDirectory, clearStash],
   );
+
+  // ── Deepstash callbacks ──────────────────────────────────────────────────
+
+  const handleSaveDeepstash = useCallback(
+    async (action: { mode: "new" | "override" | "overlap"; name?: string; deepstashId?: string }) => {
+      if (!currentProject) return;
+      const items = stashItems;
+
+      if (action.mode === "new" && action.name) {
+        await lcDB.createDeepstash(currentProject.id, action.name, items);
+      } else if (action.mode === "override" && action.deepstashId) {
+        // Delete existing deepstash and its items, then re-create with same name
+        const existing = await lcDB.getDeepstash(action.deepstashId);
+        if (existing) {
+          await lcDB.deleteDeepstash(action.deepstashId);
+          await lcDB.createDeepstash(currentProject.id, existing.name, items);
+        }
+      } else if (action.mode === "overlap" && action.deepstashId) {
+        // Load existing items, merge current stash items (keep existing paths)
+        const existingItems = await lcDB.getDeepstashItems(action.deepstashId);
+        const existingPaths = new Set(existingItems.map((i) => i.path));
+        const newItems = items.filter((i) => !existingPaths.has(i.path));
+
+        if (newItems.length > 0) {
+          // Append only new items to the deepstash
+          const deepstashItemEntries = newItems.map((item) => ({
+            id: crypto.randomUUID(),
+            deepstashId: action.deepstashId!,
+            name: item.name,
+            path: item.path,
+            isDirectory: item.isDirectory,
+            parentId: item.parentId,
+            addedAt: item.addedAt,
+          }));
+          await lcDB.deepstashItems.bulkAdd(deepstashItemEntries);
+          // Update timestamp
+          await lcDB.deepstashes.update(action.deepstashId, { updatedAt: new Date() });
+        }
+      }
+
+      setIsDeepstashSaveOpen(false);
+    },
+    [currentProject, stashItems],
+  );
+
+  const handleApplyDeepstash = useCallback(
+    async (deepstash: LCDeepstash, strategy: LCDeepstashMergeStrategy) => {
+      // Load deepstash items
+      const items = await lcDB.getDeepstashItems(deepstash.id);
+
+      if (strategy === "override") {
+        // Clear current stash and add all deepstash items
+        await clearStash();
+        for (const item of items) {
+          await lcDB.addToStash({
+            name: item.name,
+            path: item.path,
+            isDirectory: item.isDirectory,
+            parentId: item.parentId,
+          });
+        }
+      } else if (strategy === "overlap") {
+        // Keep existing items, add only new ones (skip by path match)
+        const currentPaths = new Set(stashItems.map((s) => s.path));
+        for (const item of items) {
+          if (!currentPaths.has(item.path)) {
+            await lcDB.addToStash({
+              name: item.name,
+              path: item.path,
+              isDirectory: item.isDirectory,
+              parentId: item.parentId,
+            });
+          }
+        }
+      }
+
+      setIsDeepstashPopOpen(false);
+    },
+    [clearStash, stashItems],
+  );
+
+  const handleDeleteDeepstash = useCallback(async (id: string) => {
+    await lcDB.deleteDeepstash(id);
+  }, []);
+
+  const handleClearDeepstashes = useCallback(async () => {
+    if (!currentProject) return;
+    await lcDB.clearAllDeepstashes(currentProject.id);
+  }, [currentProject]);
 
   // Landing screen when no project is selected
   if (!currentProject) {
@@ -480,6 +580,11 @@ export default function LCApp() {
           onKeepOnlyFolder={handleKeepOnlyFolder}
           onDeleteSession={deleteSession}
           onClearSessions={() => currentProject && clearAllSessions(currentProject.id)}
+          deepstashes={deepstashes}
+          onSaveDeepstash={() => setIsDeepstashSaveOpen(true)}
+          onApplyDeepstash={handleApplyDeepstash}
+          onDeleteDeepstash={handleDeleteDeepstash}
+          onClearDeepstashes={handleClearDeepstashes}
         />
       </div>
 
@@ -498,6 +603,15 @@ export default function LCApp() {
         }}
         defaultPath={newFileParentPath}
         defaultType={newFileType}
+      />
+
+      {/* Deepstash Save Modal */}
+      <LCDeepstashSaveModal
+        isOpen={isDeepstashSaveOpen}
+        onOpenChange={setIsDeepstashSaveOpen}
+        deepstashes={deepstashes}
+        existingNames={deepstashes.map((d) => d.name)}
+        onSave={handleSaveDeepstash}
       />
     </div>
   );

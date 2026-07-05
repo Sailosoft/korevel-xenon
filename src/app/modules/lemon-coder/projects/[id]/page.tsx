@@ -18,8 +18,16 @@ import {
   Info,
   ExternalLink,
   RefreshCw,
+  Layers,
+  FileText,
+  Folder,
+  Eye,
+  Pencil,
+  X,
 } from "lucide-react";
 import type { LCProject, LCChatSession } from "@/src/modules/lemon-coder/src/LCInterface";
+import type { LCDeepstash, LCDeepstashItem } from "@/src/modules/lemon-coder/src/LCInterface";
+import { Input } from "@/src/shadcnui/components/ui/input";
 
 const s = {
   brand: LCTheme.colors.brand,
@@ -30,7 +38,7 @@ const s = {
   hover: LCTheme.colors.hover,
 };
 
-type TabId = "info" | "sessions" | "config";
+type TabId = "info" | "sessions" | "deepstash" | "config";
 
 interface TabConfig {
   id: TabId;
@@ -41,6 +49,7 @@ interface TabConfig {
 const tabs: TabConfig[] = [
   { id: "info", label: "Info", icon: <Info className="w-3.5 h-3.5" /> },
   { id: "sessions", label: "Sessions", icon: <MessageSquare className="w-3.5 h-3.5" /> },
+  { id: "deepstash", label: "Deepstash", icon: <Layers className="w-3.5 h-3.5" /> },
   { id: "config", label: "Configuration", icon: <Settings className="w-3.5 h-3.5" /> },
 ];
 
@@ -54,10 +63,19 @@ export default function LemonCoderProjectDetailPage({
   const [activeTab, setActiveTab] = useState<TabId>("info");
   const [clearSessionConfirm, setClearSessionConfirm] = useState(false);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+  const [deleteDeepstashId, setDeleteDeepstashId] = useState<string | null>(null);
+  const [renameDeepstashId, setRenameDeepstashId] = useState<string | null>(null);
+  const [renameDeepstashName, setRenameDeepstashName] = useState("");
+  const [viewDeepstashItems, setViewDeepstashItems] = useState<LCDeepstashItem[] | null>(null);
+  const [viewDeepstashName, setViewDeepstashName] = useState("");
 
   const project = useLiveQuery(() => lcDB.getProject(id), [id]);
   const sessions = useLiveQuery(
     () => (id ? lcDB.getChatSessions(id) : []),
+    [id],
+  );
+  const deepstashes = useLiveQuery(
+    () => (id ? lcDB.getDeepstashes(id) : []),
     [id],
   );
 
@@ -74,6 +92,10 @@ export default function LemonCoderProjectDetailPage({
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatDateTime = (date: Date) => {
+    return `${formatDate(date)} ${formatTime(date)}`;
   };
 
   const handleOpenStudio = useCallback(() => {
@@ -99,6 +121,27 @@ export default function LemonCoderProjectDetailPage({
     },
     [router, id],
   );
+
+  // ── Deepstash handlers ────────────────────────────────────────────────────
+
+  const handleDeleteDeepstash = useCallback(async () => {
+    if (!deleteDeepstashId) return;
+    await lcDB.deleteDeepstash(deleteDeepstashId);
+    setDeleteDeepstashId(null);
+  }, [deleteDeepstashId]);
+
+  const handleRenameDeepstash = useCallback(async () => {
+    if (!renameDeepstashId || !renameDeepstashName.trim()) return;
+    await lcDB.renameDeepstash(renameDeepstashId, renameDeepstashName.trim());
+    setRenameDeepstashId(null);
+    setRenameDeepstashName("");
+  }, [renameDeepstashId, renameDeepstashName]);
+
+  const handleViewDeepstash = useCallback(async (deepstash: LCDeepstash) => {
+    const items = await lcDB.getDeepstashItems(deepstash.id);
+    setViewDeepstashName(deepstash.name);
+    setViewDeepstashItems(items);
+  }, []);
 
   if (!project) {
     return (
@@ -236,6 +279,19 @@ export default function LemonCoderProjectDetailPage({
                   {sessions?.length || 0} session{(sessions?.length || 0) !== 1 ? "s" : ""}
                 </p>
               </div>
+
+              <div
+                className="rounded-lg p-3 border"
+                style={{ borderColor: s.border }}
+              >
+                <div className="flex items-center gap-2 text-xs mb-1" style={{ color: s.textSecondary }}>
+                  <Layers className="w-3.5 h-3.5" />
+                  Deepstashes
+                </div>
+                <p className="text-sm font-medium">
+                  {deepstashes?.length || 0} deepstash{(deepstashes?.length || 0) !== 1 ? "es" : ""}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -311,7 +367,85 @@ export default function LemonCoderProjectDetailPage({
           </div>
         )}
 
-        {/* Tab 3: Configuration (placeholder for future) */}
+        {/* Tab 3: Deepstash */}
+        {activeTab === "deepstash" && (
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold" style={{ color: s.text }}>
+                Deepstashes
+              </h2>
+            </div>
+
+            {!deepstashes || deepstashes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Layers className="w-12 h-12 mb-3" style={{ color: s.textSecondary }} />
+                <p className="text-sm" style={{ color: s.textSecondary }}>
+                  No deepstashes yet.
+                </p>
+                <p className="text-xs mt-1" style={{ color: s.textSecondary }}>
+                  Save your context stash as a deepstash in the studio to create them.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {deepstashes.map((deepstash) => (
+                  <div
+                    key={deepstash.id}
+                    className="flex items-center justify-between rounded-lg border p-3 transition-colors"
+                    style={{ borderColor: s.border }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 shrink-0" style={{ color: s.brand }} />
+                        <span className="text-sm font-medium truncate">
+                          {deepstash.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: s.textSecondary }}>
+                        <span>Created: {formatDateTime(deepstash.createdAt)}</span>
+                        <span>Updated: {formatDateTime(deepstash.updatedAt)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+                        onPress={() => handleViewDeepstash(deepstash)}
+                      >
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 min-w-0 text-[#858585] hover:text-[#e5c07b]"
+                        onPress={() => {
+                          setRenameDeepstashId(deepstash.id);
+                          setRenameDeepstashName(deepstash.name);
+                        }}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        className="w-6 h-6 min-w-0 text-red-400 hover:bg-red-400/10"
+                        onPress={() => setDeleteDeepstashId(deepstash.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Configuration (placeholder for future) */}
         {activeTab === "config" && (
           <div className="max-w-2xl mx-auto">
             <div
@@ -407,6 +541,151 @@ export default function LemonCoderProjectDetailPage({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* Delete Deepstash Confirmation Modal */}
+      <Modal.Backdrop
+        isOpen={deleteDeepstashId !== null}
+        onOpenChange={(open: boolean) => { if (!open) setDeleteDeepstashId(null); }}
+      >
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                <Trash2 className="w-4 h-4 text-red-400" />
+                Delete Deepstash
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-sm text-gray-300">
+                This will permanently delete this deepstash and all its items.
+              </p>
+              <p className="text-xs text-red-400 mt-2">
+                This action cannot be undone.
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                onPress={handleDeleteDeepstash}
+                className="bg-red-500 text-white hover:bg-red-600 text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* Rename Deepstash Modal */}
+      <Modal.Backdrop
+        isOpen={renameDeepstashId !== null}
+        onOpenChange={(open: boolean) => { if (!open) { setRenameDeepstashId(null); setRenameDeepstashName(""); } }}
+      >
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                <Pencil className="w-4 h-4 text-[#e5c07b]" />
+                Rename Deepstash
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-gray-300">
+                  Enter a new name for this deepstash.
+                </p>
+                <Input
+                  autoFocus
+                  placeholder="Deepstash name..."
+                  value={renameDeepstashName}
+                  onChange={(e) => setRenameDeepstashName(e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent) => {
+                    if (e.key === "Enter") handleRenameDeepstash();
+                  }}
+                  className="bg-[#333] border-[#555] text-white placeholder:text-gray-500"
+                />
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                onPress={handleRenameDeepstash}
+                className="bg-[#e5c07b] text-black hover:bg-[#d1a85e] text-xs"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Rename
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* View Deepstash Items Modal */}
+      <Modal.Backdrop
+        isOpen={viewDeepstashItems !== null}
+        onOpenChange={(open: boolean) => { if (!open) { setViewDeepstashItems(null); setViewDeepstashName(""); } }}
+      >
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333] max-w-lg">
+          <Modal.Dialog className="sm:max-w-lg bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                <Layers className="w-4 h-4 text-[#e5c07b]" />
+                {viewDeepstashName}
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              {viewDeepstashItems && viewDeepstashItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  This deepstash is empty.
+                </p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {viewDeepstashItems?.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-[#333]"
+                    >
+                      {item.isDirectory ? (
+                        <Folder className="w-3.5 h-3.5 text-[#e5c07b] shrink-0" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5 text-[#abb2bf] shrink-0" />
+                      )}
+                      <span className="truncate text-gray-300">{item.path}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Close
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

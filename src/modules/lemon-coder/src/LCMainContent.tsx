@@ -16,6 +16,7 @@ import type {
   LCExternalChangeStatus,
   LCDiffPreview,
 } from "./LCInterface";
+import { resolveFilePath } from "./LCInterface";
 import type { LCPromptModeType } from "./LCPromptMode";
 import LCChatView from "./LCChatView";
 import LCFileView from "./LCFileView";
@@ -103,9 +104,7 @@ export default function LCMainContent({
 
   const handlePreviewDiff = useCallback(
     async (fileAction: LCFileActionResult) => {
-      const filePath = fileAction.FileDirectory
-        ? `${fileAction.FileDirectory}/${fileAction.FileName}`.replace(/\/+/g, "/")
-        : fileAction.FileName;
+      const filePath = resolveFilePath(fileAction);
 
       let originalContent = "";
       if (onReadFileContent && fileAction.ExistingFile) {

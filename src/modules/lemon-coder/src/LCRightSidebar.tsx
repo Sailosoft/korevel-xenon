@@ -18,8 +18,14 @@ import {
   MessageSquare,
   Settings,
   FolderMinus,
+  Upload,
+  Save,
+  RefreshCw,
+  Plus,
 } from "lucide-react";
 import type { LCContextStashItem, LCChatSession } from "./LCInterface";
+import type { LCDeepstash, LCDeepstashItem, LCDeepstashMergeStrategy } from "./LCInterface";
+import { lcDB } from "./LCDatabase";
 
 export interface LCRightSidebarProps {
   stashItems: LCContextStashItem[];
@@ -32,15 +38,19 @@ export interface LCRightSidebarProps {
   onCreateSession: () => void;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  /**
-   * Remove all child items from a folder stash entry, keeping only the
-   * folder reference (directory path) in the context stash.
-   */
   onKeepOnlyFolder?: (folderId: string) => void;
-  /** Delete a specific chat session */
   onDeleteSession?: (sessionId: string) => void;
-  /** Clear all chat sessions for the current project */
   onClearSessions?: () => void;
+  /** Deepstashes for the current project (live-queried) */
+  deepstashes: LCDeepstash[];
+  /** Save current context stash as a new deepstash */
+  onSaveDeepstash: () => void;
+  /** Apply a deepstash with the given merge strategy */
+  onApplyDeepstash: (deepstash: LCDeepstash, strategy: LCDeepstashMergeStrategy) => void;
+  /** Delete a deepstash */
+  onDeleteDeepstash: (id: string) => void;
+  /** Clear all deepstashes for the current project */
+  onClearDeepstashes?: () => void;
 }
 
 export default function LCRightSidebar({
@@ -57,8 +67,19 @@ export default function LCRightSidebar({
   onKeepOnlyFolder,
   onDeleteSession,
   onClearSessions,
+  deepstashes,
+  onSaveDeepstash,
+  onApplyDeepstash,
+  onDeleteDeepstash,
+  onClearDeepstashes,
 }: LCRightSidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedDeepstashes, setExpandedDeepstashes] = useState<Set<string>>(new Set());
+  const [deepstashItemsMap, setDeepstashItemsMap] = useState<Record<string, LCDeepstashItem[]>>({});
+  const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
+  const [applyConfirmId, setApplyConfirmId] = useState<string | null>(null);
+  const [applyStrategy, setApplyStrategy] = useState<LCDeepstashMergeStrategy>("override");
+  const [clearDeepstashConfirm, setClearDeepstashConfirm] = useState(false);
 
   const toggleFolder = (id: string) => {
     setExpandedFolders((prev) => {
@@ -71,6 +92,33 @@ export default function LCRightSidebar({
       return next;
     });
   };
+
+  const toggleDeepstash = useCallback(async (dsId: string) => {
+    setExpandedDeepstashes((prev) => {
+      const next = new Set(prev);
+      if (next.has(dsId)) {
+        next.delete(dsId);
+      } else {
+        next.add(dsId);
+      }
+      return next;
+    });
+
+    // Load items if not yet loaded
+    if (!deepstashItemsMap[dsId] && !loadingItems.has(dsId)) {
+      setLoadingItems((prev) => new Set(prev).add(dsId));
+      try {
+        const items = await lcDB.getDeepstashItems(dsId);
+        setDeepstashItemsMap((prev) => ({ ...prev, [dsId]: items }));
+      } finally {
+        setLoadingItems((prev) => {
+          const next = new Set(prev);
+          next.delete(dsId);
+          return next;
+        });
+      }
+    }
+  }, [deepstashItemsMap, loadingItems]);
 
   if (!isExpanded) {
     return (
@@ -98,6 +146,14 @@ export default function LCRightSidebar({
       childrenByParent.set(item.parentId, list);
     }
   }
+
+  const formatDate = (date: Date) =>
+    new Date(date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
     <div className="w-64 bg-[#252526] border-l border-[#333333] flex flex-col shrink-0 overflow-hidden">
@@ -150,7 +206,6 @@ export default function LCRightSidebar({
               {rootItems.map((item) =>
                 item.isDirectory ? (
                   <div key={item.id}>
-                    {/* Folder accordion header */}
                     <div
                       className="flex items-center justify-between gap-1 px-1 py-1 rounded cursor-pointer hover:bg-[#333333] group select-none"
                       onClick={() => toggleFolder(item.id)}
@@ -173,7 +228,6 @@ export default function LCRightSidebar({
                         </span>
                       </div>
                       <div className="flex items-center gap-0.5 shrink-0">
-                        {/* Keep Only Folder — removes children but keeps the folder reference */}
                         {onKeepOnlyFolder && (childrenByParent.get(item.id) || []).length > 0 && (
                           <Button
                             isIconOnly
@@ -203,7 +257,6 @@ export default function LCRightSidebar({
                         </Button>
                       </div>
                     </div>
-                    {/* Children (expandable) */}
                     {expandedFolders.has(item.id) && (
                       <div className="ml-3 space-y-0.5">
                         {(childrenByParent.get(item.id) || []).map((child) => (
@@ -232,8 +285,7 @@ export default function LCRightSidebar({
                             </Button>
                           </div>
                         ))}
-                        {(childrenByParent.get(item.id) || []).length ===
-                          0 && (
+                        {(childrenByParent.get(item.id) || []).length === 0 && (
                           <p className="text-[10px] text-[#858585] pl-1">
                             No files in this folder
                           </p>
@@ -242,7 +294,6 @@ export default function LCRightSidebar({
                     )}
                   </div>
                 ) : (
-                  /* Standalone file (no parent) */
                   <div
                     key={item.id}
                     className="flex items-center justify-between gap-1 px-1 py-1 rounded cursor-pointer hover:bg-[#333333] group select-none"
@@ -269,6 +320,144 @@ export default function LCRightSidebar({
                   </div>
                 ),
               )}
+            </div>
+          )}
+
+          {/* Deepstash quick save button */}
+          {stashItems.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-[#333333]">
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={onSaveDeepstash}
+                className="w-full text-[10px] h-6 text-[#e5c07b] hover:bg-[#e5c07b]/10 min-w-0"
+              >
+                <Save className="w-3 h-3" />
+                Save Current as Deepstash
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="mx-3 border-t border-[#333333]" />
+
+        {/* Deepstashes Section — display stored deepstashes inline */}
+        <div className="px-3 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#61afef]" />
+              <span className="text-xs text-[#abb2bf]">Deepstashes</span>
+              <span className="text-[10px] text-[#858585]">
+                ({deepstashes.length})
+              </span>
+            </div>
+            {onClearDeepstashes && deepstashes.length > 0 && (
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                onPress={() => setClearDeepstashConfirm(true)}
+                className="w-5 h-5 min-w-0 text-[#858585] hover:text-red-400"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+
+          {deepstashes.length === 0 ? (
+            <p className="text-[11px] text-[#858585] pl-1">
+              No saved deepstashes yet.
+            </p>
+          ) : (
+            <div className="space-y-0.5">
+              {deepstashes.map((ds) => {
+                const isOpen = expandedDeepstashes.has(ds.id);
+                const items = deepstashItemsMap[ds.id];
+                const isLoading = loadingItems.has(ds.id);
+
+                return (
+                  <div key={ds.id}>
+                    {/* Deepstash accordion header */}
+                    <div
+                      className="flex items-center justify-between gap-1 px-1 py-1 rounded cursor-pointer hover:bg-[#333333] group select-none"
+                      onClick={() => toggleDeepstash(ds.id)}
+                    >
+                      <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
+                        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                          {isOpen ? (
+                            <ChevronDown className="w-3 h-3 text-[#858585]" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 text-[#858585]" />
+                          )}
+                        </span>
+                        <Layers className="w-3.5 h-3.5 text-[#61afef] shrink-0" />
+                        <span className="text-xs text-[#d4d4d4] truncate">
+                          {ds.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setApplyConfirmId(ds.id);
+                            setApplyStrategy("override");
+                          }}
+                          className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-[#98c379] shrink-0"
+                          aria-label="Pop this deepstash into the context stash"
+                        >
+                          <Upload className="w-2.5 h-2.5" />
+                        </Button>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            onDeleteDeepstash(ds.id);
+                          }}
+                          className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-red-400 shrink-0"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Deepstash items (expandable) */}
+                    {isOpen && (
+                      <div className="ml-3 space-y-0.5">
+                        {isLoading ? (
+                          <p className="text-[10px] text-[#858585] pl-1">
+                            Loading...
+                          </p>
+                        ) : items && items.length > 0 ? (
+                          items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center gap-1.5 px-1 py-0.5 rounded select-none"
+                            >
+                              {item.isDirectory ? (
+                                <Folder className="w-2.5 h-2.5 text-[#e5c07b] shrink-0" />
+                              ) : (
+                                <FileText className="w-2.5 h-2.5 text-[#abb2bf] shrink-0" />
+                              )}
+                              <span className="text-[10px] text-[#abb2bf] truncate">
+                                {item.path}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[10px] text-[#858585] pl-1">
+                            Empty
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -360,6 +549,127 @@ export default function LCRightSidebar({
           </div>
         </div>
       </div>
+
+      {/* Apply Deepstash Confirmation Inline Modal */}
+      <Modal.Backdrop
+        isOpen={applyConfirmId !== null}
+        onOpenChange={(open: boolean) => { if (!open) setApplyConfirmId(null); }}
+      >
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                  <Upload className="w-4 h-4 text-[#98c379]" />
+                  Pop Deepstash
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-sm text-gray-300 mb-3">
+                How do you want to apply this deepstash to your current context stash?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                    applyStrategy === "override"
+                      ? "bg-[#98c379]/20 border-[#98c379]/40 text-white"
+                      : "border-[#333] text-gray-400 hover:bg-[#333]"
+                  }`}
+                  onClick={() => setApplyStrategy("override")}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Override
+                </button>
+                <button
+                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                    applyStrategy === "overlap"
+                      ? "bg-[#98c379]/20 border-[#98c379]/40 text-white"
+                      : "border-[#333] text-gray-400 hover:bg-[#333]"
+                  }`}
+                  onClick={() => setApplyStrategy("overlap")}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Overlap
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2">
+                {applyStrategy === "override"
+                  ? "Replace current context stash entirely."
+                  : "Keep existing items, add new ones only."}
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                onPress={() => {
+                  const ds = deepstashes.find((d) => d.id === applyConfirmId);
+                  if (ds) {
+                    onApplyDeepstash(ds, applyStrategy);
+                  }
+                  setApplyConfirmId(null);
+                }}
+                className="bg-[#98c379] text-black hover:bg-[#7fb06d] text-xs"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Pop
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* Clear All Deepstashes Confirmation Modal */}
+      <Modal.Backdrop
+        isOpen={clearDeepstashConfirm}
+        onOpenChange={(open: boolean) => { if (!open) setClearDeepstashConfirm(false); }}
+      >
+        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                <Trash2 className="w-4 h-4 text-red-400" />
+                Clear All Deepstashes
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-sm text-gray-300">
+                This will permanently delete all {deepstashes.length} deepstash{deepstashes.length !== 1 ? "es" : ""} and their items for this project.
+              </p>
+              <p className="text-xs text-red-400 mt-2">
+                This action cannot be undone.
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                onPress={() => {
+                  onClearDeepstashes?.();
+                  setClearDeepstashConfirm(false);
+                }}
+                className="bg-red-500 text-white hover:bg-red-600 text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear All
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 }

@@ -151,3 +151,98 @@ export interface LCSidebarIconButton {
   active: boolean;
   onClick: () => void;
 }
+
+// ── Path Resolution ───────────────────────────────────────────────────────────
+
+/**
+ * Resolve the full file path from an LCFileActionResult, normalising AI
+ * misformatting where `FileName` may contain a full relative path instead of
+ * just the filename, or where `FileDirectory` already embeds the filename.
+ *
+ * Handles these AI output patterns:
+ *
+ *   Correct:   { FileDirectory:"src/hello", FileName:"world.tsx" }
+ *              → "src/hello/world.tsx"
+ *
+ *   FileName with path:   { FileDirectory:"src/hello", FileName:"src/hello/world.tsx" }
+ *              → "src/hello/world.tsx"          (extra dir overlaps FileDirectory)
+ *
+ *   Complementary:   { FileDirectory:"src", FileName:"hello/world.tsx" }
+ *              → "src/hello/world.tsx"          (extra dir merged into FileDirectory)
+ *
+ *   No directory:   { FileDirectory:"", FileName:"src/hello/world.tsx" }
+ *              → "src/hello/world.tsx"          (entire path from FileName)
+ *
+ *   FileDirectory is bloated:   { FileDirectory:"src/hello/world.tsx", FileName:"world.tsx" }
+ *              → "src/hello/world.tsx"          (FileDirectory truncated)
+ */
+export function resolveFilePath(action: {
+  FileDirectory: string;
+  FileName: string;
+}): string {
+  let { FileDirectory, FileName } = action;
+
+  // Normalise backslashes to forward slashes
+  FileName = FileName.replace(/\\/g, "/");
+  FileDirectory = (FileDirectory ?? "").replace(/\\/g, "/");
+
+  // Case A: FileDirectory already contains the full path including FileName
+  if (FileDirectory && FileDirectory.endsWith(`/${FileName}`)) {
+    return FileDirectory.replace(/\/+/g, "/");
+  }
+
+  // Case B: FileName contains a path separator (AI put the full path here)
+  if (FileName.includes("/")) {
+    const parts = FileName.split("/");
+    const justName = parts.pop()!;
+    const extraDir = parts.join("/");
+
+    if (FileDirectory) {
+      // Check if FileDirectory already ends with the extra directory
+      // (overlap/duplication — e.g. FileDirectory="src/hello", FileName="src/hello/world.tsx")
+      if (FileDirectory.endsWith(extraDir)) {
+        FileName = justName;
+      } else {
+        // Complementary paths — merge them
+        FileDirectory = `${FileDirectory}/${extraDir}`.replace(/\/+/g, "/");
+        FileName = justName;
+      }
+    } else {
+      // No FileDirectory — use the path from FileName
+      FileDirectory = extraDir;
+      FileName = justName;
+    }
+  }
+
+  if (!FileDirectory) return FileName;
+  return `${FileDirectory}/${FileName}`.replace(/\/+/g, "/");
+}
+
+// ── Deepstash ─────────────────────────────────────────────────────────────────
+
+/**
+ * A saved snapshot of the context stash (a "Deepstash"), linked to a project.
+ * The user can save, load (pop), merge (apply), or overwrite stash snapshots.
+ */
+export interface LCDeepstash {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** A single item within a deepstash snapshot */
+export interface LCDeepstashItem {
+  id: string;
+  deepstashId: string;
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  /** If this item is a child of a folder group, references the parent item's id */
+  parentId?: string;
+  addedAt: Date;
+}
+
+/** Merge strategy when applying a deepstash to the current context stash */
+export type LCDeepstashMergeStrategy = "override" | "overlap";

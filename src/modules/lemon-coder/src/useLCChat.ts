@@ -24,6 +24,7 @@ import type {
   LCErrorInfo,
   LCAIConversationMessage,
 } from "./LCInterface";
+import { resolveFilePath } from "./LCInterface";
 import type { LCPromptModeType } from "./LCPromptMode";
 import {
   buildAgentPrompt,
@@ -482,9 +483,7 @@ export function useLCChat(): UseLCChatReturn {
     ) => {
       for (const action of fileActions) {
         try {
-          const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
-            : action.FileName;
+          const filePath = resolveFilePath(action);
 
           console.log(
             `${action.ExistingFile ? "Overwriting" : "Creating"} file: ${filePath}`,

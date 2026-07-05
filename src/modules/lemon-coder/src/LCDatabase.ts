@@ -10,6 +10,8 @@ import type {
   LCChatSession,
   LCChatMessage,
   LCContextStashItem,
+  LCDeepstash,
+  LCDeepstashItem,
 } from "./LCInterface";
 import type { HelixAISettings } from "@/src/modules/helix";
 
@@ -20,9 +22,22 @@ export class LCDatabase extends Dexie {
   chatMessages!: Table<LCChatMessage, string>;
   contextStash!: Table<LCContextStashItem, string>;
   aiSettings!: Table<HelixAISettings, string>;
+  deepstashes!: Table<LCDeepstash, string>;
+  deepstashItems!: Table<LCDeepstashItem, string>;
 
   constructor() {
     super("lemon-coder");
+
+    this.version(4).stores({
+      projects: "id, name, lastOpened",
+      projectHandles: "projectId",
+      chatSessions: "id, projectId, title, createdAt",
+      chatMessages: "id, role, timestamp",
+      contextStash: "id, path, addedAt",
+      aiSettings: "key, provider, model",
+      deepstashes: "id, projectId, name, createdAt",
+      deepstashItems: "id, deepstashId, path",
+    });
 
     this.version(3).stores({
       projects: "id, name, lastOpened",
@@ -122,6 +137,27 @@ export class LCDatabase extends Dexie {
     // Delete chat sessions
     if (sessionIds.length > 0) {
       await this.chatSessions.bulkDelete(sessionIds);
+    }
+
+    // Delete all deepstashes and their items for this project
+    const deepstashes = await this.deepstashes
+      .where("projectId")
+      .equals(id)
+      .toArray();
+    const deepstashIds = deepstashes.map((d) => d.id);
+
+    for (const dsId of deepstashIds) {
+      const items = await this.deepstashItems
+        .where("deepstashId")
+        .equals(dsId)
+        .toArray();
+      const itemIds = items.map((i) => i.id);
+      if (itemIds.length > 0) {
+        await this.deepstashItems.bulkDelete(itemIds);
+      }
+    }
+    if (deepstashIds.length > 0) {
+      await this.deepstashes.bulkDelete(deepstashIds);
     }
 
     // Delete context stash items associated with this project
@@ -285,6 +321,124 @@ export class LCDatabase extends Dexie {
 
   async clearStash(): Promise<void> {
     await this.contextStash.clear();
+  }
+
+  // ── Deepstash helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Save the current context stash items as a named deepstash snapshot.
+   */
+  async createDeepstash(
+    projectId: string,
+    name: string,
+    items: LCContextStashItem[],
+  ): Promise<LCDeepstash> {
+    const deepstash: LCDeepstash = {
+      id: uuidv4(),
+      projectId,
+      name,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Persist the deepstash record
+    await this.deepstashes.add(deepstash);
+
+    // Persist all stash item copies as deepstash items
+    if (items.length > 0) {
+      const deepstashItemEntries: LCDeepstashItem[] = items.map((item) => ({
+        id: uuidv4(),
+        deepstashId: deepstash.id,
+        name: item.name,
+        path: item.path,
+        isDirectory: item.isDirectory,
+        parentId: item.parentId,
+        addedAt: item.addedAt,
+      }));
+      await this.deepstashItems.bulkAdd(deepstashItemEntries);
+    }
+
+    return deepstash;
+  }
+
+  /**
+   * Get all deepstashes for a given project, most recent first.
+   */
+  async getDeepstashes(projectId: string): Promise<LCDeepstash[]> {
+    return this.deepstashes
+      .where("projectId")
+      .equals(projectId)
+      .reverse()
+      .sortBy("createdAt");
+  }
+
+  /**
+   * Get a single deepstash by id.
+   */
+  async getDeepstash(id: string): Promise<LCDeepstash | undefined> {
+    return this.deepstashes.get(id);
+  }
+
+  /**
+   * Get all items belonging to a deepstash.
+   */
+  async getDeepstashItems(deepstashId: string): Promise<LCDeepstashItem[]> {
+    return this.deepstashItems
+      .where("deepstashId")
+      .equals(deepstashId)
+      .toArray();
+  }
+
+  /**
+   * Rename a deepstash.
+   */
+  async renameDeepstash(id: string, name: string): Promise<void> {
+    await this.deepstashes.update(id, { name, updatedAt: new Date() });
+  }
+
+  /**
+   * Delete a deepstash and all its items.
+   */
+  async deleteDeepstash(id: string): Promise<void> {
+    // Remove all items belonging to this deepstash
+    const items = await this.deepstashItems
+      .where("deepstashId")
+      .equals(id)
+      .toArray();
+    const itemIds = items.map((i) => i.id);
+    if (itemIds.length > 0) {
+      await this.deepstashItems.bulkDelete(itemIds);
+    }
+    // Remove the deepstash record
+    await this.deepstashes.delete(id);
+  }
+
+  /**
+   * Delete all deepstashes and their items for a given project.
+   */
+  async clearAllDeepstashes(projectId: string): Promise<void> {
+    const deepstashes = await this.deepstashes
+      .where("projectId")
+      .equals(projectId)
+      .toArray();
+    const ids = deepstashes.map((d) => d.id);
+
+    // Delete all items belonging to these deepstashes
+    for (const dsId of ids) {
+      const items = await this.deepstashItems
+        .where("deepstashId")
+        .equals(dsId)
+        .toArray();
+      const itemIds = items.map((i) => i.id);
+      if (itemIds.length > 0) {
+        await this.deepstashItems.bulkDelete(itemIds);
+      }
+    }
+
+    // Delete all deepstash records
+    if (ids.length > 0) {
+      await this.deepstashes.bulkDelete(ids);
+    }
   }
 }
 
