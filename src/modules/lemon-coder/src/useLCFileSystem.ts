@@ -74,6 +74,14 @@ export interface UseLCFileSystemReturn {
    * Create a new file or folder at the specified path.
    */
   createItem: (path: string, name: string, type: "file" | "directory") => Promise<void>;
+  /**
+   * Rename a file or folder in the filesystem.
+   */
+  renameItem: (itemPath: string, newName: string) => Promise<void>;
+  /**
+   * Delete a file or folder from the filesystem.
+   */
+  deleteItem: (itemPath: string, isDirectory: boolean) => Promise<void>;
 }
 
 /**
@@ -213,6 +221,72 @@ async function createItemInHandle(
     await currentHandle.getDirectoryHandle(name, { create: true });
   } else {
     await currentHandle.getFileHandle(name, { create: true });
+  }
+}
+
+/**
+ * Delete a file or directory entry from the filesystem.
+ */
+async function deleteItemInHandle(
+  rootHandle: FileSystemDirectoryHandle,
+  itemPath: string,
+  isDirectory: boolean,
+): Promise<void> {
+  const parts = itemPath.split("/");
+  const name = parts.pop()!;
+  let currentHandle: FileSystemDirectoryHandle = rootHandle;
+
+  for (const part of parts) {
+    currentHandle = await currentHandle.getDirectoryHandle(part);
+  }
+
+  await currentHandle.removeEntry(name, { recursive: isDirectory });
+}
+
+/**
+ * Rename a file by reading its content, creating a new file, and deleting the old one.
+ * For directories, creates a new empty directory and deletes the old one.
+ * Note: Directory rename does NOT transfer children — the user should refresh.
+ */
+async function renameItemInHandle(
+  rootHandle: FileSystemDirectoryHandle,
+  itemPath: string,
+  newName: string,
+): Promise<void> {
+  const parts = itemPath.split("/");
+  const oldName = parts.pop()!;
+  const parentPath = parts.join("/");
+
+  let currentHandle: FileSystemDirectoryHandle = rootHandle;
+  if (parentPath) {
+    const parentParts = parentPath.split("/");
+    for (const part of parentParts) {
+      currentHandle = await currentHandle.getDirectoryHandle(part);
+    }
+  }
+
+  // Check if it's a directory by trying to get a directory handle
+  let isDirectory = false;
+  try {
+    await currentHandle.getDirectoryHandle(oldName);
+    isDirectory = true;
+  } catch {
+    isDirectory = false;
+  }
+
+  if (isDirectory) {
+    // Create a new empty directory
+    await currentHandle.getDirectoryHandle(newName, { create: true });
+    // Remove the old directory
+    await currentHandle.removeEntry(oldName, { recursive: true });
+  } else {
+    // For files: read content, create new file, write content, delete old file
+    const { content } = await readFileContentFromHandle(rootHandle, itemPath);
+    const newFileHandle = await currentHandle.getFileHandle(newName, { create: true });
+    const writable = await newFileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    await currentHandle.removeEntry(oldName);
   }
 }
 
@@ -696,6 +770,41 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     [refreshFileTree],
   );
 
+  const deleteItem = useCallback(
+    async (itemPath: string, isDirectory: boolean) => {
+      if (!dirHandleRef.current) {
+        throw new Error("No project directory handle available. Open a project first.");
+      }
+      await deleteItemInHandle(dirHandleRef.current, itemPath, isDirectory);
+      // If the deleted item was the selected file, clear selection
+      if (selectedFile?.path === itemPath) {
+        setSelectedFile(null);
+        setSelectedFileContent("");
+      }
+      await refreshFileTree();
+      console.log(`[lemon-coder] Deleted: ${itemPath}`);
+    },
+    [refreshFileTree, selectedFile],
+  );
+
+  const renameItem = useCallback(
+    async (itemPath: string, newName: string) => {
+      if (!dirHandleRef.current) {
+        throw new Error("No project directory handle available. Open a project first.");
+      }
+      await renameItemInHandle(dirHandleRef.current, itemPath, newName);
+      // If the renamed item was the selected file, clear selection (path changed)
+      // The user can re-select the renamed file from the refreshed tree
+      if (selectedFile?.path === itemPath) {
+        setSelectedFile(null);
+        setSelectedFileContent("");
+      }
+      await refreshFileTree();
+      console.log(`[lemon-coder] Renamed: ${itemPath} → ${newName}`);
+    },
+    [refreshFileTree, selectedFile],
+  );
+
   // Cleanup observer on unmount
   useEffect(() => {
     return () => {
@@ -735,5 +844,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     saveFile,
     writeFile,
     createItem,
+    renameItem,
+    deleteItem,
   };
 }

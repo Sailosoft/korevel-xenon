@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { forwardRef, useImperativeHandle, useState, useRef, useEffect, useCallback } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Button, Chip } from "@heroui/react";
 import ReactMarkdown from "react-markdown";
@@ -77,7 +77,13 @@ const modeIcons: Record<LCPromptModeType, React.ReactNode> = {
   code: <Terminal className="w-3 h-3" />,
 };
 
-export default function LCChatView({
+/** Imperative handle exposed by LCChatView */
+export interface LCChatViewHandle {
+  /** Append text to the chat input (used by Monaco "Add Code Block" action) */
+  appendToInput: (text: string) => void;
+}
+
+const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChatView({
   messages,
   stashItems,
   isSending,
@@ -90,7 +96,8 @@ export default function LCChatView({
   onPromptModeChange,
   sessionTitle,
   onRemoveFromStash,
-}: LCChatViewProps) {
+  onClearStash,
+}: LCChatViewProps, ref) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +111,15 @@ export default function LCChatView({
 
   // ── Error Detail View Modal ──────────────────────────────────────────────
   const [detailViewError, setDetailViewError] = useState<LCChatMessage | null>(null);
+
+  // ── Expose appendToInput imperatively for Monaco "Add Code Block" action ─
+  useImperativeHandle(ref, () => ({
+    appendToInput: (text: string) => {
+      setInput((prev) => (prev ? prev + "\n" + text : text));
+      // Focus the textarea after appending
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    },
+  }));
 
   // ── Copy-to-clipboard feedback ───────────────────────────────────────────
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
@@ -633,4 +649,6 @@ export default function LCChatView({
       />
     </div>
   );
-}
+});
+
+export default LCChatView;

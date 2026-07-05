@@ -69,6 +69,8 @@ export default function LCApp() {
     saveFile,
     writeFile,
     createItem,
+    renameItem,
+    deleteItem,
   } = useLCFileSystem();
 
   const {
@@ -326,6 +328,26 @@ export default function LCApp() {
     [stashItems, removeFromStash],
   );
 
+  const handleCopyItem = useCallback(
+    async (sourcePath: string, destParentPath: string, newName: string) => {
+      try {
+        const sourceItem = findItemByPath(sourcePath);
+        if (sourceItem && !sourceItem.isDirectory) {
+          const content = await readFileContent(sourceItem);
+          await createItem(destParentPath, newName, "file");
+          const destPath = destParentPath ? `${destParentPath}/${newName}` : newName;
+          await writeFile(destPath, content);
+        } else {
+          await createItem(destParentPath, newName, "directory");
+        }
+        await refreshFileTree();
+      } catch (error) {
+        console.error("[lemon-coder] Copy item failed:", error);
+      }
+    },
+    [findItemByPath, readFileContent, createItem, writeFile, refreshFileTree],
+  );
+
   const handleStashItemClick = useCallback(
     (item: LCContextStashItem) => {
       if (!item.isDirectory) {
@@ -533,6 +555,9 @@ export default function LCApp() {
             try { localStorage.setItem("lc_show_tooltip", String(next)); } catch { /* ignore */ }
           }}
           dirHandle={dirHandle}
+          onRenameItem={renameItem}
+          onDeleteItem={deleteItem}
+          onCopyItem={handleCopyItem}
         />
 
         {/* Main Content */}

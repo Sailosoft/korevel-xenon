@@ -14,6 +14,8 @@ import {
   ChevronRight,
   RefreshCw,
   Info,
+  FilePlus,
+  FolderPlus,
 } from "lucide-react";
 import type { LCFileTreeItem, LCSidebarIconButton } from "./LCInterface";
 import LCFileTree from "./LCFileTree";
@@ -40,6 +42,12 @@ export interface LCSidebarProps {
   onToggleTooltip?: () => void;
   /** Root directory handle for file search */
   dirHandle: FileSystemDirectoryHandle | null;
+  /** Rename a file/folder by path */
+  onRenameItem?: (itemPath: string, newName: string) => Promise<void>;
+  /** Delete a file/folder by path */
+  onDeleteItem?: (itemPath: string, isDirectory: boolean) => Promise<void>;
+  /** Create a new item by copying an existing one */
+  onCopyItem?: (sourcePath: string, destParentPath: string, newName: string) => Promise<void>;
 }
 
 export default function LCSidebar({
@@ -54,6 +62,9 @@ export default function LCSidebar({
   showTooltip = true,
   onToggleTooltip,
   dirHandle,
+  onRenameItem,
+  onDeleteItem,
+  onCopyItem,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const [activeIcon, setActiveIcon] = useState<string>("files");
@@ -224,6 +235,22 @@ export default function LCSidebar({
               {/* Actions for Files view */}
               {activeIcon === "files" && (
                 <div className="flex items-center gap-0.5">
+                  {/* New File button — root directory */}
+                  <button
+                    onClick={() => onNewItem("", "file")}
+                    title="New File"
+                    className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#e5c07b]/10 transition-colors"
+                  >
+                    <FilePlus className="w-3.5 h-3.5" />
+                  </button>
+                  {/* New Folder button — root directory */}
+                  <button
+                    onClick={() => onNewItem("", "directory")}
+                    title="New Folder"
+                    className="w-6 h-6 flex items-center justify-center rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#e5c07b]/10 transition-colors"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                  </button>
                   {/* Tooltip Toggle */}
                   {onToggleTooltip && (
                     <button
@@ -271,6 +298,9 @@ export default function LCSidebar({
                   isLoading={isFileTreeLoading}
                   showTooltip={showTooltip}
                   onToggleTooltip={onToggleTooltip}
+                  onRenameItem={onRenameItem}
+                  onDeleteItem={onDeleteItem}
+                  onCopyItem={onCopyItem}
                 />
               )}
               {activeIcon === "search" && (

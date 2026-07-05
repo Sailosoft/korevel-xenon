@@ -23,6 +23,11 @@ import {
   Info,
 } from "lucide-react";
 import type { LCFileTreeItem } from "./LCInterface";
+import LCContextMenu from "./LCContextMenu";
+import {
+  useLCFileTreeContextMenu,
+  LCDeleteConfirmModal,
+} from "./LCFileTree.ContextMenu";
 
 /** Map file extensions to distinct icons and colors */
 function getFileIcon(name: string, isDirectory: boolean): { icon: React.ReactNode; color: string } {
@@ -60,6 +65,12 @@ export interface LCFileTreeProps {
   showTooltip?: boolean;
   /** Callback to toggle tooltip display */
   onToggleTooltip?: () => void;
+  /** Rename a file/folder by path */
+  onRenameItem?: (itemPath: string, newName: string) => Promise<void>;
+  /** Delete a file/folder by path */
+  onDeleteItem?: (itemPath: string, isDirectory: boolean) => Promise<void>;
+  /** Create a new item by copying an existing one */
+  onCopyItem?: (sourcePath: string, destParentPath: string, newName: string) => Promise<void>;
 }
 
 // ── Hover Tooltip ────────────────────────────────────────────────────────────
@@ -148,6 +159,7 @@ function FileTreeItem({
   onHover,
   onUnhover,
   showTooltip,
+  onContextMenu,
 }: {
   item: LCFileTreeItem;
   depth?: number;
@@ -160,6 +172,7 @@ function FileTreeItem({
   onHover: (item: LCFileTreeItem, x: number, y: number) => void;
   onUnhover: () => void;
   showTooltip?: boolean;
+  onContextMenu?: (e: React.MouseEvent, item: LCFileTreeItem) => void;
 }) {
   const isSelected = selectedFile?.id === item.id;
   const itemExpanded = item.expanded ?? false;
@@ -208,6 +221,11 @@ function FileTreeItem({
           } else {
             onSelectFile(item);
           }
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e, item);
         }}
       >
         {/* Expand/Collapse for directories */}
@@ -307,6 +325,7 @@ function FileTreeItem({
               onHover={onHover}
               onUnhover={onUnhover}
               showTooltip={showTooltip}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -327,6 +346,9 @@ export default function LCFileTree({
   isLoading,
   showTooltip = true,
   onToggleTooltip,
+  onRenameItem,
+  onDeleteItem,
+  onCopyItem,
 }: LCFileTreeProps) {
   const [hoveredItem, setHoveredItem] = useState<{
     item: LCFileTreeItem;
@@ -335,6 +357,8 @@ export default function LCFileTree({
   } | null>(null);
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const ctx = useLCFileTreeContextMenu(onRenameItem, onDeleteItem, onAddToStash, onCopyItem);
 
   const handleHover = useCallback(
     (item: LCFileTreeItem, x: number, y: number) => {
@@ -360,6 +384,20 @@ export default function LCFileTree({
       }
     };
   }, []);
+
+  // Focus rename input when it appears
+  useEffect(() => {
+    if (ctx.renameTarget) {
+      // The rename input ref is inside the modal, so we need to find it
+      // Use a timeout to wait for the DOM to render
+      const timer = setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement>('[data-rename-input="true"]');
+        input?.focus();
+        input?.select();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [ctx.renameTarget]);
 
   if (isLoading) {
     return (
@@ -392,8 +430,39 @@ export default function LCFileTree({
           onHover={handleHover}
           onUnhover={handleUnhover}
           showTooltip={showTooltip}
+          onContextMenu={ctx.handleContextMenu}
         />
       ))}
+
+      {/* Inline Rename Input */}
+      {ctx.renameTarget && (
+        <div
+          className="absolute inset-0 z-50 flex items-start pt-0.5 bg-[#252526]/80"
+          style={{ paddingLeft: "8px" }}
+          onClick={() => ctx.setRenameTarget(null)}
+        >
+          <input
+            data-rename-input="true"
+            value={ctx.renameValue}
+            onChange={(e) => ctx.setRenameValue(e.target.value)}
+            onKeyDown={ctx.handleRenameKeyDown}
+            onBlur={ctx.handleRenameConfirm}
+            className="w-full bg-[#3c3c3c] text-sm text-[#d4d4d4] border border-[#e5c07b] rounded px-2 py-1 outline-none mx-1"
+            placeholder="New name..."
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {ctx.contextMenu && (
+        <LCContextMenu
+          x={ctx.contextMenu.x}
+          y={ctx.contextMenu.y}
+          actions={ctx.buildContextMenuActions(ctx.contextMenu.item)}
+          onClose={ctx.handleCloseContextMenu}
+        />
+      )}
 
       {/* Tooltip overlay (only when enabled) */}
       {showTooltip && hoveredItem && (
@@ -403,6 +472,14 @@ export default function LCFileTree({
           mouseY={hoveredItem.y}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <LCDeleteConfirmModal
+        deleteConfirmTarget={ctx.deleteConfirmTarget}
+        onConfirm={ctx.handleDeleteConfirm}
+        onCancel={ctx.handleDeleteCancel}
+        onClose={ctx.handleDeleteCancel}
+      />
     </div>
   );
 }

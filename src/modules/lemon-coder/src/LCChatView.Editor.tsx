@@ -89,6 +89,34 @@ export default function LCChatViewEditor({
                     noSyntaxValidation: true,
                   });
                 }}
+                onMount={(editor, monaco) => {
+                  // Add context menu action: wrap selection in code block markers
+                  editor.addAction({
+                    id: "lc-wrap-selection-as-code-block",
+                    label: "Wrap Selection as Code Block",
+                    contextMenuGroupId: "modification",
+                    contextMenuOrder: 1.5,
+                    run: (ed) => {
+                      const selection = ed.getSelection();
+                      if (!selection) return;
+                      const model = ed.getModel();
+                      if (!model) return;
+                      const selectedText = model.getValueInRange(selection);
+                      if (!selectedText) return;
+                      const codeBlock = "```\n" + selectedText + "\n```";
+                      // Replace the selection with the wrapped code block
+                      const range = new monaco.Range(
+                        selection.startLineNumber,
+                        selection.startColumn,
+                        selection.endLineNumber,
+                        selection.endColumn,
+                      );
+                      ed.executeEdits("wrap-code-block", [
+                        { range, text: codeBlock, forceMoveMarkers: true },
+                      ]);
+                    },
+                  });
+                }}
                 options={{
                   minimap: { enabled: false },
                   fontSize: 14,

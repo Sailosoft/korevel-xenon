@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@heroui/react";
 import { MessageSquare, FileCode, ArrowLeftRight } from "lucide-react";
 import type {
@@ -19,6 +19,7 @@ import type {
 import { resolveFilePath } from "./LCInterface";
 import type { LCPromptModeType } from "./LCPromptMode";
 import LCChatView from "./LCChatView";
+import type { LCChatViewHandle } from "./LCChatView";
 import LCFileView from "./LCFileView";
 
 export interface LCMainContentProps {
@@ -88,6 +89,7 @@ export default function LCMainContent({
   onNewSession,
   onClearStash,
 }: LCMainContentProps) {
+  const chatViewRef = useRef<LCChatViewHandle>(null);
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
 
@@ -229,6 +231,7 @@ export default function LCMainContent({
       <div className="flex-1 flex flex-col overflow-hidden">
         {viewMode === "chat" ? (
           <LCChatView
+            ref={chatViewRef}
             messages={messages}
             stashItems={stashItems}
             isSending={isSending}
@@ -257,6 +260,7 @@ export default function LCMainContent({
             onAcceptDiff={handleAcceptDiff}
             onRejectDiff={handleRejectDiff}
             diffLabel={diffPreview.filePath}
+            onInsertToChatInput={(text) => chatViewRef.current?.appendToInput(text)}
           />
         ) : (
           <LCFileView
@@ -272,6 +276,7 @@ export default function LCMainContent({
                 ? () => onAddToStash(selectedFile)
                 : undefined
             }
+            onInsertToChatInput={(text) => chatViewRef.current?.appendToInput(text)}
           />
         )}
       </div>

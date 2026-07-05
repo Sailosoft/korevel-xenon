@@ -68,6 +68,8 @@ export interface LCFileViewProps {
   diffLabel?: string;
   /** Add the currently open file to the context stash */
   onAddToStash?: () => void;
+  /** Callback to insert text (e.g. a code block) into the chat input */
+  onInsertToChatInput?: (text: string) => void;
 }
 
 function getLanguage(fileName: string): string {
@@ -115,6 +117,7 @@ export default function LCFileView({
   onRejectDiff,
   diffLabel,
   onAddToStash,
+  onInsertToChatInput,
 }: LCFileViewProps) {
   // ── Diff Preview Mode ────────────────────────────────────────────────────
   const isDiffMode = diffContent !== undefined && selectedFile !== null;
@@ -287,6 +290,27 @@ export default function LCFileView({
                 monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
                 onSave,
               );
+
+              // Add context menu action: "Add Selection as Code Block to Chat"
+              if (onInsertToChatInput) {
+                editor.addAction({
+                  id: "lc-add-selection-as-code-block",
+                  label: "Add Selection as Code Block to Chat",
+                  contextMenuGroupId: "modification",
+                  contextMenuOrder: 1.5,
+                  run: (ed) => {
+                    const selection = ed.getSelection();
+                    if (!selection) return;
+                    const model = ed.getModel();
+                    if (!model) return;
+                    const selectedText = model.getValueInRange(selection);
+                    if (!selectedText) return;
+                    const language = getLanguage(selectedFile?.name || "");
+                    const codeBlock = `\`\`\`${language}\n${selectedText}\n\`\`\``;
+                    onInsertToChatInput(codeBlock);
+                  },
+                });
+              }
             }}
             theme="vs-dark"
             beforeMount={(monaco) => {
