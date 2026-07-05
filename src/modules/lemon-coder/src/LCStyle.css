@@ -1,0 +1,55 @@
+/* ───────────────────────────────────────────────────────────────────────────────
+   Lemon Coder — LCStyle.css
+   Custom scrollbar styles for Lemon Coder UI components
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+/* Thin scrollbar - for chat messages area and compact panels */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2a2a2a;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #4e4e4e;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
+
+/* Medium scrollbar - for sidebar and file tree panels */
+.scrollbar-medium {
+  scrollbar-width: thin;
+  scrollbar-color: #555 transparent;
+}
+
+.scrollbar-medium::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-medium::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-medium::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+.scrollbar-medium::-webkit-scrollbar-thumb:hover {
+  background-color: #666;
+}

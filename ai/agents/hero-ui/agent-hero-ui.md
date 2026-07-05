@@ -119,3 +119,36 @@ controlled pattern
   );
 }
 ```
+### Modal
+controlled state
+```tsx
+
+import {Button, Modal, useOverlayState} from "@heroui/react";
+
+        <Modal.Backdrop isOpen={isOpen} onOpenChange={setIsOpen}>
+          <Modal.Container>
+            <Modal.Dialog className="sm:max-w-[360px]">
+              <Modal.CloseTrigger />
+              <Modal.Header>
+                <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
+                  <CircleCheck className="size-5" />
+                </Modal.Icon>
+                <Modal.Heading>Controlled with useState()</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                <p>
+                  This modal is controlled by React's <code>useState</code> hook. Pass{" "}
+                  <code>isOpen</code> and <code>onOpenChange</code> props to manage the modal state
+                  externally.
+                </p>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button slot="close" variant="secondary">
+                  Cancel
+                </Button>
+                <Button slot="close">Confirm</Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+```
