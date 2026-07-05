@@ -25,6 +25,8 @@ declare var FileSystemObserver: {
 };
 
 export interface UseLCFileSystemReturn {
+  /** The root directory handle for the currently open project (null when no project is open) */
+  dirHandle: FileSystemDirectoryHandle | null;
   fileTree: LCFileTreeItem[];
   selectedFile: LCFileTreeItem | null;
   selectedFileContent: string;
@@ -709,6 +711,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
   }, []);
 
   return {
+    dirHandle: dirHandleRef.current,
     fileTree,
     selectedFile,
     selectedFileContent,

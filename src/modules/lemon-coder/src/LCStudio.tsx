@@ -66,6 +66,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   } = useLCProject();
 
   const {
+    dirHandle,
     fileTree,
     selectedFile,
     selectedFileContent,
@@ -444,6 +445,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             setShowTooltip(next);
             try { localStorage.setItem("lc_show_tooltip", String(next)); } catch { /* ignore */ }
           }}
+          dirHandle={dirHandle}
         />
 
         <LCMainContent

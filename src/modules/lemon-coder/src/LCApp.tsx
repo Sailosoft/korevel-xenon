@@ -41,6 +41,7 @@ export default function LCApp() {
   } = useLCProject();
 
   const {
+    dirHandle,
     fileTree,
     selectedFile,
     selectedFileContent,
@@ -431,6 +432,7 @@ export default function LCApp() {
             setShowTooltip(next);
             try { localStorage.setItem("lc_show_tooltip", String(next)); } catch { /* ignore */ }
           }}
+          dirHandle={dirHandle}
         />
 
         {/* Main Content */}

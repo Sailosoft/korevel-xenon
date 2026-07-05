@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { LCFileTreeItem, LCSidebarIconButton } from "./LCInterface";
 import LCFileTree from "./LCFileTree";
+import LCSearchView from "./LCSearchView";
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 500;
@@ -37,6 +38,8 @@ export interface LCSidebarProps {
   showTooltip?: boolean;
   /** Toggle tooltip display */
   onToggleTooltip?: () => void;
+  /** Root directory handle for file search */
+  dirHandle: FileSystemDirectoryHandle | null;
 }
 
 export default function LCSidebar({
@@ -50,6 +53,7 @@ export default function LCSidebar({
   onRefreshFileTree,
   showTooltip = true,
   onToggleTooltip,
+  dirHandle,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const [activeIcon, setActiveIcon] = useState<string>("files");
@@ -144,8 +148,12 @@ export default function LCSidebar({
       label: "Search",
       active: activeIcon === "search",
       onClick: () => {
-        setActiveIcon("search");
-        setIsFileTreeVisible(false);
+        if (activeIcon === "search") {
+          setIsFileTreeVisible(!isFileTreeVisible);
+        } else {
+          setActiveIcon("search");
+          setIsFileTreeVisible(true);
+        }
       },
     },
     {
@@ -266,9 +274,10 @@ export default function LCSidebar({
                 />
               )}
               {activeIcon === "search" && (
-                <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
-                  Search functionality coming soon.
-                </div>
+                <LCSearchView
+                  dirHandle={dirHandle}
+                  onSelectFile={onSelectFile}
+                />
               )}
               {activeIcon === "extensions" && (
                 <div className="flex items-center justify-center h-full text-xs text-[#858585] px-4 text-center">
