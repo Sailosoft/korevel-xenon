@@ -115,10 +115,41 @@ export default function LemonCoderLandingPage() {
       const project = recentProjects.find((p) => p.id === id);
       if (!project) return;
 
-      // Select the project (updates lastOpened, tries to restore handle)
-      await selectRecentProject(project);
+      // Step 1: Get the cached handle (also sets currentProject and updates lastOpened)
+      const cachedHandle = await selectRecentProject(project);
 
-      // Navigate to studio — LCStudio will attempt to restore the cached handle
+      // Step 2: If a cached handle exists, request permission within the user gesture.
+      //         If granted, register it so LCStudio can load directly without reconnect prompt.
+      if (cachedHandle) {
+        try {
+          const fsHandle = cachedHandle as unknown as import("browser-fs-access").FileSystemHandle;
+          const permission = await fsHandle.queryPermission({ mode: "readwrite" });
+
+          if (permission === "prompt") {
+            // requestPermission() requires user activation — we're still within the click handler,
+            // so this should succeed. If it fails, the studio's reconnect banner will handle it.
+            const granted = await fsHandle.requestPermission({ mode: "readwrite" });
+            if (granted === "granted") {
+              registerHandle(project.id, cachedHandle);
+            }
+          } else if (permission === "granted") {
+            registerHandle(project.id, cachedHandle);
+          }
+          // If "denied", fall through — studio will show reconnect banner
+        } catch {
+          // Permission request failed (e.g. user denied) — studio will show reconnect banner
+          console.log(
+            "[lemon-coder] Could not re-acquire permission for",
+            project.name,
+            "— studio will prompt reconnect.",
+          );
+        }
+      }
+
+      // Navigate to studio — if permission was re-acquired above, the handle
+      // is in the in-memory registry and studio loads directly.
+      // Otherwise, studio will query permission (no gesture needed) and show
+      // the reconnect banner if not granted.
       navigateToStudio(project.id);
     },
     [recentProjects, selectRecentProject, navigateToStudio],

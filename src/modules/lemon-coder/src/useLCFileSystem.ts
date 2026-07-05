@@ -34,11 +34,19 @@ export interface UseLCFileSystemReturn {
   externalChangeStatus: LCExternalChangeStatus;
   loadDirectory: (dirHandle: FileSystemDirectoryHandle) => Promise<void>;
   /**
-   * Load a directory from a cached handle, re-requesting permission if needed.
-   * Returns true if the handle was usable, false if permission was denied
-   * (caller should re-prompt the user to pick the folder).
+   * Load a directory from a cached handle when permission is already granted.
+   * Uses only queryPermission() — safe to call outside user gesture (e.g. useEffect).
+   * Returns true if the handle was usable, false if permission was denied/prompt.
+   * Callers needing to re-request permission should use requestHandlePermission()
+   * from within a user gesture first, then call this.
    */
   loadFromCachedHandle: (dirHandle: FileSystemDirectoryHandle) => Promise<boolean>;
+  /**
+   * Request readwrite permission on a cached directory handle.
+   * MUST be called within a user gesture (click handler).
+   * Returns true if permission was granted.
+   */
+  requestHandlePermission: (dirHandle: FileSystemDirectoryHandle) => Promise<boolean>;
   selectFile: (item: LCFileTreeItem) => void;
   toggleExpand: (item: LCFileTreeItem) => void;
   addToStash: (item: LCFileTreeItem) => Promise<void>;
@@ -377,8 +385,11 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
 
   /**
    * Load a directory from a cached FileSystemDirectoryHandle.
-   * Checks permission first, re-requesting if needed.
-   * Returns true if the handle was usable, false if permission was denied.
+   * Uses ONLY queryPermission() — safe to call outside user gesture (e.g. useEffect).
+   * Does NOT call requestPermission(), which requires a user gesture.
+   * Returns true if the handle was usable, false if permission was "prompt" or "denied".
+   * Callers that need to request permission should call requestHandlePermission()
+   * from within a user gesture first, then call this.
    */
   const loadFromCachedHandle = useCallback(
     async (dirHandle: FileSystemDirectoryHandle): Promise<boolean> => {
@@ -387,23 +398,20 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
         // but aren't in TS 5.5 DOM types yet — cast via browser-fs-access types
         const handle = dirHandle as unknown as import("browser-fs-access").FileSystemHandle;
 
-        // Step 1: Check current permission state
-        let permission = await handle.queryPermission({ mode: "readwrite" });
+        // Step 1: Check current permission state (safe outside user gesture)
+        const permission = await handle.queryPermission({ mode: "readwrite" });
 
-        // Step 2: If prompt state, re-request permission from the user
-        if (permission === "prompt") {
-          permission = await handle.requestPermission({ mode: "readwrite" });
-        }
-
-        // Step 3: If denied, return false so the caller can prompt the user to re-pick
+        // Step 2: Only load if already granted — do NOT call requestPermission here
+        // because this may be called from a useEffect (outside user gesture).
         if (permission !== "granted") {
           console.warn(
-            "[lemon-coder] Cached directory handle permission denied — user must re-select the folder.",
+            "[lemon-coder] Cached handle permission is '" + permission +
+            "' — caller must use requestHandlePermission() within a user gesture first.",
           );
           return false;
         }
 
-        // Step 4: Permission is granted — load the directory
+        // Step 3: Permission is granted — load the directory
         await loadDirectory(dirHandle);
         return true;
       } catch (error) {
@@ -412,6 +420,31 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       }
     },
     [loadDirectory],
+  );
+
+  /**
+   * Request readwrite permission on a cached directory handle.
+   * MUST be called within a user gesture (click handler).
+   * Returns true if permission was granted.
+   */
+  const requestHandlePermission = useCallback(
+    async (dirHandle: FileSystemDirectoryHandle): Promise<boolean> => {
+      try {
+        const handle = dirHandle as unknown as import("browser-fs-access").FileSystemHandle;
+        const permission = await handle.requestPermission({ mode: "readwrite" });
+        if (permission !== "granted") {
+          console.warn(
+            "[lemon-coder] requestHandlePermission: user denied permission.",
+          );
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error("[lemon-coder] Failed to request handle permission:", error);
+        return false;
+      }
+    },
+    [],
   );
 
   const selectFile = useCallback(
@@ -684,6 +717,7 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
     externalChangeStatus,
     loadDirectory,
     loadFromCachedHandle,
+    requestHandlePermission,
     selectFile,
     toggleExpand,
     addToStash,

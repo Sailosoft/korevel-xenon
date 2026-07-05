@@ -48,6 +48,7 @@ export default function LCApp() {
     externalChangeStatus,
     loadDirectory,
     loadFromCachedHandle,
+    requestHandlePermission,
     selectFile,
     toggleExpand,
     addToStash,
@@ -297,30 +298,33 @@ export default function LCApp() {
       const project = recentProjects.find((p) => p.id === id);
       if (!project) return;
 
-      // Try to restore the cached directory handle
-      const cachedHandle = await selectRecentProject(project);
+      // Step 1: Select the project (sets as current, updates lastOpened)
+      // The project ID is preserved in Dexie regardless of permission state.
+      await selectRecentProject(project);
 
-      if (cachedHandle) {
-        // Attempt to load from the cached handle (with permission re-check)
-        const success = await loadFromCachedHandle(cachedHandle);
-        if (success) {
-          // Clear stash for the restored project
-          await clearStash();
-          return;
-        }
-        // Permission denied — cached handle is stale,
-        // fall through to just select the project (user will click "Open Folder")
-        console.log(
-          "[lemon-coder] Cached handle permission expired for",
-          project.name,
-          "— user needs to re-select the folder.",
-        );
+      // Step 2: Try to restore the cached handle
+      const cached = await lcDB.getProjectHandle(project.id);
+      if (!cached?.dirHandle) {
+        // No cached handle — just selected, user can click "Open Folder" later
+        return;
+      }
+
+      // Step 3: Request permission directly (within the user gesture).
+      // This runs BEFORE any other async ops that could exhaust the activation.
+      const granted = await requestHandlePermission(cached.dirHandle);
+      if (granted) {
+        await clearStash();
+        await loadDirectory(cached.dirHandle);
       } else {
-        // No cached handle — just select the project
-        await selectRecentProjectNoHandle(project);
+        // Permission denied — user can try again via "Open Folder"
+        console.log(
+          "[lemon-coder] Cached handle permission denied for",
+          project.name,
+          "— user can re-select the folder.",
+        );
       }
     },
-    [recentProjects, selectRecentProject, selectRecentProjectNoHandle, loadFromCachedHandle, clearStash],
+    [recentProjects, selectRecentProject, requestHandlePermission, loadDirectory, clearStash],
   );
 
   // Landing screen when no project is selected

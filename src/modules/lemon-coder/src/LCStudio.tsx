@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Modal, Button } from "@heroui/react";
@@ -74,6 +74,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     externalChangeStatus,
     loadDirectory,
     loadFromCachedHandle,
+    requestHandlePermission,
     selectFile,
     toggleExpand,
     addToStash,
@@ -107,6 +108,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   const [isLeaveStudioOpen, setIsLeaveStudioOpen] = useState(false);
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
+  const [permissionExpired, setPermissionExpired] = useState(false);
+  const cachedDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
 
   // Live query for stash items
   const stashItems =
@@ -119,7 +122,10 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       [currentProject?.id],
     ) || [];
 
-  // Attempt to restore the directory handle when project loads
+  // Attempt to restore the directory handle when project loads.
+  // Uses only queryPermission() (safe outside user gesture).
+  // If permission is not already granted, stores the handle in a ref
+  // and sets permissionExpired so the UI can show a reconnect button.
   useEffect(() => {
     if (!currentProject) return;
 
@@ -133,6 +139,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           removeHandle(currentProject!.id);
           await clearStash();
           await loadDirectory(registeredHandle);
+          setPermissionExpired(false);
+          cachedDirHandleRef.current = null;
           return;
         }
 
@@ -140,9 +148,22 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         const cached = await lcDB.getProjectHandle(currentProject!.id);
         if (cancelled || !cached?.dirHandle) return;
 
+        // loadFromCachedHandle now uses queryPermission() only — safe here.
+        // If permission is "prompt" or "denied", it returns false without throwing.
         const success = await loadFromCachedHandle(cached.dirHandle);
         if (success) {
           await clearStash();
+          setPermissionExpired(false);
+          cachedDirHandleRef.current = null;
+        } else {
+          // Permission not granted — store handle for later reconnect
+          cachedDirHandleRef.current = cached.dirHandle;
+          setPermissionExpired(true);
+          console.log(
+            "[lemon-coder] Cached handle permission not granted for",
+            currentProject!.name,
+            "— showing reconnect prompt.",
+          );
         }
       } catch (error) {
         console.error(
@@ -248,29 +269,58 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     }
   }, [currentProject, createChatSession, clearStash]);
 
+  /**
+   * Reconnect to a cached directory handle within a user gesture.
+   * Called when the user clicks the "Reconnect" button after permission expired.
+   * Uses requestHandlePermission() which requires user activation.
+   */
+  const handleReconnect = useCallback(async () => {
+    const handle = cachedDirHandleRef.current;
+    if (!handle) return;
+
+    const granted = await requestHandlePermission(handle);
+    if (granted) {
+      setPermissionExpired(false);
+      cachedDirHandleRef.current = null;
+      await clearStash();
+      await loadDirectory(handle);
+    }
+  }, [requestHandlePermission, loadDirectory, clearStash]);
+
   const handleSelectRecentProject = useCallback(
     async (id: string) => {
       const project = recentProjects.find((p) => p.id === id);
       if (!project) return;
 
-      const cachedHandle = await selectRecentProject(project);
+      // Step 1: Set the current project immediately (sync)
+      // This ensures the project ID is preserved even if permission fails later.
+      await selectRecentProject(project);
 
-      if (cachedHandle) {
-        const success = await loadFromCachedHandle(cachedHandle);
-        if (success) {
-          await clearStash();
-          return;
-        }
-        console.log(
-          "[lemon-coder] Cached handle permission expired for",
-          project.name,
-          "— user needs to re-select the folder.",
-        );
+      // Step 2: Try to restore the cached handle
+      const cached = await lcDB.getProjectHandle(project.id);
+      if (!cached?.dirHandle) {
+        // No cached handle — just selected, user will need to open folder manually
+        return;
+      }
+
+      // Step 3: Request permission directly (within the user gesture)
+      // This runs BEFORE any other async operations that could exhaust the activation.
+      const granted = await requestHandlePermission(cached.dirHandle);
+      if (granted) {
+        await clearStash();
+        await loadDirectory(cached.dirHandle);
       } else {
-        await selectRecentProjectNoHandle(project);
+        // Permission denied — store handle for later reconnect
+        cachedDirHandleRef.current = cached.dirHandle;
+        setPermissionExpired(true);
+        console.log(
+          "[lemon-coder] Cached handle permission denied for",
+          project.name,
+          "— showing reconnect prompt.",
+        );
       }
     },
-    [recentProjects, selectRecentProject, selectRecentProjectNoHandle, loadFromCachedHandle, clearStash],
+    [recentProjects, selectRecentProject, requestHandlePermission, loadDirectory, clearStash],
   );
 
   // Loading state
@@ -291,6 +341,32 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       className="flex flex-col h-screen overflow-hidden"
       style={{ backgroundColor: LCTheme.colors.background, color: LCTheme.colors.text }}
     >
+      {/* Permission-expired reconnect banner */}
+      {permissionExpired && cachedDirHandleRef.current && (
+        <div
+          className="flex items-center justify-between px-6 py-3 text-sm border-b"
+          style={{
+            backgroundColor: LCTheme.colors.brand + "22",
+            borderColor: LCTheme.colors.border,
+            color: LCTheme.colors.text,
+          }}
+        >
+          <span>
+            Project folder access has expired.
+          </span>
+          <button
+            onClick={handleReconnect}
+            className="px-4 py-1.5 rounded font-semibold text-xs transition-colors"
+            style={{
+              backgroundColor: LCTheme.colors.brand,
+              color: LCTheme.colors.background,
+            }}
+          >
+            Reconnect
+          </button>
+        </div>
+      )}
+
       <LCMenu
         onOpenProject={handleOpenProjectFromStudio}
         onNewSession={handleCreateSession}
