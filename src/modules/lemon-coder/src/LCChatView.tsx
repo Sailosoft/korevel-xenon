@@ -189,7 +189,18 @@ const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChat
 
   const handleAcceptAll = () => {
     if (latestFileActions && latestFileActions.length > 0) {
-      onApplyFileChanges(latestFileActions);
+      // Defensively copy every action so downstream handlers cannot accidentally
+      // mutate the original fileContents array stored in the message data.
+      onApplyFileChanges(
+        latestFileActions.map((f) => ({
+          FileName: f.FileName,
+          ExistingFile: f.ExistingFile,
+          FileDirectory: f.FileDirectory,
+          Description: f.Description,
+          Content: f.Content,
+          applyStatus: f.applyStatus,
+        })),
+      );
     }
   };
 

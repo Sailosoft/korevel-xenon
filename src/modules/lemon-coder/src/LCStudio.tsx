@@ -470,7 +470,20 @@ export default function LCStudio({ projectId }: LCStudioProps) {
 
   const handleApplyFileChanges = useCallback(
     async (fileActions: LCFileActionResult[]) => {
-      for (const action of fileActions) {
+      // Defensively copy each action to prevent any reference-sharing issues
+      // between the original message data and the file-writing pipeline.
+      for (const rawAction of fileActions) {
+        // Create an isolated copy — extract primitives explicitly so that
+        // the handler owns the data and cannot be affected by external mutations.
+        const action: LCFileActionResult = {
+          FileName: rawAction.FileName,
+          ExistingFile: rawAction.ExistingFile,
+          FileDirectory: rawAction.FileDirectory,
+          Description: rawAction.Description,
+          Content: rawAction.Content,
+          applyStatus: rawAction.applyStatus,
+        };
+
         try {
           const filePath = resolveAndNormaliseFilePath(action);
 
