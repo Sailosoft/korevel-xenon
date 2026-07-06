@@ -526,7 +526,9 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
   const selectFile = useCallback(
     async (item: LCFileTreeItem) => {
       if (!item.isDirectory) {
-        setSelectedFile(item);
+        // Spread into a new object so React detects change even when re-selecting
+        // the same file (same id, same reference would be skipped by Object.is).
+        setSelectedFile({ ...item });
         setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
 
         try {

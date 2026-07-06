@@ -98,13 +98,14 @@ export default function LCMainContent({
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
 
   // Auto-switch to file view when a file is selected from tree.
-  // Only triggers on file id changes so the user can freely switch to/from
-  // chat view without being forced back to file view.
+  // Depends on the selectedFile reference (which is spread into a new object
+  // every time selectFile is called) so that re-selecting the same file also
+  // triggers a switch from chat view to file view.
   useEffect(() => {
     if (selectedFile && viewMode !== "diff") {
       setViewMode("file");
     }
-  }, [selectedFile?.id]);
+  }, [selectedFile]);
 
   // ── Diff Preview Handlers ────────────────────────────────────────────────
 
