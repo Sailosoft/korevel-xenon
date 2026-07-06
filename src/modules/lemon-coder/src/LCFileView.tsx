@@ -1,9 +1,10 @@
 // ───────────────────────────────────────────────────────────────────────────────
-// Lemon Coder — LCFileView Component (Monaco Editor / DiffEditor)
+// Lemon Coder — LCFileView Component (Monaco Editor / DiffEditor / Preview)
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import {
   FileCode,
@@ -14,22 +15,17 @@ import {
   Check,
   X,
   Plus,
+  Eye,
+  Code2,
 } from "lucide-react";
+import LCFileViewDisplayMode, {
+  canPreviewFile,
+  isMarkdownFile,
+} from "./LCFileView.DisplayMode";
+import type { LCFileViewDisplayMode as LCFileViewDisplayModeType } from "./LCFileView.DisplayMode";
 import type { LCFileTreeItem, LCExternalChangeStatus, LCFileActionResult } from "./LCInterface";
 
-// Dynamically import Monaco Editor and DiffEditor to avoid SSR issues
-const MonacoEditor = dynamic(
-  () => import("@monaco-editor/react").then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-        Loading Editor...
-      </div>
-    ),
-  },
-);
-
+// Dynamically import Monaco DiffEditor to avoid SSR issues
 const MonacoDiffEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.DiffEditor),
   {
@@ -72,37 +68,6 @@ export interface LCFileViewProps {
   onInsertToChatInput?: (text: string) => void;
 }
 
-function getLanguage(fileName: string): string {
-  const ext = fileName.split(".").pop()?.toLowerCase() || "";
-  const languageMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "typescript",
-    js: "javascript",
-    jsx: "javascript",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    scss: "scss",
-    html: "html",
-    py: "python",
-    rs: "rust",
-    go: "go",
-    yaml: "yaml",
-    yml: "yaml",
-    toml: "toml",
-    sql: "sql",
-    sh: "shell",
-    bash: "shell",
-    dockerfile: "dockerfile",
-    gitignore: "ignore",
-    env: "dotenv",
-    xml: "xml",
-    svg: "xml",
-    txt: "plaintext",
-  };
-  return languageMap[ext] || "plaintext";
-}
-
 export default function LCFileView({
   selectedFile,
   content,
@@ -119,8 +84,15 @@ export default function LCFileView({
   onAddToStash,
   onInsertToChatInput,
 }: LCFileViewProps) {
+  // ── Local State ──────────────────────────────────────────────────────────
+  const [displayMode, setDisplayMode] = useState<LCFileViewDisplayModeType>("source");
+
   // ── Diff Preview Mode ────────────────────────────────────────────────────
   const isDiffMode = diffContent !== undefined && selectedFile !== null;
+
+  // ── Derived display-mode helpers ─────────────────────────────────────────
+  const canPreview = selectedFile ? canPreviewFile(selectedFile.name) : false;
+  const mdFile = selectedFile ? isMarkdownFile(selectedFile.name) : false;
 
   if (!selectedFile) {
     return (
@@ -135,7 +107,7 @@ export default function LCFileView({
   }
 
   return (
-    <div className="flex flex-col flex-1 bg-[#1e1e1e]">
+    <div className="flex flex-col flex-1 min-h-0 bg-[#1e1e1e]">
       {/* File Tab Header */}
       <div className="flex items-center justify-between px-4 h-9 bg-[#252526] border-b border-[#333333] shrink-0">
         <div className="flex items-center gap-2 px-3 h-full border-r border-[#333333] bg-[#1e1e1e]">
@@ -156,6 +128,43 @@ export default function LCFileView({
           )}
         </div>
 
+        {/* Source | File View Toggle — only in non-diff mode for previewable files */}
+        {!isDiffMode && canPreview && (
+          <div className="flex items-center gap-1 bg-[#1e1e1e] rounded-md p-0.5 mx-2">
+            <button
+              onClick={() => setDisplayMode("source")}
+              className={`text-xs h-6 px-2 rounded-md flex items-center gap-1 transition-colors ${
+                displayMode === "source"
+                  ? "bg-[#e5c07b] text-[#1e1e1e]"
+                  : "text-[#858585] hover:text-white hover:bg-[#333333]"
+              }`}
+              title="View source code"
+            >
+              <Code2 className="w-3 h-3" />
+              <span className="hidden sm:inline">Source</span>
+            </button>
+            <button
+              onClick={() => setDisplayMode("file")}
+              className={`text-xs h-6 px-2 rounded-md flex items-center gap-1 transition-colors ${
+                displayMode === "file"
+                  ? "bg-[#e5c07b] text-[#1e1e1e]"
+                  : "text-[#858585] hover:text-white hover:bg-[#333333]"
+              }`}
+              title={
+                mdFile
+                  ? "View rendered markdown"
+                  : "View rendered diagram"
+              }
+            >
+              <Eye className="w-3 h-3" />
+              <span className="hidden sm:inline">{mdFile ? "Preview" : "Diagram"}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
         {/* Diff-mode action buttons */}
         {isDiffMode ? (
           <div className="flex items-center gap-2">
@@ -165,7 +174,7 @@ export default function LCFileView({
               title="Close diff preview"
             >
               <X className="w-3.5 h-3.5" />
-              Cancel
+              <span className="hidden sm:inline">Cancel</span>
             </button>
             <button
               onClick={onAcceptDiff}
@@ -173,7 +182,7 @@ export default function LCFileView({
               title="Apply the AI-generated changes"
             >
               <Check className="w-3.5 h-3.5" />
-              Accept Changes
+              <span className="hidden sm:inline">Accept Changes</span>
             </button>
           </div>
         ) : (
@@ -185,7 +194,7 @@ export default function LCFileView({
                 title="Add to context stash"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Stash
+                <span className="hidden sm:inline">Stash</span>
               </button>
             )}
             <button
@@ -194,7 +203,7 @@ export default function LCFileView({
               title="Save file (Ctrl+S)"
             >
               <Save className="w-3.5 h-3.5" />
-              Save
+              <span className="hidden sm:inline">Save</span>
             </button>
           </div>
         )}
@@ -241,13 +250,13 @@ export default function LCFileView({
         </div>
       )}
 
-      {/* Monaco Editor / DiffEditor */}
-      <div className="flex-1 overflow-hidden">
-        {isDiffMode ? (
+      {/* Editor / Preview Area */}
+      {isDiffMode ? (
+        <div className="flex-1 overflow-hidden">
           <MonacoDiffEditor
             key={`diff-${selectedFile.path}`}
             height="100%"
-            language={getLanguage(selectedFile.name)}
+            language="plaintext"
             original={content}
             modified={diffContent}
             theme="vs-dark"
@@ -278,64 +287,18 @@ export default function LCFileView({
               diffWordWrap: "on",
             }}
           />
-        ) : (
-          <MonacoEditor
-            key={selectedFile.path}
-            height="100%"
-            language={getLanguage(selectedFile.name)}
-            value={content}
-            onChange={(val) => onContentChange(val || "")}
-            onMount={(editor, monaco) => {
-              editor.addCommand(
-                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-                onSave,
-              );
-
-              // Add context menu action: "Add Selection as Code Block to Chat"
-              if (onInsertToChatInput) {
-                editor.addAction({
-                  id: "lc-add-selection-as-code-block",
-                  label: "Add Selection as Code Block to Chat",
-                  contextMenuGroupId: "modification",
-                  contextMenuOrder: 1.5,
-                  run: (ed) => {
-                    const selection = ed.getSelection();
-                    if (!selection) return;
-                    const model = ed.getModel();
-                    if (!model) return;
-                    const selectedText = model.getValueInRange(selection);
-                    if (!selectedText) return;
-                    const language = getLanguage(selectedFile?.name || "");
-                    const codeBlock = `\`\`\`${language}\n${selectedText}\n\`\`\``;
-                    onInsertToChatInput(codeBlock);
-                  },
-                });
-              }
-            }}
-            theme="vs-dark"
-            beforeMount={(monaco) => {
-              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-                noSemanticValidation: true,
-                noSyntaxValidation: true,
-              });
-              monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-                noSemanticValidation: true,
-                noSyntaxValidation: true,
-              });
-            }}
-            options={{
-              minimap: { enabled: true },
-              fontSize: 13,
-              lineNumbers: "on",
-              renderWhitespace: "selection",
-              tabSize: 2,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              padding: { top: 8 },
-            }}
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        /* ── Non-diff content delegated to LCFileViewDisplayMode ─────── */
+        <LCFileViewDisplayMode
+          displayMode={displayMode}
+          selectedFile={selectedFile}
+          content={content}
+          onContentChange={onContentChange}
+          onSave={onSave}
+          onInsertToChatInput={onInsertToChatInput}
+        />
+      )}
     </div>
   );
 }

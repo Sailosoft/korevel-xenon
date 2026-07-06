@@ -292,6 +292,7 @@ export default function LCMainContent({
           <LCFileView
             selectedFile={selectedFile}
             content={selectedFileContent}
+            isDirty={isDirty}
             onContentChange={onContentChange}
             externalChangeStatus={externalChangeStatus}
             onReloadFromDisk={onReloadFromDisk}
