@@ -32,16 +32,48 @@ ${userContent}
 You MUST respond with a valid JSON object containing exactly these two fields:
 1. "AIMessage": A string — your explanation or response to the user.
 2. "FileContents": An array of file objects. Each file object has:
-   - "FileName": string — ONLY the file name with extension (e.g. "App.tsx", "index.ts"). Do NOT include directory path here.
-   - "ExistingFile": boolean — true if the file already exists, false if new
-   - "FileDirectory": string — the directory path relative to project root, WITHOUT the filename (e.g. "components/ui", "modules/lemon-coder/src"). Do NOT start with a leading "/" or "src/" unless the file tree path actually begins with "src/". Match the directory portion of the path exactly as it appears in the "--- File: ... ---" line from the stashed context.
-   - "Description": string — brief description of what changed
-   - "Content": string — the COMPLETE file content, ready to copy-paste. NOT a diff or snippet. The full file from first line to last.
+   - "FileName": string — ONLY the file name with extension.
+   - "ExistingFile": boolean — true if the file already exists, false if new.
+   - "FileDirectory": string — directory path relative to project root, WITHOUT filename.
+   - "Description": string — brief description of what changed.
+   - "Content": string — the COMPLETE file content, ready to copy-paste.
 
-IMPORTANT: Split file paths correctly. For a file shown as "--- File: components/ui/Button.tsx ---", set FileDirectory="components/ui" and FileName="Button.tsx". NEVER put the full path (e.g. "components/ui/Button.tsx") into FileName — that field must contain ONLY the filename.
+### JSON Formatting Rules (must follow):
 
-CRITICAL: Match the path format from the stashed context files exactly. If the file tree shows "modules/hello/world.tsx" (without a "src/" prefix), do NOT prepend "src/" to FileDirectory. Use the path exactly as shown in the "--- File: ... ---" lines.
+1. **Content field escaping**: The "Content" value is a JSON string. You MUST escape:
+   - All double quotes (\u0022) inside code as \\" or \\\\u0022
+   - All backslashes inside code as \\\\
+   - All newlines as \\n (literal line breaks inside JSON strings are NOT allowed)
+   - All tabs as \\t
+   - Example: if the file contains \`const msg = "hello";\`, write "Content": "const msg = \\"hello\\";\\n"
 
-The "Content" field must contain the ENTIRE file — not just the changed parts, not a code snippet, not a diff. The complete source code that can be written directly to the file.
+2. **No trailing commas**: Never put a comma after the last item in an object or array.
+   - WRONG: { "a": 1, } or [ 1, 2, ]
+   - RIGHT: { "a": 1 } or [ 1, 2 ]
+
+3. **Split file paths correctly**: For a file shown as "--- File: components/ui/Button.tsx ---", set FileDirectory="components/ui" and FileName="Button.tsx". NEVER put the full path into FileName.
+
+4. **Match the path format exactly** from the stashed context files. If the tree shows "modules/hello/world.tsx" (without "src/"), do NOT prepend "src/".
+
+### Concrete Example:
+\`\`\`json
+{
+  "AIMessage": "I added a Button component.",
+  "FileContents": [
+    {
+      "FileName": "Button.tsx",
+      "ExistingFile": true,
+      "FileDirectory": "components/ui",
+      "Description": "Added variant prop",
+      "Content": "import React from 'react';\\n\\nexport function Button({ variant }: { variant: 'primary' | 'secondary' }) {\\n  return <button className={variant}>Click</button>;\\n}\\n"
+    }
+  ]
+}
+\`\`\`
+
+### IMPORTANT:
+- Before outputting, verify your JSON is valid (no trailing commas, all strings properly escaped).
+- The "Content" field must contain the ENTIRE file — NOT a diff, snippet, or placeholder.
+- Complete source code from first line to last, JSON-escaped.
 `;
 }

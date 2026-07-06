@@ -43,9 +43,15 @@ You are in Ask mode. Your role is to answer questions, explain code, and provide
 
 ### Response Format:
 You MUST respond with a valid JSON object containing exactly these two fields:
-1. "AIMessage": A string — your detailed answer to the user's question in markdown format. Use headings, bullet points, and code blocks as needed.
+1. "AIMessage": A string — your detailed answer to the user's question in markdown format.
 2. "FileContents": An empty array [] — since you are in Ask mode, you must NOT generate any file changes.
 
-IMPORTANT: Since you are in Ask mode, always set "FileContents" to an empty array [].
+### JSON Rules:
+- Never use trailing commas in objects or arrays. WRONG: [1, 2,] RIGHT: [1, 2]
+- Escape all double quotes inside the AIMessage string as \\" if they appear.
+- Verify your JSON is valid before responding.
+
+### IMPORTANT:
+Since you are in Ask mode, always set "FileContents" to an empty array [].
 `;
 }

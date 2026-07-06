@@ -36,19 +36,19 @@ export default function LCMenu({
   const router = useRouter();
 
   return (
-    <header className="flex items-center justify-between px-4 h-12 bg-[#1e1e1e] border-b border-[#333333] select-none shrink-0">
+    <header className="flex flex-wrap items-center justify-between px-2 sm:px-4 h-auto sm:h-12 py-2 sm:py-0 bg-[#1e1e1e] border-b border-[#333333] select-none shrink-0">
       {/* Left - Brand */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <FileCode className="w-5 h-5 text-[#e5c07b]" />
-          <span className="text-sm font-semibold text-[#e5c07b] tracking-wide">
+          <span className="hidden sm:inline text-sm font-semibold text-[#e5c07b] tracking-wide">
             Lemon Coder
           </span>
         </div>
         {projectName && (
           <>
             <div className="w-px h-5 bg-[#333333]" />
-            <span className="text-xs text-[#abb2bf] truncate max-w-[200px]">
+            <span className="text-xs text-[#abb2bf] truncate max-w-[100px] sm:max-w-[200px]">
               {projectName}
             </span>
           </>
@@ -56,12 +56,12 @@ export default function LCMenu({
       </div>
 
       {/* Center - Menu Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
         <Button
           variant="ghost"
           size="sm"
           onPress={onOpenProject}
-          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
+          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8 hidden sm:inline-flex"
         >
           <FolderOpen className="w-3.5 h-3.5" />
           Open Project
@@ -71,7 +71,7 @@ export default function LCMenu({
           variant="ghost"
           size="sm"
           onPress={() => router.push("/modules/lemon-coder/projects")}
-          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
+          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8 hidden sm:inline-flex"
         >
           <LayoutList className="w-3.5 h-3.5" />
           Projects
@@ -113,7 +113,7 @@ export default function LCMenu({
           variant="ghost"
           size="sm"
           onPress={onOpenHelixConfig}
-          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
+          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8 hidden sm:inline-flex"
         >
           <Bot className="w-3.5 h-3.5" />
           AI Config
@@ -131,8 +131,8 @@ export default function LCMenu({
         </Button>
       </div>
 
-      {/* Right - spacer */}
-      <div className="w-[140px]" />
+      {/* Right - spacer (hidden on small screens) */}
+      <div className="hidden sm:block w-[140px]" />
     </header>
   );
 }

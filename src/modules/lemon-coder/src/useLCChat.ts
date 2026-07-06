@@ -355,7 +355,10 @@ export function useLCChat(): UseLCChatReturn {
                 "You MUST respond with a valid JSON object containing exactly the fields requested in the user prompt. " +
                 "When providing file Content, always output the COMPLETE file from the first line to the last — " +
                 "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
-                "The Content field must be ready to copy-paste and write directly to the file as-is.",
+                "The Content field must be ready to copy-paste and write directly to the file as-is. " +
+                "CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
+                "and replace literal newlines with \\n. Never use trailing commas in objects or arrays. " +
+                "Verify your JSON is valid before responding.",
             },
           ];
 
