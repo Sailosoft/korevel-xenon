@@ -21,7 +21,6 @@ import {
   FileJson,
   FileType,
   Info,
-  BookOpenText,
 } from "lucide-react";
 import type { LCFileTreeItem, LCFavoriteGroup } from "./LCInterface";
 import LCContextMenu from "./LCContextMenu";
@@ -273,7 +272,7 @@ function FileTreeItem({
           {item.name}
         </span>
 
-        {/* Actions (Stash + Instruction Stash) */}
+        {/* Actions (Stash) */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {/* Add to Context Stash */}
           <Button
@@ -288,22 +287,6 @@ function FileTreeItem({
           >
             <Plus className="w-3 h-3" />
           </Button>
-          {/* Add to Instruction Stash (files only) */}
-          {!item.isDirectory && onAddToInstructionStash && (
-            <Button
-              isIconOnly
-              size="sm"
-              variant="ghost"
-              className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#98c379]"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                onAddToInstructionStash(item);
-              }}
-              aria-label="Add to Instruction Stash"
-            >
-              <BookOpenText className="w-3 h-3" />
-            </Button>
-          )}
         </div>
       </div>
 
