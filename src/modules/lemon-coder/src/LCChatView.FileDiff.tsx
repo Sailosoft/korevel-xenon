@@ -94,7 +94,19 @@ export function InlineFileDiff({
   const handleApply = useCallback(() => {
     if (localApplyStatus !== "apply") return;
     setLocalApplyStatus("applying");
-    onApplyFileChanges([{ ...file, applyStatus: "applied" }]);
+
+    // Defensively copy primitives — do NOT rely on spread which could
+    // carry over unexpected properties from a mutated source object.
+    const action: LCFileActionResult = {
+      FileName: file.FileName,
+      ExistingFile: file.ExistingFile,
+      FileDirectory: file.FileDirectory,
+      Description: file.Description,
+      Content: file.Content,
+      applyStatus: "applied",
+    };
+    onApplyFileChanges([action]);
+
     // The parent will trigger a re-render eventually; optimistically mark as applied
     setTimeout(() => setLocalApplyStatus("applied"), 500);
   }, [file, localApplyStatus, onApplyFileChanges]);
@@ -263,8 +275,17 @@ export function ViewAllChangesModal({
       latestFileActions.forEach((_, idx) => { applyingStatuses[idx] = "applying"; });
       setFileApplyStatuses(applyingStatuses);
 
-      // Apply changes
-      onApplyFileChanges(latestFileActions.map(f => ({ ...f, applyStatus: "applied" })));
+      // Apply changes — defensively copy every action
+      onApplyFileChanges(
+        latestFileActions.map((f) => ({
+          FileName: f.FileName,
+          ExistingFile: f.ExistingFile,
+          FileDirectory: f.FileDirectory,
+          Description: f.Description,
+          Content: f.Content,
+          applyStatus: "applied",
+        })),
+      );
 
       // Mark all as applied after a short delay
       setTimeout(() => {
@@ -281,7 +302,19 @@ export function ViewAllChangesModal({
   const handleAcceptFile = useCallback(
     (idx: number, fileAction: LCFileActionResult) => {
       setFileApplyStatuses(prev => ({ ...prev, [idx]: "applying" }));
-      onApplyFileChanges([{ ...fileAction, applyStatus: "applied" }]);
+
+      // Defensively copy primitives — do NOT rely on spread which could
+      // carry over unexpected properties from a mutated source object.
+      const action: LCFileActionResult = {
+        FileName: fileAction.FileName,
+        ExistingFile: fileAction.ExistingFile,
+        FileDirectory: fileAction.FileDirectory,
+        Description: fileAction.Description,
+        Content: fileAction.Content,
+        applyStatus: "applied",
+      };
+      onApplyFileChanges([action]);
+
       setTimeout(() => {
         setFileApplyStatuses(prev => ({ ...prev, [idx]: "applied" }));
       }, 500);

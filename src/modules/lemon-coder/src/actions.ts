@@ -7,6 +7,9 @@
 // Two modes:
 // 1. callHelixAI — single prompt (used by Code mode)
 // 2. callHelixAIWithConversation — full conversation array (used by Agent/Plan/Ask)
+//
+// JSON safety: Uses parseLCAIResponse() which automatically recovers from common
+// AI output issues (trailing commas, unescaped chars, truncated JSON, etc.).
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use server";
@@ -14,6 +17,7 @@
 import OpenAI from "openai";
 import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 import type { LCAIResponse, LCAIConversationMessage } from "./LCInterface";
+import { parseLCAIResponse } from "./LCSafeJsonParse";
 
 export interface CallAIServerActionParams {
   /** The prompt text to send to the AI */
@@ -40,7 +44,10 @@ const SYSTEM_MESSAGE =
   "You MUST respond with a valid JSON object containing exactly the fields requested in the user prompt. " +
   "When providing file Content, always output the COMPLETE file from the first line to the last — " +
   "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
-  "The Content field must be ready to copy-paste and write directly to the file as-is.";
+  "The Content field must be ready to copy-paste and write directly to the file as-is. " +
+  "CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
+  "and replace literal newlines with \\n. Never use trailing commas in objects or arrays. " +
+  "Verify your JSON is valid before responding.";
 
 function getProviderConfig(provider: string) {
   return (
@@ -65,15 +72,9 @@ async function callOpenAI(
     temperature: 0.7,
   });
 
-  const rawContent = response.choices[0]?.message?.content || "{}";
+  const rawContent = response.choices[0]?.message?.content || "";
 
-  // Strip markdown code fences (```json ... ```) if the AI wraps the JSON
-  const content = rawContent
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
-
-  return JSON.parse(content) as LCAIResponse;
+  return parseLCAIResponse(rawContent);
 }
 
 function makeErrorResponse(error: unknown): LCAIResponse {
@@ -121,15 +122,11 @@ export async function callHelixAI({
       temperature: 0.7,
     });
 
-    const rawContent = response.choices[0]?.message?.content || "{}";
-    const content = rawContent
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/i, "")
-      .trim();
+    const rawContent = response.choices[0]?.message?.content || "";
 
-    return JSON.parse(content) as LCAIResponse;
+    return parseLCAIResponse(rawContent);
   } catch (error) {
-    return makeErrorResponse(error);
+    throw error;
   }
 }
 
@@ -171,14 +168,10 @@ export async function callHelixAIWithConversation({
       temperature: 0.7,
     });
 
-    const rawContent = response.choices[0]?.message?.content || "{}";
-    const content = rawContent
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/i, "")
-      .trim();
+    const rawContent = response.choices[0]?.message?.content || "";
 
-    return JSON.parse(content) as LCAIResponse;
+    return parseLCAIResponse(rawContent);
   } catch (error) {
-    return makeErrorResponse(error);
+    throw error;
   }
 }

@@ -247,7 +247,27 @@ export default function LCMainContent({
 
       {/* Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {viewMode === "chat" ? (
+        {/*
+         * ── KEY FIX: LCChatView is ALWAYS mounted but hidden when not active ──
+         *
+         * Previously, LCChatView was conditionally rendered only when
+         * viewMode === "chat". This meant that when the user was in File
+         * view or Diff view, the chatViewRef.current was null, and the
+         * "Add Selection as Code Block to Chat" context menu action in
+         * Monaco (which calls chatViewRef.current?.appendToInput) silently
+         * did nothing.
+         *
+         * By keeping LCChatView always mounted (just visually hidden with
+         * `display: none`), the ref is always available, and appendToInput
+         * works from any view mode.
+         */}
+        <div
+          className={
+            viewMode === "chat"
+              ? "flex-1 flex flex-col overflow-hidden"
+              : "hidden"
+          }
+        >
           <LCChatView
             ref={chatViewRef}
             messages={messages}
@@ -265,7 +285,30 @@ export default function LCMainContent({
             onClearStash={onClearStash}
             instructionStashItems={instructionStashItems}
           />
-        ) : viewMode === "diff" && diffPreview ? (
+        </div>
+
+        {/* File View — shown when viewMode is "file" */}
+        {viewMode === "file" && (
+          <LCFileView
+            selectedFile={selectedFile}
+            content={selectedFileContent}
+            isDirty={isDirty}
+            onContentChange={onContentChange}
+            externalChangeStatus={externalChangeStatus}
+            onReloadFromDisk={onReloadFromDisk}
+            onAcknowledgeExternalChange={onAcknowledgeExternalChange}
+            onSave={onSave}
+            onAddToStash={
+              onAddToStash && selectedFile
+                ? () => onAddToStash(selectedFile)
+                : undefined
+            }
+            onInsertToChatInput={(text) => chatViewRef.current?.appendToInput(text)}
+          />
+        )}
+
+        {/* Diff View — shown when viewMode is "diff" and diffPreview exists */}
+        {viewMode === "diff" && diffPreview && (
           <LCFileView
             selectedFile={diffFileItem}
             content={diffPreview.originalContent}
@@ -279,22 +322,6 @@ export default function LCMainContent({
             onAcceptDiff={handleAcceptDiff}
             onRejectDiff={handleRejectDiff}
             diffLabel={diffPreview.filePath}
-            onInsertToChatInput={(text) => chatViewRef.current?.appendToInput(text)}
-          />
-        ) : (
-          <LCFileView
-            selectedFile={selectedFile}
-            content={selectedFileContent}
-            onContentChange={onContentChange}
-            externalChangeStatus={externalChangeStatus}
-            onReloadFromDisk={onReloadFromDisk}
-            onAcknowledgeExternalChange={onAcknowledgeExternalChange}
-            onSave={onSave}
-            onAddToStash={
-              onAddToStash && selectedFile
-                ? () => onAddToStash(selectedFile)
-                : undefined
-            }
             onInsertToChatInput={(text) => chatViewRef.current?.appendToInput(text)}
           />
         )}
