@@ -739,6 +739,8 @@ export default function BFlowWorkflowInteractive({
         open={stepModal.open}
         step={stepModal.step}
         availableAgents={agentNames}
+        variables={data.variables}
+        jobs={data.jobs}
         onClose={() => setStepModal((prev) => ({ ...prev, open: false }))}
         onSave={saveStep}
       />
