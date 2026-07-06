@@ -21,8 +21,9 @@ import {
   FileJson,
   FileType,
   Info,
+  BookOpenText,
 } from "lucide-react";
-import type { LCFileTreeItem } from "./LCInterface";
+import type { LCFileTreeItem, LCFavoriteGroup } from "./LCInterface";
 import LCContextMenu from "./LCContextMenu";
 import {
   useLCFileTreeContextMenu,
@@ -71,6 +72,12 @@ export interface LCFileTreeProps {
   onDeleteItem?: (itemPath: string, isDirectory: boolean) => Promise<void>;
   /** Create a new item by copying an existing one */
   onCopyItem?: (sourcePath: string, destParentPath: string, newName: string) => Promise<void>;
+  /** Add a file to favourites (optional groupId; if omitted uses Default) */
+  onAddToFavorites?: (item: LCFileTreeItem, groupId?: string) => void;
+  /** Favourite groups for submenu rendering */
+  favoriteGroups?: LCFavoriteGroup[];
+  /** Add file content to the instruction stash */
+  onAddToInstructionStash?: (item: LCFileTreeItem) => void;
 }
 
 // ── Hover Tooltip ────────────────────────────────────────────────────────────
@@ -160,6 +167,7 @@ function FileTreeItem({
   onUnhover,
   showTooltip,
   onContextMenu,
+  onAddToInstructionStash,
 }: {
   item: LCFileTreeItem;
   depth?: number;
@@ -173,6 +181,7 @@ function FileTreeItem({
   onUnhover: () => void;
   showTooltip?: boolean;
   onContextMenu?: (e: React.MouseEvent, item: LCFileTreeItem) => void;
+  onAddToInstructionStash?: (item: LCFileTreeItem) => void;
 }) {
   const isSelected = selectedFile?.id === item.id;
   const itemExpanded = item.expanded ?? false;
@@ -210,7 +219,8 @@ function FileTreeItem({
         className={`flex items-center gap-1 py-0.5 pr-2 cursor-pointer group hover:bg-[#2a2d2e] transition-colors select-none ${
           isSelected ? "bg-[#37373d]" : ""
         }`}
-        style={{ paddingLeft: `${depth * 16 + 4}px` }}
+        // before 12 + 4
+        style={{ paddingLeft: `${depth * 7 + 4}px` }}
         onMouseEnter={handleMouseEnter}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
@@ -263,36 +273,9 @@ function FileTreeItem({
           {item.name}
         </span>
 
-        {/* Actions (Stash / New File / New Folder) */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {item.isDirectory && (
-            <>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  onNewItem(item.path, "file");
-                }}
-              >
-                <File className="w-3 h-3" />
-              </Button>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#e5c07b]"
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  onNewItem(item.path, "directory");
-                }}
-              >
-                <Folder className="w-3 h-3" />
-              </Button>
-            </>
-          )}
+        {/* Actions (Stash + Instruction Stash) */}
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Add to Context Stash */}
           <Button
             isIconOnly
             size="sm"
@@ -305,6 +288,22 @@ function FileTreeItem({
           >
             <Plus className="w-3 h-3" />
           </Button>
+          {/* Add to Instruction Stash (files only) */}
+          {!item.isDirectory && onAddToInstructionStash && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#98c379]"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                onAddToInstructionStash(item);
+              }}
+              aria-label="Add to Instruction Stash"
+            >
+              <BookOpenText className="w-3 h-3" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -326,6 +325,7 @@ function FileTreeItem({
               onUnhover={onUnhover}
               showTooltip={showTooltip}
               onContextMenu={onContextMenu}
+              onAddToInstructionStash={onAddToInstructionStash}
             />
           ))}
         </div>
@@ -349,6 +349,9 @@ export default function LCFileTree({
   onRenameItem,
   onDeleteItem,
   onCopyItem,
+  onAddToFavorites,
+  favoriteGroups,
+  onAddToInstructionStash,
 }: LCFileTreeProps) {
   const [hoveredItem, setHoveredItem] = useState<{
     item: LCFileTreeItem;
@@ -358,7 +361,7 @@ export default function LCFileTree({
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ctx = useLCFileTreeContextMenu(onRenameItem, onDeleteItem, onAddToStash, onCopyItem);
+  const ctx = useLCFileTreeContextMenu(onRenameItem, onDeleteItem, onAddToStash, onCopyItem, onAddToFavorites, favoriteGroups, onNewItem, onAddToInstructionStash);
 
   const handleHover = useCallback(
     (item: LCFileTreeItem, x: number, y: number) => {
@@ -431,6 +434,7 @@ export default function LCFileTree({
           onUnhover={handleUnhover}
           showTooltip={showTooltip}
           onContextMenu={ctx.handleContextMenu}
+          onAddToInstructionStash={onAddToInstructionStash}
         />
       ))}
 

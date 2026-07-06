@@ -22,8 +22,9 @@ import {
   Save,
   RefreshCw,
   Plus,
+  BookOpenText,
 } from "lucide-react";
-import type { LCContextStashItem, LCChatSession } from "./LCInterface";
+import type { LCContextStashItem, LCChatSession, LCInstructionStashItem } from "./LCInterface";
 import type { LCDeepstash, LCDeepstashItem, LCDeepstashMergeStrategy } from "./LCInterface";
 import { lcDB } from "./LCDatabase";
 
@@ -51,6 +52,15 @@ export interface LCRightSidebarProps {
   onDeleteDeepstash: (id: string) => void;
   /** Clear all deepstashes for the current project */
   onClearDeepstashes?: () => void;
+  // ── Instruction Stash props ──────────────────────────────────────────
+  /** Instruction stash items */
+  instructionStashItems: LCInstructionStashItem[];
+  /** Add a new instruction snippet */
+  onAddInstruction: (name: string, content: string) => void;
+  /** Remove an instruction by id */
+  onRemoveInstruction: (id: string) => void;
+  /** Clear all instructions */
+  onClearInstructions: () => void;
 }
 
 export default function LCRightSidebar({
@@ -72,6 +82,10 @@ export default function LCRightSidebar({
   onApplyDeepstash,
   onDeleteDeepstash,
   onClearDeepstashes,
+  instructionStashItems = [],
+  onAddInstruction = () => {},
+  onRemoveInstruction = () => {},
+  onClearInstructions = () => {},
 }: LCRightSidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [expandedDeepstashes, setExpandedDeepstashes] = useState<Set<string>>(new Set());
@@ -80,6 +94,11 @@ export default function LCRightSidebar({
   const [applyConfirmId, setApplyConfirmId] = useState<string | null>(null);
   const [applyStrategy, setApplyStrategy] = useState<LCDeepstashMergeStrategy>("override");
   const [clearDeepstashConfirm, setClearDeepstashConfirm] = useState(false);
+
+  // ── Instruction Stash inline add state ──────────────────────────────────
+  const [isAddingInstruction, setIsAddingInstruction] = useState(false);
+  const [newInstName, setNewInstName] = useState("");
+  const [newInstContent, setNewInstContent] = useState("");
 
   const toggleFolder = (id: string) => {
     setExpandedFolders((prev) => {
@@ -458,6 +477,143 @@ export default function LCRightSidebar({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="mx-3 border-t border-[#333333]" />
+
+        {/* Instruction Stash Section */}
+        <div className="px-3 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <BookOpenText className="w-3.5 h-3.5 text-[#98c379]" />
+              <span className="text-xs text-[#abb2bf]">Instructions</span>
+              <span className="text-[10px] text-[#858585]">
+                ({instructionStashItems.length})
+              </span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {instructionStashItems.length > 0 && (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  onPress={onClearInstructions}
+                  className="w-5 h-5 min-w-0 text-[#858585] hover:text-red-400"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              )}
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                onPress={() => {
+                  setIsAddingInstruction(true);
+                  setNewInstName("");
+                  setNewInstContent("");
+                }}
+                className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#98c379]"
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+
+          {isAddingInstruction && (
+            <div className="mb-2 space-y-1.5">
+              <input
+                value={newInstName}
+                onChange={(e) => setNewInstName(e.target.value)}
+                placeholder="Instruction name..."
+                className="w-full bg-[#3c3c3c] text-xs text-[#d4d4d4] placeholder:text-[#858585] border border-[#444444] rounded px-2 py-1 outline-none focus:border-[#98c379] transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newInstName.trim()) {
+                    // Move focus to content textarea
+                    const textarea = e.currentTarget.parentElement?.querySelector("textarea");
+                    textarea?.focus();
+                  } else if (e.key === "Escape") {
+                    setIsAddingInstruction(false);
+                  }
+                }}
+              />
+              <textarea
+                value={newInstContent}
+                onChange={(e) => setNewInstContent(e.target.value)}
+                placeholder="Paste or type your instruction here..."
+                rows={3}
+                className="w-full bg-[#3c3c3c] text-xs text-[#d4d4d4] placeholder:text-[#858585] border border-[#444444] rounded px-2 py-1 outline-none focus:border-[#98c379] transition-colors resize-none"
+                style={{ scrollbarWidth: "thin" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && newInstName.trim() && newInstContent.trim()) {
+                    e.preventDefault();
+                    onAddInstruction(newInstName.trim(), newInstContent.trim());
+                    setIsAddingInstruction(false);
+                  } else if (e.key === "Escape") {
+                    setIsAddingInstruction(false);
+                  }
+                }}
+              />
+              <div className="flex items-center gap-1.5 justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => setIsAddingInstruction(false)}
+                  className="text-[10px] h-5 text-[#858585] hover:text-white min-w-0 px-2"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isDisabled={!newInstName.trim() || !newInstContent.trim()}
+                  onPress={() => {
+                    onAddInstruction(newInstName.trim(), newInstContent.trim());
+                    setIsAddingInstruction(false);
+                  }}
+                  className="text-[10px] h-5 text-[#98c379] hover:bg-[#98c379]/10 min-w-0 px-2"
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {instructionStashItems.length === 0 && !isAddingInstruction ? (
+            <p className="text-[11px] text-[#858585] pl-1">
+              Add instructions to include in the system prompt.
+            </p>
+          ) : (
+            <div className="space-y-0.5">
+              {instructionStashItems.map((inst) => (
+                <div
+                  key={inst.id}
+                  className="flex items-start justify-between gap-1 px-1 py-1 rounded hover:bg-[#333333] group select-none"
+                >
+                  <div className="flex flex-col gap-0.5 truncate min-w-0 flex-1">
+                    <span className="text-xs text-[#d4d4d4] truncate font-medium">
+                      {inst.name}
+                    </span>
+                    <span className="text-[10px] text-[#858585] line-clamp-2 leading-relaxed">
+                      {inst.content}
+                    </span>
+                  </div>
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onRemoveInstruction(inst.id);
+                    }}
+                    className="w-4 h-4 min-w-0 opacity-0 group-hover:opacity-100 text-[#858585] hover:text-red-400 shrink-0 mt-0.5"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
         </div>
