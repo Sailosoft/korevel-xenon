@@ -1,8 +1,8 @@
 import { OpenAI } from "openai";
-import type { IBGAIChapter, IBGAIOutline } from "./BGAI.interface";
-import { BGAI_OUTLINE_PROMPT, CHAPTER_WRITE_PROMPT } from "./BGAIManagementPrompt";
+import type { IBLAiChapter, IBLAiOutline } from "../core/BLInterface";
+import { BLAI_OUTLINE_PROMPT, CHAPTER_WRITE_PROMPT } from "./BLAIManagementPrompt";
 
-export default class BGAIManagement {
+export default class BLAIManagement {
   private readonly ai: OpenAI;
   model: string;
 
@@ -27,11 +27,11 @@ export default class BGAIManagement {
       messages: [
         {
           role: "system",
-          content: BGAI_OUTLINE_PROMPT.system(selectedAuthor, selectedSkills),
+          content: BLAI_OUTLINE_PROMPT.system(selectedAuthor, selectedSkills),
         },
         {
           role: "user",
-          content: BGAI_OUTLINE_PROMPT.user(selectedAuthor, selectedSkills),
+          content: BLAI_OUTLINE_PROMPT.user(selectedAuthor, selectedSkills),
         },
       ],
       temperature: 0.7,
@@ -50,10 +50,10 @@ export default class BGAIManagement {
     outline,
   }: {
     chapterNumber: number;
-    allChapters: IBGAIChapter[];
+    allChapters: IBLAiChapter[];
     selectedAuthor: string;
     selectedSkills: string;
-    outline: IBGAIOutline;
+    outline: IBLAiOutline;
   }): Promise<any> => {
     return await this.ai.chat.completions.create({
       model: this.model,

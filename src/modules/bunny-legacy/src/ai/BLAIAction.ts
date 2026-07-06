@@ -3,11 +3,10 @@
 import { HELIX_AI_PROVIDERS, HelixAISchemaService, HelixAIService } from "@/src/modules/helix";
 import type { HelixAIServiceType } from "@/src/modules/helix";
 import type {
-  IBGAIChapter,
-  IBGAIOutline,
-  IBGAIAuthor,
-} from "./BGAI.interface";
-
+  IBLAiChapter,
+  IBLAiOutline,
+  IBLAiAuthor,
+} from "../core/BLInterface";
 
 const defaultProvider = HELIX_AI_PROVIDERS.find(
   (p) => p.provider === "default",
@@ -24,12 +23,12 @@ const aiService: HelixAIServiceType = new HelixAIService({
   aiSchema: new HelixAISchemaService()
 });
 
-export async function bgaiGenerateChaptersAction(
+export async function blaiGenerateChaptersAction(
   title: string,
   description: string,
   authorName: string,
   skills: string[],
-): Promise<IBGAIChapter[]> {
+): Promise<IBLAiChapter[]> {
   const system = "You are an expert book architect. Always respond with valid JSON.";
   const user = `Generate chapters for the book:
 
@@ -44,13 +43,17 @@ Return ONLY a valid JSON array (no extra text) with this structure:
 ]`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
       model,
       temperature: 0.7,
+      response_format: { type: "json_object" },
     });
 
+    const content = response.choices[0]?.message?.content || "[]";
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     const jsonString = jsonMatch ? jsonMatch[0] : content;
 
@@ -62,8 +65,8 @@ Return ONLY a valid JSON array (no extra text) with this structure:
   }
 }
 
-export async function bgaiGenerateChapterContentAction(
-  chapter: IBGAIChapter,
+export async function blaiGenerateChapterContentAction(
+  chapter: IBLAiChapter,
   authorName: string,
   skills: string[],
   additionalPrompt: string = "",
@@ -86,30 +89,32 @@ Requirements:
 Return ONLY the Markdown content. No explanations, no JSON, no extra text.`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
       model,
       temperature: 0.8,
       maxToken: 4000,
     });
 
-    return content.trim();
+    return response.choices[0]?.message?.content?.trim() || "";
   } catch (error) {
     console.error("Chapter content generation failed:", error);
     throw new Error("Failed to generate chapter content");
   }
 }
 
-export async function bgaiGenerateChapterContentWithContextAction({
+export async function blaiGenerateChapterContentWithContextAction({
   book,
   chapter,
   author,
   skills,
 }: {
-  book: IBGAIOutline;
-  chapter: IBGAIChapter;
-  author: IBGAIAuthor;
+  book: IBLAiOutline;
+  chapter: IBLAiChapter;
+  author: IBLAiAuthor;
   skills: string[];
 }): Promise<string> {
   const currentChapter = book.chapters.find((ch) => ch.id === chapter.id);
@@ -149,14 +154,16 @@ ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChap
 - **Return ONLY THE CONTENT.** No conversational filler or meta-commentary`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
       model,
       temperature: 0.75,
     });
 
-    return content.trim();
+    return response.choices[0]?.message?.content?.trim() || "";
   } catch (error) {
     console.error(
       `Failed to generate content for chapter ${currentChapter.number}:`,
