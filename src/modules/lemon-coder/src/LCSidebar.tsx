@@ -16,10 +16,12 @@ import {
   Info,
   FilePlus,
   FolderPlus,
+  Star,
 } from "lucide-react";
-import type { LCFileTreeItem, LCSidebarIconButton } from "./LCInterface";
+import type { LCFileTreeItem, LCSidebarIconButton, LCFavoriteGroup, LCFavoriteItem } from "./LCInterface";
 import LCFileTree from "./LCFileTree";
 import LCSearchView from "./LCSearchView";
+import LCFavoriteView from "./LCFavoriteView";
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 500;
@@ -48,6 +50,31 @@ export interface LCSidebarProps {
   onDeleteItem?: (itemPath: string, isDirectory: boolean) => Promise<void>;
   /** Create a new item by copying an existing one */
   onCopyItem?: (sourcePath: string, destParentPath: string, newName: string) => Promise<void>;
+  // ── Favourites props ──────────────────────────────────────────────────────
+  /** Favourite groups for the current project */
+  favoriteGroups: LCFavoriteGroup[];
+  /** Favourite items keyed by group id */
+  favoriteItemsByGroup: Record<string, LCFavoriteItem[]>;
+  /** Add a file to favourites (optional groupId; if omitted uses Default) */
+  onAddToFavorites: (item: LCFileTreeItem, groupId?: string) => void;
+  /** Select a file by path from favourites */
+  onFavoriteSelectFile: (path: string) => void;
+  /** Add a favourite item to the context stash */
+  onFavoriteAddToStash: (path: string, name: string) => void;
+  /** Create a new favourite group */
+  onCreateFavoriteGroup: (name: string) => Promise<void>;
+  /** Rename a favourite group */
+  onRenameFavoriteGroup: (groupId: string, name: string) => Promise<void>;
+  /** Delete a favourite group and its items */
+  onDeleteFavoriteGroup: (groupId: string) => Promise<void>;
+  /** Remove a single favourite item */
+  onRemoveFavoriteItem: (itemId: string) => Promise<void>;
+  /** Move a favourite item to a different group */
+  onMoveFavoriteItem: (itemId: string, newGroupId: string) => Promise<void>;
+  /** Whether favourites are loading */
+  isFavoritesLoading?: boolean;
+  /** Add file content to the instruction stash */
+  onAddToInstructionStash?: (item: LCFileTreeItem) => void;
 }
 
 export default function LCSidebar({
@@ -65,6 +92,19 @@ export default function LCSidebar({
   onRenameItem,
   onDeleteItem,
   onCopyItem,
+  // Favourites props
+  favoriteGroups,
+  favoriteItemsByGroup,
+  onAddToFavorites,
+  onFavoriteSelectFile,
+  onFavoriteAddToStash,
+  onCreateFavoriteGroup,
+  onRenameFavoriteGroup,
+  onDeleteFavoriteGroup,
+  onRemoveFavoriteItem,
+  onMoveFavoriteItem,
+  isFavoritesLoading = false,
+  onAddToInstructionStash,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const [activeIcon, setActiveIcon] = useState<string>("files");
@@ -168,6 +208,20 @@ export default function LCSidebar({
       },
     },
     {
+      id: "favorites",
+      icon: <Star className="w-5 h-5" />,
+      label: "Favourites",
+      active: activeIcon === "favorites",
+      onClick: () => {
+        if (activeIcon === "favorites") {
+          setIsFileTreeVisible(!isFileTreeVisible);
+        } else {
+          setActiveIcon("favorites");
+          setIsFileTreeVisible(true);
+        }
+      },
+    },
+    {
       id: "extensions",
       icon: <Puzzle className="w-5 h-5" />,
       label: "Extensions",
@@ -229,7 +283,9 @@ export default function LCSidebar({
                   ? "Files"
                   : activeIcon === "search"
                     ? "Search"
-                    : "Extensions"}
+                    : activeIcon === "favorites"
+                      ? "Favourites"
+                      : "Extensions"}
               </span>
 
               {/* Actions for Files view */}
@@ -294,6 +350,8 @@ export default function LCSidebar({
                   onSelectFile={onSelectFile}
                   onToggleExpand={onToggleExpand}
                   onAddToStash={onAddToStash}
+                  onAddToFavorites={onAddToFavorites}
+                  favoriteGroups={favoriteGroups}
                   onNewItem={onNewItem}
                   isLoading={isFileTreeLoading}
                   showTooltip={showTooltip}
@@ -301,12 +359,27 @@ export default function LCSidebar({
                   onRenameItem={onRenameItem}
                   onDeleteItem={onDeleteItem}
                   onCopyItem={onCopyItem}
+                  onAddToInstructionStash={onAddToInstructionStash}
                 />
               )}
               {activeIcon === "search" && (
                 <LCSearchView
                   dirHandle={dirHandle}
                   onSelectFile={onSelectFile}
+                />
+              )}
+              {activeIcon === "favorites" && (
+                <LCFavoriteView
+                  groups={favoriteGroups}
+                  itemsByGroup={favoriteItemsByGroup}
+                  onSelectFile={onFavoriteSelectFile}
+                  onAddToStash={onFavoriteAddToStash}
+                  onCreateGroup={onCreateFavoriteGroup}
+                  onRenameGroup={onRenameFavoriteGroup}
+                  onDeleteGroup={onDeleteFavoriteGroup}
+                  onRemoveItem={onRemoveFavoriteItem}
+                  onMoveItem={onMoveFavoriteItem}
+                  isLoading={isFavoritesLoading}
                 />
               )}
               {activeIcon === "extensions" && (

@@ -15,6 +15,7 @@ import type {
   LCFileActionResult,
   LCExternalChangeStatus,
   LCDiffPreview,
+  LCInstructionStashItem,
 } from "./LCInterface";
 import { resolveFilePath } from "./LCInterface";
 import type { LCPromptModeType } from "./LCPromptMode";
@@ -63,6 +64,8 @@ export interface LCMainContentProps {
   onNewSession?: () => void;
   /** Clear the entire context stash */
   onClearStash?: () => Promise<void>;
+  /** Instruction stash items (included in the system prompt) */
+  instructionStashItems?: LCInstructionStashItem[];
 }
 
 export default function LCMainContent({
@@ -88,6 +91,7 @@ export default function LCMainContent({
   onAddToStash,
   onNewSession,
   onClearStash,
+  instructionStashItems,
 }: LCMainContentProps) {
   const chatViewRef = useRef<LCChatViewHandle>(null);
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
@@ -117,7 +121,20 @@ export default function LCMainContent({
             `[lemon-coder] Could not read original file for diff: ${filePath}`,
             err,
           );
-          // Continue with empty original — will show as all-new content
+          // If reading failed, the path may have an over-prefixing issue
+          // (e.g. "src/modules/..." when handle is at "src/"). Try stripping
+          // the first segment and re-reading.
+          if (filePath.includes("/")) {
+            const strippedPath = filePath.split("/").slice(1).join("/");
+            try {
+              originalContent = await onReadFileContent(strippedPath);
+              console.warn(
+                `[lemon-coder] Diff path corrected: "${filePath}" → "${strippedPath}"`,
+              );
+            } catch {
+              // Continue with empty original — will show as all-new content
+            }
+          }
         }
       }
 
@@ -245,6 +262,7 @@ export default function LCMainContent({
             sessionTitle={sessionTitle}
             onRemoveFromStash={onRemoveFromStash}
             onClearStash={onClearStash}
+            instructionStashItems={instructionStashItems}
           />
         ) : viewMode === "diff" && diffPreview ? (
           <LCFileView

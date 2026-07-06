@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Modal, Button } from "@heroui/react";
@@ -29,7 +29,11 @@ import type {
   LCDeepstashMergeStrategy,
   LCChatSession,
   LCFileActionResult,
+  LCFavoriteGroup,
+  LCFavoriteItem,
+  LCInstructionStashItem,
 } from "./LCInterface";
+import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
 
 interface LCStudioProps {
@@ -150,6 +154,140 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       [currentProject?.id],
     ) || [];
 
+  // ── Instruction Stash ─────────────────────────────────────────────────────
+
+  const instructionStashItems: LCInstructionStashItem[] =
+    useLiveQuery(() => lcDB.getInstructions()) || [];
+
+  const handleAddInstruction = useCallback(
+    async (name: string, content: string) => {
+      await lcDB.addInstruction(name, content);
+    },
+    [],
+  );
+
+  const handleRemoveInstruction = useCallback(
+    async (id: string) => {
+      await lcDB.removeInstruction(id);
+    },
+    [],
+  );
+
+  const handleClearInstructions = useCallback(async () => {
+    await lcDB.clearInstructions();
+  }, []);
+
+  /** Context menu action: add file content to instruction stash */
+  const handleAddToInstructionStash = useCallback(
+    async (item: LCFileTreeItem) => {
+      try {
+        const content = await readFileContent(item);
+        const name = `📄 ${item.name}`;
+        await lcDB.addInstruction(name, content);
+      } catch (err) {
+        console.error("[lemon-coder] Failed to add to instruction stash:", err);
+      }
+    },
+    [readFileContent],
+  );
+
+  // ── Favourites ────────────────────────────────────────────────────────────
+
+  const favoriteGroups: LCFavoriteGroup[] =
+    useLiveQuery(
+      () => (currentProject ? lcDB.getFavoriteGroups(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
+
+  const favoriteItems: LCFavoriteItem[] =
+    useLiveQuery(
+      () => (currentProject ? lcDB.getAllFavoriteItems(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
+
+  const favoriteItemsByGroup = useMemo(() => {
+    const map: Record<string, LCFavoriteItem[]> = {};
+    for (const item of favoriteItems) {
+      if (!map[item.groupId]) map[item.groupId] = [];
+      map[item.groupId].push(item);
+    }
+    return map;
+  }, [favoriteItems]);
+
+  const handleAddToFavorites = useCallback(
+    async (item: LCFileTreeItem, groupId?: string) => {
+      if (!currentProject) return;
+
+      if (groupId) {
+        await lcDB.addFavoriteItem(groupId, currentProject.id, item.name, item.path);
+        return;
+      }
+
+      let groups = favoriteGroups;
+      if (groups.length === 0) {
+        const defaultGroup = await lcDB.createFavoriteGroup(
+          currentProject.id,
+          DEFAULT_FAVORITE_GROUP_NAME,
+        );
+        groups = [defaultGroup];
+      }
+      await lcDB.addFavoriteItem(groups[0].id, currentProject.id, item.name, item.path);
+    },
+    [currentProject, favoriteGroups],
+  );
+
+  const handleFavoriteSelectFile = useCallback(
+    (path: string) => {
+      const item = findItemByPath(path);
+      if (item) selectFile(item);
+    },
+    [findItemByPath, selectFile],
+  );
+
+  const handleFavoriteAddToStash = useCallback(
+    async (path: string, name: string) => {
+      const treeItem: LCFileTreeItem = { id: `fav-${path}`, name, path, isDirectory: false };
+      await addToStash(treeItem);
+    },
+    [addToStash],
+  );
+
+  const handleCreateFavoriteGroup = useCallback(
+    async (name: string) => {
+      if (!currentProject) return;
+      await lcDB.createFavoriteGroup(currentProject.id, name);
+    },
+    [currentProject],
+  );
+
+  const handleRenameFavoriteGroup = useCallback(
+    async (groupId: string, name: string) => {
+      await lcDB.renameFavoriteGroup(groupId, name);
+    },
+    [],
+  );
+
+  const handleDeleteFavoriteGroup = useCallback(
+    async (groupId: string) => {
+      await lcDB.deleteFavoriteGroup(groupId);
+    },
+    [],
+  );
+
+  const handleRemoveFavoriteItem = useCallback(
+    async (itemId: string) => {
+      await lcDB.removeFavoriteItem(itemId);
+    },
+    [],
+  );
+
+  const handleMoveFavoriteItem = useCallback(
+    async (itemId: string, newGroupId: string) => {
+      await lcDB.moveFavoriteItem(itemId, newGroupId);
+    },
+    [],
+  );
+
   // Attempt to restore the directory handle when project loads.
   // Uses only queryPermission() (safe outside user gesture).
   // If permission is not already granted, stores the handle in a ref
@@ -228,6 +366,13 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     async (content: string) => {
       if (!currentProject) return;
 
+      // Build instruction stash context for the system prompt
+      const instructionStashContext = instructionStashItems.length > 0
+        ? instructionStashItems
+            .map((inst) => `--- Instruction: ${inst.name} ---\n${inst.content}`)
+            .join("\n\n")
+        : undefined;
+
       const sendOptions = {
         readFileContent: async (filePath: string) => {
           const item = findItemByPath(filePath);
@@ -249,6 +394,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         clearStash: async () => {
           await clearStash();
         },
+        // Pass instruction stash context to include in the system prompt
+        instructionStashContext,
       };
 
       if (!activeSession) {
@@ -261,16 +408,71 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         await sendMessage(content, stashItems, currentProject.name, sendOptions);
       }
     },
-    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash, clearStash],
+    [currentProject, activeSession, createChatSession, sendMessage, stashItems, findItemByPath, readFileContent, fileTree, flattenFileTree, addToStash, clearStash, instructionStashItems],
+  );
+
+  /**
+   * Resolve and normalise a file path against the known file tree to prevent
+   * path duplication bugs (e.g. writing to "src/src/..." when the directory
+   * handle is already scoped to "src/").
+   */
+  const resolveAndNormaliseFilePath = useCallback(
+    (action: LCFileActionResult): string => {
+      const rawPath = resolveFilePath(action);
+      const knownFilePaths = new Set(
+        flattenFileTree(fileTree)
+          .filter((f) => !f.isDirectory)
+          .map((f) => f.path),
+      );
+
+      // If the resolved path already exists in the file tree, use it directly
+      if (knownFilePaths.has(rawPath)) return rawPath;
+
+      // If the file action says the file already exists, but we couldn't find it
+      // at the resolved path, try stripping leading path segments to correct
+      // AI over-prefixing (e.g. "src/modules/hello/world.tsx" → "modules/hello/world.tsx")
+      if (action.ExistingFile) {
+        const segments = rawPath.split("/");
+        for (let i = 1; i < segments.length - 1; i++) {
+          const candidate = segments.slice(i).join("/");
+          if (knownFilePaths.has(candidate)) {
+            console.warn(
+              `[lemon-coder] Path corrected: "${rawPath}" → "${candidate}" (stripped leading "${segments.slice(0, i).join("/")}")`,
+            );
+            return candidate;
+          }
+        }
+      }
+
+      // For new files, also try the suffix-matching approach to prevent
+      // accidentally creating nested directories when the AI over-prefixed.
+      const segments = rawPath.split("/");
+      for (let i = 1; i < segments.length - 1; i++) {
+        const candidate = segments.slice(i).join("/");
+        // Only correct if the shorter path would place the file inside a
+        // directory that already exists in the tree.
+        const parentDir = segments.slice(i, -1).join("/");
+        const parentExists = flattenFileTree(fileTree).some(
+          (f) => f.isDirectory && f.path === parentDir,
+        );
+        if (parentExists) {
+          console.warn(
+            `[lemon-coder] Path corrected (new file): "${rawPath}" → "${candidate}" (parent dir "${parentDir}" exists in tree)`,
+          );
+          return candidate;
+        }
+      }
+
+      return rawPath;
+    },
+    [fileTree, flattenFileTree],
   );
 
   const handleApplyFileChanges = useCallback(
     async (fileActions: LCFileActionResult[]) => {
       for (const action of fileActions) {
         try {
-          const filePath = action.FileDirectory
-            ? `${action.FileDirectory}/${action.FileName}`.replace(/\/+/g, "/")
-            : action.FileName;
+          const filePath = resolveAndNormaliseFilePath(action);
 
           await writeFile(filePath, action.Content);
 
@@ -296,7 +498,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       // Refresh the file tree so new files appear immediately
       await refreshFileTree();
     },
-    [writeFile, refreshFileTree],
+    [writeFile, refreshFileTree, resolveAndNormaliseFilePath],
   );
 
   const handleKeepOnlyFolder = useCallback(
@@ -568,6 +770,19 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           onRenameItem={renameItem}
           onDeleteItem={deleteItem}
           onCopyItem={handleCopyItem}
+          // Favourites props
+          favoriteGroups={favoriteGroups}
+          favoriteItemsByGroup={favoriteItemsByGroup}
+          onAddToFavorites={handleAddToFavorites}
+          onFavoriteSelectFile={handleFavoriteSelectFile}
+          onFavoriteAddToStash={handleFavoriteAddToStash}
+          onCreateFavoriteGroup={handleCreateFavoriteGroup}
+          onRenameFavoriteGroup={handleRenameFavoriteGroup}
+          onDeleteFavoriteGroup={handleDeleteFavoriteGroup}
+          onRemoveFavoriteItem={handleRemoveFavoriteItem}
+          onMoveFavoriteItem={handleMoveFavoriteItem}
+          isFavoritesLoading={false}
+          onAddToInstructionStash={handleAddToInstructionStash}
         />
 
         <LCMainContent
@@ -620,6 +835,10 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           onApplyDeepstash={handleApplyDeepstash}
           onDeleteDeepstash={handleDeleteDeepstash}
           onClearDeepstashes={handleClearDeepstashes}
+          instructionStashItems={instructionStashItems}
+          onAddInstruction={handleAddInstruction}
+          onRemoveInstruction={handleRemoveInstruction}
+          onClearInstructions={handleClearInstructions}
         />
       </div>
 

@@ -15,8 +15,12 @@ import {
   Scissors,
   ClipboardPaste,
   AlertTriangle,
+  Star,
+  File,
+  Folder,
+  BookOpenText,
 } from "lucide-react";
-import type { LCFileTreeItem } from "./LCInterface";
+import type { LCFileTreeItem, LCFavoriteGroup } from "./LCInterface";
 import type { LCContextMenuAction } from "./LCContextMenu";
 
 // ── In-memory clipboard for copy/paste ────────────────────────────────────────
@@ -60,6 +64,11 @@ export function useLCFileTreeContextMenu(
   onDeleteItem?: (itemPath: string, isDirectory: boolean) => Promise<void>,
   onAddToStash?: (item: LCFileTreeItem) => void,
   onCopyItem?: (sourcePath: string, destParentPath: string, newName: string) => Promise<void>,
+  onAddToFavorites?: (item: LCFileTreeItem, groupId?: string) => void,
+  favoriteGroups?: LCFavoriteGroup[],
+  onNewItem?: (parentPath: string, type: "file" | "directory") => void,
+  /** Add file content to the instruction stash (reads file content and stores it) */
+  onAddToInstructionStash?: (item: LCFileTreeItem) => void,
 ): UseLCFileTreeContextMenuReturn {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -183,6 +192,28 @@ export function useLCFileTreeContextMenu(
     (item: LCFileTreeItem): LCContextMenuAction[] => {
       const actions: LCContextMenuAction[] = [];
 
+      // "New File" / "New Folder" — only for directories
+      if (item.isDirectory) {
+        actions.push({
+          id: "new-file",
+          label: "New File",
+          icon: <File className="w-3.5 h-3.5" />,
+          onClick: () => {
+            setContextMenu(null);
+            onNewItem?.(item.path, "file");
+          },
+        });
+        actions.push({
+          id: "new-folder",
+          label: "New Folder",
+          icon: <Folder className="w-3.5 h-3.5" />,
+          onClick: () => {
+            setContextMenu(null);
+            onNewItem?.(item.path, "directory");
+          },
+        });
+      }
+
       actions.push({
         id: "rename",
         label: "Rename",
@@ -207,6 +238,49 @@ export function useLCFileTreeContextMenu(
           onAddToStash?.(item);
         },
       });
+
+      // "Add to Instruction Stash" — reads file content and stores as instruction
+      if (!item.isDirectory && onAddToInstructionStash) {
+        actions.push({
+          id: "add-to-instruction-stash",
+          label: "Add to Instruction Stash",
+          icon: <BookOpenText className="w-3.5 h-3.5" />,
+          onClick: () => {
+            setContextMenu(null);
+            onAddToInstructionStash(item);
+          },
+        });
+      }
+
+      // "Add to Favourites" — only for files, with per-group sub-items if multiple groups
+      if (!item.isDirectory && onAddToFavorites) {
+        const groups = favoriteGroups || [];
+        if (groups.length <= 1) {
+          // Single item — add to Default
+          actions.push({
+            id: "add-to-favorites",
+            label: "Add to Favourites",
+            icon: <Star className="w-3.5 h-3.5" />,
+            onClick: () => {
+              setContextMenu(null);
+              onAddToFavorites(item, groups[0]?.id);
+            },
+          });
+        } else {
+          // Multiple groups — show each as "Add to {group-name}"
+            for (const group of groups) {
+              actions.push({
+                id: `add-to-favorites-${group.id}`,
+                label: `Add to ${group.name}`,
+                icon: <Star className="w-3.5 h-3.5" />,
+                onClick: () => {
+                  setContextMenu(null);
+                  onAddToFavorites(item, group.id);
+                },
+              });
+            }
+        }
+      }
 
       actions.push({
         id: "copy",
@@ -236,7 +310,7 @@ export function useLCFileTreeContextMenu(
 
       return actions;
     },
-    [handleRenameStart, handleDelete, onAddToStash, handleCopy, handlePaste],
+    [handleRenameStart, handleDelete, onAddToStash, onAddToFavorites, handleCopy, handlePaste, favoriteGroups, onNewItem, onAddToInstructionStash],
   );
 
   return {

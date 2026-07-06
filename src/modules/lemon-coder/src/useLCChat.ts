@@ -101,6 +101,8 @@ export interface UseLCChatReturn {
       onFilesIdentified?: (filePaths: string[]) => void;
       /** Clear the context stash after the message is sent (non-Code modes) */
       clearStash?: () => Promise<void>;
+      /** Instruction stash items to include in the system prompt */
+      instructionStashContext?: string;
     },
   ) => Promise<void>;
   applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
@@ -240,6 +242,7 @@ export function useLCChat(): UseLCChatReturn {
         fileTree?: Array<{ path: string; isDirectory: boolean }>;
         onFilesIdentified?: (filePaths: string[]) => void;
         clearStash?: () => Promise<void>;
+        instructionStashContext?: string;
       },
     ) => {
       // Use the session override if provided (fixes stale-closure issue on first send),
@@ -305,6 +308,11 @@ export function useLCChat(): UseLCChatReturn {
           ? `\n### Session: ${session.title}\n`
           : "";
 
+        // ── Instruction stash (user-authored instructions for the AI) ──────
+        const instructionContext = options?.instructionStashContext
+          ? `\n### User Instructions (from Instruction Stash):\n${options.instructionStashContext}\n`
+          : "";
+
         // ── Build the prompt for the AI using the selected mode ────────────
         const promptBuilders: Record<LCPromptModeType, (p: typeof promptParams) => string> = {
           agent: buildAgentPrompt,
@@ -321,7 +329,7 @@ export function useLCChat(): UseLCChatReturn {
         const basePrompt =
           promptBuilders[currentMode]?.(promptParams as any) ??
           buildAgentPrompt(promptParams as any);
-        const prompt = sessionContext + basePrompt;
+        const prompt = sessionContext + instructionContext + basePrompt;
 
         // Read AI settings from Dexie and forward to server action
         const settings = await lcDB.aiSettings.get("default");

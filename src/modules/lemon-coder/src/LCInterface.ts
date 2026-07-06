@@ -186,6 +186,13 @@ export function resolveFilePath(action: {
   FileName = FileName.replace(/\\/g, "/");
   FileDirectory = (FileDirectory ?? "").replace(/\\/g, "/");
 
+  // Strip leading slashes from both parts (AI may return "/src/hello" or "/world.tsx")
+  FileDirectory = FileDirectory.replace(/^\/+/, "");
+  FileName = FileName.replace(/^\/+/, "");
+
+  // Strip trailing slashes from FileDirectory
+  FileDirectory = FileDirectory.replace(/\/+$/, "");
+
   // Case A: FileDirectory already contains the full path including FileName
   if (FileDirectory && FileDirectory.endsWith(`/${FileName}`)) {
     return FileDirectory.replace(/\/+/g, "/");
@@ -218,6 +225,29 @@ export function resolveFilePath(action: {
   return `${FileDirectory}/${FileName}`.replace(/\/+/g, "/");
 }
 
+// ── Favorite Groups & Items ──────────────────────────────────────────────────
+
+/** A group that organises favourite files */
+export interface LCFavoriteGroup {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+}
+
+/** A single file marked as favourite, belonging to a group */
+export interface LCFavoriteItem {
+  id: string;
+  groupId: string;
+  projectId: string;
+  name: string;
+  path: string;
+  addedAt: Date;
+}
+
+/** The default group name used when no group is selected */
+export const DEFAULT_FAVORITE_GROUP_NAME = "Default";
+
 // ── Deepstash ─────────────────────────────────────────────────────────────────
 
 /**
@@ -241,6 +271,14 @@ export interface LCDeepstashItem {
   isDirectory: boolean;
   /** If this item is a child of a folder group, references the parent item's id */
   parentId?: string;
+  addedAt: Date;
+}
+
+/** A single instruction snippet stored in the instruction stash */
+export interface LCInstructionStashItem {
+  id: string;
+  name: string;
+  content: string;
   addedAt: Date;
 }
 

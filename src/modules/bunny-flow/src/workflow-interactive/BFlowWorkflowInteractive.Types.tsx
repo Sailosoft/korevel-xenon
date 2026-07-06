@@ -53,6 +53,12 @@ export interface BFlowInteractiveSkipCondition {
 export interface BFlowInteractiveStepInput {
   name: string;
   source: string;
+  /**
+   * UI mode for selecting the source value:
+   * - "vars": pick from workflow variables → source becomes "vars.{name}"
+   * - "steps": cascading select job → step → output → source becomes "{job}.{step}.outputs.{name}"
+   */
+  inputMode?: "vars" | "steps";
 }
 
 export interface BFlowInteractiveStepOutput {
@@ -150,3 +156,8 @@ export const CONDITION_OPTIONS = [
   { label: ">=", value: ">=" },
   { label: "<=", value: "<=" },
 ];
+
+export const INPUT_MODE_OPTIONS = [
+  { label: "Variable (vars)", value: "vars" },
+  { label: "Step Output", value: "steps" },
+] as const;

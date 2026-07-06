@@ -12,6 +12,9 @@ import type {
   LCContextStashItem,
   LCDeepstash,
   LCDeepstashItem,
+  LCFavoriteGroup,
+  LCFavoriteItem,
+  LCInstructionStashItem,
 } from "./LCInterface";
 import type { HelixAISettings } from "@/src/modules/helix";
 
@@ -24,9 +27,43 @@ export class LCDatabase extends Dexie {
   aiSettings!: Table<HelixAISettings, string>;
   deepstashes!: Table<LCDeepstash, string>;
   deepstashItems!: Table<LCDeepstashItem, string>;
+  favoriteGroups!: Table<LCFavoriteGroup, string>;
+  favoriteItems!: Table<LCFavoriteItem, string>;
+  instructionStash!: Table<LCInstructionStashItem, string>;
 
   constructor() {
     super("lemon-coder");
+
+    // IMPORTANT: Version bumps MUST be sequential. Never remove old version definitions.
+    // If you add a new table, create the NEXT version number with the new table included.
+    // Existing databases will only create new tables when a higher version is declared.
+
+    this.version(6).stores({
+      projects: "id, name, lastOpened",
+      projectHandles: "projectId",
+      chatSessions: "id, projectId, title, createdAt",
+      chatMessages: "id, role, timestamp",
+      contextStash: "id, path, addedAt",
+      aiSettings: "key, provider, model",
+      deepstashes: "id, projectId, name, createdAt",
+      deepstashItems: "id, deepstashId, path",
+      favoriteGroups: "id, projectId, name, createdAt",
+      favoriteItems: "id, groupId, projectId, path, addedAt",
+      instructionStash: "id, name, addedAt",
+    });
+
+    this.version(5).stores({
+      projects: "id, name, lastOpened",
+      projectHandles: "projectId",
+      chatSessions: "id, projectId, title, createdAt",
+      chatMessages: "id, role, timestamp",
+      contextStash: "id, path, addedAt",
+      aiSettings: "key, provider, model",
+      deepstashes: "id, projectId, name, createdAt",
+      deepstashItems: "id, deepstashId, path",
+      favoriteGroups: "id, projectId, name, createdAt",
+      favoriteItems: "id, groupId, projectId, path, addedAt",
+    });
 
     this.version(4).stores({
       projects: "id, name, lastOpened",
@@ -439,6 +476,159 @@ export class LCDatabase extends Dexie {
     if (ids.length > 0) {
       await this.deepstashes.bulkDelete(ids);
     }
+  }
+
+  // ── Favorite Groups helpers ─────────────────────────────────────────────────
+
+  /**
+   * Create a new favourite group.
+   */
+  async createFavoriteGroup(projectId: string, name: string): Promise<LCFavoriteGroup> {
+    const group: LCFavoriteGroup = {
+      id: uuidv4(),
+      projectId,
+      name,
+      createdAt: new Date(),
+    };
+    await this.favoriteGroups.add(group);
+    return group;
+  }
+
+  /**
+   * Get all favourite groups for a project, oldest first.
+   */
+  async getFavoriteGroups(projectId: string): Promise<LCFavoriteGroup[]> {
+    return this.favoriteGroups
+      .where("projectId")
+      .equals(projectId)
+      .sortBy("createdAt");
+  }
+
+  /**
+   * Rename a favourite group.
+   */
+  async renameFavoriteGroup(groupId: string, name: string): Promise<void> {
+    await this.favoriteGroups.update(groupId, { name });
+  }
+
+  /**
+   * Delete a favourite group and all its items.
+   */
+  async deleteFavoriteGroup(groupId: string): Promise<void> {
+    // Remove all items belonging to this group
+    const items = await this.favoriteItems
+      .where("groupId")
+      .equals(groupId)
+      .toArray();
+    const itemIds = items.map((i) => i.id);
+    if (itemIds.length > 0) {
+      await this.favoriteItems.bulkDelete(itemIds);
+    }
+    // Remove the group record
+    await this.favoriteGroups.delete(groupId);
+  }
+
+  // ── Favorite Items helpers ─────────────────────────────────────────────────
+
+  /**
+   * Add a file to favourites. If it already exists in the same group, skip.
+   */
+  async addFavoriteItem(
+    groupId: string,
+    projectId: string,
+    name: string,
+    path: string,
+  ): Promise<LCFavoriteItem | null> {
+    // Check for duplicates within the same group
+    const existing = await this.favoriteItems
+      .where({ groupId, path })
+      .first();
+    if (existing) return null;
+
+    const item: LCFavoriteItem = {
+      id: uuidv4(),
+      groupId,
+      projectId,
+      name,
+      path,
+      addedAt: new Date(),
+    };
+    await this.favoriteItems.add(item);
+    return item;
+  }
+
+  /**
+   * Remove a favourite item by id.
+   */
+  async removeFavoriteItem(id: string): Promise<void> {
+    await this.favoriteItems.delete(id);
+  }
+
+  /**
+   * Get all favourite items for a group, oldest first.
+   */
+  async getFavoriteItemsByGroup(groupId: string): Promise<LCFavoriteItem[]> {
+    return this.favoriteItems
+      .where("groupId")
+      .equals(groupId)
+      .sortBy("addedAt");
+  }
+
+  /**
+   * Get all favourite items for a project, grouped by group id.
+   */
+  async getAllFavoriteItems(projectId: string): Promise<LCFavoriteItem[]> {
+    return this.favoriteItems
+      .where("projectId")
+      .equals(projectId)
+      .sortBy("addedAt");
+  }
+
+  /**
+   * Move a favourite item to a different group.
+   */
+  async moveFavoriteItem(itemId: string, newGroupId: string): Promise<void> {
+    await this.favoriteItems.update(itemId, { groupId: newGroupId });
+  }
+
+  // ── Instruction Stash helpers ──────────────────────────────────────────────
+
+  /**
+   * Add an instruction snippet to the instruction stash.
+   */
+  async addInstruction(name: string, content: string): Promise<LCInstructionStashItem> {
+    const item: LCInstructionStashItem = {
+      id: uuidv4(),
+      name,
+      content,
+      addedAt: new Date(),
+    };
+    await this.instructionStash.add(item);
+    return item;
+  }
+
+  /**
+   * Get all instruction stash items, most recent first.
+   */
+  async getInstructions(): Promise<LCInstructionStashItem[]> {
+    return this.instructionStash
+      .orderBy("addedAt")
+      .reverse()
+      .toArray();
+  }
+
+  /**
+   * Remove an instruction from the stash by id.
+   */
+  async removeInstruction(id: string): Promise<void> {
+    await this.instructionStash.delete(id);
+  }
+
+  /**
+   * Clear all instruction stash items.
+   */
+  async clearInstructions(): Promise<void> {
+    await this.instructionStash.clear();
   }
 }
 

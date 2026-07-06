@@ -79,10 +79,24 @@ export function parseBflowInteractive(
                       : [],
                     inputs: Array.isArray(s.inputs)
                       ? (s.inputs as Record<string, unknown>[]).map(
-                          (i: Record<string, unknown>) => ({
-                            name: (i.name as string) ?? "",
-                            source: (i.source as string) ?? "",
-                          }),
+                          (i: Record<string, unknown>) => {
+                            const source = (i.source as string) ?? "";
+                            // Infer inputMode from the source format.
+                            // Only "vars" and "steps" are selectable modes now.
+                            let inputMode: "vars" | "steps" | undefined;
+                            if (source.startsWith("vars.")) {
+                              inputMode = "vars";
+                            } else if (
+                              /^[^.]+\.([^.]+)\.outputs\.[^.]+$/.test(source)
+                            ) {
+                              inputMode = "steps";
+                            }
+                            return {
+                              name: (i.name as string) ?? "",
+                              source,
+                              inputMode,
+                            };
+                          },
                         )
                       : [],
                     output: Array.isArray(s.output)
