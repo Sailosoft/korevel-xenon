@@ -29,8 +29,10 @@ export async function blaiGenerateChaptersAction(
   authorName: string,
   skills: string[],
 ): Promise<IBLAiChapter[]> {
-  const system = "You are an expert book architect. Always respond with valid JSON.";
-  const user = `Generate chapters for the book:
+
+  const user = `
+You are an expert book architect. Generate unknown number of chapters for the book:
+
 
 Title: "${title}"
 Description: ${description}
@@ -45,7 +47,6 @@ Return ONLY a valid JSON array (no extra text) with this structure:
   try {
     const response = await aiService.doChatCompletion({
       messages: [
-        { role: "system", content: system },
         { role: "user", content: user },
       ],
       model,
@@ -71,8 +72,9 @@ export async function blaiGenerateChapterContentAction(
   skills: string[],
   additionalPrompt: string = "",
 ): Promise<string> {
-  const system = `You are ${authorName}, a skilled author with expertise in: ${skills.join(", ") || "creative writing"}.`;
-  const user = `Write the **full content** for this chapter in clean, engaging Markdown format.
+  const user = `
+  You are ${authorName}, a skilled author with expertise in: ${skills.join(", ") || "creative writing"}.
+  Write the **full content** for this chapter in clean, engaging Markdown format.
 
 Chapter ${chapter.number}: ${chapter.title}
 
@@ -91,7 +93,6 @@ Return ONLY the Markdown content. No explanations, no JSON, no extra text.`;
   try {
     const response = await aiService.doChatCompletion({
       messages: [
-        { role: "system", content: system },
         { role: "user", content: user },
       ],
       model,
