@@ -8,13 +8,25 @@
 "use client";
 
 import React from "react";
-import { Card, Button, Input, Badge, Separator } from "@heroui/react";
+import {
+  Card,
+  Button,
+  Input,
+  TextArea,
+  Separator,
+  Select,
+  ListBox,
+  Chip,
+} from "@heroui/react";
 import {
   UserPlus,
   Plus,
   Trash2,
   Save,
   Loader2,
+  ChevronDown,
+  Check,
+  X,
 } from "lucide-react";
 import type { IBLAuthor } from "../core/BLEntity";
 
@@ -66,18 +78,44 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
           <h2 className="text-lg font-semibold">Authors</h2>
         </Card.Header>
         <Card.Content>
-          <select
-            className="w-full p-2 border border-default-200 rounded-lg bg-background text-foreground text-sm"
-            value={selectedAuthorId}
-            onChange={(e) => onSelectAuthor(e.target.value)}
+          <Select
+            aria-label="Select an author"
+            className="w-full"
+            placeholder="Select an author..."
+            selectedKey={selectedAuthorId}
+            onSelectionChange={(key) => onSelectAuthor(key as string)}
           >
-            <option value="new">+ New Author</option>
-            {authors.map((auth) => (
-              <option key={auth.id?.toString() || ""} value={auth.id?.toString() || ""}>
-                {auth.name}
-              </option>
-            ))}
-          </select>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator>
+                <ChevronDown className="size-4" />
+              </Select.Indicator>
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item id="new" textValue="+ New Author">
+                  <span className="flex items-center gap-2 text-primary">
+                    <UserPlus className="size-4" />
+                    + New Author
+                  </span>
+                </ListBox.Item>
+                {authors.map((auth) => (
+                  <ListBox.Item
+                    key={auth.id?.toString() || ""}
+                    id={auth.id?.toString() || ""}
+                    textValue={auth.name || ""}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>{auth.name}</span>
+                      {selectedAuthorId === auth.id?.toString() && (
+                        <Check className="size-4 text-primary" />
+                      )}
+                    </div>
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
         </Card.Content>
       </Card>
 
@@ -92,6 +130,7 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium">Name</label>
             <Input
+              aria-label="Author name"
               value={authorName}
               onChange={(e) => onAuthorNameChange(e.target.value)}
               placeholder="Author name"
@@ -99,10 +138,12 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium">Bio</label>
-            <Input
+            <TextArea
+              aria-label="Author biography"
               value={authorDesc}
               onChange={(e) => onAuthorDescChange(e.target.value)}
               placeholder="Brief biography"
+              rows={3}
             />
           </div>
           <Separator />
@@ -110,12 +151,13 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
             <label className="text-sm font-medium">Skills</label>
             <div className="flex gap-2">
               <Input
+                aria-label="New skill name"
                 value={newSkillName}
                 onChange={(e) => onNewSkillNameChange(e.target.value)}
                 placeholder="e.g. Fantasy Writing"
                 onKeyDown={handleKeyDown}
               />
-              <Button isIconOnly variant="secondary" onPress={onAddSkill}>
+              <Button isIconOnly variant="secondary" onPress={onAddSkill} aria-label="Add skill">
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
@@ -126,16 +168,18 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
                 </span>
               )}
               {skills.map((s, i) => (
-                <Badge key={i} variant="soft">
-                  {s.name}
-                  <button
-                    onClick={() => onRemoveSkill(i)}
-                    className="ml-1.5 hover:text-danger transition-colors"
-                    aria-label={`Remove ${s.name}`}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </Badge>
+                <Chip key={i} variant="soft">
+                  <span className="flex items-center gap-1">
+                    {s.name}
+                    <button
+                      onClick={() => onRemoveSkill(i)}
+                      className="ml-0.5 hover:text-danger transition-colors rounded-full focus:outline-none focus:ring-2 focus:ring-danger/30"
+                      aria-label={`Remove ${s.name}`}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                </Chip>
               ))}
             </div>
           </div>

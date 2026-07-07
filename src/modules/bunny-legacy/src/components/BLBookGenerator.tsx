@@ -8,8 +8,9 @@
 "use client";
 
 import React from "react";
-import { Card, Button, Input, TextArea, Checkbox } from "@heroui/react";
+import { Card, Button, Input, Checkbox } from "@heroui/react";
 import { Sparkles, BookOpen, Loader2 } from "lucide-react";
+import BLEditor from "./BLEditor";
 
 export interface IBLBookGeneratorProps {
   bookTitle: string;
@@ -54,6 +55,7 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">Book Title</label>
           <Input
+            aria-label="Book title"
             placeholder="e.g. The Secrets of TypeScript..."
             value={bookTitle}
             onChange={(e) => onBookTitleChange(e.target.value)}
@@ -61,20 +63,23 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">Concept / Description</label>
-          <TextArea
-            placeholder="What is this book about? Describe the concept, target audience, and key themes..."
-            value={bookDesc}
-            onChange={(e) => onBookDescChange(e.target.value)}
-            className="min-h-[100px]"
+          <BLEditor
+            markdown={bookDesc}
+            onChange={onBookDescChange}
+            minHeight="150px"
           />
         </div>
         <Checkbox
           isSelected={isBulkGenerating}
           onChange={(value) => onBulkGeneratingChange(value)}
+          aria-label="Automatically generate all chapters in sequence"
         >
-          <span className="text-sm text-default-600">
+          <Checkbox.Content>
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
             Automatically generate all chapters in sequence
-          </span>
+          </Checkbox.Content>
         </Checkbox>
       </Card.Content>
       <Card.Footer>

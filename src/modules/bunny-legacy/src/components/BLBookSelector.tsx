@@ -8,8 +8,8 @@
 "use client";
 
 import React from "react";
-import { Card } from "@heroui/react";
-import { BookText } from "lucide-react";
+import { Card, Select, ListBox } from "@heroui/react";
+import { BookText, ChevronDown, BookMarked } from "lucide-react";
 import type { IBLGeneration } from "../core/BLEntity";
 
 export interface IBLBookSelectorProps {
@@ -35,21 +35,43 @@ export const BLBookSelector: React.FC<IBLBookSelectorProps> = ({
         </p>
       </Card.Header>
       <Card.Content>
-        <select
-          className="w-full p-2 border border-default-200 rounded-lg bg-background text-foreground text-sm"
-          value={selectedGenerationId?.toString() || ""}
-          onChange={(e) => {
-            const val = e.target.value;
-            onSelectGeneration(val ? parseInt(val) : null);
+        <Select
+          aria-label="Select a saved book"
+          className="w-full"
+          placeholder="Select a saved book..."
+          selectedKey={selectedGenerationId}
+          onSelectionChange={(key) => {
+            onSelectGeneration(key as number | null);
           }}
         >
-          <option value="">Select a saved book...</option>
-          {generations.map((gen) => (
-            <option key={gen.id?.toString() || ""} value={gen.id?.toString() || ""}>
-              {gen.title}
-            </option>
-          ))}
-        </select>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator>
+              <ChevronDown className="size-4" />
+            </Select.Indicator>
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {generations.length === 0 && (
+                <ListBox.Item id="__empty" textValue="No books yet" isDisabled>
+                  <span className="text-default-400 italic">No saved books yet</span>
+                </ListBox.Item>
+              )}
+              {generations.map((gen) => (
+                <ListBox.Item
+                  key={gen.id?.toString() || ""}
+                  id={gen.id}
+                  textValue={gen.title || ""}
+                >
+                  <div className="flex items-center gap-2">
+                    <BookMarked className="size-4 text-default-500" />
+                    <span>{gen.title}</span>
+                  </div>
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </Card.Content>
     </Card>
   );
