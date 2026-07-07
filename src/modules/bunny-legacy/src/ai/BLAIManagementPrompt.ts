@@ -1,6 +1,6 @@
-import { IBGAIChapter, IBGAIOutline } from "./BGAI.interface";
+import type { IBLAiChapter, IBLAiOutline } from "../core/BLInterface";
 
-export const BGAI_OUTLINE_PROMPT = {
+export const BLAI_OUTLINE_PROMPT = {
   system: (selectedAuthor: string, selectedSkills: string) => `You are an elite book architect and planner.
 The user has already chosen:
 - Author persona: "${selectedAuthor}" (this is the exact voice, expertise, and tone the entire book must be written in)
@@ -40,8 +40,8 @@ export const CHAPTER_WRITE_PROMPT = {
   system: (
     selectedAuthor: string,
     selectedSkills: string,
-    outline: IBGAIOutline,
-    allChapters: IBGAIChapter[],
+    outline: IBLAiOutline,
+    allChapters: IBLAiChapter[],
     chapterNumber: number
   ) => {
     const currentChapter = allChapters.find((c) => c.number === chapterNumber);

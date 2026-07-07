@@ -1,0 +1,13 @@
+/* ─── Bunny Legacy Teal Design System ──────────────────────────── */
+/* Primary: lab(44.7267% -21.5987 -26.118) ≈ #007399 deep steel-teal */
+
+:root {
+  --teal: #007399;
+  --teal-light: #33a6cc;
+  --teal-lighter: #80ccdf;
+  --teal-dark: #00557a;
+  --teal-darker: #003d59;
+  --teal-soft: #e6f4f8;
+  --teal-subtle: #f0f8fb;
+  --teal-glow: 0 0 20px #00739926;
+}

@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import type {
+  ChatCompletion,
+  ChatCompletionMessageParam,
+} from "openai/resources/chat/completions";
+import type {
   HelixAIOption,
   HelixAIProviderConfig,
   HelixTemperaturePreset,
@@ -170,6 +174,45 @@ export default class HelixAIService implements HelixAIServiceType {
       return response.choices[0]?.message?.content || "";
     } catch (error) {
       throw new Error(`AI Text Generation failed: ${error}`);
+    }
+  }
+
+  async doChatCompletion(option: {
+    messages: ChatCompletionMessageParam[];
+    model?: string;
+    provider?: string;
+    aiConfig?: HelixAIOption;
+    temperature?: number;
+    type?: HelixTemperaturePreset;
+    maxToken?: number;
+    response_format?: { type: "json_object" };
+  }): Promise<ChatCompletion> {
+    const resolved = resolveConfig(
+      { provider: this.provider, configs: this.providerConfigs },
+      option.aiConfig,
+    );
+    const client =
+      option.aiConfig || option.provider
+        ? new OpenAI({
+            apiKey: resolved.apiKey,
+            baseURL: resolved.endpoint,
+          })
+        : this.ai;
+    const effectiveModel =
+      option.aiConfig?.model || option.model || resolved.model;
+
+    try {
+      const response = await client.chat.completions.create({
+        model: effectiveModel,
+        messages: option.messages,
+        temperature: option.temperature ?? 0.7,
+        max_tokens: option.maxToken ?? this.getMaxTokens(),
+        ...(option.response_format ? { response_format: option.response_format } : {}),
+      });
+
+      return response;
+    } catch (error) {
+      throw new Error(`AI ChatCompletion failed: ${error}`);
     }
   }
 

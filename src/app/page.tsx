@@ -1,6 +1,6 @@
 "use client";
 
-import { BookA, RabbitIcon, GitBranch, Brain } from "lucide-react";
+import { BookA, RabbitIcon, GitBranch, Brain, Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 
@@ -336,6 +336,15 @@ export default function AppPage() {
       category: "AI",
       latency: "-",
       icon: <Brain />,
+    },
+    {
+      id: 8,
+      name: "BunnyLegacy",
+      url: "/modules/bunny-legacy",
+      status: "Active",
+      category: "AI",
+      latency: "-",
+      icon: <Bookmark />,
     },
     {
       id: 8,

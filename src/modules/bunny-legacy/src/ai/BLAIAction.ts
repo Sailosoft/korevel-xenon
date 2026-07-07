@@ -1,18 +1,17 @@
 "use server";
 
 import { HELIX_AI_PROVIDERS, HelixAISchemaService, HelixAIService } from "@/src/modules/helix";
-import type { HelixAIServiceType } from "@/src/modules/helix";
+import type { HelixAIServiceType, HelixAIOption } from "@/src/modules/helix";
 import type {
-  IBGAIChapter,
-  IBGAIOutline,
-  IBGAIAuthor,
-} from "./BGAI.interface";
-
+  IBLAiChapter,
+  IBLAiOutline,
+  IBLAiAuthor,
+} from "../core/BLInterface";
 
 const defaultProvider = HELIX_AI_PROVIDERS.find(
   (p) => p.provider === "default",
 )!;
-const model = defaultProvider.model;
+const defaultModel = defaultProvider.model;
 
 const aiService: HelixAIServiceType = new HelixAIService({
   config: {
@@ -24,14 +23,17 @@ const aiService: HelixAIServiceType = new HelixAIService({
   aiSchema: new HelixAISchemaService()
 });
 
-export async function bgaiGenerateChaptersAction(
+export async function blaiGenerateChaptersAction(
   title: string,
   description: string,
   authorName: string,
   skills: string[],
-): Promise<IBGAIChapter[]> {
-  const system = "You are an expert book architect. Always respond with valid JSON.";
-  const user = `Generate chapters for the book:
+  aiConfig?: HelixAIOption,
+): Promise<IBLAiChapter[]> {
+
+  const user = `
+You are an expert book architect. Generate unknown number of chapters for the book:
+
 
 Title: "${title}"
 Description: ${description}
@@ -44,13 +46,17 @@ Return ONLY a valid JSON array (no extra text) with this structure:
 ]`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
-      model,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "user", content: user },
+      ],
+      model: aiConfig?.model || defaultModel,
+      aiConfig,
       temperature: 0.7,
+      response_format: { type: "json_object" },
     });
 
+    const content = response.choices[0]?.message?.content || "[]";
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     const jsonString = jsonMatch ? jsonMatch[0] : content;
 
@@ -62,14 +68,15 @@ Return ONLY a valid JSON array (no extra text) with this structure:
   }
 }
 
-export async function bgaiGenerateChapterContentAction(
-  chapter: IBGAIChapter,
+export async function blaiGenerateChapterContentAction(
+  chapter: IBLAiChapter,
   authorName: string,
   skills: string[],
   additionalPrompt: string = "",
 ): Promise<string> {
-  const system = `You are ${authorName}, a skilled author with expertise in: ${skills.join(", ") || "creative writing"}.`;
-  const user = `Write the **full content** for this chapter in clean, engaging Markdown format.
+  const user = `
+  You are ${authorName}, a skilled author with expertise in: ${skills.join(", ") || "creative writing"}.
+  Write the **full content** for this chapter in clean, engaging Markdown format.
 
 Chapter ${chapter.number}: ${chapter.title}
 
@@ -86,31 +93,34 @@ Requirements:
 Return ONLY the Markdown content. No explanations, no JSON, no extra text.`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
-      model,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "user", content: user },
+      ],
+      model: defaultModel,
       temperature: 0.8,
       maxToken: 4000,
     });
 
-    return content.trim();
+    return response.choices[0]?.message?.content?.trim() || "";
   } catch (error) {
     console.error("Chapter content generation failed:", error);
     throw new Error("Failed to generate chapter content");
   }
 }
 
-export async function bgaiGenerateChapterContentWithContextAction({
+export async function blaiGenerateChapterContentWithContextAction({
   book,
   chapter,
   author,
   skills,
+  aiConfig,
 }: {
-  book: IBGAIOutline;
-  chapter: IBGAIChapter;
-  author: IBGAIAuthor;
+  book: IBLAiOutline;
+  chapter: IBLAiChapter;
+  author: IBLAiAuthor;
   skills: string[];
+  aiConfig?: HelixAIOption;
 }): Promise<string> {
   const currentChapter = book.chapters.find((ch) => ch.id === chapter.id);
 
@@ -149,14 +159,17 @@ ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChap
 - **Return ONLY THE CONTENT.** No conversational filler or meta-commentary`;
 
   try {
-    const content = await aiService.doChat({
-      system,
-      user,
-      model,
+    const response = await aiService.doChatCompletion({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      model: aiConfig?.model || defaultModel,
+      aiConfig,
       temperature: 0.75,
     });
 
-    return content.trim();
+    return response.choices[0]?.message?.content?.trim() || "";
   } catch (error) {
     console.error(
       `Failed to generate content for chapter ${currentChapter.number}:`,
