@@ -8,11 +8,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { toast } from "@heroui/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { BLDatabase, BLAuthorRepository, BLGenerationRepository, BLChapterRepository } from "../core/BLRepository";
 import { BLBookBuilderService } from "../core/BLService";
 import { BLRegenerationMode } from "../core/BLEntity";
+import { useHelixAIOption } from "@/src/modules/helix";
 import type { IBLAuthor, IBLAuthorSkill, IBLChapter, IBLGeneration } from "../core/BLEntity";
+import type { HelixAIOption } from "@/src/modules/helix";
 
 interface IBookBuilderState {
   /** Author */
@@ -34,6 +37,13 @@ interface IBookBuilderState {
   generatingChapterId: number | null;
   previewChapter: IBLChapter | null;
   isRegenerateDialogOpen: boolean;
+
+  /** BLDialog (chapter regeneration confirmation) */
+  isBLDialogOpen: boolean;
+  pendingChapterForDialog: IBLChapter | null;
+
+  /** AI Config Modal */
+  isAIConfigOpen: boolean;
 
   /** Loading */
   isLoading: boolean;
@@ -58,6 +68,9 @@ interface IBookBuilderActions {
   onExportHTML: () => Promise<void>;
   onRegenerateDialogOpenChange: (open: boolean) => void;
   onRegenerationFlow: (mode: "all" | "empty") => Promise<void>;
+  onBLDialogOpenChange: (open: boolean) => void;
+  onBLDialogConfirm: () => Promise<void>;
+  onAIConfigOpenChange: (open: boolean) => void;
 }
 
 export type TUseBookBuilderReturn = IBookBuilderState & IBookBuilderActions & {
@@ -86,6 +99,10 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const allAuthors = useLiveQuery(() => serviceRef.current.getAllAuthors()) ?? [];
   const allGenerations = useLiveQuery(() => serviceRef.current.getAllGenerations()) ?? [];
 
+  // ─── AI Config from Dexie ───────────────────────────────────────────
+  const aiOption = useHelixAIOption({ table: db.aiSettings, key: "default" });
+  const aiConfig: HelixAIOption | undefined = aiOption;
+
   // ─── State ──────────────────────────────────────────────────────────
   const [selectedAuthorId, setSelectedAuthorId] = useState<string>("new");
   const [authorName, setAuthorName] = useState("");
@@ -103,6 +120,13 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const [generatingChapterId, setGeneratingChapterId] = useState<number | null>(null);
   const [previewChapter, setPreviewChapter] = useState<IBLChapter | null>(null);
   const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState(false);
+
+  /** BLDialog (chapter regeneration confirmation) */
+  const [isBLDialogOpen, setIsBLDialogOpen] = useState(false);
+  const [pendingChapterForDialog, setPendingChapterForDialog] = useState<IBLChapter | null>(null);
+
+  /** AI Config Modal */
+  const [isAIConfigOpen, setIsAIConfigOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -171,9 +195,13 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   }, []);
 
   const onSaveAuthor = useCallback(async () => {
-    if (!authorName.trim()) return;
+    if (!authorName.trim()) {
+      toast.warning("Author name is required");
+      return;
+    }
     setIsLoading(true);
     try {
+      const isUpdate = selectedAuthorId !== "new";
       const authorData: IBLAuthor = { name: authorName, description: authorDesc };
       const skillsToSave = skills.map((s) => ({
         name: s.name || "",
@@ -188,8 +216,15 @@ export function useBookBuilder(): TUseBookBuilderReturn {
       );
 
       setSelectedAuthorId(authorId.toString());
+
+      if (isUpdate) {
+        toast.success(`Author "${authorName}" updated successfully`);
+      } else {
+        toast.success(`Author "${authorName}" created successfully`);
+      }
     } catch (error) {
       console.error("Failed to save author:", error);
+      toast.danger("Failed to save author. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -208,9 +243,17 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   }, []);
 
   const onGenerateBook = useCallback(async () => {
-    if (!bookTitle || !bookDesc || selectedAuthorId === "new") return;
+    if (!bookTitle || !bookDesc) {
+      toast.warning("Please provide a book title and description");
+      return;
+    }
+    if (selectedAuthorId === "new") {
+      toast.warning("Please select or create an author first");
+      return;
+    }
 
     setIsGeneratingOutline(true);
+    toast("Generating book outline...");
     try {
       const skillNames = skills.map((s) => s.name || "");
       const generationId = await serviceRef.current.generateOutline(
@@ -220,12 +263,16 @@ export function useBookBuilder(): TUseBookBuilderReturn {
         skillNames,
         parseInt(selectedAuthorId),
         isBulkGenerating,
+        aiConfig,
       );
+
+      toast.success(`Book "${bookTitle}" outline generated (${isBulkGenerating ? "with chapters" : "chapters ready"})`);
 
       if (isBulkGenerating) {
         const newChapters = await serviceRef.current.getChapters(generationId);
         setSelectedGenerationId(generationId);
 
+        toast("Bulk generating all chapters...");
         await serviceRef.current.runAutoPipeline(
           generationId,
           newChapters,
@@ -235,31 +282,63 @@ export function useBookBuilder(): TUseBookBuilderReturn {
           authorName,
           authorDesc,
           skillNames,
-          (chapterId) => setGeneratingChapterId(chapterId),
+          (chapterId) => {
+            setGeneratingChapterId(chapterId);
+            toast(`Generating chapter ${newChapters.find(c => c.id === chapterId)?.number || ""}...`);
+          },
           () => serviceRef.current.getChapters(generationId).then(setChapters),
-          (chapterNumber) => console.error(`Pipeline failed at chapter ${chapterNumber}`),
+          (chapterNumber) => {
+            console.error(`Pipeline failed at chapter ${chapterNumber}`);
+            toast.danger(`Failed to generate chapter ${chapterNumber}`);
+          },
+          aiConfig,
         );
 
         setGeneratingChapterId(null);
         setIsBulkGenerating(false);
+        toast.success("All chapters generated successfully!");
       } else {
         setSelectedGenerationId(generationId);
       }
     } catch (error) {
       console.error("Failed to generate book:", error);
+      toast.danger("Failed to generate book. Please try again.");
     } finally {
       setIsGeneratingOutline(false);
     }
-  }, [bookTitle, bookDesc, selectedAuthorId, skills, authorName, authorDesc, isBulkGenerating]);
+  }, [bookTitle, bookDesc, selectedAuthorId, skills, authorName, authorDesc, isBulkGenerating, aiConfig]);
 
   const onSelectGeneration = useCallback((id: number | null) => {
     setSelectedGenerationId(id);
-  }, []);
+    if (id !== null) {
+      const generation = allGenerations.find((g) => g.id === id);
+      if (generation?.authorId) {
+        const authorId = generation.authorId;
+        setSelectedAuthorId(authorId.toString());
+        serviceRef.current.loadAuthorData(authorId).then(({ author, skills: authorSkills }) => {
+          setAuthorName(author.name);
+          setAuthorDesc(author.description);
+          setSkills(authorSkills);
+        }).catch(() => {
+          // If author data fails to load, keep current form state
+          console.warn(`Failed to load author data for authorId=${authorId}`);
+        });
+      }
+    }
+  }, [allGenerations]);
 
-  const onGenerateChapter = useCallback(async (chapter: IBLChapter) => {
-    if (selectedAuthorId === "new" || !chapter.id) return;
+  const doGenerateChapter = useCallback(async (chapter: IBLChapter) => {
+    if (selectedAuthorId === "new") {
+      toast.warning("Please select or create an author first");
+      return;
+    }
+    if (!chapter.id) {
+      toast.danger("Chapter ID is missing");
+      return;
+    }
 
     setGeneratingChapterId(chapter.id);
+    toast(`Generating Chapter ${chapter.number}: ${chapter.title}...`);
     try {
       const skillNames = skills.map((s) => s.name || "");
       const content = await serviceRef.current.generateChapterContent(
@@ -270,6 +349,7 @@ export function useBookBuilder(): TUseBookBuilderReturn {
         authorName,
         authorDesc,
         skillNames,
+        aiConfig,
       );
 
       await serviceRef.current.updateChapterContent(chapter.id, content);
@@ -278,56 +358,82 @@ export function useBookBuilder(): TUseBookBuilderReturn {
         const updated = await serviceRef.current.getChapters(selectedGenerationId);
         setChapters(updated);
       }
+
+      toast.success(`Chapter ${chapter.number}: ${chapter.title} generated successfully`);
     } catch (error) {
       console.error("Failed to generate chapter content:", error);
+      toast.danger(`Failed to generate Chapter ${chapter.number}: ${chapter.title}`);
     } finally {
       setGeneratingChapterId(null);
     }
-  }, [selectedAuthorId, bookTitle, bookDesc, chapters, authorName, authorDesc, skills, selectedGenerationId]);
+  }, [selectedAuthorId, bookTitle, bookDesc, chapters, authorName, authorDesc, skills, selectedGenerationId, aiConfig]);
+
+  const onGenerateChapter = useCallback(async (chapter: IBLChapter) => {
+    // If the chapter already has content, show the BLDialog confirmation first
+    const hasContent = !!chapter.content && chapter.content.trim().length > 0;
+    if (hasContent) {
+      setPendingChapterForDialog(chapter);
+      setIsBLDialogOpen(true);
+      return;
+    }
+    // Otherwise generate directly
+    await doGenerateChapter(chapter);
+  }, [doGenerateChapter]);
+
+  const onBLDialogOpenChange = useCallback((open: boolean) => {
+    setIsBLDialogOpen(open);
+    if (!open) {
+      setPendingChapterForDialog(null);
+    }
+  }, []);
+
+  const onBLDialogConfirm = useCallback(async () => {
+    const chapter = pendingChapterForDialog;
+    setPendingChapterForDialog(null);
+    setIsBLDialogOpen(false);
+    if (chapter) {
+      await doGenerateChapter(chapter);
+    }
+  }, [pendingChapterForDialog, doGenerateChapter]);
+
+  const onAIConfigOpenChange = useCallback((open: boolean) => {
+    setIsAIConfigOpen(open);
+  }, []);
 
   const onPreviewChapter = useCallback((chapter: IBLChapter | null) => {
     setPreviewChapter(chapter);
   }, []);
 
   const onExportMarkdown = useCallback(() => {
-    if (!selectedGenerationId) return;
+    if (!selectedGenerationId) {
+      toast.warning("No book selected to export");
+      return;
+    }
     const generation = allGenerations.find((g) => g.id === selectedGenerationId);
     if (!generation) return;
 
     serviceRef.current.exportMarkdown(generation, chapters);
+    toast.success(`"${generation.title}.md" downloaded`);
   }, [selectedGenerationId, allGenerations, chapters]);
 
   const onExportHTML = useCallback(async () => {
-    if (!selectedGenerationId) return;
+    if (!selectedGenerationId) {
+      toast.warning("No book selected to export");
+      return;
+    }
     const generation = allGenerations.find((g) => g.id === selectedGenerationId);
     if (!generation) return;
 
-    const { BLExportService } = await import("../core/BLService");
-    const { marked } = await import("marked");
-
-    const markdown = BLExportService.generateMarkdown(generation, chapters);
-    const htmlContent = await marked.parse(markdown);
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${generation.title}</title>
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-    <style>
-        body { font-family: 'Georgia', serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 0 20px; background-color: #fdfdfd; }
-        h1 { text-align: center; font-size: 3em; margin-bottom: 0.2em; }
-        blockquote { font-style: italic; color: #666; text-align: center; border: none; margin-bottom: 3em; }
-        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 2em; }
-        hr { border: 0; border-top: 1px dashed #ccc; margin: 3em 0; }
-        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
-    </style>
-</head>
-<body>${htmlContent}</body>
-</html>`;
-
-    BLExportService.downloadFile(html, `${generation.title}.html`, "text/html");
+    toast("Generating HTML export...");
+    try {
+      const { BLExportHTMLService } = await import("../core/BLExportHTMLService");
+      const html = await BLExportHTMLService.generateHTML(generation, chapters);
+      BLExportHTMLService.downloadHTML(html, `${generation.title}.html`);
+      toast.success(`"${generation.title}.html" downloaded`);
+    } catch (error) {
+      console.error("Failed to export HTML:", error);
+      toast.danger("Failed to export HTML. Please try again.");
+    }
   }, [selectedGenerationId, allGenerations, chapters]);
 
   const onRegenerateDialogOpenChange = useCallback((open: boolean) => {
@@ -337,12 +443,21 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const onRegenerationFlow = useCallback(async (mode: "all" | "empty") => {
     if (!selectedGenerationId) return;
 
+    // Close dialog immediately upon user action
+    setIsRegenerateDialogOpen(false);
+
     const chaptersToProcess = await serviceRef.current.getChaptersToRegenerate(
       selectedGenerationId,
       mode === "all" ? BLRegenerationMode.ALL : BLRegenerationMode.EMPTY,
     );
 
-    if (chaptersToProcess.length === 0) return;
+    if (chaptersToProcess.length === 0) {
+      toast("All chapters already have content — nothing to regenerate");
+      return;
+    }
+
+    const label = mode === "all" ? "all" : "empty";
+    toast(`Regenerating ${chaptersToProcess.length} ${label} chapter(s)...`);
 
     const skillNames = skills.map((s) => s.name || "");
 
@@ -355,14 +470,22 @@ export function useBookBuilder(): TUseBookBuilderReturn {
       authorName,
       authorDesc,
       skillNames,
-      (chapterId) => setGeneratingChapterId(chapterId),
+      (chapterId) => {
+        setGeneratingChapterId(chapterId);
+        const ch = chaptersToProcess.find(c => c.id === chapterId);
+        if (ch) toast(`Regenerating Chapter ${ch.number}: ${ch.title}...`);
+      },
       () => serviceRef.current.getChapters(selectedGenerationId).then(setChapters),
-      (chapterNumber) => console.error(`Pipeline failed at chapter ${chapterNumber}`),
+      (chapterNumber) => {
+        console.error(`Pipeline failed at chapter ${chapterNumber}`);
+        toast.danger(`Failed to regenerate chapter ${chapterNumber}`);
+      },
+      aiConfig,
     );
 
     setGeneratingChapterId(null);
-    setIsRegenerateDialogOpen(false);
-  }, [selectedGenerationId, skills, bookTitle, bookDesc, chapters, authorName, authorDesc]);
+    toast.success(`All ${chaptersToProcess.length} chapter(s) regenerated successfully`);
+  }, [selectedGenerationId, skills, bookTitle, bookDesc, chapters, authorName, authorDesc, aiConfig]);
 
   // ─── Return ─────────────────────────────────────────────────────────
   return {
@@ -381,6 +504,9 @@ export function useBookBuilder(): TUseBookBuilderReturn {
     generatingChapterId,
     previewChapter,
     isRegenerateDialogOpen,
+    isBLDialogOpen,
+    pendingChapterForDialog,
+    isAIConfigOpen,
     isLoading,
 
     // Actions
@@ -402,6 +528,9 @@ export function useBookBuilder(): TUseBookBuilderReturn {
     onExportHTML,
     onRegenerateDialogOpenChange,
     onRegenerationFlow,
+    onBLDialogOpenChange,
+    onBLDialogConfirm,
+    onAIConfigOpenChange,
 
     // Queries
     allAuthors,

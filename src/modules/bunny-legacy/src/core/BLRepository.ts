@@ -13,6 +13,7 @@ import type {
   IBLChapter,
   IBLGeneration,
 } from "./BLEntity";
+import type { HelixAISettings } from "@/src/modules/helix";
 
 /**
  * IndexedDB database for Bunny Legacy.
@@ -23,6 +24,7 @@ export class BLDatabase extends Dexie {
   authorSkills!: Table<IBLAuthorSkill, number>;
   generations!: Table<IBLGeneration, number>;
   chapters!: Table<IBLChapter, number>;
+  aiSettings!: Table<HelixAISettings, string>;
 
   constructor() {
     super("bunny-legacy");
@@ -32,6 +34,14 @@ export class BLDatabase extends Dexie {
       authorSkills: "++id, authorId, name",
       generations: "++id, authorId, title",
       chapters: "++id, generationId, number",
+    });
+
+    this.version(2).stores({
+      authors: "++id, name",
+      authorSkills: "++id, authorId, name",
+      generations: "++id, authorId, title",
+      chapters: "++id, generationId, number",
+      aiSettings: "key, provider, model",
     });
   }
 }

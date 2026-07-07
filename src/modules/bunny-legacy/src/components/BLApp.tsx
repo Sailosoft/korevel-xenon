@@ -11,13 +11,18 @@
 "use client";
 
 import React from "react";
+import { Toast } from "@heroui/react";
 import { useBookBuilder } from "../hooks/useBookBuilder";
+import { BLHeader } from "./BLHeader";
+import { BLAIConfig } from "./BLAIConfig";
+import { BLDialog } from "./BLDialog";
 import { BLAuthorPanel } from "./BLAuthorPanel";
 import { BLBookSelector } from "./BLBookSelector";
 import { BLBookGenerator } from "./BLBookGenerator";
 import { BLChapterList } from "./BLChapterList";
 import { BLChapterPreview } from "./BLChapterPreview";
 import { BLRegenerateDialog } from "./BLRegenerateDialog";
+import "../core/BLTheme.css";
 
 export const BLApp: React.FC = () => {
   const {
@@ -35,6 +40,8 @@ export const BLApp: React.FC = () => {
     generatingChapterId,
     previewChapter,
     isRegenerateDialogOpen,
+    isBLDialogOpen,
+    isAIConfigOpen,
     isLoading,
     onSelectAuthor,
     onAuthorNameChange,
@@ -54,71 +61,97 @@ export const BLApp: React.FC = () => {
     onExportHTML,
     onRegenerateDialogOpenChange,
     onRegenerationFlow,
+    onBLDialogOpenChange,
+    onBLDialogConfirm,
+    onAIConfigOpenChange,
     allAuthors,
     allGenerations,
   } = useBookBuilder();
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 p-6">
-      <BLAuthorPanel
-        authors={allAuthors}
-        selectedAuthorId={selectedAuthorId}
-        authorName={authorName}
-        authorDesc={authorDesc}
-        skills={skills}
-        newSkillName={newSkillName}
-        isLoading={isLoading}
-        onSelectAuthor={onSelectAuthor}
-        onAuthorNameChange={onAuthorNameChange}
-        onAuthorDescChange={onAuthorDescChange}
-        onNewSkillNameChange={onNewSkillNameChange}
-        onAddSkill={onAddSkill}
-        onRemoveSkill={onRemoveSkill}
-        onSaveAuthor={onSaveAuthor}
-      />
+    <>
+      <Toast.Provider />
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-10 p-3 sm:p-6">
+        {/* ─── Header: title, AI config, logout ─────────────────────────── */}
+        <BLHeader onOpenAIConfig={() => onAIConfigOpenChange(true)} />
 
-      <BLBookSelector
-        generations={allGenerations}
-        selectedGenerationId={selectedGenerationId}
-        onSelectGeneration={onSelectGeneration}
-      />
+        {/* ─── AI Config Modal ──────────────────────────────────────────── */}
+        <BLAIConfig
+          isOpen={isAIConfigOpen}
+          onOpenChange={onAIConfigOpenChange}
+        />
 
-      <BLBookGenerator
-        bookTitle={bookTitle}
-        bookDesc={bookDesc}
-        isGeneratingOutline={isGeneratingOutline}
-        isBulkGenerating={isBulkGenerating}
-        selectedAuthorId={selectedAuthorId}
-        onBookTitleChange={onBookTitleChange}
-        onBookDescChange={onBookDescChange}
-        onBulkGeneratingChange={onBulkGeneratingChange}
-        onGenerateBook={onGenerateBook}
-      />
+        {/* ─── Chapter Regeneration Confirmation Dialog ─────────────────── */}
+        <BLDialog
+          isOpen={isBLDialogOpen}
+          onOpenChange={onBLDialogOpenChange}
+          title="Regenerate Chapter"
+          message="Regenerate chapter before continuing? That content will be erased."
+          confirmLabel="Regenerate"
+          cancelLabel="Cancel"
+          onConfirm={onBLDialogConfirm}
+        />
 
-      <BLChapterList
-        selectedGenerationId={selectedGenerationId}
-        generations={allGenerations}
-        chapters={chapters}
-        generatingChapterId={generatingChapterId}
-        bookTitle={bookTitle}
-        onGenerateChapter={onGenerateChapter}
-        onPreviewChapter={onPreviewChapter}
-        onExportMarkdown={onExportMarkdown}
-        onExportHTML={onExportHTML}
-        onRegenerateDialogOpenChange={onRegenerateDialogOpenChange}
-      />
+        <BLAuthorPanel
+          authors={allAuthors}
+          selectedAuthorId={selectedAuthorId}
+          authorName={authorName}
+          authorDesc={authorDesc}
+          skills={skills}
+          newSkillName={newSkillName}
+          isLoading={isLoading}
+          onSelectAuthor={onSelectAuthor}
+          onAuthorNameChange={onAuthorNameChange}
+          onAuthorDescChange={onAuthorDescChange}
+          onNewSkillNameChange={onNewSkillNameChange}
+          onAddSkill={onAddSkill}
+          onRemoveSkill={onRemoveSkill}
+          onSaveAuthor={onSaveAuthor}
+        />
 
-      <BLChapterPreview
-        chapter={previewChapter}
-        onClose={() => onPreviewChapter(null)}
-      />
+        <BLBookSelector
+          generations={allGenerations}
+          selectedGenerationId={selectedGenerationId}
+          onSelectGeneration={onSelectGeneration}
+        />
 
-      <BLRegenerateDialog
-        isOpen={isRegenerateDialogOpen}
-        onOpenChange={onRegenerateDialogOpenChange}
-        onConfirm={onRegenerationFlow}
-      />
-    </div>
+        <BLBookGenerator
+          bookTitle={bookTitle}
+          bookDesc={bookDesc}
+          isGeneratingOutline={isGeneratingOutline}
+          isBulkGenerating={isBulkGenerating}
+          selectedAuthorId={selectedAuthorId}
+          onBookTitleChange={onBookTitleChange}
+          onBookDescChange={onBookDescChange}
+          onBulkGeneratingChange={onBulkGeneratingChange}
+          onGenerateBook={onGenerateBook}
+        />
+
+        <BLChapterList
+          selectedGenerationId={selectedGenerationId}
+          generations={allGenerations}
+          chapters={chapters}
+          generatingChapterId={generatingChapterId}
+          bookTitle={bookTitle}
+          onGenerateChapter={onGenerateChapter}
+          onPreviewChapter={onPreviewChapter}
+          onExportMarkdown={onExportMarkdown}
+          onExportHTML={onExportHTML}
+          onRegenerateDialogOpenChange={onRegenerateDialogOpenChange}
+        />
+
+        <BLChapterPreview
+          chapter={previewChapter}
+          onClose={() => onPreviewChapter(null)}
+        />
+
+        <BLRegenerateDialog
+          isOpen={isRegenerateDialogOpen}
+          onOpenChange={onRegenerateDialogOpenChange}
+          onConfirm={onRegenerationFlow}
+        />
+      </div>
+    </>
   );
 };
 

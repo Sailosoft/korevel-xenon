@@ -71,11 +71,16 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
       {/* Author Selector */}
-      <Card className="md:col-span-1">
+      <Card className="md:col-span-1 bg-gradient-to-br from-content1 to-content1/80 border border-[lab(44.7267%_-21.5987_-26.118_/_0.15)]">
         <Card.Header>
-          <h2 className="text-lg font-semibold">Authors</h2>
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-[lab(44.7267%_-21.5987_-26.118_/_0.1)]">
+              <UserPlus className="w-5 h-5 text-[lab(44.7267%_-21.5987_-26.118)]" />
+            </div>
+            <h2 className="text-lg font-semibold">Authors</h2>
+          </div>
         </Card.Header>
         <Card.Content>
           <Select
@@ -120,24 +125,30 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
       </Card>
 
       {/* Author Editor */}
-      <Card className="md:col-span-2">
+      <Card className="md:col-span-2 bg-gradient-to-br from-content1 to-content1/80 border border-primary/10">
         <Card.Header>
-          <h2 className="text-lg font-semibold">
-            {selectedAuthorId === "new" ? "Create Author" : "Edit Author"}
-          </h2>
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <UserPlus className="w-5 h-5 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold">
+              {selectedAuthorId === "new" ? "Create Author" : "Edit Author"}
+            </h2>
+          </div>
         </Card.Header>
         <Card.Content className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">Name</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">Name</label>
             <Input
               aria-label="Author name"
               value={authorName}
               onChange={(e) => onAuthorNameChange(e.target.value)}
               placeholder="Author name"
+              className="w-full"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">Bio</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-default-700">Bio</label>
             <TextArea
               aria-label="Author biography"
               value={authorDesc}
@@ -146,17 +157,20 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
               rows={3}
             />
           </div>
-          <Separator />
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Skills</label>
-            <div className="flex gap-2">
-              <Input
-                aria-label="New skill name"
-                value={newSkillName}
-                onChange={(e) => onNewSkillNameChange(e.target.value)}
-                placeholder="e.g. Fantasy Writing"
-                onKeyDown={handleKeyDown}
-              />
+          <Separator className="bg-primary/5" />
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-default-700">Skills</label>
+            <div className="flex gap-2 w-full">
+              <div className="flex-1 min-w-0">
+                <Input
+                  aria-label="New skill name"
+                  value={newSkillName}
+                  onChange={(e) => onNewSkillNameChange(e.target.value)}
+                  placeholder="e.g. Fantasy Writing"
+                  onKeyDown={handleKeyDown}
+                  className="w-full"
+                />
+              </div>
               <Button isIconOnly variant="secondary" onPress={onAddSkill} aria-label="Add skill">
                 <Plus className="w-4 h-4" />
               </Button>
@@ -168,7 +182,7 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
                 </span>
               )}
               {skills.map((s, i) => (
-                <Chip key={i} variant="soft">
+                <Chip key={i} variant="soft" className="bg-primary/5 border border-primary/10">
                   <span className="flex items-center gap-1">
                     {s.name}
                     <button
@@ -186,10 +200,13 @@ export const BLAuthorPanel: React.FC<IBLAuthorPanelProps> = ({
         </Card.Content>
         <Card.Footer>
           <Button
-            className="w-full"
+            className="w-full font-medium text-white border-0 transition-all duration-300"
             variant="primary"
             onPress={onSaveAuthor}
             isDisabled={!authorName.trim() || isLoading}
+            style={{
+              background: "linear-gradient(135deg, lab(44.7267% -21.5987 -26.118), lab(32% -14 -18))",
+            }}
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />

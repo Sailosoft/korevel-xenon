@@ -63,7 +63,7 @@ export const BLBookBuilder: React.FC = () => {
   } = useBookBuilder();
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 p-6">
+    <div className="max-w-7xl mx-auto space-y-6 sm:space-y-10 p-3 sm:p-6">
       {/* Author Management Section */}
       <BLAuthorPanel
         authors={allAuthors}

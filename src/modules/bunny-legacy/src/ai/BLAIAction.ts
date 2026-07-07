@@ -1,7 +1,7 @@
 "use server";
 
 import { HELIX_AI_PROVIDERS, HelixAISchemaService, HelixAIService } from "@/src/modules/helix";
-import type { HelixAIServiceType } from "@/src/modules/helix";
+import type { HelixAIServiceType, HelixAIOption } from "@/src/modules/helix";
 import type {
   IBLAiChapter,
   IBLAiOutline,
@@ -11,7 +11,7 @@ import type {
 const defaultProvider = HELIX_AI_PROVIDERS.find(
   (p) => p.provider === "default",
 )!;
-const model = defaultProvider.model;
+const defaultModel = defaultProvider.model;
 
 const aiService: HelixAIServiceType = new HelixAIService({
   config: {
@@ -28,6 +28,7 @@ export async function blaiGenerateChaptersAction(
   description: string,
   authorName: string,
   skills: string[],
+  aiConfig?: HelixAIOption,
 ): Promise<IBLAiChapter[]> {
 
   const user = `
@@ -49,7 +50,8 @@ Return ONLY a valid JSON array (no extra text) with this structure:
       messages: [
         { role: "user", content: user },
       ],
-      model,
+      model: aiConfig?.model || defaultModel,
+      aiConfig,
       temperature: 0.7,
       response_format: { type: "json_object" },
     });
@@ -95,7 +97,7 @@ Return ONLY the Markdown content. No explanations, no JSON, no extra text.`;
       messages: [
         { role: "user", content: user },
       ],
-      model,
+      model: defaultModel,
       temperature: 0.8,
       maxToken: 4000,
     });
@@ -112,11 +114,13 @@ export async function blaiGenerateChapterContentWithContextAction({
   chapter,
   author,
   skills,
+  aiConfig,
 }: {
   book: IBLAiOutline;
   chapter: IBLAiChapter;
   author: IBLAiAuthor;
   skills: string[];
+  aiConfig?: HelixAIOption;
 }): Promise<string> {
   const currentChapter = book.chapters.find((ch) => ch.id === chapter.id);
 
@@ -160,7 +164,8 @@ ${currentChapter.additionalPrompt ? `### ADDITIONAL INSTRUCTIONS:\n${currentChap
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      model,
+      model: aiConfig?.model || defaultModel,
+      aiConfig,
       temperature: 0.75,
     });
 

@@ -6,6 +6,7 @@
  * Dependency Inversion: depends on repository abstractions, not concrete data access.
  */
 
+import type { HelixAIOption } from "@/src/modules/helix";
 import type {
   IBLAuthor,
   IBLAuthorSkill,
@@ -168,12 +169,14 @@ export class BLBookBuilderService {
     skillNames: string[],
     authorId: number,
     isBulkGenerating: boolean,
+    aiConfig?: HelixAIOption,
   ): Promise<number> {
     const outlineChapters = await blaiGenerateChaptersAction(
       bookTitle,
       bookDesc,
       authorName,
       skillNames,
+      aiConfig,
     );
 
     const generationId = await this.generationRepo.save({
@@ -203,6 +206,7 @@ export class BLBookBuilderService {
     authorName: string,
     authorDesc: string,
     skillNames: string[],
+    aiConfig?: HelixAIOption,
   ): Promise<string> {
     const content = await blaiGenerateChapterContentWithContextAction({
       book: {
@@ -213,6 +217,7 @@ export class BLBookBuilderService {
       chapter: mapToBLAiChapter(chapter),
       author: { name: authorName, description: authorDesc },
       skills: skillNames,
+      aiConfig,
     });
 
     return content;
@@ -237,6 +242,7 @@ export class BLBookBuilderService {
     onChapterStart: (chapterId: number) => void,
     onChapterComplete: () => void,
     onError: (chapterNumber: number, error: unknown) => void,
+    aiConfig?: HelixAIOption,
   ): Promise<void> {
     for (const chapter of chaptersToGenerate) {
       onChapterStart(chapter.id!);
@@ -250,6 +256,7 @@ export class BLBookBuilderService {
           authorName,
           authorDesc,
           skillNames,
+          aiConfig,
         );
 
         await this.updateChapterContent(chapter.id!, content);
