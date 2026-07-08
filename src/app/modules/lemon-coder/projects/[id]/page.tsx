@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { lcDB } from "@/src/modules/lemon-coder/src/LCDatabase";
 import { LCTheme } from "@/src/modules/lemon-coder/src/LCTheme";
-import { Button, Modal } from "@heroui/react";
+import { Button, Input, Modal } from "@heroui/react";
 import {
   ArrowLeft,
   FolderOpen,
@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import type { LCProject, LCChatSession } from "@/src/modules/lemon-coder/src/LCInterface";
 import type { LCDeepstash, LCDeepstashItem } from "@/src/modules/lemon-coder/src/LCInterface";
-import { Input } from "@/src/shadcnui/components/ui/input";
 
 const s = {
   brand: LCTheme.colors.brand,
@@ -466,7 +465,7 @@ export default function LemonCoderProjectDetailPage({
         isOpen={clearSessionConfirm}
         onOpenChange={(open: boolean) => { if (!open) setClearSessionConfirm(false); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -509,7 +508,7 @@ export default function LemonCoderProjectDetailPage({
         isOpen={deleteSessionId !== null}
         onOpenChange={(open: boolean) => { if (!open) setDeleteSessionId(null); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -552,7 +551,7 @@ export default function LemonCoderProjectDetailPage({
         isOpen={deleteDeepstashId !== null}
         onOpenChange={(open: boolean) => { if (!open) setDeleteDeepstashId(null); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -595,7 +594,7 @@ export default function LemonCoderProjectDetailPage({
         isOpen={renameDeepstashId !== null}
         onOpenChange={(open: boolean) => { if (!open) { setRenameDeepstashId(null); setRenameDeepstashName(""); } }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>

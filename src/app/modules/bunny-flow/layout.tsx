@@ -57,14 +57,6 @@ export default function BFlowLayout({
     /^\/modules\/bunny-flow\/flow\/[^/]+(\/|$)/.test(pathname) &&
     !pathname.startsWith("/modules/bunny-flow/definitions");
 
-  // 🔍 DEBUG
-  console.log(
-    "[BFlowLayout] pathname:",
-    pathname,
-    "isInnerRoute:",
-    isInnerRoute,
-  );
-
   // Inner routes get a bare wrapper — the [id]/layout.tsx provides its own shell.
   if (isInnerRoute) {
     return <Suspense fallback={null}>{children}</Suspense>;

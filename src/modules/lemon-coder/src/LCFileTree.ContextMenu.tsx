@@ -352,7 +352,7 @@ export function LCDeleteConfirmModal({
       isOpen={deleteConfirmTarget !== null}
       onOpenChange={(open: boolean) => { if (!open) onClose(); }}
     >
-      <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+      <Modal.Container>
         <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
           <Modal.CloseTrigger />
           <Modal.Header>

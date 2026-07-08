@@ -64,7 +64,7 @@ export default function LCDeepstashPopModal({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={handleClose}>
-      <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+      <Modal.Container>
         <Modal.Dialog className="sm:max-w-[420px] bg-[#1e1e1e] text-white">
           <Modal.CloseTrigger />
           <Modal.Header>

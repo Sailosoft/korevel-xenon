@@ -711,7 +711,7 @@ export default function LCRightSidebar({
         isOpen={applyConfirmId !== null}
         onOpenChange={(open: boolean) => { if (!open) setApplyConfirmId(null); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -786,7 +786,7 @@ export default function LCRightSidebar({
         isOpen={clearDeepstashConfirm}
         onOpenChange={(open: boolean) => { if (!open) setClearDeepstashConfirm(false); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>

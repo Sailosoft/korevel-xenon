@@ -290,7 +290,7 @@ export default function LCFavoriteView({
         isOpen={isCreateModalOpen}
         onOpenChange={(open: boolean) => { if (!open) { setIsCreateModalOpen(false); setNewGroupName(""); } }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -340,7 +340,7 @@ export default function LCFavoriteView({
         isOpen={deleteConfirmGroupId !== null}
         onOpenChange={(open: boolean) => { if (!open) setDeleteConfirmGroupId(null); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>

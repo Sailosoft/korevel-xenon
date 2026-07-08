@@ -11,9 +11,7 @@ import { Table } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
 import { CheckIcon } from "lucide-react";
 import { Key } from "react";
-import { Select, Label, ListBox } from "@heroui/react";
-
-import { cn } from "@/src/shadcnui/lib/utils";
+import { Select, Label, ListBox, cn } from "@heroui/react";
 import {
   HelixAIProvider,
   HELIX_PROVIDER_LABELS,

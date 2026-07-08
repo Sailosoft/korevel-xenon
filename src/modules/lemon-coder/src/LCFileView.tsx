@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   FileCode,
@@ -68,6 +68,9 @@ export interface LCFileViewProps {
   onInsertToChatInput?: (text: string) => void;
 }
 
+/** Number of seconds of inactivity before an automatic save is triggered. */
+const AUTO_SAVE_DELAY_MS = 10_000;
+
 export default function LCFileView({
   selectedFile,
   content,
@@ -87,8 +90,36 @@ export default function LCFileView({
   // ── Local State ──────────────────────────────────────────────────────────
   const [displayMode, setDisplayMode] = useState<LCFileViewDisplayModeType>("source");
 
+  // ── Auto-save debounce ───────────────────────────────────────────────────
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Diff Preview Mode ────────────────────────────────────────────────────
   const isDiffMode = diffContent !== undefined && selectedFile !== null;
+
+  // ── Auto-save: debounce save when content changes while dirty ──────────
+  useEffect(() => {
+    // Only auto-save when:
+    //   – a file is selected
+    //   – content is actually dirty (unsaved changes exist)
+    //   – NOT in diff mode (AI-generated preview)
+    if (!selectedFile || !isDirty || isDiffMode) return;
+
+    // Clear any pending auto-save timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Schedule a new auto-save
+    autoSaveTimerRef.current = setTimeout(() => {
+      onSave();
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [content, isDirty, isDiffMode, selectedFile, onSave]);
 
   // ── Derived display-mode helpers ─────────────────────────────────────────
   const canPreview = selectedFile ? canPreviewFile(selectedFile.name) : false;
