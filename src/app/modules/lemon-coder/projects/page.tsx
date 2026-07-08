@@ -215,7 +215,7 @@ export default function LemonCoderProjectsPage() {
         isOpen={deleteConfirmId !== null}
         onOpenChange={(open: boolean) => { if (!open) setDeleteConfirmId(null); }}
       >
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>

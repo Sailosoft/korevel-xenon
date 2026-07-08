@@ -881,7 +881,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
 
       {/* Leave Studio Confirmation Modal */}
       <Modal.Backdrop isOpen={isLeaveStudioOpen} onOpenChange={setIsLeaveStudioOpen}>
-        <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+        <Modal.Container>
           <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
             <Modal.CloseTrigger />
             <Modal.Header>

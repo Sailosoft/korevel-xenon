@@ -73,6 +73,7 @@ export async function blaiGenerateChapterContentAction(
   authorName: string,
   skills: string[],
   additionalPrompt: string = "",
+  aiConfig?: HelixAIOption,
 ): Promise<string> {
   const user = `
   You are ${authorName}, a skilled author with expertise in: ${skills.join(", ") || "creative writing"}.
@@ -97,7 +98,8 @@ Return ONLY the Markdown content. No explanations, no JSON, no extra text.`;
       messages: [
         { role: "user", content: user },
       ],
-      model: defaultModel,
+      model: aiConfig?.model || defaultModel,
+      aiConfig,
       temperature: 0.8,
       maxToken: 4000,
     });

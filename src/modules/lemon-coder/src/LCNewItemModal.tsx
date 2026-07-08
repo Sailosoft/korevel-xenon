@@ -1,8 +1,6 @@
 "use client";
-
-import { Button, Modal } from "@heroui/react";
-import { Input } from "@/src/shadcnui/components/ui/input";
-import { Label } from "@/src/shadcnui/components/ui/label";
+ 
+import { Button, Input, Label, Modal } from "@heroui/react";
 import { File, Folder } from "lucide-react";
 import { useState } from "react";
 

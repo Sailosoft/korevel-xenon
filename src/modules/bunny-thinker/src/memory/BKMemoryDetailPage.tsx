@@ -12,7 +12,8 @@ import ReactMarkdown from "react-markdown";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKMemory, BKMemoryNeuron } from "./BKMemory.Types";
-import { buildNeuronHtml } from "./BKMemoryDetailPage.constants";
+import type { BKCraftFormat } from "../craft/BKCraft.Types";
+import { convertToExportHtml } from "../craft/BKCraft.Html";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -102,18 +103,20 @@ export default function BKMemoryDetailPage({
   // ─── View as HTML (new tab) ────────────────────────────────────────────
 
   const bkViewAsHtml = useCallback(() => {
-    const html = buildNeuronHtml(neurons, memoryId);
+    const format = (memory?.format || "markdown") as BKCraftFormat;
+    const html = convertToExportHtml(bkCompiledContent, format);
     const win = window.open("", "_blank");
     if (win) {
       win.document.write(html);
       win.document.close();
     }
-  }, [neurons, memoryId]);
+  }, [bkCompiledContent, memory?.format]);
 
   // ─── Download as HTML ──────────────────────────────────────────────────
 
   const bkDownloadHtml = useCallback(() => {
-    const html = buildNeuronHtml(neurons, memoryId);
+    const format = (memory?.format || "markdown") as BKCraftFormat;
+    const html = convertToExportHtml(bkCompiledContent, format);
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -121,7 +124,7 @@ export default function BKMemoryDetailPage({
     a.download = `neurons-${memoryId.slice(0, 8)}.html`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [neurons, memoryId]);
+  }, [bkCompiledContent, memoryId, memory?.format]);
 
   if (loading) {
     return (

@@ -66,11 +66,83 @@ function resolveConfig(
         : found.model;
 
   return {
-    provider: found.provider,
-    model,
-    apiKey: found.apiKey,
-    endpoint: found.endpoint,
+      provider: found.provider,
+      model,
+      apiKey: found.apiKey,
+      endpoint: found.endpoint,
+    };
+}
+
+interface ResolvedCallConfig {
+  client: OpenAI;
+  model: string;
+  maxTokens: number;
+}
+
+interface ChatCallOptions {
+  aiConfig?: HelixAIOption;
+  provider?: string;
+  model?: string;
+  temperature?: number;
+  type?: HelixTemperaturePreset;
+  maxToken?: number;
+}
+
+/**
+ * Internal helper to resolve provider config, create client, and determine effective model.
+ * Eliminates repetitive config resolution logic across all chat methods.
+ */
+function prepareCall(
+  provider: string,
+  providerConfigs: HelixAIProviderConfig[],
+  defaultClient: OpenAI,
+  defaultMaxTokens: number,
+  options: ChatCallOptions,
+): ResolvedCallConfig {
+  const resolved = resolveConfig(
+    { provider, configs: providerConfigs },
+    options.aiConfig,
+  );
+  const client =
+    options.aiConfig || options.provider
+      ? new OpenAI({
+          apiKey: resolved.apiKey,
+          baseURL: resolved.endpoint,
+        })
+      : defaultClient;
+  const effectiveModel =
+    options.aiConfig?.model || options.model || resolved.model;
+
+  return {
+    client,
+    model: effectiveModel,
+    maxTokens: options.maxToken ?? defaultMaxTokens,
   };
+}
+
+/**
+ * Core chat completion execution with unified error handling.
+ * Used by all public chat methods to avoid duplicating the completion call logic.
+ */
+async function executeChatCompletion(
+  client: OpenAI,
+  model: string,
+  messages: ChatCompletionMessageParam[],
+  temperature: number,
+  maxTokens: number,
+  response_format?: OpenAI.ResponseFormatJSONSchema | { type: "json_object" },
+): Promise<ChatCompletion> {
+  try {
+    return await client.chat.completions.create({
+      model,
+      messages,
+      temperature: temperature ?? 0.7,
+      max_tokens: maxTokens,
+      ...(response_format ? { response_format } : {}),
+    });
+  } catch (error) {
+    throw new Error(`AI ChatCompletion failed: ${error}`);
+  }
 }
 
 export default class HelixAIService implements HelixAIServiceType {
@@ -149,32 +221,21 @@ export default class HelixAIService implements HelixAIServiceType {
     type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
-    const resolved = resolveConfig(
-      { provider: this.provider, configs: this.providerConfigs },
-      option.aiConfig,
+    const { client, model, maxTokens } = prepareCall(
+      this.provider,
+      this.providerConfigs,
+      this.ai,
+      this.getMaxTokens(),
+      option,
     );
-    const client =
-      option.aiConfig || option.provider
-        ? new OpenAI({
-            apiKey: resolved.apiKey,
-            baseURL: resolved.endpoint,
-          })
-        : this.ai;
-    const effectiveModel =
-      option.aiConfig?.model || option.model || resolved.model;
-
-    try {
-      const response = await client.chat.completions.create({
-        model: effectiveModel,
-        messages: option.messages,
-        temperature: option.temperature ?? 0.7,
-        max_tokens: option.maxToken ?? this.getMaxTokens(),
-      });
-
-      return response.choices[0]?.message?.content || "";
-    } catch (error) {
-      throw new Error(`AI Text Generation failed: ${error}`);
-    }
+    const response = await executeChatCompletion(
+      client,
+      model,
+      option.messages,
+      option.temperature ?? 0.7,
+      maxTokens,
+    );
+    return response.choices[0]?.message?.content || "";
   }
 
   async doChatCompletion(option: {
@@ -187,33 +248,21 @@ export default class HelixAIService implements HelixAIServiceType {
     maxToken?: number;
     response_format?: { type: "json_object" };
   }): Promise<ChatCompletion> {
-    const resolved = resolveConfig(
-      { provider: this.provider, configs: this.providerConfigs },
-      option.aiConfig,
+    const { client, model, maxTokens } = prepareCall(
+      this.provider,
+      this.providerConfigs,
+      this.ai,
+      this.getMaxTokens(),
+      option,
     );
-    const client =
-      option.aiConfig || option.provider
-        ? new OpenAI({
-            apiKey: resolved.apiKey,
-            baseURL: resolved.endpoint,
-          })
-        : this.ai;
-    const effectiveModel =
-      option.aiConfig?.model || option.model || resolved.model;
-
-    try {
-      const response = await client.chat.completions.create({
-        model: effectiveModel,
-        messages: option.messages,
-        temperature: option.temperature ?? 0.7,
-        max_tokens: option.maxToken ?? this.getMaxTokens(),
-        ...(option.response_format ? { response_format: option.response_format } : {}),
-      });
-
-      return response;
-    } catch (error) {
-      throw new Error(`AI ChatCompletion failed: ${error}`);
-    }
+    return executeChatCompletion(
+      client,
+      model,
+      option.messages,
+      option.temperature ?? 0.7,
+      maxTokens,
+      option.response_format,
+    );
   }
 
   async doChat(option: {
@@ -226,35 +275,25 @@ export default class HelixAIService implements HelixAIServiceType {
     type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
-    const resolved = resolveConfig(
-      { provider: this.provider, configs: this.providerConfigs },
-      option.aiConfig,
+    const { client, model, maxTokens } = prepareCall(
+      this.provider,
+      this.providerConfigs,
+      this.ai,
+      this.getMaxTokens(),
+      option,
     );
-    const client =
-      option.aiConfig || option.provider
-        ? new OpenAI({
-            apiKey: resolved.apiKey,
-            baseURL: resolved.endpoint,
-          })
-        : this.ai;
-    const effectiveModel =
-      option.aiConfig?.model || option.model || resolved.model;
-
-    try {
-      const response = await client.chat.completions.create({
-        model: effectiveModel,
-        messages: [
-          { role: "system", content: option.system },
-          { role: "user", content: option.user },
-        ],
-        temperature: option.temperature ?? 0.7,
-        max_tokens: option.maxToken ?? this.getMaxTokens(),
-      });
-
-      return response.choices[0]?.message?.content || "";
-    } catch (error) {
-      throw new Error(`AI Text Generation failed: ${error}`);
-    }
+    const messages: ChatCompletionMessageParam[] = [
+      { role: "system", content: option.system },
+      { role: "user", content: option.user },
+    ];
+    const response = await executeChatCompletion(
+      client,
+      model,
+      messages,
+      option.temperature ?? 0.7,
+      maxTokens,
+    );
+    return response.choices[0]?.message?.content || "";
   }
 
   async doChatJSON<T>({
@@ -276,29 +315,32 @@ export default class HelixAIService implements HelixAIServiceType {
     temperature?: number;
     type?: HelixTemperaturePreset;
   }): Promise<T> {
-    const resolved = resolveConfig(
-      { provider: this.provider, configs: this.providerConfigs },
-      aiConfig,
+    const { client, model: effectiveModel, maxTokens } = prepareCall(
+      this.provider,
+      this.providerConfigs,
+      this.ai,
+      this.getMaxTokens(),
+      {
+        aiConfig,
+        provider,
+        model,
+        temperature,
+        type,
+      },
     );
-    const client =
-      aiConfig || provider
-        ? new OpenAI({
-            apiKey: resolved.apiKey,
-            baseURL: resolved.endpoint,
-          })
-        : this.ai;
-    const effectiveModel = aiConfig?.model || model || resolved.model;
     const responseFormat = this.aiSchema.compileSchema(schema);
 
-    const response = await client.chat.completions.create({
-      model: effectiveModel,
-      messages: [
+    const response = await executeChatCompletion(
+      client,
+      effectiveModel,
+      [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      response_format: responseFormat,
-      temperature: temperature ?? 0.7,
-    });
+      temperature ?? 0.7,
+      maxTokens,
+      responseFormat,
+    );
     console.log(response.choices);
 
     return JSON.parse(response.choices[0]?.message?.content || "{}");

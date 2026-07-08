@@ -6,9 +6,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Button, Modal } from "@heroui/react";
-import { Input } from "@/src/shadcnui/components/ui/input";
-import { Label } from "@/src/shadcnui/components/ui/label";
+import { Button, Input, Label, Modal } from "@heroui/react";
 import { FolderPlus, FolderOpen, FileCode } from "lucide-react";
 import { LCTheme } from "./LCTheme";
 
@@ -79,7 +77,7 @@ export default function LCCreateProjectModal({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container className="bg-[#1e1e1e] border border-[#333]">
+      <Modal.Container>
         <Modal.Dialog className="sm:max-w-[420px] bg-[#1e1e1e] text-white">
           <Modal.CloseTrigger />
           <Modal.Header>

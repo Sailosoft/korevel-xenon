@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.4.2",
     "@heroui/react": "^3.1.0",
     "@heroui/styles": "^3.1.0",
     "@mdxeditor/editor": "^3.55.0",
@@ -29,16 +28,13 @@
     "mitt": "^3.0.1",
     "next": "^16.2.6",
     "openai": "^6.39.1",
-    "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "shadcn": "^4.8.2",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
     "uuid": "^14.0.0",
-    "wouter": "^3.10.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
