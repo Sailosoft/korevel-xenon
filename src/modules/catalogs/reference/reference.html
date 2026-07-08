@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus App Catalog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://api.fontsource.org/v1/css/google/inter.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .animate-slide-up {
+            animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0; /* Start hidden */
+        }
+
+        /* Glassmorphism Card */
+        .app-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d;
+            perspective: 1000px;
+        }
+
+        .app-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), 
+                        0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        .app-card:hover .card-icon {
+            transform: scale(1.1) rotate(5deg);
+            filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.6));
+        }
+
+        .card-icon {
+            transition: transform 0.4s ease, filter 0.4s ease;
+        }
+
+        /* Gradient Text */
+        .text-gradient {
+            background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Background Grid */
+        .bg-grid {
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen relative">
+
+    <!-- Background Effects -->
+    <div class="fixed inset-0 z-0 pointer-events-none">
+        <div class="absolute inset-0 bg-grid"></div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] animate-float"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] animate-float" style="animation-delay: 2s;"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 border-b border-white/5 bg-slate-900/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight text-white">Nexus<span class="text-indigo-400">Apps</span></span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#" class="text-sm font-medium text-white hover:text-indigo-400 transition-colors">Catalog</a>
+                    <a href="#" class="text-sm font-medium text-slate-400 hover:text-white transition-colors">Documentation</a>
+                    <a href="#" class="text-sm font-medium text-slate-400 hover:text-white transition-colors">Support</a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="relative group">
+                        <input type="text" id="searchInput" placeholder="Search apps..." class="bg-slate-800/50 border border-slate-700 text-sm rounded-full px-4 py-1.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-48 transition-all group-hover:w-64 text-slate-200 placeholder-slate-500">
+                        <svg class="w-4 h-4 text-slate-500 absolute right-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-all shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/40">
+                        Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        
+        <!-- Hero Section -->
+        <div class="text-center mb-16 animate-slide-up" style="animation-delay: 0.1s;">
+            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight mb-4">
+                Discover Our <span class="text-gradient">Application Suite</span>
+            </h1>
+            <p class="text-lg text-slate-400 max-w-2xl mx-auto mb-8">
+                Explore our curated collection of powerful tools designed to streamline your workflow and boost productivity.
+            </p>
+            
+            <!-- Category Filter -->
+            <div class="flex flex-wrap justify-center gap-2 mb-8" id="categoryFilters">
+                <button class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 transition-all" data-category="all">All Apps</button>
+                <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700" data-category="productivity">Productivity</button>
+                <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700" data-category="analytics">Analytics</button>
+                <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700" data-category="design">Design</button>
+                <button class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all border border-slate-700" data-category="security">Security</button>
+            </div>
+        </div>
+
+        <!-- App Grid -->
+        <div id="appGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards will be injected here by JS -->
+        </div>
+
+        <!-- Empty State (Hidden by default) -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <div class="inline-block p-4 rounded-full bg-slate-800 mb-4">
+                <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="text-xl font-medium text-white">No apps found</h3>
+            <p class="text-slate-400 mt-2">Try adjusting your search or filter criteria.</p>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 bg-slate-900/50 backdrop-blur-sm mt-12">
+        <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
+            <p class="text-slate-500 text-sm">&copy; 2026 Nexus Applications. All rights reserved.</p>
+            <div class="flex space-x-6 mt-4 md:mt-0">
+                <a href="#" class="text-slate-500 hover:text-indigo-400 transition-colors"><span class="sr-only">Twitter</span><svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path></svg></a>
+                <a href="#" class="text-slate-500 hover:text-indigo-400 transition-colors"><span class="sr-only">GitHub</span><svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path></svg></a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Application Data (5 Items)
+        const apps = [
+            {
+                id: 1,
+                name: "TaskFlow Pro",
+                category: "productivity",
+                description: "Advanced project management with AI-driven task prioritization and team collaboration tools.",
+                iconColor: "from-blue-400 to-cyan-300",
+                imagePrompt: "minimalist 3d icon of a checklist with floating checkmarks, blue and cyan gradient, glassmorphism style, white background, high quality render"
+            },
+            {
+                id: 2,
+                name: "DataViz Studio",
+                category: "analytics",
+                description: "Transform complex datasets into interactive, beautiful dashboards with real-time streaming capabilities.",
+                iconColor: "from-emerald-400 to-teal-300",
+                imagePrompt: "abstract 3d data visualization chart with glowing lines and nodes, emerald green and teal colors, futuristic interface element, white background, high quality render"
+            },
+            {
+                id: 3,
+                name: "PixelCraft",
+                category: "design",
+                description: "Next-generation vector editing software with collaborative cloud features and asset management.",
+                iconColor: "from-pink-400 to-rose-300",
+                imagePrompt: "3d icon of a stylized pen tool drawing a glowing curve, pink and rose gradient, creative design tool symbol, white background, high quality render"
+            },
+            {
+                id: 4,
+                name: "SecureVault",
+                category: "security",
+                description: "Enterprise-grade encryption and identity management system for sensitive corporate data.",
+                iconColor: "from-violet-400 to-purple-300",
+                imagePrompt: "3d shield icon with a digital lock mechanism, violet and purple gradient, cybersecurity concept, sleek modern design, white background, high quality render"
+            },
+            {
+                id: 5,
+                name: "CloudSync Hub",
+                category: "productivity",
+                description: "Seamless file synchronization across all devices with version control and instant sharing.",
+                iconColor: "from-orange-400 to-amber-300",
+                imagePrompt: "3d cloud icon with circular arrows indicating sync, orange and amber gradient, clean modern tech icon, white background, high quality render"
+            }
+        ];
+
+        // Image Cache to prevent regenerating on every filter
+        const imageCache = {};
+
+        // DOM Elements
+        const appGrid = document.getElementById('appGrid');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const searchInput = document.getElementById('searchInput');
+        const emptyState = document.getElementById('emptyState');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderApps(apps);
+        });
+
+        // Render Function
+        function renderApps(data) {
+            appGrid.innerHTML = '';
+            
+            if (data.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            data.forEach((app, index) => {
+                // Create Card Element
+                const card = document.createElement('div');
+                card.className = `app-card rounded-2xl p-6 relative overflow-hidden group cursor-pointer animate-slide-up`;
+                card.style.animationDelay = `${index * 0.1}s`;
+                
+                // Placeholder for image while loading
+                const imgId = `img-${app.id}`;
+                
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-14 h-14 rounded-xl bg-gradient-to-br ${app.iconColor} p-0.5 shadow-lg card-icon relative overflow-hidden">
+                            <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center overflow-hidden">
+                                <img id="${imgId}" src="" alt="${app.name}" class="w-full h-full object-cover opacity-0 transition-opacity duration-500">
+                                <div class="absolute inset-0 flex items-center justify-center text-white font-bold text-xl" id="fallback-${app.id}">
+                                    ${app.name.charAt(0)}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 capitalize">
+                            ${app.category}
+                        </span>
+                    </div>
+                    
+                    <h3 class="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">${app.name}</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed mb-6 line-clamp-2">${app.description}</p>
+                    
+                    <div class="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                        <div class="flex -space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-slate-700 border border-slate-800"></div>
+                            <div class="w-6 h-6 rounded-full bg-slate-600 border border-slate-800"></div>
+                            <div class="w-6 h-6 rounded-full bg-slate-500 border border-slate-800 flex items-center justify-center text-[8px] text-white">+4k</div>
+                        </div>
+                        <button class="text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center gap-1 transition-all group/btn">
+                            Launch 
+                            <svg class="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Hover Glow Effect -->
+                    <div class="absolute -bottom-10 -right-10 w-32 h-32 bg-gradient-to-br ${app.iconColor} opacity-0 group-hover:opacity-20 blur-2xl transition-opacity duration-500 pointer-events-none"></div>
+                `;
+
+                appGrid.appendChild(card);
+
+                // Handle Image Generation
+                if (!imageCache[app.id]) {
+                    // Set a temporary loading state or just wait for the API
+                    // We call the API
+                    image_gen({ prompt: app.imagePrompt }).then(url => {
+                        imageCache[app.id] = url;
+                        const imgEl = document.getElementById(imgId);
+                        const fallbackEl = document.getElementById(`fallback-${app.id}`);
+                        if (imgEl) {
+                            imgEl.src = url;
+                            imgEl.onload = () => {
+                                imgEl.classList.remove('opacity-0');
+                                if(fallbackEl) fallbackEl.style.display = 'none';
+                            };
+                        }
+                    }).catch(err => {
+                        console.error("Image gen failed", err);
+                        // Keep fallback visible
+                    });
+                } else {
+                    // Use cached image
+                    const imgEl = document.getElementById(imgId);
+                    const fallbackEl = document.getElementById(`fallback-${app.id}`);
+                    if (imgEl) {
+                        imgEl.src = imageCache[app.id];
+                        imgEl.onload = () => {
+                            imgEl.classList.remove('opacity-0');
+                            if(fallbackEl) fallbackEl.style.display = 'none';
+                        };
+                        // If already loaded in cache (browser cache might handle it, but we set src anyway)
+                        if (imgEl.complete) {
+                             imgEl.classList.remove('opacity-0');
+                             if(fallbackEl) fallbackEl.style.display = 'none';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Filter Logic
+        let currentCategory = 'all';
+        let searchQuery = '';
+
+        function filterApps() {
+            const filtered = apps.filter(app => {
+                const matchesCategory = currentCategory === 'all' || app.category === currentCategory;
+                const matchesSearch = app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      app.description.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesCategory && matchesSearch;
+            });
+            renderApps(filtered);
+        }
+
+        // Event Listeners for Filters
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Update UI
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-500/25');
+                    b.classList.add('bg-slate-800', 'text-slate-400');
+                });
+                e.target.classList.remove('bg-slate-800', 'text-slate-400');
+                e.target.classList.add('bg-indigo-600', 'text-white', 'shadow-lg', 'shadow-indigo-500/25');
+
+                // Update Logic
+                currentCategory = e.target.dataset.category;
+                filterApps();
+            });
+        });
+
+        // Event Listener for Search
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            filterApps();
+        });
+
+    </script>
+</body>
+</html>
+

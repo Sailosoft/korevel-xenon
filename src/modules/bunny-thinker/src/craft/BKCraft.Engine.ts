@@ -271,4 +271,5 @@ export class BKCraftEngine {
   private static processDocker(raw: string): BKCraftEngineResult {
     return { raw, parsed: raw, format: "docker" };
   }
+
 }
