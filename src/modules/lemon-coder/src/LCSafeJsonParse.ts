@@ -370,13 +370,14 @@ function extractPartialResponse(content: string): LCAIResponse | null {
             ),
           );
           const parsed = JSON.parse(cleaned);
-          if (parsed.FileName && parsed.Content !== undefined) {
+          if (parsed.FileName && (parsed.Content !== undefined || parsed.Edits !== undefined)) {
             fileContents.push({
               FileName: parsed.FileName || "unknown",
               ExistingFile: !!parsed.ExistingFile,
               FileDirectory: parsed.FileDirectory || "",
               Description: parsed.Description || "",
               Content: parsed.Content || "",
+              Edits: Array.isArray(parsed.Edits) ? parsed.Edits : undefined,
             });
           }
         } catch {

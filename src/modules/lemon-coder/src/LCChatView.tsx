@@ -139,6 +139,7 @@ const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChat
           FileDirectory: f.FileDirectory,
           Description: f.Description,
           Content: f.Content,
+          Edits: f.Edits,
           applyStatus: f.applyStatus,
         })),
       );
@@ -201,6 +202,7 @@ const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChat
           input={input}
           isSending={isSending}
           stashCount={stashItems.length}
+          instructionCount={instructionStashItems.length}
           promptMode={promptMode}
           onInputChange={setInput}
           onSend={handleSend}

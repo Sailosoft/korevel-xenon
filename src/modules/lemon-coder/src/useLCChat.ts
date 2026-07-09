@@ -9,6 +9,12 @@
 //                         Stash is cleared after each send.
 //   Code               — Single-turn prompt only (no conversation history).
 //                         Stash is NOT cleared — kept across turns.
+//
+// File editing supports two modes:
+//   - Full Content: AI returns the entire file content (new files / small files)
+//   - SEARCH/REPLACE (Edits[]): AI returns only changed sections with exact
+//     Search/Replace blocks (token-efficient for existing file modifications).
+//     Normalized into Content for backwards compatibility on read.
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
@@ -21,6 +27,8 @@ import type {
   LCChatMessage,
   LCContextStashItem,
   LCFileActionResult,
+  LCFileEdit,
+  LCAIResponse,
   LCErrorInfo,
   LCAIConversationMessage,
 } from "./LCInterface";
@@ -32,6 +40,81 @@ import {
   buildAskPrompt,
   buildCodePrompt,
 } from "./LCPromptMode";
+
+// ── SEARCH/REPLACE Normalisation ──────────────────────────────────────────────────
+
+/**
+ * Normalise a raw AI response so all file entries have a `Content` field.
+ *
+ * Handles two patterns:
+ * 1. Top-level `FileEdits[]` → merged into `FileContents[]` as entries with Edits
+ * 2. Per-file `Edits[]` within FileContents — Content is already present from AI
+ *
+ * This ensures backward compatibility: all downstream code (DB storage, diff view,
+ * file application) can always read `.Content` regardless of whether the AI used
+ * the SEARCH/REPLACE format or the full-content format.
+ */
+function normaliseFileEdits(aiResponse: LCAIResponse): LCAIResponse {
+  const fileContents = [...(aiResponse.FileContents ?? [])];
+
+  // Merge top-level FileEdits into FileContents (if any)
+  if (Array.isArray(aiResponse.FileEdits)) {
+    for (const fe of aiResponse.FileEdits) {
+      // Avoid duplicates: skip if FileName+FileDirectory already exists
+      const exists = fileContents.some(
+        (fc) => fc.FileName === fe.FileName && fc.FileDirectory === fe.FileDirectory,
+      );
+      if (!exists) {
+        fileContents.push({
+          FileName: fe.FileName,
+          ExistingFile: true,
+          FileDirectory: fe.FileDirectory,
+          Description: fe.Description ?? `Edit ${fe.FileName}`,
+          Content: "", // Will be reconstructed from Edits if available
+          Edits: fe.Edits,
+        });
+      }
+    }
+  }
+
+  // For entries with Edits but no Content, try to reconstruct Content
+  for (const fc of fileContents) {
+    if (Array.isArray(fc.Edits) && fc.Edits.length > 0 && !fc.Content) {
+      // Content is the target (post-apply) state — without the original file
+      // we can't reconstruct it. Leave empty; the viewer/apply logic will use Edits.
+    }
+  }
+
+  return { ...aiResponse, FileContents: fileContents };
+}
+
+/**
+ * Apply SEARCH/REPLACE edits to file content.
+ * Returns the new content if all edits apply successfully, or throws with details.
+ * Exported so that external handlers (LCApp, LCStudio) can use it directly
+ * rather than duplicating the logic.
+ */
+export function applySearchReplace(
+  originalContent: string,
+  edits: LCFileEdit[],
+): { content: string; applied: number } {
+  let content = originalContent;
+  let applied = 0;
+
+  for (const edit of edits) {
+    const idx = content.indexOf(edit.Search);
+    if (idx === -1) {
+      throw new Error(
+        `SEARCH block "${edit.Description || edits.indexOf(edit) + 1}" did not match. ` +
+        `Searched for ${edit.Search.length} chars starting with: "${edit.Search.slice(0, 80)}..."`,
+      );
+    }
+    content = content.slice(0, idx) + edit.Replace + content.slice(idx + edit.Search.length);
+    applied++;
+  }
+
+  return { content, applied };
+}
 
 /**
  * Extract a short session title from the first AI response content.
@@ -105,7 +188,15 @@ export interface UseLCChatReturn {
       instructionStashContext?: string;
     },
   ) => Promise<void>;
-  applyFileChanges: (fileActions: LCFileActionResult[]) => Promise<void>;
+  applyFileChanges: (
+    fileActions: LCFileActionResult[],
+    options?: {
+      /** Read the current content of a file by its resolved path */
+      readFileContent?: (filePath: string) => Promise<string>;
+      /** Write content to a file by its resolved path */
+      writeFileContent?: (filePath: string, content: string) => Promise<void>;
+    },
+  ) => Promise<void>;
   /** Gather all file actions from the most recent assistant message */
   getLatestAssistantFileActions: () => LCFileActionResult[];
   /** Delete a specific chat session */
@@ -394,17 +485,20 @@ export function useLCChat(): UseLCChatReturn {
           });
         }
 
+        // ── Normalise SEARCH/REPLACE Edits → Content for backwards compat ──
+        const normalised = normaliseFileEdits(aiResponse);
+
         // Add AI response to DB (with context files attached)
         const aiMsg = await lcDB.addChatMessage(session.id, {
           role: "assistant",
-          content: aiResponse.AIMessage,
-          fileContents: Array.isArray(aiResponse.FileContents)
-            ? aiResponse.FileContents
+          content: normalised.AIMessage,
+          fileContents: Array.isArray(normalised.FileContents)
+            ? normalised.FileContents
             : undefined,
           questions:
-            Array.isArray(aiResponse.Questions) &&
-            aiResponse.Questions.length > 0
-              ? aiResponse.Questions
+            Array.isArray(normalised.Questions) &&
+            normalised.Questions.length > 0
+              ? normalised.Questions
               : undefined,
           contextFiles:
             contextFileNames.length > 0 ? contextFileNames : undefined,
@@ -485,29 +579,72 @@ export function useLCChat(): UseLCChatReturn {
 
   /**
    * Apply file changes — writes the AI-generated file contents to disk.
-   * Uses the File System Access API via the provided writeFile callback.
-   * Falls back to browser download if no writeFile callback is provided.
+   * Supports both full-content writes and SEARCH/REPLACE (Edits[]) patches.
+   *
+   * Strategy:
+   * - NEW files (ExistingFile=false): always write the full Content.
+   * - Existing files with Edits[]: read current content, apply each SEARCH/REPLACE,
+   *     then write the patched result.
+   * - Existing files with Content only (no Edits): write Content as-is.
+   *
+   * Falls back to browser download if no readFile/writeFile callbacks provided.
    */
   const applyFileChanges = useCallback(
     async (
       fileActions: LCFileActionResult[],
+      options?: {
+        /** Read the current content of a file by its resolved path */
+        readFileContent?: (filePath: string) => Promise<string>;
+        /** Write content to a file by its resolved path */
+        writeFileContent?: (filePath: string, content: string) => Promise<void>;
+      },
     ) => {
       for (const action of fileActions) {
         try {
           const filePath = resolveFilePath(action);
+          let outputContent = action.Content;
 
-          console.log(
-            `${action.ExistingFile ? "Overwriting" : "Creating"} file: ${filePath}`,
-          );
+          // ── SEARCH/REPLACE: patch the current file content ──────────────
+          if (
+            action.ExistingFile &&
+            Array.isArray(action.Edits) &&
+            action.Edits.length > 0
+          ) {
+            if (options?.readFileContent) {
+              // Read the current file from disk and apply patches
+              const currentContent = await options.readFileContent(filePath);
+              const result = applySearchReplace(currentContent, action.Edits);
+              outputContent = result.content;
+              console.log(
+                `Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
+              );
+            } else {
+              // Can't read current file — use Content as-is (AI-provided full result)
+              console.warn(
+                `No readFileContent provided; using AI-provided Content for ${filePath}`,
+              );
+            }
+          }
 
-          // Fallback: browser download via blob URL
-          const blob = new Blob([action.Content], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = action.FileName;
-          a.click();
-          URL.revokeObjectURL(url);
+          // ── Write the output ────────────────────────────────────────────
+          if (options?.writeFileContent) {
+            await options.writeFileContent(filePath, outputContent);
+            console.log(
+              `${action.ExistingFile ? "Overwritten" : "Created"} file: ${filePath}`,
+            );
+          } else {
+            // Fallback: browser download via blob URL
+            console.log(
+              `Downloading ${action.ExistingFile ? "updated" : "new"} file: ${filePath}`,
+            );
+            const blob = new Blob([outputContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = action.FileName;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
         } catch (error) {
           console.error(`Failed to apply changes to ${action.FileName}:`, error);
         }

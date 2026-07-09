@@ -29,12 +29,14 @@ import type {
   LCDeepstashMergeStrategy,
   LCChatSession,
   LCFileActionResult,
+  LCFileEdit,
   LCFavoriteGroup,
   LCFavoriteItem,
   LCInstructionStashItem,
 } from "./LCInterface";
 import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
+import { applySearchReplace } from "./useLCChat";
 
 interface LCStudioProps {
   projectId: string;
@@ -481,13 +483,38 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           FileDirectory: rawAction.FileDirectory,
           Description: rawAction.Description,
           Content: rawAction.Content,
+          Edits: rawAction.Edits,
           applyStatus: rawAction.applyStatus,
         };
 
         try {
           const filePath = resolveAndNormaliseFilePath(action);
 
-          await writeFile(filePath, action.Content);
+          // ── Resolve output content: SEARCH/REPLACE or full Content ──────
+          let outputContent = action.Content;
+          if (
+            action.ExistingFile &&
+            Array.isArray(action.Edits) &&
+            action.Edits.length > 0
+          ) {
+            try {
+              const currentContent = await readFileContent(
+                findItemByPath(filePath)!,
+              );
+              const result = applySearchReplace(currentContent, action.Edits);
+              outputContent = result.content;
+              console.log(
+                `[lemon-coder] Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
+              );
+            } catch (err) {
+              console.warn(
+                `[lemon-coder] SEARCH/REPLACE failed for ${filePath}, falling back to Content:`,
+                err,
+              );
+            }
+          }
+
+          await writeFile(filePath, outputContent);
 
           console.log(
             `[lemon-coder] ${action.ExistingFile ? "Overwritten" : "Created"} file: ${filePath}`,
@@ -511,7 +538,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       // Refresh the file tree so new files appear immediately
       await refreshFileTree();
     },
-    [writeFile, refreshFileTree, resolveAndNormaliseFilePath],
+    [writeFile, refreshFileTree, resolveAndNormaliseFilePath, readFileContent, findItemByPath],
   );
 
   const handleKeepOnlyFolder = useCallback(

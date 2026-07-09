@@ -94,8 +94,27 @@ export interface LCFileActionResult {
   FileDirectory: string;
   Description: string;
   Content: string;
+  /** SEARCH/REPLACE edits (alternative to Content for existing files) */
+  Edits?: LCFileEdit[];
   /** Track the application status of this file action */
   applyStatus?: LCApplyStatus;
+}
+
+/**
+ * A single SEARCH/REPLACE block targeting a section of a file.
+ * The AI matches `Search` exactly (including whitespace/indentation) and
+ * replaces it with `Replace`. Multiple edits can be applied to the same file.
+ *
+ * When Edits[] is present, `Content` is the *target* (post-apply) content
+ * used for display/diff, but the actual write uses the SEARCH/REPLACE blocks.
+ */
+export interface LCFileEdit {
+  /** Brief description of what this edit changes */
+  Description?: string;
+  /** Exact content to find in the current file (must match line-for-line) */
+  Search: string;
+  /** Replacement content that will be written in place of Search */
+  Replace: string;
 }
 
 /** AI response structure from Helix */
@@ -103,6 +122,13 @@ export interface LCAIResponse {
   SessionID: string;
   AIMessage: string;
   FileContents: LCFileActionResult[];
+  /** Alternative: top-level FileEdits grouped by file (simpler than FileContents for edits) */
+  FileEdits?: Array<{
+    FileName: string;
+    FileDirectory: string;
+    Description?: string;
+    Edits: LCFileEdit[];
+  }>;
   /** Selectable question/option suggestions (Plan mode) */
   Questions?: string[];
 }

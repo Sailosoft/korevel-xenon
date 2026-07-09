@@ -103,6 +103,7 @@ export function InlineFileDiff({
       FileDirectory: file.FileDirectory,
       Description: file.Description,
       Content: file.Content,
+      Edits: file.Edits,
       applyStatus: "applied",
     };
     onApplyFileChanges([action]);
@@ -283,6 +284,7 @@ export function ViewAllChangesModal({
           FileDirectory: f.FileDirectory,
           Description: f.Description,
           Content: f.Content,
+          Edits: f.Edits,
           applyStatus: "applied",
         })),
       );
@@ -311,6 +313,7 @@ export function ViewAllChangesModal({
         FileDirectory: fileAction.FileDirectory,
         Description: fileAction.Description,
         Content: fileAction.Content,
+        Edits: fileAction.Edits,
         applyStatus: "applied",
       };
       onApplyFileChanges([action]);

@@ -28,12 +28,14 @@ import type {
   LCDeepstashMergeStrategy,
   LCChatSession,
   LCFileActionResult,
+  LCFileEdit,
   LCFavoriteGroup,
   LCFavoriteItem,
   LCInstructionStashItem,
 } from "./LCInterface";
 import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
+import { applySearchReplace } from "./useLCChat";
 
 export default function LCApp() {
   const {
@@ -527,14 +529,39 @@ export default function LCApp() {
           FileDirectory: rawAction.FileDirectory,
           Description: rawAction.Description,
           Content: rawAction.Content,
+          Edits: rawAction.Edits,
           applyStatus: rawAction.applyStatus,
         };
 
         try {
           const filePath = resolveAndNormaliseFilePath(action);
 
+          // ── Resolve output content: SEARCH/REPLACE or full Content ──────
+          let outputContent = action.Content;
+          if (
+            action.ExistingFile &&
+            Array.isArray(action.Edits) &&
+            action.Edits.length > 0
+          ) {
+            try {
+              const currentContent = await readFileContent(
+                findItemByPath(filePath)!,
+              );
+              const result = applySearchReplace(currentContent, action.Edits);
+              outputContent = result.content;
+              console.log(
+                `[lemon-coder] Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
+              );
+            } catch (err) {
+              console.warn(
+                `[lemon-coder] SEARCH/REPLACE failed for ${filePath}, falling back to Content:`,
+                err,
+              );
+            }
+          }
+
           // Write directly to the filesystem via the cached directory handle
-          await writeFile(filePath, action.Content);
+          await writeFile(filePath, outputContent);
 
           console.log(
             `[lemon-coder] ${action.ExistingFile ? "Overwritten" : "Created"} file: ${filePath}`,
@@ -559,7 +586,7 @@ export default function LCApp() {
       // Refresh the file tree so new files appear immediately
       await refreshFileTree();
     },
-    [writeFile, refreshFileTree, resolveAndNormaliseFilePath],
+    [writeFile, refreshFileTree, resolveAndNormaliseFilePath, readFileContent, findItemByPath],
   );
 
   const handleKeepOnlyFolder = useCallback(
