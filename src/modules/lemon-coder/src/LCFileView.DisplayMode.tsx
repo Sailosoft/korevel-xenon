@@ -1,12 +1,13 @@
 // ───────────────────────────────────────────────────────────────────────────────
 // Lemon Coder — LCFileView.DisplayMode Sub-Component
 // Renders file content based on display mode: Monaco editor for source,
-// ReactMarkdown for .md files, MermaidRenderer for .mermaid/.mmd files.
+// ReactMarkdown for .md files, MermaidRenderer for .mermaid/.mmd files,
+// and an iframe with blob URL for .html files.
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
-import { useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -75,8 +76,12 @@ export function isMermaidFile(fileName: string): boolean {
   return ext === "mermaid" || ext === "mmd";
 }
 
+export function isHtmlFile(fileName: string): boolean {
+  return getFileExt(fileName) === "html";
+}
+
 export function canPreviewFile(fileName: string): boolean {
-  return isMarkdownFile(fileName) || isMermaidFile(fileName);
+  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isHtmlFile(fileName);
 }
 
 // ── Display mode type ───────────────────────────────────────────────────────
@@ -98,6 +103,8 @@ export interface LCFileViewDisplayModeProps {
   onSave: () => void;
   /** Insert text into the chat input (Monaco context menu action) */
   onInsertToChatInput?: (text: string) => void;
+  /** Whether to wrap lines in the Monaco editor */
+  wordWrap?: boolean;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -109,9 +116,34 @@ export default function LCFileViewDisplayMode({
   onContentChange,
   onSave,
   onInsertToChatInput,
+  wordWrap = true,
 }: LCFileViewDisplayModeProps) {
   const mdFile = isMarkdownFile(selectedFile.name);
   const mmdFile = isMermaidFile(selectedFile.name);
+  const htmlFile = isHtmlFile(selectedFile.name);
+
+  // ── Blob URL management for HTML preview ──────────────────────────
+  const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Revoke previous blob URL when content changes or we leave HTML preview
+    if (htmlPreviewUrl) {
+      URL.revokeObjectURL(htmlPreviewUrl);
+      setHtmlPreviewUrl(null);
+    }
+
+    if (displayMode === "file" && htmlFile && content) {
+      const blob = new Blob([content], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      setHtmlPreviewUrl(url);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (htmlPreviewUrl) URL.revokeObjectURL(htmlPreviewUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, displayMode, htmlFile]);
 
   // ── Refs to keep Monaco's onMount closures non-stale ──────────────
   // Monaco's onMount callback fires only once per editor lifetime.
@@ -225,11 +257,43 @@ export default function LCFileViewDisplayMode({
         </div>
       ) : displayMode === "file" && mmdFile ? (
         /* ── Mermaid Diagram Preview ─────────────────────────────── */
-        <div className="flex items-start justify-center h-full p-4 overflow-y-auto">
-          <MermaidRenderer
-            chart={content}
-            className="w-full max-w-full"
-          />
+        content.trim() ? (
+          <div className="flex items-start justify-center h-full p-4 overflow-y-auto">
+            <MermaidRenderer
+              chart={content}
+              className="w-full max-w-full"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-xs text-[#858585]">
+            No diagram content to render
+          </div>
+        )
+      ) : displayMode === "file" && htmlFile ? (
+        /* ── HTML Preview (iframe with blob URL) ──────────────────── */
+        <div className="flex-1 flex flex-col min-h-0 bg-white">
+          {/* Info bar */}
+          <div className="flex items-center gap-2 px-3 py-1 bg-[#1e2d1e] border-b border-[#333333] shrink-0">
+            <span className="text-[10px] text-[#98c379]">●</span>
+            <span className="text-[11px] text-[#858585]">
+              HTML preview — rendered in an isolated iframe
+            </span>
+          </div>
+          {/* Iframe */}
+          <div className="flex-1 min-h-0">
+            {htmlPreviewUrl ? (
+              <iframe
+                src={htmlPreviewUrl}
+                className="w-full h-full border-0"
+                title="HTML Preview"
+                sandbox="allow-scripts allow-same-origin"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-xs text-[#858585]">
+                No content to preview
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
@@ -290,6 +354,7 @@ export default function LCFileViewDisplayMode({
             scrollBeyondLastLine: false,
             automaticLayout: true,
             padding: { top: 8 },
+            wordWrap: wordWrap ? "on" : "off",
           }}
         />
       )}

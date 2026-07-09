@@ -17,10 +17,13 @@ import {
   Plus,
   Eye,
   Code2,
+  MoreVertical,
+  WrapText,
 } from "lucide-react";
 import LCFileViewDisplayMode, {
   canPreviewFile,
   isMarkdownFile,
+  isHtmlFile,
 } from "./LCFileView.DisplayMode";
 import type { LCFileViewDisplayMode as LCFileViewDisplayModeType } from "./LCFileView.DisplayMode";
 import type { LCFileTreeItem, LCExternalChangeStatus, LCFileActionResult } from "./LCInterface";
@@ -89,6 +92,9 @@ export default function LCFileView({
 }: LCFileViewProps) {
   // ── Local State ──────────────────────────────────────────────────────────
   const [displayMode, setDisplayMode] = useState<LCFileViewDisplayModeType>("source");
+  const [wordWrap, setWordWrap] = useState(true);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
 
   // ── Auto-save debounce ───────────────────────────────────────────────────
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,6 +130,20 @@ export default function LCFileView({
   // ── Derived display-mode helpers ─────────────────────────────────────────
   const canPreview = selectedFile ? canPreviewFile(selectedFile.name) : false;
   const mdFile = selectedFile ? isMarkdownFile(selectedFile.name) : false;
+  const htmlFile = selectedFile ? isHtmlFile(selectedFile.name) : false;
+
+  // Close the header dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setShowHeaderMenu(false);
+      }
+    }
+    if (showHeaderMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showHeaderMenu]);
 
   if (!selectedFile) {
     return (
@@ -184,11 +204,15 @@ export default function LCFileView({
               title={
                 mdFile
                   ? "View rendered markdown"
-                  : "View rendered diagram"
+                  : htmlFile
+                    ? "View rendered HTML"
+                    : "View rendered diagram"
               }
             >
               <Eye className="w-3 h-3" />
-              <span className="hidden sm:inline">{mdFile ? "Preview" : "Diagram"}</span>
+              <span className="hidden sm:inline">
+                {mdFile ? "Preview" : htmlFile ? "Preview" : "Diagram"}
+              </span>
             </button>
           </div>
         )}
@@ -236,6 +260,53 @@ export default function LCFileView({
               <Save className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Save</span>
             </button>
+
+            {/* Three-dot menu for additional options (non-diff mode only) */}
+            <div className="relative" ref={headerMenuRef}>
+              <button
+                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                className="flex items-center justify-center w-6 h-6 rounded text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
+                title="More actions"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              {showHeaderMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 min-w-[180px] bg-[#2d2d2d] border border-[#444444] rounded-md shadow-xl py-1">
+                  {htmlFile && (
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([content], { type: "text/html" });
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, "_blank");
+                        setShowHeaderMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[#d4d4d4] hover:bg-[#3c3c3c] transition-colors select-none"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span className="flex-1">Open HTML in New Tab</span>
+                    </button>
+                  )}
+                  {mdFile && (
+                    <button
+                      onClick={() => {
+                        setWordWrap(!wordWrap);
+                        setShowHeaderMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors select-none ${
+                        wordWrap
+                          ? "text-[#e5c07b]"
+                          : "text-[#d4d4d4] hover:bg-[#3c3c3c]"
+                      }`}
+                    >
+                      <WrapText className="w-3.5 h-3.5" />
+                      <span className="flex-1">Wrap Lines</span>
+                      {wordWrap && <Check className="w-3 h-3 text-[#e5c07b]" />}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -328,6 +399,7 @@ export default function LCFileView({
           onContentChange={onContentChange}
           onSave={onSave}
           onInsertToChatInput={onInsertToChatInput}
+          wordWrap={wordWrap}
         />
       )}
     </div>

@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { toast } from "@heroui/react";
 import type {
   LCFileTreeItem,
   LCContextStashItem,
@@ -384,6 +385,10 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
           async (records: any[]) => {
             for (const record of records) {
               const handle = record.changedHandle;
+              // `changedHandle` can be null (e.g. when a directory is created,
+              // or when the observer fires a generic change notification).
+              if (!handle) continue;
+
               // Build the relative path from the handle name chain
               let relativePath = handle.name;
               let parent = await record.root.getFileHandle?.(handle.name).catch(() => null);
@@ -765,9 +770,15 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       if (!dirHandleRef.current) {
         throw new Error("No project directory handle available. Open a project first.");
       }
-      await createItemInHandle(dirHandleRef.current, parentPath, name, type);
-      await refreshFileTree();
-      console.log(`[lemon-coder] Created ${type}: ${parentPath}/${name}`);
+      try {
+        await createItemInHandle(dirHandleRef.current, parentPath, name, type);
+        await refreshFileTree();
+        console.log(`[lemon-coder] Created ${type}: ${parentPath}/${name}`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        toast.danger(`Failed to create ${type}: ${msg}`);
+        throw error;
+      }
     },
     [refreshFileTree],
   );
@@ -777,14 +788,20 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       if (!dirHandleRef.current) {
         throw new Error("No project directory handle available. Open a project first.");
       }
-      await deleteItemInHandle(dirHandleRef.current, itemPath, isDirectory);
-      // If the deleted item was the selected file, clear selection
-      if (selectedFile?.path === itemPath) {
-        setSelectedFile(null);
-        setSelectedFileContent("");
+      try {
+        await deleteItemInHandle(dirHandleRef.current, itemPath, isDirectory);
+        // If the deleted item was the selected file, clear selection
+        if (selectedFile?.path === itemPath) {
+          setSelectedFile(null);
+          setSelectedFileContent("");
+        }
+        await refreshFileTree();
+        console.log(`[lemon-coder] Deleted: ${itemPath}`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        toast.danger(`Failed to delete: ${msg}`);
+        throw error;
       }
-      await refreshFileTree();
-      console.log(`[lemon-coder] Deleted: ${itemPath}`);
     },
     [refreshFileTree, selectedFile],
   );
@@ -794,15 +811,21 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       if (!dirHandleRef.current) {
         throw new Error("No project directory handle available. Open a project first.");
       }
-      await renameItemInHandle(dirHandleRef.current, itemPath, newName);
-      // If the renamed item was the selected file, clear selection (path changed)
-      // The user can re-select the renamed file from the refreshed tree
-      if (selectedFile?.path === itemPath) {
-        setSelectedFile(null);
-        setSelectedFileContent("");
+      try {
+        await renameItemInHandle(dirHandleRef.current, itemPath, newName);
+        // If the renamed item was the selected file, clear selection (path changed)
+        // The user can re-select the renamed file from the refreshed tree
+        if (selectedFile?.path === itemPath) {
+          setSelectedFile(null);
+          setSelectedFileContent("");
+        }
+        await refreshFileTree();
+        console.log(`[lemon-coder] Renamed: ${itemPath} → ${newName}`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        toast.danger(`Failed to rename: ${msg}`);
+        throw error;
       }
-      await refreshFileTree();
-      console.log(`[lemon-coder] Renamed: ${itemPath} → ${newName}`);
     },
     [refreshFileTree, selectedFile],
   );

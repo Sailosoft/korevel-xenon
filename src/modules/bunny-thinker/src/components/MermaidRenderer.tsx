@@ -58,6 +58,12 @@ export default function MermaidRenderer({
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
 
+  // ── Touch state (mobile) ────────────────────────────────────────────
+  const touchStart = useRef({ x: 0, y: 0 });
+  const pinchStartDist = useRef(0);
+  const pinchStartZoom = useRef(1);
+  const lastTouchDistance = useRef(0);
+
   // Reset pan/zoom when the chart changes
   useEffect(() => {
     setZoom(1);
@@ -110,6 +116,84 @@ export default function MermaidRenderer({
 
   const handleMouseUp = useCallback(() => {
     isDragging.current = false;
+  }, []);
+
+  // ── Touch handlers (mobile) ─────────────────────────────────────────
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      // Single finger — start panning
+      isDragging.current = true;
+      const touch = e.touches[0];
+      touchStart.current = { x: touch.clientX, y: touch.clientY };
+      panStart.current = { x: pan.x, y: pan.y };
+    } else if (e.touches.length === 2) {
+      // Two fingers — start pinch-to-zoom
+      isDragging.current = true;
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dx = t2.clientX - t1.clientX;
+      const dy = t2.clientY - t1.clientY;
+      pinchStartDist.current = Math.sqrt(dx * dx + dy * dy);
+      pinchStartZoom.current = zoom;
+      lastTouchDistance.current = pinchStartDist.current;
+      // Use midpoint as pan anchor
+      touchStart.current = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2,
+      };
+      panStart.current = { x: pan.x, y: pan.y };
+    }
+    // The `touch-none` CSS class on the container already prevents default
+    // browser touch behaviors (scroll, zoom), so preventDefault() is not
+    // needed here and would cause a passive event listener warning.
+  }, [pan, zoom]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isDragging.current) {
+      // Single finger pan
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStart.current.x;
+      const dy = touch.clientY - touchStart.current.y;
+      setPan({
+        x: panStart.current.x + dx,
+        y: panStart.current.y + dy,
+      });
+    } else if (e.touches.length === 2) {
+      // Two-finger pinch-to-zoom
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dx = t2.clientX - t1.clientX;
+      const dy = t2.clientY - t1.clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / pinchStartDist.current;
+      const newZoom = Math.min(Math.max(pinchStartZoom.current * scale, MIN_ZOOM), MAX_ZOOM);
+      setZoom(newZoom);
+
+      // Also pan based on midpoint movement
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+      const panDx = midX - touchStart.current.x;
+      const panDy = midY - touchStart.current.y;
+      setPan({
+        x: panStart.current.x + panDx,
+        y: panStart.current.y + panDy,
+      });
+
+      lastTouchDistance.current = dist;
+    }
+    // The `touch-none` CSS class on the container already prevents default
+    // browser touch behaviors (scroll, zoom), so preventDefault() is not
+    // needed here and would cause a passive event listener warning.
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 0) {
+      isDragging.current = false;
+    }
+    // The `touch-none` CSS class on the container already prevents default
+    // browser touch behaviors (scroll, zoom), so preventDefault() is not
+    // needed here and would cause a passive event listener warning.
   }, []);
 
   // ── Zoom handlers ───────────────────────────────────────────────────
@@ -192,6 +276,7 @@ export default function MermaidRenderer({
         >
           <div
             ref={viewportRef}
+            className="touch-none"
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
@@ -201,6 +286,9 @@ export default function MermaidRenderer({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             dangerouslySetInnerHTML={{ __html: svgContent }}
           />
         </div>

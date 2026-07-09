@@ -231,10 +231,21 @@ const HELIX_PROVIDER_MODELS: Record<
     "devstral-2:123b-cloud"
   ] as const,
   ollamaCloud: [
+    // Check model
     "gemma4:31b-cloud",
-    "gemini-3-flash-preview:cloud",
-    "deepseek-v4-pro:cloud",
-    "deepseek-v4-flash:cloud",
+    "gpt-oss:20b-cloud",
+    "minimax-m2.5:cloud",
+    "minimax-m3:cloud",
+    "nemotron-3-super:120b",
+    "nemotron-3-nano:30b-cloud",
+    "gemma3:27b-cloud",
+    "qwen3-coder-next:cloud",
+    // Limit Expire Soon
+    "glm-4.7:cloud",
+    "ministral-3:14b-cloud",
+    "devstral-small-2:24b-cloud",
+    
+    // Not Available
     "devstral-small-2:24b-cloud",
     "devstral-2:123b-cloud",
   ] as const,
