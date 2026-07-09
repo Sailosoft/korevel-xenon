@@ -228,7 +228,14 @@ const HELIX_PROVIDER_MODELS: Record<
     "deepseek-v4-pro:cloud",
     "deepseek-v4-flash:cloud",
     "devstral-small-2:24b-cloud",
-    "devstral-2:123b-cloud"
+    "devstral-2:123b-cloud",
+    "gpt-oss:20b-cloud",
+    "minimax-m2.5:cloud",
+    "minimax-m3:cloud",
+    "nemotron-3-super:cloud",
+    "nemotron-3-nano:30b-cloud",
+    "gemma3:27b-cloud",
+    "qwen3-coder-next:cloud",
   ] as const,
   ollamaCloud: [
     // Check model
@@ -236,7 +243,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "gpt-oss:20b-cloud",
     "minimax-m2.5:cloud",
     "minimax-m3:cloud",
-    "nemotron-3-super:120b",
+    "nemotron-3-super:cloud",
     "nemotron-3-nano:30b-cloud",
     "gemma3:27b-cloud",
     "qwen3-coder-next:cloud",
@@ -244,7 +251,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "glm-4.7:cloud",
     "ministral-3:14b-cloud",
     "devstral-small-2:24b-cloud",
-    
+
     // Not Available
     "devstral-small-2:24b-cloud",
     "devstral-2:123b-cloud",
@@ -332,7 +339,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "openai-responses/gpt-5.4-mini",
     "anthropic/claude-opus-4-8",
     "vertex/gemini-3.1-flash-lite@eu",
-    "xiaomi/mimo-v2.5-pro"
+    "xiaomi/mimo-v2.5-pro",
   ] as const,
   openRouter: [
     "openrouter/fusion",
@@ -399,7 +406,7 @@ const HELIX_PROVIDER_MODELS: Record<
 
 const ALL_PROVIDER_MODELS = Object.values(HELIX_PROVIDER_MODELS).flat();
 const UNIQUE_DEFAULT_MODELS = Array.from(
-  new Set(["default", ...ALL_PROVIDER_MODELS])
+  new Set(["default", ...ALL_PROVIDER_MODELS]),
 ).sort();
 
 export const HELIX_AI_MODELS: Record<HelixAIProvider, readonly string[]> = {
