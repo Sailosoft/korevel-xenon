@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, toast } from "@heroui/react";
 import {
   Pencil,
   Trash2,
@@ -19,6 +19,7 @@ import {
   File,
   Folder,
   BookOpenText,
+  Move,
 } from "lucide-react";
 import type { LCFileTreeItem, LCFavoriteGroup } from "./LCInterface";
 import type { LCContextMenuAction } from "./LCContextMenu";
@@ -108,7 +109,9 @@ export function useLCFileTreeContextMenu(
     try {
       await onRenameItem?.(renameTarget.path, renameValue.trim());
     } catch (error) {
-      console.error("[lemon-coder] Rename failed:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.danger(`Rename failed: ${msg}`);
+      throw error;
     }
     setRenameTarget(null);
   }, [renameTarget, renameValue, onRenameItem]);
@@ -140,7 +143,9 @@ export function useLCFileTreeContextMenu(
     try {
       await onDeleteItem?.(deleteConfirmTarget.path, deleteConfirmTarget.isDirectory);
     } catch (error) {
-      console.error("[lemon-coder] Delete failed:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.danger(`Delete failed: ${msg}`);
+      throw error;
     }
     setDeleteConfirmTarget(null);
   }, [deleteConfirmTarget, onDeleteItem]);
@@ -169,7 +174,9 @@ export function useLCFileTreeContextMenu(
         try {
           await onCopyItem(source.path, targetPath, newName);
         } catch (error) {
-          console.error("[lemon-coder] Copy failed:", error);
+          const msg = error instanceof Error ? error.message : String(error);
+          toast.danger(`Copy failed: ${msg}`);
+          throw error;
         }
       }
 
@@ -281,6 +288,16 @@ export function useLCFileTreeContextMenu(
             }
         }
       }
+
+      actions.push({
+        id: "move",
+        label: "Move",
+        icon: <Move className="w-3.5 h-3.5" />,
+        onClick: () => {
+          setContextMenu(null);
+          handleCopy(item, true);
+        },
+      });
 
       actions.push({
         id: "copy",

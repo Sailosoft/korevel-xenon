@@ -117,6 +117,29 @@ export default function LCChatViewChatInput({
 
         {/* Action buttons row below input */}
         <div className="flex items-center justify-between gap-1.5">
+          {/* Mode Selector — moved to the left side */}
+          {onPromptModeChange && (
+            <div className="flex items-center gap-0.5 bg-[#2d2d2d] rounded-md p-0.5 border border-[#333333]">
+              {(Object.keys(PROMPT_MODE_LABELS) as LCPromptModeType[]).map(
+                (mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => onPromptModeChange(mode)}
+                    className={`flex items-center gap-1 text-[10px] h-5 px-1.5 rounded transition-colors ${
+                      promptMode === mode
+                        ? "bg-[#e5c07b] text-[#1e1e1e]"
+                        : "text-[#858585] hover:text-white"
+                    }`}
+                    title={PROMPT_MODE_LABELS[mode]}
+                  >
+                    {modeIcons[mode]}
+                    {PROMPT_MODE_LABELS[mode]}
+                  </button>
+                ),
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5">
             <button
               onClick={onOpenInEditor}
@@ -139,29 +162,6 @@ export default function LCChatViewChatInput({
               new line
             </span>
           </div>
-
-          {/* Mode Selector */}
-          {onPromptModeChange && (
-            <div className="flex items-center gap-0.5 bg-[#2d2d2d] rounded-md p-0.5 border border-[#333333]">
-              {(Object.keys(PROMPT_MODE_LABELS) as LCPromptModeType[]).map(
-                (mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => onPromptModeChange(mode)}
-                    className={`flex items-center gap-1 text-[10px] h-5 px-1.5 rounded transition-colors ${
-                      promptMode === mode
-                        ? "bg-[#e5c07b] text-[#1e1e1e]"
-                        : "text-[#858585] hover:text-white"
-                    }`}
-                    title={PROMPT_MODE_LABELS[mode]}
-                  >
-                    {modeIcons[mode]}
-                    {PROMPT_MODE_LABELS[mode]}
-                  </button>
-                ),
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
