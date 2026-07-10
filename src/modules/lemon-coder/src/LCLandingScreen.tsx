@@ -15,6 +15,7 @@ export interface LCLandingScreenProps {
   recentProjects: LCProject[];
   onSelectRecentProject: (id: string) => void;
   onOpenHelixConfig: () => void;
+  onOpenSettings: () => void;
   onClearRecentProjects?: () => void;
 }
 
@@ -33,6 +34,7 @@ export default function LCLandingScreen({
   recentProjects,
   onSelectRecentProject,
   onOpenHelixConfig,
+  onOpenSettings,
   onClearRecentProjects,
 }: LCLandingScreenProps) {
   return (
@@ -45,6 +47,7 @@ export default function LCLandingScreen({
         onOpenProject={onOpenProject}
         onNewSession={undefined}
         onOpenHelixConfig={onOpenHelixConfig}
+        onOpenSettings={onOpenSettings}
         recentProjects={recentProjects}
         onSelectRecentProject={onSelectRecentProject}
       />

@@ -19,6 +19,7 @@ import LCSidebar from "./LCSidebar";
 import LCMainContent from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
+import LCSettingsModal from "./LCSettingsModal";
 import LCNewItemModal from "./LCNewItemModal";
 import LCDeepstashSaveModal from "./LCDeepstashSaveModal";
 import type {
@@ -120,6 +121,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [isLeaveStudioOpen, setIsLeaveStudioOpen] = useState(false);
   const [isDeepstashSaveOpen, setIsDeepstashSaveOpen] = useState(false);
@@ -815,6 +817,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         onOpenProject={handleOpenProjectFromStudio}
         onNewSession={handleCreateSession}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         projectName={currentProject.name}
         recentProjects={recentProjects}
         onSelectRecentProject={handleSelectRecentProject}
@@ -919,6 +922,11 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       <LCHelixConfigModal
         isOpen={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
+      />
+
+      <LCSettingsModal
+        isOpen={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
       />
 
       <LCNewItemModal

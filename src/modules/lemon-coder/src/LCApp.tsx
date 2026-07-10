@@ -17,6 +17,7 @@ import LCSidebar from "./LCSidebar";
 import LCMainContent from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
+import LCSettingsModal from "./LCSettingsModal";
 import LCLandingScreen from "./LCLandingScreen";
 import LCNewItemModal from "./LCNewItemModal";
 import LCDeepstashSaveModal from "./LCDeepstashSaveModal";
@@ -95,6 +96,7 @@ export default function LCApp() {
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [newFileParentPath, setNewFileParentPath] = useState("");
   const [newFileType, setNewFileType] = useState<"file" | "directory">("file");
@@ -795,6 +797,7 @@ export default function LCApp() {
           recentProjects={recentProjects}
           onSelectRecentProject={handleSelectRecentProject}
           onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onClearRecentProjects={clearRecentProjects}
         />
 
@@ -802,6 +805,12 @@ export default function LCApp() {
         <LCHelixConfigModal
           isOpen={isHelixConfigOpen}
           onOpenChange={setIsHelixConfigOpen}
+        />
+  
+        {/* Settings Modal */}
+        <LCSettingsModal
+          isOpen={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
         />
       </>
     );
@@ -818,6 +827,7 @@ export default function LCApp() {
         onOpenProject={() => handleOpenFolder()}
         onNewSession={handleCreateSession}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         projectName={currentProject.name}
         recentProjects={recentProjects}
         onSelectRecentProject={handleSelectRecentProject}
