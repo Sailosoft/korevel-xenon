@@ -159,6 +159,26 @@ export function isHelixProvider(value: string): value is HelixAIProvider {
 // Add or remove models here per provider. The "default" key is auto-computed
 // by merging all other providers — no manual duplication needed.
 
+const OLLAMA_CLOUD = [
+  // Check model
+  "gemma4:31b-cloud",
+  "gpt-oss:20b-cloud",
+  "minimax-m2.5:cloud",
+  "minimax-m3:cloud",
+  "nemotron-3-super:cloud",
+  "nemotron-3-nano:30b-cloud",
+  // Limit Expire Soon
+  "glm-4.7:cloud",
+  "ministral-3:14b-cloud",
+  "gemma3:27b-cloud",
+  "devstral-small-2:24b-cloud",
+  "qwen3-coder-next:cloud",
+  "qwen3-coder:480b-cloud",
+
+  // Not Available
+  "devstral-2:123b-cloud",
+];
+
 const HELIX_PROVIDER_MODELS: Record<
   Exclude<HelixAIProvider, "default">,
   readonly string[]
@@ -223,32 +243,9 @@ const HELIX_PROVIDER_MODELS: Record<
     "llama3.2:1b",
     "mistral:7b",
     "qwen2.5:7b",
-    "gemma4:31b-cloud",
-    "gemini-3-flash-preview:cloud",
-    "deepseek-v4-pro:cloud",
-    "deepseek-v4-flash:cloud",
-    "devstral-small-2:24b-cloud",
-    "devstral-2:123b-cloud"
+    ...OLLAMA_CLOUD
   ] as const,
-  ollamaCloud: [
-    // Check model
-    "gemma4:31b-cloud",
-    "gpt-oss:20b-cloud",
-    "minimax-m2.5:cloud",
-    "minimax-m3:cloud",
-    "nemotron-3-super:120b",
-    "nemotron-3-nano:30b-cloud",
-    "gemma3:27b-cloud",
-    "qwen3-coder-next:cloud",
-    // Limit Expire Soon
-    "glm-4.7:cloud",
-    "ministral-3:14b-cloud",
-    "devstral-small-2:24b-cloud",
-    
-    // Not Available
-    "devstral-small-2:24b-cloud",
-    "devstral-2:123b-cloud",
-  ] as const,
+  ollamaCloud: OLLAMA_CLOUD,
   deepseek: [
     "deepseek-chat",
     "deepseek-reasoner",
@@ -332,7 +329,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "openai-responses/gpt-5.4-mini",
     "anthropic/claude-opus-4-8",
     "vertex/gemini-3.1-flash-lite@eu",
-    "xiaomi/mimo-v2.5-pro"
+    "xiaomi/mimo-v2.5-pro",
   ] as const,
   openRouter: [
     "openrouter/fusion",
@@ -399,7 +396,7 @@ const HELIX_PROVIDER_MODELS: Record<
 
 const ALL_PROVIDER_MODELS = Object.values(HELIX_PROVIDER_MODELS).flat();
 const UNIQUE_DEFAULT_MODELS = Array.from(
-  new Set(["default", ...ALL_PROVIDER_MODELS])
+  new Set(["default", ...ALL_PROVIDER_MODELS]),
 ).sort();
 
 export const HELIX_AI_MODELS: Record<HelixAIProvider, readonly string[]> = {

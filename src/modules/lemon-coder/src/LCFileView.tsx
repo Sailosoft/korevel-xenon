@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import { useLiveQuery } from "dexie-react-hooks";
+import { lcDB } from "./LCDatabase";
 import {
   FileCode,
   RefreshCw,
@@ -59,6 +61,8 @@ export interface LCFileViewProps {
    * `content` (original) vs `diffContent` (AI-generated).
    */
   diffContent?: string;
+  /** Optional warning message shown above the Monaco diff when SEARCH/REPLACE fails to match */
+  diffWarning?: string;
   /** Callback when the user accepts the diff changes — applies diffContent */
   onAcceptDiff?: () => void;
   /** Callback when the user rejects / closes the diff preview */
@@ -84,6 +88,7 @@ export default function LCFileView({
   onAcknowledgeExternalChange,
   onSave,
   diffContent,
+  diffWarning,
   onAcceptDiff,
   onRejectDiff,
   diffLabel,
@@ -92,9 +97,13 @@ export default function LCFileView({
 }: LCFileViewProps) {
   // ── Local State ──────────────────────────────────────────────────────────
   const [displayMode, setDisplayMode] = useState<LCFileViewDisplayModeType>("source");
-  const [wordWrap, setWordWrap] = useState(true);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const headerMenuRef = useRef<HTMLDivElement>(null);
+
+  // ── Normalise line endings for Monaco diff ──────────────────────────────
+  // Prevent CRLF/LF mismatches from showing all lines as changed
+  const normalisedContent = (content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const normalisedDiffContent = (diffContent ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   // ── Auto-save debounce ───────────────────────────────────────────────────
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,9 +136,22 @@ export default function LCFileView({
     };
   }, [content, isDirty, isDiffMode, selectedFile, onSave]);
 
+  // ── Read word wrap setting from DexieDB ─────────────────────────────────
+  // Use a live query so the editor reacts immediately when the user changes
+  // the setting in LCSettingsModal.
+  const wordWrapSetting = useLiveQuery(
+    () => lcDB.appSettings.get("editor.wordWrap"),
+    [],
+  );
+
+  // Resolve effective word wrap:
+  //   – Markdown files ALWAYS wrap (prose content)
+  //   – Other files use the global setting (default: true)
+  const mdFile = selectedFile ? isMarkdownFile(selectedFile.name) : false;
+  const effectiveWordWrap = mdFile ? true : wordWrapSetting?.value !== "false";
+
   // ── Derived display-mode helpers ─────────────────────────────────────────
   const canPreview = selectedFile ? canPreviewFile(selectedFile.name) : false;
-  const mdFile = selectedFile ? isMarkdownFile(selectedFile.name) : false;
   const htmlFile = selectedFile ? isHtmlFile(selectedFile.name) : false;
 
   // Close the header dropdown on click outside
@@ -287,21 +309,23 @@ export default function LCFileView({
                       <span className="flex-1">Open HTML in New Tab</span>
                     </button>
                   )}
-                  {mdFile && (
+                  {/* Word Wrap toggle — shown for non-markdown files since markdown always wraps */}
+                  {!mdFile && (
                     <button
-                      onClick={() => {
-                        setWordWrap(!wordWrap);
+                      onClick={async () => {
+                        const next = !effectiveWordWrap;
+                        await lcDB.setSetting("editor.wordWrap", String(next));
                         setShowHeaderMenu(false);
                       }}
                       className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors select-none ${
-                        wordWrap
+                        effectiveWordWrap
                           ? "text-[#e5c07b]"
                           : "text-[#d4d4d4] hover:bg-[#3c3c3c]"
                       }`}
                     >
                       <WrapText className="w-3.5 h-3.5" />
                       <span className="flex-1">Wrap Lines</span>
-                      {wordWrap && <Check className="w-3 h-3 text-[#e5c07b]" />}
+                      {effectiveWordWrap && <Check className="w-3 h-3 text-[#e5c07b]" />}
                     </button>
                   )}
                 </div>
@@ -311,8 +335,15 @@ export default function LCFileView({
         )}
       </div>
 
+      {/* Diff preview warning banner (SEARCH/REPLACE mismatch) */}
+      {isDiffMode && diffWarning && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-[#3d1a1a] border-b border-[#e06c75]/30 shrink-0">
+          <span className="text-[10px] text-[#e06c75]">{diffWarning}</span>
+        </div>
+      )}
+
       {/* Diff preview info bar */}
-      {isDiffMode && (
+      {isDiffMode && !diffWarning && (
         <div className="flex items-center gap-3 px-4 py-1.5 bg-[#1e2d1e] border-b border-[#333333] shrink-0">
           <span className="text-[11px] text-[#858585]">
             <span className="text-[#abb2bf]">Original</span> ←
@@ -359,8 +390,8 @@ export default function LCFileView({
             key={`diff-${selectedFile.path}`}
             height="100%"
             language="plaintext"
-            original={content}
-            modified={diffContent}
+            original={normalisedContent}
+            modified={normalisedDiffContent}
             theme="vs-dark"
             beforeMount={(monaco) => {
               monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -399,7 +430,7 @@ export default function LCFileView({
           onContentChange={onContentChange}
           onSave={onSave}
           onInsertToChatInput={onInsertToChatInput}
-          wordWrap={wordWrap}
+          wordWrap={effectiveWordWrap}
         />
       )}
     </div>

@@ -94,8 +94,27 @@ export interface LCFileActionResult {
   FileDirectory: string;
   Description: string;
   Content: string;
+  /** SEARCH/REPLACE edits (alternative to Content for existing files) */
+  Edits?: LCFileEdit[];
   /** Track the application status of this file action */
   applyStatus?: LCApplyStatus;
+}
+
+/**
+ * A single SEARCH/REPLACE block targeting a section of a file.
+ * The AI matches `Search` exactly (including whitespace/indentation) and
+ * replaces it with `Replace`. Multiple edits can be applied to the same file.
+ *
+ * When Edits[] is present, `Content` is the *target* (post-apply) content
+ * used for display/diff, but the actual write uses the SEARCH/REPLACE blocks.
+ */
+export interface LCFileEdit {
+  /** Brief description of what this edit changes */
+  Description?: string;
+  /** Exact content to find in the current file (must match line-for-line) */
+  Search: string;
+  /** Replacement content that will be written in place of Search */
+  Replace: string;
 }
 
 /** AI response structure from Helix */
@@ -103,6 +122,13 @@ export interface LCAIResponse {
   SessionID: string;
   AIMessage: string;
   FileContents: LCFileActionResult[];
+  /** Alternative: top-level FileEdits grouped by file (simpler than FileContents for edits) */
+  FileEdits?: Array<{
+    FileName: string;
+    FileDirectory: string;
+    Description?: string;
+    Edits: LCFileEdit[];
+  }>;
   /** Selectable question/option suggestions (Plan mode) */
   Questions?: string[];
 }
@@ -247,6 +273,70 @@ export interface LCFavoriteItem {
 
 /** The default group name used when no group is selected */
 export const DEFAULT_FAVORITE_GROUP_NAME = "Default";
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+/**
+ * A single key-value settings entry persisted in DexieDB.
+ */
+export interface LCSettingsEntry {
+  key: string;
+  value: string;
+  updatedAt: Date;
+}
+
+/**
+ * Definition of a single setting field displayed in the settings modal.
+ */
+export interface LCSettingsField {
+  /** Unique key used to store/retrieve the value in DexieDB */
+  key: string;
+  /** Human-readable label */
+  label: string;
+  /** Optional description shown below the label */
+  description?: string;
+  /** The input control type */
+  type: "text" | "textarea" | "boolean" | "select" | "number";
+  /** Default value if no stored value exists */
+  defaultValue: string;
+  /** Options for "select" type */
+  options?: { label: string; value: string }[];
+}
+
+/**
+ * All available settings fields for the Lemon Coder settings modal.
+ * Add new entries here to register a new setting.
+ */
+export const LC_SETTINGS_FIELDS: LCSettingsField[] = [
+  {
+    key: "editor.wordWrap",
+    label: "Word Wrap",
+    description: "Wrap lines in the editor. Markdown files always wrap regardless of this setting.",
+    type: "boolean",
+    defaultValue: "true",
+  },
+  {
+    key: "editor.fontSize",
+    label: "Font Size",
+    description: "Monaco editor font size in pixels.",
+    type: "number",
+    defaultValue: "13",
+  },
+  {
+    key: "editor.tabSize",
+    label: "Tab Size",
+    description: "Number of spaces per indentation level.",
+    type: "number",
+    defaultValue: "2",
+  },
+  {
+    key: "editor.minimap",
+    label: "Minimap",
+    description: "Show the minimap in the editor.",
+    type: "boolean",
+    defaultValue: "true",
+  },
+];
 
 // ── Deepstash ─────────────────────────────────────────────────────────────────
 

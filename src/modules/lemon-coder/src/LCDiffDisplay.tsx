@@ -86,9 +86,13 @@ export default function LCDiffDisplay({
 }: LCDiffDisplayProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
+  // Normalize line endings to LF so diff doesn't show CRLF/LF as changes
+  const normalisedOriginal = (original ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const normalisedModified = (modified ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
   const { lines, added, removed } = useMemo(
-    () => buildLines(diffLines(original ?? "", modified ?? "")),
-    [original, modified],
+    () => buildLines(diffLines(normalisedOriginal, normalisedModified)),
+    [normalisedOriginal, normalisedModified],
   );
 
   const totalChanges = added + removed;

@@ -15,6 +15,7 @@ import type {
   LCFavoriteGroup,
   LCFavoriteItem,
   LCInstructionStashItem,
+  LCSettingsEntry,
 } from "./LCInterface";
 import type { HelixAISettings } from "@/src/modules/helix";
 
@@ -30,6 +31,7 @@ export class LCDatabase extends Dexie {
   favoriteGroups!: Table<LCFavoriteGroup, string>;
   favoriteItems!: Table<LCFavoriteItem, string>;
   instructionStash!: Table<LCInstructionStashItem, string>;
+  appSettings!: Table<LCSettingsEntry, string>;
 
   constructor() {
     super("lemon-coder");
@@ -37,6 +39,21 @@ export class LCDatabase extends Dexie {
     // IMPORTANT: Version bumps MUST be sequential. Never remove old version definitions.
     // If you add a new table, create the NEXT version number with the new table included.
     // Existing databases will only create new tables when a higher version is declared.
+
+    this.version(7).stores({
+      projects: "id, name, lastOpened",
+      projectHandles: "projectId",
+      chatSessions: "id, projectId, title, createdAt",
+      chatMessages: "id, role, timestamp",
+      contextStash: "id, path, addedAt",
+      aiSettings: "key, provider, model",
+      deepstashes: "id, projectId, name, createdAt",
+      deepstashItems: "id, deepstashId, path",
+      favoriteGroups: "id, projectId, name, createdAt",
+      favoriteItems: "id, groupId, projectId, path, addedAt",
+      instructionStash: "id, name, addedAt",
+      appSettings: "key",
+    });
 
     this.version(6).stores({
       projects: "id, name, lastOpened",
@@ -629,6 +646,49 @@ export class LCDatabase extends Dexie {
    */
   async clearInstructions(): Promise<void> {
     await this.instructionStash.clear();
+  }
+
+  // ── App Settings helpers ────────────────────────────────────────────────────
+
+  /**
+   * Get a single setting by key. Returns the stored entry or undefined.
+   */
+  async getSetting(key: string): Promise<LCSettingsEntry | undefined> {
+    return this.appSettings.get(key);
+  }
+
+  /**
+   * Get the string value of a setting by key, falling back to defaultValue.
+   */
+  async getSettingValue(key: string, defaultValue: string): Promise<string> {
+    const entry = await this.appSettings.get(key);
+    return entry?.value ?? defaultValue;
+  }
+
+  /**
+   * Set a setting value. Creates or overwrites the entry.
+   */
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.appSettings.put({ key, value, updatedAt: new Date() });
+  }
+
+  /**
+   * Get all settings as a flat key-value record.
+   */
+  async getAllSettings(): Promise<Record<string, string>> {
+    const entries = await this.appSettings.toArray();
+    const result: Record<string, string> = {};
+    for (const e of entries) {
+      result[e.key] = e.value;
+    }
+    return result;
+  }
+
+  /**
+   * Reset a single setting to its default (delete the stored entry).
+   */
+  async resetSetting(key: string): Promise<void> {
+    await this.appSettings.delete(key);
   }
 }
 

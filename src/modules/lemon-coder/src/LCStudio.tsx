@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Modal, Button } from "@heroui/react";
+import { Modal, Button, Toast } from "@heroui/react";
 import { lcDB } from "./LCDatabase";
 import { getHandle, removeHandle } from "./LCHandleRegistry";
 import { useLCProject } from "./useLCProject";
@@ -19,6 +19,7 @@ import LCSidebar from "./LCSidebar";
 import LCMainContent from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
+import LCSettingsModal from "./LCSettingsModal";
 import LCNewItemModal from "./LCNewItemModal";
 import LCDeepstashSaveModal from "./LCDeepstashSaveModal";
 import type {
@@ -29,12 +30,14 @@ import type {
   LCDeepstashMergeStrategy,
   LCChatSession,
   LCFileActionResult,
+  LCFileEdit,
   LCFavoriteGroup,
   LCFavoriteItem,
   LCInstructionStashItem,
 } from "./LCInterface";
 import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
+import { applySearchReplace } from "./useLCChat";
 
 interface LCStudioProps {
   projectId: string;
@@ -118,6 +121,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
 
   const [isRightSidebarExpanded, setIsRightSidebarExpanded] = useState(true);
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [isLeaveStudioOpen, setIsLeaveStudioOpen] = useState(false);
   const [isDeepstashSaveOpen, setIsDeepstashSaveOpen] = useState(false);
@@ -419,11 +423,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   const resolveAndNormaliseFilePath = useCallback(
     (action: LCFileActionResult): string => {
       const rawPath = resolveFilePath(action);
-      const knownFilePaths = new Set(
-        flattenFileTree(fileTree)
-          .filter((f) => !f.isDirectory)
-          .map((f) => f.path),
-      );
+      const flatFiles = flattenFileTree(fileTree).filter((f) => !f.isDirectory);
+      const knownFilePaths = new Set(flatFiles.map((f) => f.path));
 
       // If the resolved path already exists in the file tree, use it directly
       if (knownFilePaths.has(rawPath)) return rawPath;
@@ -463,6 +464,23 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         }
       }
 
+      // Fallback: AI often returns only the filename without a directory.
+      // Search existing files by filename (last path segment).
+      if (action.ExistingFile) {
+        const fileName = rawPath.split("/").pop();
+        if (fileName) {
+          const fileMatch = flatFiles.find(
+            (f) => f.path.endsWith("/" + fileName) || f.path === fileName,
+          );
+          if (fileMatch) {
+            console.warn(
+              `[lemon-coder] Path corrected: "${rawPath}" → "${fileMatch.path}" (matched by filename)`,
+            );
+            return fileMatch.path;
+          }
+        }
+      }
+
       return rawPath;
     },
     [fileTree, flattenFileTree],
@@ -481,13 +499,48 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           FileDirectory: rawAction.FileDirectory,
           Description: rawAction.Description,
           Content: rawAction.Content,
+          Edits: rawAction.Edits,
           applyStatus: rawAction.applyStatus,
         };
 
-        try {
-          const filePath = resolveAndNormaliseFilePath(action);
+        const filePath = resolveAndNormaliseFilePath(action);
 
-          await writeFile(filePath, action.Content);
+        // ── Resolve output content: SEARCH/REPLACE or full Content ──────
+        // Hoisted outside try/catch so download fallback can access it
+        let outputContent = action.Content;
+
+        try {
+          const hasEdits =
+            action.ExistingFile &&
+            Array.isArray(action.Edits) &&
+            action.Edits.length > 0;
+
+          if (hasEdits) {
+            try {
+              const currentContent = await readFileContent(
+                findItemByPath(filePath)!,
+              );
+              const result = applySearchReplace(currentContent, action.Edits!);
+              outputContent = result.content;
+              console.log(
+                `[lemon-coder] Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
+              );
+            } catch (err) {
+              // SEARCH/REPLACE failed AND Content is empty → would clear the file
+              if (!outputContent) {
+                throw new Error(
+                  `SEARCH/REPLACE failed for ${filePath} and Content is empty. ` +
+                  `Cannot write file without content. Error: ${err instanceof Error ? err.message : err}`,
+                );
+              }
+              console.warn(
+                `[lemon-coder] SEARCH/REPLACE failed for ${filePath}, falling back to Content:`,
+                err,
+              );
+            }
+          }
+
+          await writeFile(filePath, outputContent);
 
           console.log(
             `[lemon-coder] ${action.ExistingFile ? "Overwritten" : "Created"} file: ${filePath}`,
@@ -498,20 +551,29 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             error,
           );
 
-          const blob = new Blob([action.Content], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = action.FileName;
-          a.click();
-          URL.revokeObjectURL(url);
+          // Fallback: browser download via blob URL
+          // Use outputContent (which may have been patched via SEARCH/REPLACE)
+          const downloadContent = outputContent || action.Content;
+          if (downloadContent) {
+            const blob = new Blob([downloadContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = action.FileName;
+            a.click();
+            URL.revokeObjectURL(url);
+          } else {
+            console.error(
+              `[lemon-coder] Cannot download ${action.FileName}: Content is empty and SEARCH/REPLACE failed`,
+            );
+          }
         }
       }
 
       // Refresh the file tree so new files appear immediately
       await refreshFileTree();
     },
-    [writeFile, refreshFileTree, resolveAndNormaliseFilePath],
+    [writeFile, refreshFileTree, resolveAndNormaliseFilePath, readFileContent, findItemByPath],
   );
 
   const handleKeepOnlyFolder = useCallback(
@@ -724,6 +786,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       className="flex flex-col h-screen overflow-hidden"
       style={{ backgroundColor: LCTheme.colors.background, color: LCTheme.colors.text }}
     >
+      <Toast.Provider />
       {/* Permission-expired reconnect banner */}
       {permissionExpired && cachedDirHandleRef.current && (
         <div
@@ -754,6 +817,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         onOpenProject={handleOpenProjectFromStudio}
         onNewSession={handleCreateSession}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         projectName={currentProject.name}
         recentProjects={recentProjects}
         onSelectRecentProject={handleSelectRecentProject}
@@ -858,6 +922,11 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       <LCHelixConfigModal
         isOpen={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
+      />
+
+      <LCSettingsModal
+        isOpen={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
       />
 
       <LCNewItemModal

@@ -12,6 +12,7 @@ import {
   Loader2,
   Code2,
   Bot,
+  BookOpenText,
   Layers,
   MessageSquare,
   Terminal,
@@ -28,6 +29,8 @@ export interface LCChatViewChatInputProps {
   isSending: boolean;
   /** Number of items in the context stash (for placeholder text) */
   stashCount: number;
+  /** Number of instruction items attached */
+  instructionCount: number;
   /** Current prompt mode */
   promptMode: LCPromptModeType;
   /** Called when the input value changes */
@@ -55,6 +58,7 @@ export default function LCChatViewChatInput({
   input,
   isSending,
   stashCount,
+  instructionCount,
   promptMode,
   onInputChange,
   onSend,
@@ -141,6 +145,16 @@ export default function LCChatViewChatInput({
           )}
 
           <div className="flex items-center gap-1.5">
+            {instructionCount > 0 && (
+              <span
+                className="flex items-center gap-1 text-[10px] text-[#98c379] bg-[#2d2d2d] px-1.5 py-0.5 rounded-full"
+                title={`${instructionCount} instruction${instructionCount !== 1 ? "s" : ""} attached in system prompt`}
+              >
+                <BookOpenText className="w-3 h-3" />
+                {instructionCount}
+              </span>
+            )}
+
             <button
               onClick={onOpenInEditor}
               disabled={isSending}

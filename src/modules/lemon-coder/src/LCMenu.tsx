@@ -8,12 +8,12 @@ import { Button, Dropdown } from "@heroui/react";
 import { useRouter } from "next/navigation";
 import {
   FolderOpen,
-  History,
   Plus,
   FileCode,
   Bot,
   LayoutList,
   Menu,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,6 +22,8 @@ export interface LCMenuProps {
   onNewSession?: () => void;
   /** Opens the Helix AI provider configuration modal */
   onOpenHelixConfig?: () => void;
+  /** Opens the app settings modal */
+  onOpenSettings?: () => void;
   projectName?: string;
   recentProjects: Array<{ id: string; name: string }>;
   onSelectRecentProject: (id: string) => void;
@@ -31,6 +33,7 @@ export default function LCMenu({
   onOpenProject,
   onNewSession,
   onOpenHelixConfig,
+  onOpenSettings,
   projectName,
   recentProjects,
   onSelectRecentProject,
@@ -80,38 +83,6 @@ export default function LCMenu({
           Projects
         </Button>
 
-        {recentProjects.length > 0 ? (
-          <Dropdown>
-            <Dropdown.Trigger>
-              <span className="inline-flex items-center gap-1 px-3 h-8 rounded-md text-xs text-[#abb2bf] hover:text-white hover:bg-[#333333] cursor-pointer transition-colors">
-                <History className="w-3.5 h-3.5" />
-                Recent
-              </span>
-            </Dropdown.Trigger>
-            <Dropdown.Popover>
-              <Dropdown.Menu
-                aria-label="Recent projects"
-                onAction={(key) => onSelectRecentProject(key as string)}
-                className="bg-[#252526] border border-[#333333]"
-              >
-                {recentProjects.map((project) => (
-                  <Dropdown.Item
-                    key={project.id}
-                    className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
-                  >
-                    {project.name}
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        ) : (
-          <span className="inline-flex items-center gap-1 px-3 h-8 rounded-md text-xs text-[#555] cursor-not-allowed transition-colors">
-            <History className="w-3.5 h-3.5" />
-            Recent
-          </span>
-        )}
-
         <Button
           variant="ghost"
           size="sm"
@@ -120,6 +91,16 @@ export default function LCMenu({
         >
           <Bot className="w-3.5 h-3.5" />
           AI Config
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={onOpenSettings}
+          className="text-[#abb2bf] hover:text-white hover:bg-[#333333] text-xs h-8"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Settings
         </Button>
 
         <Button
@@ -163,45 +144,6 @@ export default function LCMenu({
                 <LayoutList className="w-3.5 h-3.5 inline mr-2" />
                 Projects
               </Dropdown.Item>
-              {recentProjects.length > 0 ? (
-                <Dropdown.Item
-                  key="recent"
-                  className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
-                >
-                  <Dropdown>
-                    <Dropdown.Trigger>
-                      <span className="inline-flex items-center gap-1">
-                        <History className="w-3.5 h-3.5" />
-                        Recent
-                      </span>
-                    </Dropdown.Trigger>
-                    <Dropdown.Popover>
-                      <Dropdown.Menu
-                        aria-label="Recent projects"
-                        onAction={(key) => onSelectRecentProject(key as string)}
-                        className="bg-[#252526] border border-[#333333]"
-                      >
-                        {recentProjects.map((project) => (
-                          <Dropdown.Item
-                            key={project.id}
-                            className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
-                          >
-                            {project.name}
-                          </Dropdown.Item>
-                        ))}
-                      </Dropdown.Menu>
-                    </Dropdown.Popover>
-                  </Dropdown>
-                </Dropdown.Item>
-              ) : (
-                <Dropdown.Item
-                  key="recent"
-                  className="text-[#555] cursor-not-allowed"
-                >
-                  <History className="w-3.5 h-3.5 inline mr-2" />
-                  Recent
-                </Dropdown.Item>
-              )}
               <Dropdown.Item
                 key="ai-config"
                 onAction={onOpenHelixConfig}
@@ -209,6 +151,14 @@ export default function LCMenu({
               >
                 <Bot className="w-3.5 h-3.5 inline mr-2" />
                 AI Config
+              </Dropdown.Item>
+              <Dropdown.Item
+                key="settings"
+                onAction={onOpenSettings}
+                className="text-[#abb2bf] hover:bg-[#333333] hover:text-white"
+              >
+                <Settings className="w-3.5 h-3.5 inline mr-2" />
+                Settings
               </Dropdown.Item>
               <Dropdown.Item
                 key="new-session"
