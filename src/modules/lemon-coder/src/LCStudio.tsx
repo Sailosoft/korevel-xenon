@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Modal, Button } from "@heroui/react";
+import { Modal, Button, Toast } from "@heroui/react";
 import { lcDB } from "./LCDatabase";
 import { getHandle, removeHandle } from "./LCHandleRegistry";
 import { useLCProject } from "./useLCProject";
@@ -421,11 +421,8 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   const resolveAndNormaliseFilePath = useCallback(
     (action: LCFileActionResult): string => {
       const rawPath = resolveFilePath(action);
-      const knownFilePaths = new Set(
-        flattenFileTree(fileTree)
-          .filter((f) => !f.isDirectory)
-          .map((f) => f.path),
-      );
+      const flatFiles = flattenFileTree(fileTree).filter((f) => !f.isDirectory);
+      const knownFilePaths = new Set(flatFiles.map((f) => f.path));
 
       // If the resolved path already exists in the file tree, use it directly
       if (knownFilePaths.has(rawPath)) return rawPath;
@@ -465,6 +462,23 @@ export default function LCStudio({ projectId }: LCStudioProps) {
         }
       }
 
+      // Fallback: AI often returns only the filename without a directory.
+      // Search existing files by filename (last path segment).
+      if (action.ExistingFile) {
+        const fileName = rawPath.split("/").pop();
+        if (fileName) {
+          const fileMatch = flatFiles.find(
+            (f) => f.path.endsWith("/" + fileName) || f.path === fileName,
+          );
+          if (fileMatch) {
+            console.warn(
+              `[lemon-coder] Path corrected: "${rawPath}" → "${fileMatch.path}" (matched by filename)`,
+            );
+            return fileMatch.path;
+          }
+        }
+      }
+
       return rawPath;
     },
     [fileTree, flattenFileTree],
@@ -487,26 +501,36 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           applyStatus: rawAction.applyStatus,
         };
 
-        try {
-          const filePath = resolveAndNormaliseFilePath(action);
+        const filePath = resolveAndNormaliseFilePath(action);
 
-          // ── Resolve output content: SEARCH/REPLACE or full Content ──────
-          let outputContent = action.Content;
-          if (
+        // ── Resolve output content: SEARCH/REPLACE or full Content ──────
+        // Hoisted outside try/catch so download fallback can access it
+        let outputContent = action.Content;
+
+        try {
+          const hasEdits =
             action.ExistingFile &&
             Array.isArray(action.Edits) &&
-            action.Edits.length > 0
-          ) {
+            action.Edits.length > 0;
+
+          if (hasEdits) {
             try {
               const currentContent = await readFileContent(
                 findItemByPath(filePath)!,
               );
-              const result = applySearchReplace(currentContent, action.Edits);
+              const result = applySearchReplace(currentContent, action.Edits!);
               outputContent = result.content;
               console.log(
                 `[lemon-coder] Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
               );
             } catch (err) {
+              // SEARCH/REPLACE failed AND Content is empty → would clear the file
+              if (!outputContent) {
+                throw new Error(
+                  `SEARCH/REPLACE failed for ${filePath} and Content is empty. ` +
+                  `Cannot write file without content. Error: ${err instanceof Error ? err.message : err}`,
+                );
+              }
               console.warn(
                 `[lemon-coder] SEARCH/REPLACE failed for ${filePath}, falling back to Content:`,
                 err,
@@ -525,13 +549,22 @@ export default function LCStudio({ projectId }: LCStudioProps) {
             error,
           );
 
-          const blob = new Blob([action.Content], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = action.FileName;
-          a.click();
-          URL.revokeObjectURL(url);
+          // Fallback: browser download via blob URL
+          // Use outputContent (which may have been patched via SEARCH/REPLACE)
+          const downloadContent = outputContent || action.Content;
+          if (downloadContent) {
+            const blob = new Blob([downloadContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = action.FileName;
+            a.click();
+            URL.revokeObjectURL(url);
+          } else {
+            console.error(
+              `[lemon-coder] Cannot download ${action.FileName}: Content is empty and SEARCH/REPLACE failed`,
+            );
+          }
         }
       }
 
@@ -751,6 +784,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
       className="flex flex-col h-screen overflow-hidden"
       style={{ backgroundColor: LCTheme.colors.background, color: LCTheme.colors.text }}
     >
+      <Toast.Provider />
       {/* Permission-expired reconnect banner */}
       {permissionExpired && cachedDirHandleRef.current && (
         <div

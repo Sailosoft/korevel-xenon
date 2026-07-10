@@ -59,6 +59,8 @@ export interface LCFileViewProps {
    * `content` (original) vs `diffContent` (AI-generated).
    */
   diffContent?: string;
+  /** Optional warning message shown above the Monaco diff when SEARCH/REPLACE fails to match */
+  diffWarning?: string;
   /** Callback when the user accepts the diff changes — applies diffContent */
   onAcceptDiff?: () => void;
   /** Callback when the user rejects / closes the diff preview */
@@ -84,6 +86,7 @@ export default function LCFileView({
   onAcknowledgeExternalChange,
   onSave,
   diffContent,
+  diffWarning,
   onAcceptDiff,
   onRejectDiff,
   diffLabel,
@@ -95,6 +98,11 @@ export default function LCFileView({
   const [wordWrap, setWordWrap] = useState(true);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const headerMenuRef = useRef<HTMLDivElement>(null);
+
+  // ── Normalise line endings for Monaco diff ──────────────────────────────
+  // Prevent CRLF/LF mismatches from showing all lines as changed
+  const normalisedContent = (content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const normalisedDiffContent = (diffContent ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   // ── Auto-save debounce ───────────────────────────────────────────────────
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -311,8 +319,15 @@ export default function LCFileView({
         )}
       </div>
 
+      {/* Diff preview warning banner (SEARCH/REPLACE mismatch) */}
+      {isDiffMode && diffWarning && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-[#3d1a1a] border-b border-[#e06c75]/30 shrink-0">
+          <span className="text-[10px] text-[#e06c75]">{diffWarning}</span>
+        </div>
+      )}
+
       {/* Diff preview info bar */}
-      {isDiffMode && (
+      {isDiffMode && !diffWarning && (
         <div className="flex items-center gap-3 px-4 py-1.5 bg-[#1e2d1e] border-b border-[#333333] shrink-0">
           <span className="text-[11px] text-[#858585]">
             <span className="text-[#abb2bf]">Original</span> ←
@@ -359,8 +374,8 @@ export default function LCFileView({
             key={`diff-${selectedFile.path}`}
             height="100%"
             language="plaintext"
-            original={content}
-            modified={diffContent}
+            original={normalisedContent}
+            modified={normalisedDiffContent}
             theme="vs-dark"
             beforeMount={(monaco) => {
               monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({

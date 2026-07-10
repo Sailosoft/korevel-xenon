@@ -306,6 +306,29 @@ function findItemByPathRecursive(
 }
 
 /**
+ * Find a file tree item by its filename only (last segment of the path).
+ * This handles cases where the AI returns a filename without its directory.
+ */
+function findItemByFileNameRecursive(
+  items: LCFileTreeItem[],
+  fileName: string,
+): LCFileTreeItem | undefined {
+  for (const item of items) {
+    if (
+      item.path === fileName ||
+      item.path.endsWith("/" + fileName)
+    ) {
+      return item;
+    }
+    if (item.children) {
+      const found = findItemByFileNameRecursive(item.children, fileName);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Deep-clone the file tree (used when refreshing so React sees a new reference).
  */
 function cloneTree(items: LCFileTreeItem[]): LCFileTreeItem[] {
@@ -645,7 +668,18 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
 
   const findItemByPath = useCallback(
     (path: string): LCFileTreeItem | undefined => {
-      return findItemByPathRecursive(fileTree, path);
+      // First try exact path match
+      const exact = findItemByPathRecursive(fileTree, path);
+      if (exact) return exact;
+
+      // Fallback: AI often returns only the filename without directory.
+      // Search tree items by just the filename (last segment).
+      const fileName = path.split("/").pop();
+      if (fileName) {
+        return findItemByFileNameRecursive(fileTree, fileName);
+      }
+
+      return undefined;
     },
     [fileTree],
   );

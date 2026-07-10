@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Button } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { MessageSquare, FileCode, ArrowLeftRight } from "lucide-react";
 import type {
   LCMainViewMode,
@@ -22,6 +22,7 @@ import type { LCPromptModeType } from "./LCPromptMode";
 import LCChatView from "./LCChatView";
 import type { LCChatViewHandle } from "./LCChatView";
 import LCFileView from "./LCFileView";
+import { applySearchReplace } from "./useLCChat";
 
 export interface LCMainContentProps {
   selectedFile: LCFileTreeItem | null;
@@ -96,6 +97,7 @@ export default function LCMainContent({
   const chatViewRef = useRef<LCChatViewHandle>(null);
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
+  const [diffWarning, setDiffWarning] = useState<string | null>(null);
 
   // Auto-switch to file view when a file is selected from tree.
   // Depends on the selectedFile reference (which is spread into a new object
@@ -114,10 +116,12 @@ export default function LCMainContent({
       const filePath = resolveFilePath(fileAction);
 
       let originalContent = "";
+      let readError: unknown = null;
       if (onReadFileContent && fileAction.ExistingFile) {
         try {
           originalContent = await onReadFileContent(filePath);
         } catch (err) {
+          readError = err;
           console.warn(
             `[lemon-coder] Could not read original file for diff: ${filePath}`,
             err,
@@ -132,15 +136,65 @@ export default function LCMainContent({
               console.warn(
                 `[lemon-coder] Diff path corrected: "${filePath}" → "${strippedPath}"`,
               );
+              readError = null; // Fallback succeeded — clear the error
             } catch {
-              // Continue with empty original — will show as all-new content
+              // Fallback also failed — will show toast + rethrow below
             }
           }
         }
+
+        // If all read attempts failed, notify the user and rethrow
+        if (readError) {
+          const msg =
+            readError instanceof Error
+              ? readError.message
+              : String(readError);
+          toast.danger(`Could not read original file for diff: ${msg}`);
+          throw readError;
+        }
       }
 
+      let resolvedContent = fileAction.Content;
+      let warning: string | null = null;
+
+      // If Content is empty but Edits exist, compute diff content from original + edits
+      if (!resolvedContent && Array.isArray(fileAction.Edits) && fileAction.Edits.length > 0 && originalContent) {
+        try {
+          const result = applySearchReplace(originalContent, fileAction.Edits);
+          resolvedContent = result.content;
+        } catch (err) {
+          // ── Fallback: Build a best-effort preview from Replace blocks ──
+          // When SEARCH/REPLACE can't match, we can't compute an accurate diff.
+          // Instead, construct a "raw AI output" from the Replace blocks so
+          // the user can still review what the AI intended to change.
+          const replaceBlocks = fileAction.Edits!.map((e, i) => {
+            const desc = e.Description || `Edit ${i + 1}`;
+            return `// === AI: ${desc} ===\n${e.Replace}`;
+          }).join("\n\n");
+
+          resolvedContent = [
+            "// ═══════════════════════════════════════════════════════════",
+            `// ⚠ SEARCH/REPLACE could not match the current file content.`,
+            `// The diff below shows the AI's intended replacements as a`,
+            `// raw preview. Verify each block manually before applying.`,
+            "// ═══════════════════════════════════════════════════════════",
+            "",
+            replaceBlocks,
+          ].join("\n");
+
+          warning = "SEARCH/REPLACE did not match — showing AI's intended replacements as a raw preview. Verify before applying.";
+          console.warn(
+            `[lemon-coder] Could not compute diff from SEARCH/REPLACE for ${filePath}:`,
+            err,
+          );
+        }
+      }
+
+      setDiffWarning(warning);
       setDiffPreview({
-        fileAction,
+        fileAction: resolvedContent !== fileAction.Content
+          ? { ...fileAction, Content: resolvedContent }
+          : fileAction,
         originalContent,
         filePath,
       });
@@ -169,8 +223,8 @@ export default function LCMainContent({
   }, [diffPreview, onApplyFileChanges]);
 
   const handleRejectDiff = useCallback(() => {
-    // Same deferred approach — close the diff preview now, switch view later
     setDiffPreview(null);
+    setDiffWarning(null);
     requestAnimationFrame(() => {
       setViewMode("chat");
     });
@@ -196,6 +250,7 @@ export default function LCMainContent({
             onClick={() => {
               setViewMode("chat");
               setDiffPreview(null);
+              setDiffWarning(null);
             }}
             className={`text-xs h-7 px-3 rounded-md flex items-center gap-1.5 transition-colors ${
               viewMode === "chat"
@@ -319,6 +374,7 @@ export default function LCMainContent({
             onAcknowledgeExternalChange={() => {}}
             onSave={() => {}}
             diffContent={diffPreview.fileAction.Content}
+            diffWarning={diffWarning ?? undefined}
             onAcceptDiff={handleAcceptDiff}
             onRejectDiff={handleRejectDiff}
             diffLabel={diffPreview.filePath}

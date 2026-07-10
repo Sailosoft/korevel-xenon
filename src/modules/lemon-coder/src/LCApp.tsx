@@ -533,26 +533,36 @@ export default function LCApp() {
           applyStatus: rawAction.applyStatus,
         };
 
-        try {
-          const filePath = resolveAndNormaliseFilePath(action);
+        const filePath = resolveAndNormaliseFilePath(action);
 
-          // ── Resolve output content: SEARCH/REPLACE or full Content ──────
-          let outputContent = action.Content;
-          if (
+        // ── Resolve output content: SEARCH/REPLACE or full Content ──────
+        // Hoisted outside try/catch so download fallback can access it
+        let outputContent = action.Content;
+
+        try {
+          const hasEdits =
             action.ExistingFile &&
             Array.isArray(action.Edits) &&
-            action.Edits.length > 0
-          ) {
+            action.Edits.length > 0;
+
+          if (hasEdits) {
             try {
               const currentContent = await readFileContent(
                 findItemByPath(filePath)!,
               );
-              const result = applySearchReplace(currentContent, action.Edits);
+              const result = applySearchReplace(currentContent, action.Edits!);
               outputContent = result.content;
               console.log(
                 `[lemon-coder] Applied ${result.applied} SEARCH/REPLACE edit(s) to ${filePath}`,
               );
             } catch (err) {
+              // SEARCH/REPLACE failed AND Content is empty → would clear the file
+              if (!outputContent) {
+                throw new Error(
+                  `SEARCH/REPLACE failed for ${filePath} and Content is empty. ` +
+                  `Cannot write file without content. Error: ${err instanceof Error ? err.message : err}`,
+                );
+              }
               console.warn(
                 `[lemon-coder] SEARCH/REPLACE failed for ${filePath}, falling back to Content:`,
                 err,
@@ -573,13 +583,21 @@ export default function LCApp() {
           );
 
           // Fallback: browser download via blob URL
-          const blob = new Blob([action.Content], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = action.FileName;
-          a.click();
-          URL.revokeObjectURL(url);
+          // Use outputContent (which may have been patched via SEARCH/REPLACE)
+          const downloadContent = outputContent || action.Content;
+          if (downloadContent) {
+            const blob = new Blob([downloadContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = action.FileName;
+            a.click();
+            URL.revokeObjectURL(url);
+          } else {
+            console.error(
+              `[lemon-coder] Cannot download ${action.FileName}: Content is empty and SEARCH/REPLACE failed`,
+            );
+          }
         }
       }
 

@@ -21,6 +21,7 @@ import {
 import LCDiffDisplay from "./LCDiffDisplay";
 import type { LCFileActionResult, LCApplyStatus } from "./LCInterface";
 import { resolveFilePath } from "./LCInterface";
+import { applySearchReplace } from "./useLCChat";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -178,15 +179,53 @@ export function InlineFileDiff({
       </div>
 
       {/* Inline diff display */}
-      {diffState !== null && diffState !== "loading" && diffState !== undefined && file.Content != null && (
+      {diffState !== null && diffState !== "loading" && diffState !== undefined && (
         <div className="mt-2">
-          <LCDiffDisplay
-            original={diffState}
-            modified={file.Content}
-            fileName={getFilePath(file)}
-            isExisting={file.ExistingFile}
-            defaultCollapsed={false}
-          />
+          {(() => {
+            const hasEdits = Array.isArray(file.Edits) && file.Edits.length > 0;
+            let modified = file.Content ?? "";
+            let showWarning = false;
+
+            // If Content is empty but Edits exist, try to reconstruct
+            if (!modified && hasEdits && diffState) {
+              try {
+                modified = applySearchReplace(diffState, file.Edits!).content;
+              } catch {
+                // SEARCH/REPLACE failed — build a best-effort preview from Replace blocks
+                showWarning = true;
+                const replaceBlocks = file.Edits!.map((e, i) => {
+                  const desc = e.Description || `Edit ${i + 1}`;
+                  return `// === AI: ${desc} ===\n${e.Replace}`;
+                }).join("\n\n");
+
+                modified = [
+                  "// ═══════════════════════════════════════════════════════════",
+                  `// ⚠ SEARCH/REPLACE could not match the current file content.`,
+                  `// Below are the AI's intended replacements as a raw preview.`,
+                  "// ═══════════════════════════════════════════════════════════",
+                  "",
+                  replaceBlocks,
+                ].join("\n");
+              }
+            }
+
+            return (
+              <>
+                {showWarning && (
+                  <div className="px-3 py-1.5 text-[10px] text-[#e06c75] bg-[#e06c75]/5 border-b border-[#e06c75]/20 rounded-t-md">
+                    ⚠ SEARCH/REPLACE couldn't preview — showing AI's Replace blocks as a raw preview. Verify and apply manually.
+                  </div>
+                )}
+                <LCDiffDisplay
+                  original={diffState}
+                  modified={modified}
+                  fileName={getFilePath(file)}
+                  isExisting={file.ExistingFile}
+                  defaultCollapsed={false}
+                />
+              </>
+            );
+          })()}
         </div>
       )}
       {diffState === "loading" && (
@@ -469,16 +508,52 @@ export function ViewAllChangesModal({
                           Loading diff...
                         </div>
                       )}
-                      {diffState !== null && diffState !== "loading" && file.Content != null && (
+                      {diffState !== null && diffState !== "loading" && (
                         <div className="bg-[#1e1e1e] max-h-[500px] overflow-y-auto">
-                          <LCDiffDisplay
-                            key={`${viewAllToggleKey}-${idx}`}
-                            original={diffState}
-                            modified={file.Content}
-                            fileName={getFilePath(file)}
-                            isExisting={file.ExistingFile}
-                            defaultCollapsed={!viewAllExpanded}
-                          />
+                          {(() => {
+                            const hasEdits = Array.isArray(file.Edits) && file.Edits.length > 0;
+                            let modified = file.Content ?? "";
+                            let showWarning = false;
+
+                            if (!modified && hasEdits && diffState) {
+                              try {
+                                modified = applySearchReplace(diffState, file.Edits!).content;
+                              } catch {
+                                showWarning = true;
+                                const replaceBlocks = file.Edits!.map((e, i) => {
+                                  const desc = e.Description || `Edit ${i + 1}`;
+                                  return `// === AI: ${desc} ===\n${e.Replace}`;
+                                }).join("\n\n");
+
+                                modified = [
+                                  "// ═══════════════════════════════════════════════════════════",
+                                  `// ⚠ SEARCH/REPLACE could not match the current file content.`,
+                                  `// Below are the AI's intended replacements as a raw preview.`,
+                                  "// ═══════════════════════════════════════════════════════════",
+                                  "",
+                                  replaceBlocks,
+                                ].join("\n");
+                              }
+                            }
+
+                            return (
+                              <>
+                                {showWarning && (
+                                  <div className="px-3 py-1.5 text-[10px] text-[#e06c75] bg-[#e06c75]/5 border-b border-[#e06c75]/20">
+                                    ⚠ SEARCH/REPLACE couldn't preview — showing AI's Replace blocks as a raw preview. Verify and apply manually.
+                                  </div>
+                                )}
+                                <LCDiffDisplay
+                                  key={`${viewAllToggleKey}-${idx}`}
+                                  original={diffState}
+                                  modified={modified}
+                                  fileName={getFilePath(file)}
+                                  isExisting={file.ExistingFile}
+                                  defaultCollapsed={!viewAllExpanded}
+                                />
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
