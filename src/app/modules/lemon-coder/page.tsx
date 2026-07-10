@@ -6,6 +6,7 @@ import { useLCProject } from "@/src/modules/lemon-coder/src/useLCProject";
 import { registerHandle } from "@/src/modules/lemon-coder/src/LCHandleRegistry";
 import LCLandingScreen from "@/src/modules/lemon-coder/src/LCLandingScreen";
 import LCHelixConfigModal from "@/src/modules/lemon-coder/src/LCHelixConfigModal";
+import LCSettingsModal from "@/src/modules/lemon-coder/src/LCSettingsModal";
 import LCCreateProjectModal from "@/src/modules/lemon-coder/src/LCCreateProjectModal";
 
 /**
@@ -61,6 +62,7 @@ export default function LemonCoderLandingPage() {
   const { recentProjects, isLoading, openProjectFromHandle, selectRecentProject, clearRecentProjects } =
     useLCProject();
   const [isHelixConfigOpen, setIsHelixConfigOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const isOpeningRef = useRef(false);
 
@@ -183,12 +185,18 @@ export default function LemonCoderLandingPage() {
         recentProjects={recentProjects}
         onSelectRecentProject={handleSelectRecentProject}
         onOpenHelixConfig={() => setIsHelixConfigOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         onClearRecentProjects={clearRecentProjects}
       />
 
       <LCHelixConfigModal
         isOpen={isHelixConfigOpen}
         onOpenChange={setIsHelixConfigOpen}
+      />
+
+      <LCSettingsModal
+        isOpen={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
       />
 
       <LCCreateProjectModal
