@@ -100,6 +100,8 @@ export interface RenderAdapter {
 export interface RenderRegistryEntry {
   adapter: RenderAdapter;
   registeredAt: number;
+  /** Optional identifier for the module that registered this adapter */
+  sourceModule?: string;
 }
 
 // ─── Render Engine Options ──────────────────────────────────────────────────
@@ -136,4 +138,23 @@ export interface RenderViewProps {
   options?: RenderOptions;
   /** Fallback content shown when no adapter is found */
   fallback?: ReactNode;
+}
+
+// ─── Render Option Item (for UI pickers) ────────────────────────────────────
+
+/**
+ * A display-ready item describing a registered render format.
+ * Used by `useRenderOptions()` and `RenderOptionsSelect` to build UI pickers.
+ */
+export interface RenderOptionItem {
+  /** The format identifier */
+  format: RenderFormat;
+  /** Human-readable name (e.g. "Markdown", "Mermaid Diagram") */
+  displayName: string;
+  /** Short description of what this format does */
+  description: string;
+  /** Whether this is a built-in adapter or registered by a module */
+  isBuiltin: boolean;
+  /** Which module registered this adapter (undefined for built-in) */
+  sourceModule?: string;
 }

@@ -31,14 +31,20 @@ class RenderRegistry {
    * Register a new render adapter.
    * If an adapter for the same format already exists it will be overwritten
    * (last-registered wins), and a warning is emitted in development.
+   *
+   * @param adapter - The render adapter to register
+   * @param sourceModule - Optional module name that owns this adapter
+   *                       (used by `useRenderOptions()` to group options by source)
    */
-  register(adapter: RenderAdapter): void {
+  register(adapter: RenderAdapter, sourceModule?: string): void {
     if (process.env.NODE_ENV === "development") {
       const existing = this._adapters.get(adapter.format);
       if (existing) {
         console.warn(
           `[RenderRegistry] Overwriting existing adapter for format "${adapter.format}". ` +
-            `Previous: "${existing.adapter.displayName ?? existing.adapter.format}".`,
+            `Previous: "${existing.adapter.displayName ?? existing.adapter.format}"` +
+            (existing.sourceModule ? ` (from ${existing.sourceModule})` : "") +
+            `.`,
         );
       }
     }
@@ -46,16 +52,29 @@ class RenderRegistry {
     this._adapters.set(adapter.format, {
       adapter,
       registeredAt: Date.now(),
+      sourceModule,
     });
   }
 
   /**
    * Register multiple adapters at once.
+   *
+   * @param adapters - Array of adapters to register
+   * @param sourceModule - Optional module name applied to all adapters in the array
    */
-  registerAll(adapters: RenderAdapter[]): void {
+  registerAll(adapters: RenderAdapter[], sourceModule?: string): void {
     for (const adapter of adapters) {
-      this.register(adapter);
+      this.register(adapter, sourceModule);
     }
+  }
+
+  /**
+   * Get the full registry entry (adapter + metadata) for a format.
+   * Unlike `get()` which returns only the adapter, this returns everything
+   * including `sourceModule` and `registeredAt`.
+   */
+  getEntry(format: RenderFormat): RenderRegistryEntry | undefined {
+    return this._adapters.get(format);
   }
 
   /**
@@ -82,7 +101,7 @@ class RenderRegistry {
   }
 
   /**
-   * Get all currently registered adapters.
+   * Get all currently registered adapters (without metadata).
    */
   getAll(): RenderAdapter[] {
     const result: RenderAdapter[] = [];
@@ -90,6 +109,13 @@ class RenderRegistry {
       result.push(entry.adapter);
     }
     return result;
+  }
+
+  /**
+   * Get all registry entries with full metadata (adapter + sourceModule + timestamp).
+   */
+  getAllEntries(): RenderRegistryEntry[] {
+    return Array.from(this._adapters.values());
   }
 
   /**

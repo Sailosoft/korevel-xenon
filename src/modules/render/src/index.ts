@@ -6,18 +6,19 @@
 //
 // # Architecture
 //
-//   RenderModule.Types       → Core types, RenderAdapter interface, RenderFormat
-//   RenderModule.Registry    → Singleton registry for dynamic adapter registration
-//   RenderModule.Engine      → Central facade coordinating adapters
-//   RenderModule.HtmlExport  → Standalone HTML document builder
-//   adapters/                → Built-in render adapters (markdown, mermaid, csv, ...)
-//   components/              → React components for interactive rendering
+//   RenderModule.Types             → Core types, RenderAdapter interface, RenderFormat
+//   RenderModule.Registry          → Singleton registry for dynamic adapter registration
+//   RenderModule.Engine            → Central facade coordinating adapters
+//   RenderModule.HtmlExport        → Standalone HTML document builder + download helper
+//   RenderModule.Extend            → Per-module integration utilities (createModuleRenderer)
+//   RenderModule.UseRenderOptions  → React hook for listing available formats in UI
+//   RenderModule.OptionsSelect     → React dropdown component for format selection
+//   adapters/                      → Built-in render adapters (markdown, mermaid, csv, ...)
+//   components/                    → React components for interactive rendering
 //
-// # Usage
+// # Quick Start
 //
-//   import { registerBuiltinAdapters } from "./adapters";
-//   import { RenderEngine } from "./RenderModule.Engine";
-//   import { RenderView } from "./components";
+//   import { registerBuiltinAdapters, RenderEngine, RenderView } from "./index";
 //
 //   // 1. Register built-in adapters once at app startup
 //   registerBuiltinAdapters();
@@ -28,16 +29,23 @@
 //   // 3. Export to standalone HTML
 //   const { document } = buildExportHtml("# Hello", "markdown");
 //
-//   // 4. Register a custom adapter
-//   import { renderRegistry } from "./RenderModule.Registry";
-//   renderRegistry.register(myCustomAdapter);
+// # Per-Module Integration
 //
-// # Extending
+//   import { createModuleRenderer } from "./index";
+//
+//   const myRenderer = createModuleRenderer("my-module");
+//   myRenderer.register(myCustomAdapter);
+//
+//   // In React UI:
+//   const options = useRenderOptions("my-module");
+//   <RenderOptionsSelect value={format} onChange={setFormat} sourceModule="my-module" />
+//
+// # Adapter Pattern
 //
 //   To add a new render format:
-//   1. Create an adapter implementing RenderAdapter
-//   2. Register it: renderRegistry.register(myAdapter)
-//   3. Add a case in RenderModule.View.tsx for React rendering
+//   1. Create an adapter implementing `RenderAdapter`
+//   2. Register it: `renderRegistry.register(myAdapter)`
+//   3. Add a case in `RenderModule.View.tsx` for React rendering
 // ───────────────────────────────────────────────────────────────────────────────
 
 // ── Registry & Engine ───────────────────────────────────────────────────────
@@ -62,6 +70,7 @@ export type {
   RenderEngineOptions,
   RenderEngineHtmlResult,
   RenderViewProps,
+  RenderOptionItem,
 } from "./RenderModule.Types";
 
 export { RenderFormats } from "./RenderModule.Types";
@@ -80,3 +89,11 @@ export {
 
 // ── Components ──────────────────────────────────────────────────────────────
 export { RenderView, MermaidRenderer } from "./components";
+
+// ── Per-Module Extension ────────────────────────────────────────────────────
+export { createModuleRenderer, ModuleRenderer } from "./RenderModule.Extend";
+
+// ── Options Listing (React) ─────────────────────────────────────────────────
+export { useRenderOptions, notifyRenderOptionsChanged } from "./RenderModule.UseRenderOptions";
+export { default as RenderOptionsSelect } from "./RenderModule.OptionsSelect";
+export type { RenderOptionsSelectProps } from "./RenderModule.OptionsSelect";
