@@ -80,6 +80,7 @@ export { registerBuiltinAdapters } from "./adapters";
 export {
   markdownAdapter,
   mermaidAdapter,
+  mindmapAdapter,
   csvAdapter,
   htmlAdapter,
   tailwindAdapter,

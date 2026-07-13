@@ -9,6 +9,7 @@
 // Supports all built-in formats:
 //   - markdown  → Renders with react-markdown (or fallback HTML)
 //   - mermaid   → Renders with MermaidRenderer component
+//   - mindmap   → Renders with MermaidRenderer (converts headings to mindmap)
 //   - csv       → Renders as an HTML table
 //   - tailwind  → Renders in a sandboxed iframe with Tailwind CDN
 //   - html      → Renders in a sandboxed iframe via blob URL
@@ -467,6 +468,28 @@ export default function RenderView({
     ...(options?.maxHeight ? { maxHeight: options.maxHeight } : {}),
   };
 
+  /**
+   * Convert markdown heading hierarchy to Mermaid mindmap syntax.
+   * # Title   → root node
+   * ## Branch → child node
+   * ### Leaf  → grandchild node
+   */
+  function toMindmapSyntax(content: string): string {
+    const fenced = content.match(/```(?:mm|mindmap)\n?([\s\S]*?)```/);
+    if (fenced) return fenced[1].trim();
+    if (/^mindmap\s/im.test(content.trim())) return content.trim();
+    if (/^#{1,6}\s/.test(content.trim())) {
+      const lines = content.split("\n").filter((l) => l.trim());
+      const parts: string[] = ["mindmap"];
+      for (const line of lines) {
+        const m = line.match(/^(#{1,6})\s+(.+)/);
+        if (m) parts.push("  ".repeat(m[1].length) + m[2].trim());
+      }
+      return parts.join("\n");
+    }
+    return content.trim();
+  }
+
   const renderContent = () => {
     switch (format) {
       // ── Markdown ────────────────────────────────────────────────
@@ -496,6 +519,24 @@ export default function RenderView({
             className={className}
           >
             <MermaidRenderer chart={content} />
+          </div>
+        );
+
+      // ── Mind Map ────────────────────────────────────────────────
+      case "mindmap":
+        return (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              padding: "1rem",
+              overflow: "auto",
+              flex: 1,
+            }}
+            className={className}
+          >
+            <MermaidRenderer chart={toMindmapSyntax(content)} />
           </div>
         );
 

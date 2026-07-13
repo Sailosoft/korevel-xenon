@@ -77,6 +77,7 @@ renderRegistry.clear = (() => {
 const BUILTIN_FORMATS = new Set([
   "markdown",
   "mermaid",
+  "mindmap",
   "csv",
   "tailwind",
   "html",
@@ -100,7 +101,7 @@ function computeOptions(): RenderOptionItem[] {
   }
 
   // Sort: built-in first in canonical order, then module-registered alphabetically
-  const builtinOrder = ["markdown", "mermaid", "csv", "tailwind", "html", "plain", "json"];
+  const builtinOrder = ["markdown", "mermaid", "mindmap", "csv", "tailwind", "html", "plain", "json"];
   items.sort((a, b) => {
     const aIdx = builtinOrder.indexOf(a.format);
     const bIdx = builtinOrder.indexOf(b.format);

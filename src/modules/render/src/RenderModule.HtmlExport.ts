@@ -61,6 +61,10 @@ const FORMAT_HEAD_INJECTIONS: Partial<
     `<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>`,
     `<script>mermaid.initialize({ startOnLoad: true, theme: "default" });</script>`,
   ].join("\n"),
+  mindmap: [
+    `<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>`,
+    `<script>mermaid.initialize({ startOnLoad: true, theme: "default" });</script>`,
+  ].join("\n"),
   markdown: `<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>`,
   tailwind: `<script src="https://cdn.tailwindcss.com"></script>`,
 };

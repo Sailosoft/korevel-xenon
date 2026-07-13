@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 export const RenderFormats = [
   "markdown",
   "mermaid",
+  "mindmap",
   "csv",
   "tailwind",
   "html",
