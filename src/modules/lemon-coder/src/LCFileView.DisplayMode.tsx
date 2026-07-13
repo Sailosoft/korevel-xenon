@@ -1,17 +1,16 @@
 // ───────────────────────────────────────────────────────────────────────────────
 // Lemon Coder — LCFileView.DisplayMode Sub-Component
 // Renders file content based on display mode: Monaco editor for source,
-// ReactMarkdown for .md files, MermaidRenderer for .mermaid/.mmd files,
-// and an iframe with blob URL for .html files.
+// or the Render Module's RenderView for previewable files (markdown, mermaid,
+// mindmap, html, etc.).
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import MermaidRenderer from "@/src/modules/bunny-thinker/src/components/MermaidRenderer";
+import { RenderView, registerBuiltinAdapters } from "@/src/modules/render";
+import type { RenderFormat } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
 
 // ── Dynamically import Monaco Editor to avoid SSR issues ────────────────────
@@ -68,7 +67,7 @@ export function getFileExt(fileName: string): string {
 }
 
 export function isMarkdownFile(fileName: string): boolean {
-  return getFileExt(fileName) === "md";
+  return getFileExt(fileName) === "md" && !fileName.toLowerCase().endsWith(".mm.md");
 }
 
 export function isMermaidFile(fileName: string): boolean {
@@ -76,12 +75,26 @@ export function isMermaidFile(fileName: string): boolean {
   return ext === "mermaid" || ext === "mmd";
 }
 
+export function isMindmapFile(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith(".mm.md");
+}
+
 export function isHtmlFile(fileName: string): boolean {
   return getFileExt(fileName) === "html";
 }
 
 export function canPreviewFile(fileName: string): boolean {
-  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isHtmlFile(fileName);
+  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isMindmapFile(fileName) || isHtmlFile(fileName);
+}
+
+// ── Map file name to RenderFormat ───────────────────────────────────────────
+
+function getRenderFormat(fileName: string): RenderFormat {
+  if (isMermaidFile(fileName)) return "mermaid";
+  if (isMindmapFile(fileName)) return "mindmap";
+  if (isMarkdownFile(fileName)) return "markdown";
+  if (isHtmlFile(fileName)) return "html";
+  return "plain";
 }
 
 // ── Display mode type ───────────────────────────────────────────────────────
@@ -118,32 +131,10 @@ export default function LCFileViewDisplayMode({
   onInsertToChatInput,
   wordWrap = true,
 }: LCFileViewDisplayModeProps) {
-  const mdFile = isMarkdownFile(selectedFile.name);
-  const mmdFile = isMermaidFile(selectedFile.name);
-  const htmlFile = isHtmlFile(selectedFile.name);
-
-  // ── Blob URL management for HTML preview ──────────────────────────
-  const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
-
+  // Register built-in render adapters once at mount
   useEffect(() => {
-    // Revoke previous blob URL when content changes or we leave HTML preview
-    if (htmlPreviewUrl) {
-      URL.revokeObjectURL(htmlPreviewUrl);
-      setHtmlPreviewUrl(null);
-    }
-
-    if (displayMode === "file" && htmlFile && content) {
-      const blob = new Blob([content], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      setHtmlPreviewUrl(url);
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (htmlPreviewUrl) URL.revokeObjectURL(htmlPreviewUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, displayMode, htmlFile]);
+    registerBuiltinAdapters();
+  }, []);
 
   // ── Refs to keep Monaco's onMount closures non-stale ──────────────
   // Monaco's onMount callback fires only once per editor lifetime.
@@ -161,140 +152,13 @@ export default function LCFileViewDisplayMode({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {displayMode === "file" && mdFile ? (
-        /* ── Rendered Markdown Preview ───────────────────────────── */
-        <div
-          className="flex-1 overflow-y-auto p-6"
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "#555 transparent",
-          } as React.CSSProperties}
-        >
-          <div className="text-[#d4d4d4] text-sm leading-relaxed">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h1: ({ children }) => (
-                  <h1 className="text-xl font-bold text-[#e5c07b] mt-6 mb-3 pb-1 border-b border-[#333333]">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-lg font-bold text-[#e5c07b] mt-5 mb-2">
-                    {children}
-                  </h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-base font-semibold text-[#d4d4d4] mt-4 mb-1">
-                    {children}
-                  </h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="text-sm font-semibold text-[#d4d4d4] mt-3 mb-1">
-                    {children}
-                  </h4>
-                ),
-                p: ({ children }) => (
-                  <p className="my-2 text-[#d4d4d4]">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-6 my-2 text-[#d4d4d4]">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-6 my-2 text-[#d4d4d4]">{children}</ol>
-                ),
-                code: ({ className, children, ...props }) => {
-                  const isInline = !className;
-                  return isInline ? (
-                    <code className="bg-[#2d2d2d] text-[#e06c75] px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                      {children}
-                    </code>
-                  ) : (
-                    <code className="block bg-[#1a1a1a] text-[#abb2bf] p-3 rounded-lg text-xs font-mono overflow-x-auto my-3 border border-[#333333]" {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                pre: ({ children }) => (
-                  <pre className="bg-transparent p-0 m-0 overflow-x-auto">{children}</pre>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-[#e5c07b] pl-4 my-3 italic text-[#858585]">
-                    {children}
-                  </blockquote>
-                ),
-                a: ({ href, children }) => (
-                  <a href={href} className="text-[#61afef] hover:underline" target="_blank" rel="noopener noreferrer">
-                    {children}
-                  </a>
-                ),
-                hr: () => <hr className="border-[#333333] my-4" />,
-                table: ({ children }) => (
-                  <div className="overflow-x-auto my-3">
-                    <table className="min-w-full border-collapse border border-[#333333] text-sm">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                th: ({ children }) => (
-                  <th className="border border-[#333333] bg-[#2d2d2d] text-[#e5c07b] px-3 py-1.5 font-semibold text-left">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="border border-[#333333] px-3 py-1.5 text-[#d4d4d4]">
-                    {children}
-                  </td>
-                ),
-                img: ({ src, alt }) => (
-                  <img src={src} alt={alt || ""} className="max-w-full rounded-lg my-3" />
-                ),
-              }}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      ) : displayMode === "file" && mmdFile ? (
-        /* ── Mermaid Diagram Preview ─────────────────────────────── */
-        content.trim() ? (
-          <div className="flex items-start justify-center h-full p-4 overflow-y-auto">
-            <MermaidRenderer
-              chart={content}
-              className="w-full max-w-full"
-            />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-            No diagram content to render
-          </div>
-        )
-      ) : displayMode === "file" && htmlFile ? (
-        /* ── HTML Preview (iframe with blob URL) ──────────────────── */
-        <div className="flex-1 flex flex-col min-h-0 bg-white">
-          {/* Info bar */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-[#1e2d1e] border-b border-[#333333] shrink-0">
-            <span className="text-[10px] text-[#98c379]">●</span>
-            <span className="text-[11px] text-[#858585]">
-              HTML preview — rendered in an isolated iframe
-            </span>
-          </div>
-          {/* Iframe */}
-          <div className="flex-1 min-h-0">
-            {htmlPreviewUrl ? (
-              <iframe
-                src={htmlPreviewUrl}
-                className="w-full h-full border-0"
-                title="HTML Preview"
-                sandbox="allow-scripts allow-same-origin"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-                No content to preview
-              </div>
-            )}
-          </div>
-        </div>
+      {displayMode === "file" && canPreviewFile(selectedFile.name) ? (
+        /* ── Render Module Preview (markdown, mermaid, mindmap, html) ─── */
+        <RenderView
+          format={getRenderFormat(selectedFile.name)}
+          content={content}
+          className="flex-1 min-h-0"
+        />
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
         <MonacoEditor

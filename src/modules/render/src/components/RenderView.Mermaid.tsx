@@ -53,7 +53,8 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
   // Pan / Zoom state
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const isDragging = useRef(false);
+  // isDragging is state so CSS (cursor, transition) updates reactively
+  const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
 
@@ -79,7 +80,26 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
     mermaid
       .render(renderId, chart)
       .then(({ svg }) => {
-        if (id === renderIdRef.current) {
+        if (id !== renderIdRef.current) return;
+
+        // Mermaid 11.x+ renders syntax errors as SVGs with error-text/error-icon
+        // classes instead of rejecting the promise. Detect this and route to
+        // the error path so the user sees a clean error UI rather than raw SVG.
+        const hasSyntaxError =
+          svg.includes('class="error-text"') ||
+          svg.includes("Syntax error in text");
+
+        if (hasSyntaxError) {
+          // Extract the error message from the SVG
+          const match = svg.match(
+            /<text[^>]*class="error-text"[^>]*>([\s\S]*?)<\/text>/,
+          );
+          const msg = match
+            ? match[1].trim()
+            : "Syntax error in diagram definition";
+          setError(msg);
+          setSvgContent(null);
+        } else {
           setSvgContent(svg);
           setError(null);
         }
@@ -93,29 +113,87 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
       });
   }, [chart]);
 
-  // Pan handlers
+  // ── Pan handlers (mouse) ──────────────────────────────────────────────
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
+    setIsDragging(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     panStart.current = { x: pan.x, y: pan.y };
     e.preventDefault();
   }, [pan]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging.current) return;
+    if (!isDragging) return;
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
     setPan({
       x: panStart.current.x + dx,
       y: panStart.current.y + dy,
     });
-  }, []);
+  }, [isDragging]);
 
   const handleMouseUp = useCallback(() => {
-    isDragging.current = false;
+    setIsDragging(false);
   }, []);
 
-  // Zoom handlers
+  // ── Pan / Pinch handlers (touch / mobile) ────────────────────────────
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      // Single finger → pan
+      setIsDragging(true);
+      const touch = e.touches[0];
+      touchStart.current = { x: touch.clientX, y: touch.clientY };
+      panStart.current = { x: pan.x, y: pan.y };
+    } else if (e.touches.length === 2) {
+      // Two fingers → pinch zoom
+      setIsDragging(false);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      pinchStartDist.current = Math.hypot(
+        t2.clientX - t1.clientX,
+        t2.clientY - t1.clientY,
+      );
+      pinchStartZoom.current = zoom;
+    }
+  }, [pan, zoom]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isDragging) {
+      // Single finger → continue pan
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStart.current.x;
+      const dy = touch.clientY - touchStart.current.y;
+      setPan({
+        x: panStart.current.x + dx,
+        y: panStart.current.y + dy,
+      });
+    } else if (e.touches.length === 2) {
+      // Two fingers → continue pinch zoom
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(
+        t2.clientX - t1.clientX,
+        t2.clientY - t1.clientY,
+      );
+      if (pinchStartDist.current > 0) {
+        const scale = dist / pinchStartDist.current;
+        const newZoom = Math.min(
+          Math.max(pinchStartZoom.current * scale, MIN_ZOOM),
+          MAX_ZOOM,
+        );
+        setZoom(newZoom);
+      }
+    }
+  }, [isDragging]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    setIsDragging(false);
+    // If all fingers lifted, reset pinch tracking
+    if (e.touches.length === 0) {
+      pinchStartDist.current = 0;
+    }
+  }, []);
+
+  // ── Zoom handlers ────────────────────────────────────────────────────
   const zoomIn = useCallback(() => {
     setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
   }, []);
@@ -229,7 +307,8 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
           </button>
         </div>
 
-        {/* Pan/zoom viewport */}
+        {/* Container handles ALL interaction — the SVG viewport layer below is
+            pointer-events:none so mermaid's SVG elements can't intercept events */}
         <div
           ref={containerRef}
           style={{
@@ -237,24 +316,34 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
             border: "1px solid #e5e7eb",
             borderRadius: "8px",
             background: "#ffffff",
-            cursor: isDragging.current ? "grabbing" : "grab",
+            cursor: isDragging ? "grabbing" : "grab",
             minHeight: 320,
             maxHeight: 600,
+            touchAction: "none",
+            position: "relative",
           }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
         >
           <div
             ref={viewportRef}
             style={{
-              touchAction: "none",
+              // SVG elements injected by mermaid can capture touch/pointer events
+              // and interrupt the drag. pointerEvents:none makes this layer
+              // transparent to all input — the container above handles everything.
+              pointerEvents: "none",
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
-              transition: isDragging.current ? "none" : "transform 0.1s ease",
+              // During drag: no transition so transform follows finger instantly.
+              // After drag: 0.1s ease gives a smooth settle for zoom button clicks.
+              transition: isDragging ? "none" : "transform 0.1s ease",
             }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
             dangerouslySetInnerHTML={{ __html: svgContent }}
           />
         </div>
