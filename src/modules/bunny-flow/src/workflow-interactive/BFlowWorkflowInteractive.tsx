@@ -5,6 +5,12 @@
  * heroUI components. Users can manage workflow metadata, agents, jobs,
  * steps, and reports through modals and direct input fields.
  *
+ * ─── Agent Pool Integration ──────────────────────────────────────────
+ * When `agentPools` are provided, the Agents section gains a "Fill from
+ * Pool" action that expands agent pool template data into concrete agent
+ * entries in the workflow YAML. Each pool generates N agents (based on
+ * `agentCount`), carrying the pool's slug into the `agentPools: []` field.
+ *
  * When interactive mode is active:
  *  - YAML validation is skipped
  *  - The Monaco editor is hidden
@@ -15,7 +21,7 @@
 "use client";
 
 import React, { useCallback, useId, useMemo, useState } from "react";
-import { Button, Card, Input, Label, TextArea } from "@heroui/react";
+import { Button, Card, Input, Label, TextArea, Select, ListBox } from "@heroui/react";
 import {
   Brain,
   Edit3,
@@ -26,9 +32,11 @@ import {
   Plus,
   Settings2,
   Trash2,
+  Users,
   Variable,
   Workflow,
 } from "lucide-react";
+import { v7 as uuidv7 } from "uuid";
 
 import type {
   BFlowInteractiveWorkflowData,
@@ -37,6 +45,7 @@ import type {
   BFlowInteractiveAgent,
   BFlowInteractiveVariable,
   BFlowInteractiveReport,
+  BFlowInteractiveAgentPool,
 } from "./BFlowWorkflowInteractive.Types";
 import {
   BFLOW_DEFAULT_STEP,
@@ -58,12 +67,46 @@ import { BFlowVariableFormModal } from "./BFlowWorkflowInteractive.VariableFormM
 import { BFlowReportFormModal } from "./BFlowWorkflowInteractive.ReportFormModal";
 
 // ═══════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Generate workflow agent entries from an agent pool template.
+ * Creates N agents (based on pool.agentCount) with names derived from
+ * the pool slug, and fills prompt/role from the pool template data.
+ */
+function generateAgentsFromPool(
+  pool: BFlowInteractiveAgentPool,
+): BFlowInteractiveAgent[] {
+  const count = Math.max(1, pool.agentCount);
+  const agents: BFlowInteractiveAgent[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const suffix = count > 1 ? `-${i + 1}` : "";
+    const name = `${pool.slug}${suffix}`;
+    agents.push({
+      id: uuidv7(),
+      name,
+      role: pool.template.provider
+        ? `${pool.template.provider} agent`
+        : `Agent from pool "${pool.name}"`,
+      prompt:
+        pool.template.systemPrompt ||
+        `You are an AI agent from the "${pool.name}" pool. Execute your assigned tasks with precision and expertise.`,
+    });
+  }
+
+  return agents;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════
 
 export default function BFlowWorkflowInteractive({
   initialYaml,
   onDataChange,
+  agentPools = [],
 }: BFlowWorkflowInteractiveProps) {
   const [data, setData] = useState<BFlowInteractiveWorkflowData>(() =>
     parseBflowInteractive(initialYaml),
@@ -105,6 +148,9 @@ export default function BFlowWorkflowInteractive({
     report: BFlowInteractiveReport;
     index?: number;
   }>({ open: false, report: { ...BFLOW_DEFAULT_REPORT } });
+
+  // ── Agent Pool state ──────────────────────────────────────────
+  const [selectedPoolSlug, setSelectedPoolSlug] = useState<string>("");
 
   // ── Derived values ────────────────────────────────────────────
   const agentNames = useMemo(
@@ -209,6 +255,35 @@ export default function BFlowWorkflowInteractive({
     },
     [data, emitChange],
   );
+
+  // ── Agent Pool — Fill from Pool ───────────────────────────────
+  const handleFillFromPool = useCallback(() => {
+    if (!selectedPoolSlug) return;
+
+    const pool = agentPools.find((p) => p.slug === selectedPoolSlug);
+    if (!pool) return;
+
+    const newAgents = generateAgentsFromPool(pool);
+
+    // Avoid adding duplicates (same agent name already exists)
+    const existingNames = new Set(data.agents.map((a) => a.name));
+    const uniqueNewAgents = newAgents.filter(
+      (a) => !existingNames.has(a.name),
+    );
+
+    if (uniqueNewAgents.length === 0) return;
+
+    const newData = { ...data };
+    newData.agents = [...data.agents, ...uniqueNewAgents];
+    // Track which pool was used
+    if (!newData.agentPoolSlugs.includes(pool.slug)) {
+      newData.agentPoolSlugs = [...newData.agentPoolSlugs, pool.slug];
+    }
+    emitChange(newData);
+
+    // Reset selection
+    setSelectedPoolSlug("");
+  }, [selectedPoolSlug, agentPools, data, emitChange]);
 
   // ── Job handlers ──────────────────────────────────────────────
   const openAddJob = useCallback(() => {
@@ -476,7 +551,71 @@ export default function BFlowWorkflowInteractive({
               addLabel="Add Agent"
             />
           </div>
-          <div className="p-4">
+          <div className="p-4 space-y-3">
+            {/* ── Agent Pool Fill (only if pools are available) ──── */}
+            {agentPools.length > 0 && (
+              <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-violet-700">
+                  <Users className="w-3.5 h-3.5" />
+                  Fill from Agent Pool
+                </div>
+                <p className="text-[10px] text-violet-500">
+                  Select a pool to expand its template into workflow agent
+                  entries. Pool slug will be recorded in{" "}
+                  <code className="font-mono">agentPools</code>.
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={selectedPoolSlug}
+                      onChange={(val) =>
+                        setSelectedPoolSlug(val as string)
+                      }
+                      placeholder="Choose a pool..."
+                      className="[&_[data-slot=trigger]]:min-h-0 [&_[data-slot=trigger]]:h-8 [&_[data-slot=trigger]]:py-0 [&_[data-slot=trigger]]:text-xs"
+                    >
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {agentPools.map((pool) => (
+                            <ListBox.Item
+                              key={pool.slug}
+                              id={pool.slug}
+                              textValue={pool.name}
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium">
+                                  {pool.name}
+                                </span>
+                                <span className="text-xs text-default-400">
+                                  {pool.slug} — {pool.agentCount} agent
+                                  {pool.agentCount !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                  <Button
+                    onPress={handleFillFromPool}
+                    isDisabled={!selectedPoolSlug}
+                    variant="ghost"
+                    size="sm"
+                    className="bg-violet-600 text-white hover:bg-violet-700 h-8 min-w-fit px-3 text-xs font-medium disabled:opacity-50"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Fill
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Agent List ──────────────────────────────────────── */}
             {data.agents.length === 0 ? (
               <BFlowEmptyState
                 icon={<Brain className="w-8 h-8" />}

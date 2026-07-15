@@ -16,6 +16,8 @@ export interface BFlowInteractiveWorkflowData {
   agents: BFlowInteractiveAgent[];
   jobs: BFlowInteractiveJob[];
   reports: BFlowInteractiveReport[];
+  /** Slugs of agent pools that were used to fill the agents section */
+  agentPoolSlugs: string[];
 }
 
 export interface BFlowInteractiveVariable {
@@ -88,6 +90,31 @@ export interface BFlowWorkflowInteractiveProps {
   initialYaml: string;
   /** Called when the data changes and needs to be serialized back */
   onDataChange: (data: BFlowInteractiveWorkflowData, yaml: string) => void;
+  /**
+   * Available agent pools from IndexedDB.
+   * When provided, the Agents section shows a "Fill from Pool" action
+   * that expands pool template data into workflow agent entries.
+   */
+  agentPools?: BFlowInteractiveAgentPool[];
+}
+
+/**
+ * Lightweight representation of an agent pool for the interactive builder.
+ * Carries just enough data to populate the `agents:` section of the YAML.
+ */
+export interface BFlowInteractiveAgentPool {
+  /** Pool slug — used as the identifier in agentPools: [] */
+  slug: string;
+  /** Human-readable name */
+  name: string;
+  /** Number of agents to generate from this pool */
+  agentCount: number;
+  /** Template that describes each generated agent */
+  template: {
+    systemPrompt?: string;
+    provider?: string;
+    model?: string;
+  };
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────

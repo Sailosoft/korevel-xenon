@@ -150,4 +150,23 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
       table.index("status");
     });
   });
+
+  // ── Version 6 — add agent pools table ───────────────────────────
+  model.schema((config) => {
+    config.create("agentPools", (table) => {
+      table.uuid();
+      table.index("code");
+      table.index("slug");
+      table.index("status");
+    });
+  });
+
+  // ── Version 7 — add pool agents table ───────────────────────────
+  model.schema((config) => {
+    config.create("poolAgents", (table) => {
+      table.uuid();
+      table.index("poolId");
+      table.index("name");
+    });
+  });
 }

@@ -31,6 +31,10 @@ export function serializeBflowInteractive(
     });
   }
 
+  if (data.agentPoolSlugs.length > 0) {
+    workflow.agentPools = data.agentPoolSlugs;
+  }
+
   if (data.agents.length > 0) {
     workflow.agents = data.agents.map((a) => {
       const entry: Record<string, unknown> = { name: a.name, prompt: a.prompt };

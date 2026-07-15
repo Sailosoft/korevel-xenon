@@ -72,7 +72,13 @@ import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
 
 // Import Interactive component from new location
 import BFlowWorkflowInteractive from "../workflow-interactive/BFlowWorkflowInteractive";
-import type { BFlowInteractiveWorkflowData } from "../workflow-interactive/BFlowWorkflowInteractive.Types";
+import type {
+  BFlowInteractiveWorkflowData,
+  BFlowInteractiveAgentPool,
+} from "../workflow-interactive/BFlowWorkflowInteractive.Types";
+
+// Agent Pool integration
+import { useBFlowAgentPools } from "../agent-pool/useBFlowAgentPools";
 
 import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
 import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
@@ -118,6 +124,30 @@ export default function BFlowWorkflowStudio({
 
   // ── Interactive mode toggle ─────────────────────────────────────
   const [interactiveMode, setInteractiveMode] = useState(false);
+
+  // ── Agent Pools (for filling agents in interactive mode) ────────
+  const {
+    agentPools: rawAgentPools,
+    loading: poolsLoading,
+  } = useBFlowAgentPools();
+
+  /** Map raw DB entities to the lightweight interactive pool type */
+  const interactiveAgentPools: BFlowInteractiveAgentPool[] = useMemo(
+    () =>
+      rawAgentPools
+        .filter((p) => p.status === "active" || p.status === "draft")
+        .map((p) => ({
+          slug: p.slug,
+          name: p.name,
+          agentCount: Math.max(1, p.agentCount),
+          template: {
+            systemPrompt: p.agentTemplate?.systemPrompt,
+            provider: p.agentTemplate?.provider,
+            model: p.agentTemplate?.model,
+          },
+        })),
+    [rawAgentPools],
+  );
 
   // ── Editor state ──────────────────────────────────────────────────
   const [yamlContent, setYamlContent] = useState<string>("");
@@ -776,6 +806,7 @@ export default function BFlowWorkflowStudio({
                 <BFlowWorkflowInteractive
                   initialYaml={yamlContent}
                   onDataChange={handleInteractiveDataChange}
+                  agentPools={interactiveAgentPools}
                 />
               </div>
             </>
