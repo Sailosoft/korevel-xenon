@@ -169,4 +169,14 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
       table.index("name");
     });
   });
+
+  // ── Version 8 — add pools table (replaces agentPools) ──────────
+  model.schema((config) => {
+    config.create("pools", (table) => {
+      table.uuid();
+      table.index("flowId");
+      table.index("code");
+      table.index("status");
+    });
+  });
 }

@@ -1,7 +1,7 @@
 // BFlowScopedPoolAgents.tsx
 //
-// Bunny-backed pool agent list automatically scoped to a specific agent
-// pool (poolId). Uses the existing bflowPoolAgentModule config but
+// Bunny-backed pool agent list automatically scoped to a specific pool
+// (poolId). Uses the existing bflowPoolAgentModule config but
 // injects the pool id to scope agents to that pool.
 //
 // Also renders the "Generate Agent Team" modal, wired via the custom
@@ -9,15 +9,14 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
-import { Button } from "@heroui/react";
-import { WandSparkles } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import Bunny from "@/src/modules/bunny/src/Bunny";
 import BunnyForm from "@/src/modules/bunny/src/form/BunnyForm";
 import { bflowPoolAgentModule } from "./BFlowPoolAgent.Feature";
 import { createScopedBunnyConfig } from "../flow/BFlowScopedModule";
 import BFlowGenerateTeamModal from "./BFlowGenerateTeamModal";
-import type { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
+import { bflowDB } from "../database/BFlowDatabase";
+import type { BFlowPoolEntity } from "./BFlowPool.Types";
 
 interface BFlowScopedPoolAgentsProps {
   poolId: string;
@@ -27,6 +26,14 @@ export default function BFlowScopedPoolAgents({
   poolId,
 }: BFlowScopedPoolAgentsProps) {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [pool, setPool] = useState<BFlowPoolEntity | null>(null);
+
+  // Load the pool to get its description for the generate modal
+  useEffect(() => {
+    bflowDB.pools.get(poolId).then((p) => {
+      if (p) setPool(p);
+    }).catch(() => setPool(null));
+  }, [poolId]);
 
   const scopedConfig = createScopedBunnyConfig(
     bflowPoolAgentModule,
@@ -65,6 +72,7 @@ export default function BFlowScopedPoolAgents({
       <BFlowGenerateTeamModal
         open={generateModalOpen}
         poolId={poolId}
+        poolDescription={pool?.description}
         onClose={handleGenerateModalClose}
       />
     </div>

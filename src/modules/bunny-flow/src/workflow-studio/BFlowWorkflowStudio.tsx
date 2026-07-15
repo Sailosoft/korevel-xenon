@@ -74,11 +74,12 @@ import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
 import BFlowWorkflowInteractive from "../workflow-interactive/BFlowWorkflowInteractive";
 import type {
   BFlowInteractiveWorkflowData,
+  BFlowInteractiveAgent,
   BFlowInteractiveAgentPool,
 } from "../workflow-interactive/BFlowWorkflowInteractive.Types";
 
 // Agent Pool integration
-import { useBFlowAgentPools } from "../agent-pool/useBFlowAgentPools";
+import { useBFlowPools } from "../pool/useBFlowPools";
 
 import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
 import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
@@ -127,26 +128,89 @@ export default function BFlowWorkflowStudio({
 
   // ── Agent Pools (for filling agents in interactive mode) ────────
   const {
-    agentPools: rawAgentPools,
+    pools: rawPools,
     loading: poolsLoading,
-  } = useBFlowAgentPools();
+  } = useBFlowPools();
 
-  /** Map raw DB entities to the lightweight interactive pool type */
+  // ── Pool Agents (actual agent records within pools) ─────────────
+  const [poolAgents, setPoolAgents] = useState<Record<string, BFlowInteractiveAgent[]>>({});
+  const [poolAgentsLoaded, setPoolAgentsLoaded] = useState(false);
+
+  // Load pool agents for the active pools and group them by poolId
+  useEffect(() => {
+    let cancelled = false;
+    const activePools = rawPools.filter(
+      (p) =>
+        p.flowId === flowId &&
+        (p.status === "active" || p.status === "draft"),
+    );
+    if (activePools.length === 0) {
+      setPoolAgents({});
+      setPoolAgentsLoaded(true);
+      return;
+    }
+
+    const loadAgents = async () => {
+      try {
+        const allPoolAgents = await bflowDB.poolAgents.toArray();
+        if (cancelled) return;
+
+        const grouped: Record<string, BFlowInteractiveAgent[]> = {};
+        for (const pool of activePools) {
+          const agentsForPool = allPoolAgents
+            .filter((pa) => pa.poolId === pool.id)
+            .map((pa) => ({
+              id: pa.id,
+              name: pa.name,
+              role: pa.role,
+              prompt: pa.prompt,
+              // Carry provider/model so the interactive component
+              // can surface them in the UI if needed
+              ...(pa.provider ? { provider: pa.provider } : {}),
+              ...(pa.model ? { model: pa.model } : {}),
+            })) as BFlowInteractiveAgent[];
+          grouped[pool.id] = agentsForPool;
+        }
+        if (!cancelled) {
+          setPoolAgents(grouped);
+          setPoolAgentsLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setPoolAgentsLoaded(true);
+      }
+    };
+    loadAgents();
+    return () => { cancelled = true; };
+  }, [rawPools, flowId]);
+
+  /** Map raw DB entities to the lightweight interactive pool type,
+   *  scoped to the current flowId. Includes actual pool agent records
+   *  so the interactive builder can fill real agents instead of
+   *  generating synthetic ones. */
   const interactiveAgentPools: BFlowInteractiveAgentPool[] = useMemo(
     () =>
-      rawAgentPools
-        .filter((p) => p.status === "active" || p.status === "draft")
-        .map((p) => ({
-          slug: p.slug,
-          name: p.name,
-          agentCount: Math.max(1, p.agentCount),
-          template: {
-            systemPrompt: p.agentTemplate?.systemPrompt,
-            provider: p.agentTemplate?.provider,
-            model: p.agentTemplate?.model,
-          },
-        })),
-    [rawAgentPools],
+      rawPools
+        .filter(
+          (p) =>
+            p.flowId === flowId &&
+            (p.status === "active" || p.status === "draft"),
+        )
+        .map((p) => {
+          const agents = poolAgents[p.id] ?? [];
+          return {
+            slug: p.code,        // Use code as slug for pool identification
+            name: p.name,
+            agentCount: Math.max(1, agents.length || 1),
+            template: {
+              systemPrompt: p.description,
+              provider: undefined,
+              model: undefined,
+            },
+            // Pass actual pool agents if available
+            agents: agents.length > 0 ? agents : undefined,
+          };
+        }),
+    [rawPools, poolAgents, flowId],
   );
 
   // ── Editor state ──────────────────────────────────────────────────

@@ -113,11 +113,6 @@ export const bflowPoolAgentModule = BunnyFeature.create<
     });
   });
 
-  // feature.configureRow((row) => {
-  //   // row.disableDefaults();
-  //   row.hide(["view"]);
-  // });
-
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
     form.addFields([
@@ -155,18 +150,10 @@ export const bflowPoolAgentModule = BunnyFeature.create<
         rows: 5,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.configureHeader((header) => {
-    // ── "Add Agent" header action (manual) ──────────────────────
-    header.addAction({
-      id: "add-agent",
-      label: "Add Agent",
-      icon: createElement(Plus, { className: "size-4" }),
-      variant: "primary",
-    });
-
     // ── "Generate Agents" header action (opens GenerateTeamModal) ─
     header.addAction({
       id: "generate-agents",

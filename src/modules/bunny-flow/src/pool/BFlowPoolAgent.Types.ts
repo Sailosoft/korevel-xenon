@@ -5,7 +5,7 @@ import { z } from "zod";
 export const BFlowPoolAgentSchema = z.object({
   /** GUIDv7 */
   id: z.string(),
-  /** GUIDv7 reference to BFlowAgentPool */
+  /** GUIDv7 reference to BFlowPool */
   poolId: z.string(),
   /** Unique name for this agent (used as identifier in YAML agents:[]) */
   name: z.string().min(1),

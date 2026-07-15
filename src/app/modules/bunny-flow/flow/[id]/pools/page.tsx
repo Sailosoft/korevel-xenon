@@ -2,9 +2,9 @@
 
 import { Users } from "lucide-react";
 import { useBFlowFlow } from "@/src/modules/bunny-flow/src/context/BFlowFlowContext";
-import BFlowAgentPoolComponent from "@/src/modules/bunny-flow/src/agent-pool/BFlowAgentPool.Component";
+import BFlowScopedPools from "@/src/modules/bunny-flow/src/pool/BFlowScopedPools";
 
-export default function FlowAgentPoolsPage() {
+export default function FlowPoolsPage() {
   const { flow } = useBFlowFlow();
 
   return (
@@ -15,15 +15,15 @@ export default function FlowAgentPoolsPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-slate-800">
-            Agent Pools{flow ? ` — ${flow.name}` : ""}
+            Pools{flow ? ` — ${flow.name}` : ""}
           </h1>
           <p className="text-sm text-slate-400">
-            Agents available for this flow
+            Agent pools available for this flow
           </p>
         </div>
       </div>
 
-      <BFlowAgentPoolComponent />
+      <BFlowScopedPools />
     </div>
   );
 }

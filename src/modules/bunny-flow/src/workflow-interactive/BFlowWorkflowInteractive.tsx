@@ -74,10 +74,25 @@ import { BFlowReportFormModal } from "./BFlowWorkflowInteractive.ReportFormModal
  * Generate workflow agent entries from an agent pool template.
  * Creates N agents (based on pool.agentCount) with names derived from
  * the pool slug, and fills prompt/role from the pool template data.
+ *
+ * When the pool carries actual agent records (`pool.agents`), those are
+ * used directly instead of generating synthetic entries. This ensures
+ * the real agent names, roles, and prompts from the pool are used.
  */
 function generateAgentsFromPool(
   pool: BFlowInteractiveAgentPool,
 ): BFlowInteractiveAgent[] {
+  // Use actual pool agent records when available
+  if (pool.agents && pool.agents.length > 0) {
+    return pool.agents.map((a) => ({
+      id: a.id ?? uuidv7(),
+      name: a.name,
+      role: a.role,
+      prompt: a.prompt,
+    }));
+  }
+
+  // Fallback: generate synthetic agents from the pool template
   const count = Math.max(1, pool.agentCount);
   const agents: BFlowInteractiveAgent[] = [];
 
@@ -560,8 +575,8 @@ export default function BFlowWorkflowInteractive({
                   Fill from Agent Pool
                 </div>
                 <p className="text-[10px] text-violet-500">
-                  Select a pool to expand its template into workflow agent
-                  entries. Pool slug will be recorded in{" "}
+                  Select a pool to load its agents into the workflow. Pool
+                  slug will be recorded in{" "}
                   <code className="font-mono">agentPools</code>.
                 </p>
                 <div className="flex items-center gap-2">
@@ -580,23 +595,31 @@ export default function BFlowWorkflowInteractive({
                       </Select.Trigger>
                       <Select.Popover>
                         <ListBox>
-                          {agentPools.map((pool) => (
-                            <ListBox.Item
-                              key={pool.slug}
-                              id={pool.slug}
-                              textValue={pool.name}
-                            >
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium">
-                                  {pool.name}
-                                </span>
-                                <span className="text-xs text-default-400">
-                                  {pool.slug} — {pool.agentCount} agent
-                                  {pool.agentCount !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-                            </ListBox.Item>
-                          ))}
+                          {agentPools.map((pool) => {
+                            const hasRealAgents =
+                              pool.agents && pool.agents.length > 0;
+                            const agentCount = hasRealAgents
+                              ? pool.agents!.length
+                              : pool.agentCount;
+                            return (
+                              <ListBox.Item
+                                key={pool.slug}
+                                id={pool.slug}
+                                textValue={pool.name}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">
+                                    {pool.name}
+                                  </span>
+                                  <span className="text-xs text-default-400">
+                                    {pool.slug} — {agentCount} agent
+                                    {agentCount !== 1 ? "s" : ""}
+                                    {hasRealAgents ? " (loaded)" : ""}
+                                  </span>
+                                </div>
+                              </ListBox.Item>
+                            );
+                          })}
                         </ListBox>
                       </Select.Popover>
                     </Select>

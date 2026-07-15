@@ -67,8 +67,8 @@ export default function BFlowInnerLayout({
         icon: Database,
       },
       {
-        href: `/modules/bunny-flow/flow/${id}/agent-pools`,
-        label: "Agent Pools",
+        href: `/modules/bunny-flow/flow/${id}/pools`,
+        label: "Pools",
         icon: Users,
       },
       {

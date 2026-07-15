@@ -15,17 +15,17 @@ export interface CatalogApp {
 }
 
 export const catalogApps: CatalogApp[] = [
-  {
-    id: 1,
-    name: "Book Builder",
-    url: "/modules/book-builder",
-    description: "Compose and structure digital books with rich formatting, chapter management, and collaborative editing tools.",
-    category: "productivity",
-    status: "Active",
-    iconColor: "from-blue-400 to-cyan-300",
-    gradientFrom: "#3b82f6",
-    gradientTo: "#06b6d4",
-  },
+  // {
+  //   id: 1,
+  //   name: "Book Builder",
+  //   url: "/modules/book-builder",
+  //   description: "Compose and structure digital books with rich formatting, chapter management, and collaborative editing tools.",
+  //   category: "productivity",
+  //   status: "Active",
+  //   iconColor: "from-blue-400 to-cyan-300",
+  //   gradientFrom: "#3b82f6",
+  //   gradientTo: "#06b6d4",
+  // },
   {
     id: 5,
     name: "BunnyAI",

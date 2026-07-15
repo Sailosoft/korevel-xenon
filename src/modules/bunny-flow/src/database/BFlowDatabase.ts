@@ -50,13 +50,13 @@ import {
 
 import { configureBFlowMigrations } from "./BFlowMigration";
 
-// Agent Pool imports
-import { BFlowAgentPoolEntity } from "../agent-pool/BFlowAgentPool.Types";
-import { BFlowAgentPoolRepository } from "../agent-pool/BFlowAgentPool.Repository";
+// Pool imports
+import { BFlowPoolEntity } from "../pool/BFlowPool.Types";
+import { BFlowPoolRepository } from "../pool/BFlowPool.Repository";
 
 // Pool Agent imports
-import { BFlowPoolAgentEntity } from "../pool-agent/BFlowPoolAgent.Types";
-import { BFlowPoolAgentRepository } from "../pool-agent/BFlowPoolAgent.Repository";
+import { BFlowPoolAgentEntity } from "../pool/BFlowPoolAgent.Types";
+import { BFlowPoolAgentRepository } from "../pool/BFlowPoolAgent.Repository";
 
 /**
  * BFlowDatabase — IndexedDB persistence layer for BunnyFlow.
@@ -179,9 +179,9 @@ export class BFlowDatabase extends PhazeDB {
     this.pipelineAIConfig,
   );
 
-  /** Agent Pools — groups of AI agents that can be swarmed together */
-  public agentPools = this.table<BFlowAgentPoolEntity, string>("agentPools");
-  public agentPoolsRepo = new BFlowAgentPoolRepository(this.agentPools);
+  /** Pools — groups of AI agents scoped to a flow */
+  public pools = this.table<BFlowPoolEntity, string>("pools");
+  public poolsRepo = new BFlowPoolRepository(this.pools);
 
   /** Pool Agents — individual agents belonging to a pool */
   public poolAgents = this.table<BFlowPoolAgentEntity, string>("poolAgents");

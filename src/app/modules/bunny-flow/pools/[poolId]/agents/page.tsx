@@ -4,7 +4,7 @@ import { use } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@heroui/react";
 import { useRouter } from "next/navigation";
-import BFlowScopedPoolAgents from "@/src/modules/bunny-flow/src/pool-agent/BFlowScopedPoolAgents";
+import BFlowScopedPoolAgents from "@/src/modules/bunny-flow/src/pool/BFlowScopedPoolAgents";
 
 interface PoolAgentsPageProps {
   params: Promise<{ poolId: string }>;

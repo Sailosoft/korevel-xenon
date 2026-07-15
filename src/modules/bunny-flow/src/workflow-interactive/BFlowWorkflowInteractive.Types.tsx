@@ -101,20 +101,30 @@ export interface BFlowWorkflowInteractiveProps {
 /**
  * Lightweight representation of an agent pool for the interactive builder.
  * Carries just enough data to populate the `agents:` section of the YAML.
+ *
+ * When `agents` (actual pool agent records) are provided, filling from pool
+ * will use those directly instead of generating synthetic agents from the
+ * `template` fallback.
  */
 export interface BFlowInteractiveAgentPool {
   /** Pool slug — used as the identifier in agentPools: [] */
   slug: string;
   /** Human-readable name */
   name: string;
-  /** Number of agents to generate from this pool */
+  /** Number of agents to generate from this pool (template fallback) */
   agentCount: number;
-  /** Template that describes each generated agent */
+  /** Template that describes each generated agent (fallback when agents[] is empty) */
   template: {
     systemPrompt?: string;
     provider?: string;
     model?: string;
   };
+  /**
+   * Actual pool agent records loaded from IndexedDB.
+   * When non-empty, these are used directly instead of generating
+   * synthetic agents from `template` + `agentCount`.
+   */
+  agents?: BFlowInteractiveAgent[];
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────
