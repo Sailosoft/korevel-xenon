@@ -57,6 +57,7 @@ import { BFlowStepNode } from "../run/BFlowStepNode";
 import { BFlowStepDetailsModal } from "../run/BFlowStepDetailsModal";
 import { BFlowOutputModal } from "../run/BFlowOutputModal";
 import { BFlowComputedInputsModal } from "../run/BFlowComputedInputsModal";
+import { BFlowReportViewModal } from "../run/BFlowReportViewModal";
 import { BFlowRunInputResolver } from "../run/BFlowRun.InputResolver";
 import { BFlowRunPromptBuilder } from "../run/BFlowRun.SectionBuilder";
 import { BFlowPromptBuilderKind } from "../run/BFlowRun.Prompt.Types";
@@ -66,6 +67,7 @@ import type {
   BFlowWorkflowJob,
   BFlowStep,
   BFlowVariable,
+  BFlowWorkflowReport,
 } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun, BFlowJobRun } from "../run/BFlowRun.Types";
 import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
@@ -228,6 +230,8 @@ export default function BFlowWorkflowStudio({
   const [parsedJobs, setParsedJobs] = useState<BFlowWorkflowJob[]>([]);
   /** Variables parsed from the live YAML (kept in sync with parsedJobs). */
   const [parsedVariables, setParsedVariables] = useState<BFlowVariable[]>([]);
+  /** Reports parsed from the live YAML (displayed below jobs in pipeline view). */
+  const [parsedReports, setParsedReports] = useState<BFlowWorkflowReport[]>([]);
   const [selectedJobIndex, setSelectedJobIndex] = useState(0);
 
   // ── Modal state ───────────────────────────────────────────────────
@@ -243,13 +247,18 @@ export default function BFlowWorkflowStudio({
     step: BFlowStep;
     stepRun?: BFlowStepRun;
   } | null>(null);
+  /** Report view modal — displays rendered report output using RenderView. */
+  const [viewReport, setViewReport] = useState<{
+    report: BFlowWorkflowReport;
+    content?: string;
+  } | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // ── Generative Menu state ──────────────────────────────────────────
   const [generativeMenuOption, setGenerativeMenuOption] =
     useState<GenerativeMenuOption>(null);
 
-  // ── Parse YAML and extract jobs + variables ───────────────────────
+  // ── Parse YAML and extract jobs, variables + reports ──────────────
   const parseAndSetJobs = useCallback((yaml: string) => {
     try {
       const parsed = parseYaml(yaml);
@@ -259,10 +268,13 @@ export default function BFlowWorkflowStudio({
       // `vars.{name}` input resolution reflects unsaved edits.
       const variables: BFlowVariable[] = parsed?.variables ?? [];
       setParsedVariables(variables);
+      // Extract reports from the live YAML (displayed below jobs in pipeline view)
+      const reports: BFlowWorkflowReport[] = parsed?.reports ?? [];
+      setParsedReports(reports);
       setYamlError(null);
     } catch {
       setYamlError("Invalid YAML — pipeline display may be incomplete");
-      // Keep previous jobs/variables visible if parsing fails
+      // Keep previous jobs/variables/reports visible if parsing fails
     }
   }, []);
 
@@ -406,6 +418,41 @@ export default function BFlowWorkflowStudio({
       parseAndSetJobs(newYaml);
     },
     [parseAndSetJobs],
+  );
+
+  /**
+   * Resolve report content from test run step outputs.
+   * Parses the report source (e.g. "jobName.stepName.outputs.__raw__")
+   * and looks up the corresponding step run output.
+   */
+  const resolveReportContent = useCallback(
+    (
+      report: BFlowWorkflowReport,
+      stepRuns: BFlowStepRun[],
+      jobs: BFlowWorkflowJob[],
+    ): string | undefined => {
+      const source = report.source || "";
+      // Match patterns like: "jobName.stepName.outputs.__raw__" or "jobName.stepName"
+      const match = source.match(/^([^.]+)\.([^.]+?)(?:\.outputs\.([^.]+))?$/);
+      if (!match) return undefined;
+
+      const jobName = match[1];
+      const stepName = match[2];
+
+      // Find the step run by matching job name and step name
+      const stepRun = stepRuns.find((sr) => {
+        // sr.stepId could be a GUID or the step name
+        const job = jobs.find((j) => j.name === jobName || j.id === jobName);
+        if (!job) return false;
+        const step = job.steps?.find(
+          (s) => s.name === stepName || s.id === stepName || s.id === sr.stepId,
+        );
+        return step && sr.stepId === (step.id ?? step.name);
+      });
+
+      return stepRun?.output;
+    },
+    [],
   );
 
   // ── Validate YAML against workflow schema ────────────────────────
@@ -991,6 +1038,11 @@ export default function BFlowWorkflowStudio({
                               </>
                             )}
                           </p>
+                          {currentJobRunEffective?.aiProvider && currentJobRunEffective?.aiModel && (
+                            <p className="text-xs text-violet-500 font-medium mt-0.5">
+                              {currentJobRunEffective.aiProvider} — {currentJobRunEffective.aiModel}
+                            </p>
+                          )}
                         </div>
                         {currentJobRunEffective && (
                           <BFlowStatusBadge
@@ -1072,6 +1124,53 @@ export default function BFlowWorkflowStudio({
                 )}
               </div>
             )}
+
+            {/* ── Reports Section ──────────────────────────────────────── */}
+            {parsedReports.length > 0 && (
+              <div className="mt-8 border-t border-default-100 pt-6">
+                <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5" />
+                  Reports ({parsedReports.length})
+                </h3>
+                <div className="space-y-2">
+                  {parsedReports.map((report, idx) => {
+                    // Parse source to extract job.step path for display
+                    const sourceDisplay = report.source || "—";
+                    return (
+                      <div
+                        key={report.name ?? `report-${idx}`}
+                        className="bg-background rounded-lg border border-default-100 p-3 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {report.label || report.name}
+                          </p>
+                          <p className="text-xs text-default-400 truncate font-mono">
+                            source: {sourceDisplay}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-w-0 px-2 text-default-400 shrink-0"
+                          onPress={() => {
+                            // Resolve report content from test run step outputs
+                            const content = resolveReportContent(
+                              report,
+                              testStepRuns,
+                              currentJobs,
+                            );
+                            setViewReport({ report, content });
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1108,6 +1207,19 @@ export default function BFlowWorkflowStudio({
           onClose={() => setViewComputedInputs(null)}
           step={viewComputedInputs.step}
           stepRun={viewComputedInputs.stepRun}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+           REPORT VIEW MODAL — Renders report output using RenderView
+           ═══════════════════════════════════════════════════════════════ */}
+      {viewReport && (
+        <BFlowReportViewModal
+          open={!!viewReport}
+          onClose={() => setViewReport(null)}
+          report={viewReport.report}
+          content={viewReport.content}
+          jobs={currentJobs}
         />
       )}
 

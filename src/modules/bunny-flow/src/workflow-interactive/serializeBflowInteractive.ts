@@ -43,14 +43,6 @@ export function serializeBflowInteractive(
     });
   }
 
-  if (data.reports.length > 0) {
-    workflow.reports = data.reports.map((r) => ({
-      name: r.name,
-      label: r.label,
-      source: r.source,
-    }));
-  }
-
   workflow.jobs = data.jobs.map((j) => {
     const job: Record<string, unknown> = {
       id: j.id || `job-${j.name.toLowerCase().replace(/\s+/g, "-")}`,
@@ -96,6 +88,15 @@ export function serializeBflowInteractive(
     }
     return job;
   });
+
+  // Reports go AFTER jobs in the YAML output
+  if (data.reports.length > 0) {
+    workflow.reports = data.reports.map((r) => ({
+      name: r.name,
+      label: r.label,
+      source: r.source,
+    }));
+  }
 
   try {
     return stringifyYaml(workflow, {

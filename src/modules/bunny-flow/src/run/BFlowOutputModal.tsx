@@ -1,15 +1,17 @@
 /**
- * BFlowOutputModal — Renders step output using react-markdown.
+ * BFlowOutputModal — Renders step/report output using RenderView.
  *
- * Provides a full-screen modal view of a step's AI output with proper
- * markdown rendering via the `react-markdown` library.
+ * Provides a full-screen modal view of step/report output with proper
+ * rendering via the RenderModule's RenderView component, which supports
+ * markdown, plain, html, json, csv, and other formats.
  */
 
 import React from "react";
 import { Button, Modal } from "@heroui/react";
-import ReactMarkdown from "react-markdown";
+import { RenderView } from "@/src/modules/render";
 import type { BFlowStepRun } from "./BFlowRun.Types";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
+import type { RenderFormat } from "@/src/modules/render";
 
 export interface BFlowOutputModalProps {
   /** Whether the modal is open */
@@ -20,19 +22,25 @@ export interface BFlowOutputModalProps {
   step: BFlowStep;
   /** The step run data containing the output */
   stepRun?: BFlowStepRun;
+  /** Optional override for the output format (defaults to step outputType or "markdown") */
+  outputType?: RenderFormat;
 }
 
 /**
- * Modal that renders step output using react-markdown.
+ * Modal that renders step/report output using RenderView.
  * Displays the step name, AI provider/model info, and the rendered output.
+ * Supports all RenderFormat types (markdown, plain, html, json, csv, etc.)
  */
 export function BFlowOutputModal({
   open,
   onClose,
   step,
   stepRun,
+  outputType,
 }: BFlowOutputModalProps) {
   const output = stepRun?.output;
+  const format: RenderFormat =
+    outputType ?? (step.outputType as RenderFormat) ?? "markdown";
 
   return (
     <Modal.Backdrop isOpen={open} onClick={onClose}>
@@ -52,9 +60,12 @@ export function BFlowOutputModal({
                   {stepRun.aiProvider} — {stepRun.aiModel}
                 </p>
               )}
+              <p className="text-xs text-default-400 mt-0.5">
+                Format: {format}
+              </p>
               {!output && (
                 <p className="text-sm text-default-400 mt-1">
-                  No output available for this step
+                  No output available
                 </p>
               )}
             </div>
@@ -62,9 +73,8 @@ export function BFlowOutputModal({
 
           <Modal.Body className="overflow-y-auto max-h-[70vh]">
             {output ? (
-              <div className="prose prose-sm max-w-none prose-neutral dark:prose-invert rounded-xl p-6 text-foreground" >
-              {/* // <div className="prose prose-sm max-w-none rounded-xl p-6"> */}
-                <ReactMarkdown>{output}</ReactMarkdown>
+              <div className="rounded-xl p-6 text-foreground" style={{ minHeight: 200, display: "flex", flexDirection: "column" }}>
+                <RenderView format={format} content={output} />
               </div>
             ) : (
               <div className="text-center py-12 text-default-400 text-sm">

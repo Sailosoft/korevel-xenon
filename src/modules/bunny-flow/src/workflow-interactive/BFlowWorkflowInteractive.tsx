@@ -924,6 +924,7 @@ export default function BFlowWorkflowInteractive({
       <BFlowReportFormModal
         open={reportModal.open}
         report={reportModal.report}
+        jobs={data.jobs}
         onClose={() => setReportModal((prev) => ({ ...prev, open: false }))}
         onSave={saveReport}
       />
