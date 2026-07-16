@@ -6,6 +6,11 @@
  * All stateful logic is extracted into useBFlowRun() and its sub-hooks.
  * This component only consumes the returned state and renders the UI.
  *
+ * ─── Features ────────────────────────────────────────────────────────
+ * 1. View Raw YAML — Modal to inspect the workflow template YAML schema.
+ * 2. View Report   — Modal that renders report output via RenderView.
+ * 3. Runs History  — Sidebar list of all persisted pipeline runs.
+ *
  * ─── Export ──────────────────────────────────────────────────────────
  * Supports exporting pipeline run results to a styled HTML document with
  * Tailwind CSS (via CDN). The export includes all job and step runs with
@@ -13,7 +18,7 @@
  */
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Play,
   Loader2,
@@ -24,7 +29,9 @@ import {
   ChevronRight,
   Beaker,
   Download,
-  CheckCircle2,
+  FileCode,
+  History,
+  Eye,
 } from "lucide-react";
 import { Button, Card, Dropdown, Label, Separator } from "@heroui/react";
 import { useBFlowRun } from "./BFlowRun.Hooks";
@@ -33,16 +40,26 @@ import { BFlowStepNode } from "./BFlowStepNode";
 import { BFlowStepDetailsModal } from "./BFlowStepDetailsModal";
 import { BFlowOutputModal } from "./BFlowOutputModal";
 import { BFlowComputedInputsModal } from "./BFlowComputedInputsModal";
+import { BFlowRawYamlModal } from "./BFlowRawYamlModal";
+import { BFlowReportViewModal } from "./BFlowReportViewModal";
+import { BFlowHtmlPreviewModal } from "./BFlowHtmlPreviewModal";
+import { BFlowReportPreviewModal } from "./BFlowReportPreviewModal";
+import { BFlowReportsHtmlPreview } from "./BFlowReportsHtmlPreview";
+import type { ReportItem } from "./BFlowReportsHtmlPreview";
 import {
   BFlowLoadingState,
   BFlowErrorState,
   BFlowTestRunBanner,
 } from "./BFlowRunState";
-import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
-import type { BFlowStepRun } from "./BFlowRun.Types";
+import { bflowDB } from "../database/BFlowDatabase";
+import type {
+  BFlowStep,
+  BFlowWorkflowReport,
+  BFlowWorkflowJob,
+} from "../workflow/BFlowWorkflow.Types";
+import type { RenderFormat } from "@/src/modules/render";
+import type { BFlowStepRun, BFlowPipelineRunEntity } from "./BFlowRun.Types";
 
-// ─── Tailwind HTML Export Service ────────────────────────────────────
-import { bflowTailwindExportService } from "../export/BFlowExport.TailwindService";
 
 export default function BFlowRunComponent() {
   const params = useParams();
@@ -99,54 +116,260 @@ export default function BFlowRunComponent() {
     stepRun?: BFlowStepRun;
   } | null>(null);
 
-  // ── Export State ──────────────────────────────────────────────
-  const [exportStatus, setExportStatus] = useState<
-    "idle" | "exporting" | "exported"
-  >("idle");
+  // ── Raw YAML Modal State (Task 1) ────────────────────────────
+  const [viewRawYaml, setViewRawYaml] = useState(false);
 
-  /**
-   * Export pipeline run results to a Tailwind-styled HTML document.
-   * Uses the effective runs (test run or actual run) as data source.
-   */
-  const handleExportHtml = useCallback(() => {
+  // ── Report View Modal State (Task 2) ──────────────────────────
+  const [viewReport, setViewReport] = useState<{
+    report: BFlowWorkflowReport;
+    content?: string;
+  } | null>(null);
+
+  // ── HTML Preview Modal State ──────────────────────────────────
+  const [viewHtmlPreview, setViewHtmlPreview] = useState(false);
+
+  // ── Report Preview Modal State ────────────────────────────────
+  const [reportPreview, setReportPreview] = useState<{
+    content: string;
+    title: string;
+    filename: string;
+  } | null>(null);
+
+  // ── Reports HTML Preview State (consolidated YAML reports) ────
+  const [viewReportsHtml, setViewReportsHtml] = useState(false);
+
+  // ── Runs History State (Task 3) ───────────────────────────────
+  const [allRuns, setAllRuns] = useState<BFlowPipelineRunEntity[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+  // Load all historical runs for this pipeline
+  useEffect(() => {
+    if (!pipelineId) {
+      setAllRuns([]);
+      return;
+    }
+    let cancelled = false;
+    bflowDB.pipelineRunsRepo
+      .getByPipelineId(pipelineId)
+      .then((runs) => {
+        if (!cancelled) setAllRuns(runs);
+      })
+      .catch(() => {
+        if (!cancelled) setAllRuns([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pipelineId, activeRun?.id, activeRun?.status]);
+
+  // Auto-select active run when runs list changes
+  useEffect(() => {
+    if (!selectedRunId && activeRun) {
+      setSelectedRunId(activeRun.id);
+    }
+  }, [activeRun, selectedRunId]);
+
+  // ── Report content resolver ───────────────────────────────────
+  const resolvedReportContent = useMemo(() => {
+    if (!viewReport || !viewReport.report.source) return undefined;
+
+    // Parse source pattern: "jobName.stepName" or "jobName.stepName.outputs.fieldName"
+    const source = viewReport.report.source;
+    const match = source.match(/^([^.]+)\.([^.]+?)(?:\.outputs\.([^.]+))?$/);
+    if (!match) return undefined;
+
+    const jobName = match[1];
+    const stepName = match[2];
+    // const fieldName = match[3]; // Not used for raw output
+
+    // Find the job run matching the job name
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const matchingJobRun = effectiveJobRuns.find(
+      (jr) => jr.jobName === jobName || jr.jobId === jobName,
+    );
+    if (!matchingJobRun) return undefined;
+
+    // Find the step run within that job run matching the step name
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+    const stepRun = effectiveStepRuns.find(
+      (sr) =>
+        sr.jobRunId === matchingJobRun.id &&
+        (sr.stepName === stepName || sr.stepId === stepName),
+    );
+
+    return stepRun?.output;
+  }, [viewReport, hasTestRunResult, testJobRuns, testStepRuns, jobRuns, stepRuns]);
+
+  // ── Resolved report items for consolidated Reports HTML ──────
+  const resolvedReportItems = useMemo((): ReportItem[] => {
+    const reports = template?.template?.reports;
+    if (!reports || reports.length === 0) return [];
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+    return reports.map((r) => {
+      const content = resolveReportOutput(r.source, effectiveJobRuns, effectiveStepRuns, jobs) ?? "";
+      // Resolve format from the source step's outputType
+      const source = r.source || "";
+      const match = source.match(/^([^.]+)\.([^.]+?)(?:\.outputs\.([^.]+))?$/);
+      // Map BFlowStepOutputType to valid RenderFormat
+      const STEP_FORMAT_MAP: Record<string, RenderFormat> = {
+        plain: "plain",
+        markdown: "markdown",
+        json: "json",
+        html: "html",
+        csv: "csv",
+        json_array: "json",
+        yaml: "markdown",
+      };
+      let format: RenderFormat = "markdown";
+      if (match) {
+        const jobName = match[1];
+        const stepName = match[2];
+        const job = jobs.find((j) => j.name === jobName || j.id === jobName);
+        const step = job?.steps?.find((s) => s.name === stepName || s.id === stepName);
+        if (step?.outputType) {
+          format = STEP_FORMAT_MAP[step.outputType] ?? "markdown";
+        }
+      }
+      return { label: r.label || r.name, name: r.name, content, format };
+    });
+  }, [template, hasTestRunResult, testJobRuns, testStepRuns, jobRuns, stepRuns, jobs]);
+
+  // ── HTML Export Input (memoized for preview modal) ────────────
+  const htmlExportInput = useMemo(() => {
     const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
     const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
 
     if (effectiveJobRuns.length === 0 && effectiveStepRuns.length === 0) {
-      return;
+      return null;
     }
 
-    setExportStatus("exporting");
+    return {
+      pipelineName: pipeline?.name ?? template?.name ?? "Pipeline Report",
+      description: template?.description,
+      jobRuns: effectiveJobRuns,
+      stepRuns: effectiveStepRuns,
+      reports: template?.template?.reports,
+    };
+  }, [hasTestRunResult, testJobRuns, testStepRuns, jobRuns, stepRuns, pipeline, template]);
 
-    try {
-      bflowTailwindExportService.download(
-        {
-          pipelineName: pipeline?.name ?? template?.name ?? "Pipeline Report",
-          description: template?.description,
-          jobRuns: effectiveJobRuns,
-          stepRuns: effectiveStepRuns,
-          reports: template?.template?.reports,
-        },
-        `${pipeline?.slug ?? "pipeline"}-report.html`,
-        {
-          includeResolvedPrompts: false,
-          includeDescription: true,
-        },
-      );
-      setExportStatus("exported");
-      setTimeout(() => setExportStatus("idle"), 2000);
-    } catch {
-      setExportStatus("idle");
+  // ── Generate Full Report Content ─────────────────────────────
+  /** Builds full report markdown with all jobs/steps output. */
+  const buildFullReportContent = useCallback((): string | null => {
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+    if (effectiveJobRuns.length === 0 && effectiveStepRuns.length === 0) return null;
+
+    const lines: string[] = [];
+    const now = new Date().toLocaleString();
+    lines.push(`# Pipeline Full Report: ${pipeline?.name ?? "Untitled"}`);
+    lines.push(`**Generated**: ${now}`);
+    lines.push(`**Status**: ${activeRun?.status ?? "N/A"}`);
+    lines.push("", "---", "");
+
+    for (const jr of effectiveJobRuns) {
+      lines.push(`## Job: ${jr.jobName}`);
+      lines.push(`**Status**: ${jr.status}`, "");
+      const srs = effectiveStepRuns.filter((s) => s.jobRunId === jr.id);
+      for (const sr of srs) {
+        lines.push(`### ${sr.stepName}`);
+        lines.push(`- **Status**: ${sr.status}`);
+        if (sr.startedAt && sr.completedAt) {
+          const dur = Math.round((sr.completedAt.getTime() - sr.startedAt.getTime()) / 1000);
+          lines.push(`- **Duration**: ${dur}s`);
+        }
+        if (sr.output) lines.push("", "```", sr.output, "```");
+        if (sr.error) lines.push("", "**Error**:", "```", sr.error, "```");
+        lines.push("");
+      }
     }
-  }, [
-    hasTestRunResult,
-    testJobRuns,
-    testStepRuns,
-    jobRuns,
-    stepRuns,
-    pipeline,
-    template,
-  ]);
+    return lines.join("\n");
+  }, [hasTestRunResult, testJobRuns, testStepRuns, jobRuns, stepRuns, pipeline, activeRun]);
+
+  /** Opens report preview for full report */
+  const generateFullReportPreview = useCallback(() => {
+    const content = buildFullReportContent();
+    if (!content) return;
+    setReportPreview({
+      content,
+      title: "Full Report",
+      filename: `${pipeline?.slug ?? "pipeline"}-full-report`,
+    });
+  }, [buildFullReportContent, pipeline]);
+
+  // ── Generate Report via YAML Config ──────────────────────────
+  /** Builds report content based on YAML reports config, falling back to full. */
+  const buildYamlReportContent = useCallback((): string | null => {
+    const effectiveJobRuns = hasTestRunResult ? testJobRuns : jobRuns;
+    const effectiveStepRuns = hasTestRunResult ? testStepRuns : stepRuns;
+    const reports = template?.template?.reports;
+
+    if (effectiveJobRuns.length === 0 && effectiveStepRuns.length === 0) return null;
+
+    const lines: string[] = [];
+    const now = new Date().toLocaleString();
+    lines.push(`# Pipeline Report: ${pipeline?.name ?? "Untitled"}`);
+    lines.push(`**Generated**: ${now}`);
+    lines.push(`**Status**: ${activeRun?.status ?? "N/A"}`);
+    lines.push("", "---", "");
+
+    if (reports && reports.length > 0) {
+      for (const r of reports) {
+        const content = resolveReportOutput(r.source, effectiveJobRuns, effectiveStepRuns, jobs);
+        lines.push(`## ${r.label || r.name}`);
+        lines.push(`**Source**: \`${r.source}\``, "");
+        lines.push(content ?? "_No output available._");
+        lines.push("", "---", "");
+      }
+    } else {
+      // Fallback: full jobs/steps output
+      for (const jr of effectiveJobRuns) {
+        lines.push(`## Job: ${jr.jobName}`);
+        lines.push(`**Status**: ${jr.status}`, "");
+        const srs = effectiveStepRuns.filter((s) => s.jobRunId === jr.id);
+        for (const sr of srs) {
+          lines.push(`### ${sr.stepName}`);
+          lines.push(`- **Status**: ${sr.status}`);
+          if (sr.startedAt && sr.completedAt) {
+            const dur = Math.round((sr.completedAt.getTime() - sr.startedAt.getTime()) / 1000);
+            lines.push(`- **Duration**: ${dur}s`);
+          }
+          if (sr.output) lines.push("", "```", sr.output, "```");
+          if (sr.error) lines.push("", "**Error**:", "```", sr.error, "```");
+          lines.push("");
+        }
+      }
+    }
+    return lines.join("\n");
+  }, [hasTestRunResult, testJobRuns, testStepRuns, jobRuns, stepRuns, template, pipeline, activeRun, jobs]);
+
+  /** Opens report preview for YAML config report */
+  const generateYamlReport = useCallback(() => {
+    const content = buildYamlReportContent();
+    if (!content) return;
+    const reports = template?.template?.reports;
+    const label = reports?.length ? "yaml-config" : "full-report";
+    setReportPreview({
+      content,
+      title: reports?.length ? "Report (YAML Config)" : "Report (Full Output)",
+      filename: `${pipeline?.slug ?? "pipeline"}-${label}`,
+    });
+  }, [buildYamlReportContent, template, pipeline]);
+
+  /** Resolve a report source pattern to step output content. */
+  function resolveReportOutput(
+    source: string,
+    jobRunsArr: typeof jobRuns,
+    stepRunsArr: typeof stepRuns,
+    workflowJobs: BFlowWorkflowJob[],
+  ): string | undefined {
+    const m = source.match(/^([^.]+)\.([^.]+?)(?:\.outputs\.([^.]+))?$/);
+    if (!m) return undefined;
+    const jr = jobRunsArr.find((r) => r.jobName === m[1] || r.jobId === m[1]);
+    if (!jr) return undefined;
+    const sr = stepRunsArr.find((s) => s.jobRunId === jr.id && (s.stepName === m[2] || s.stepId === m[2]));
+    return sr?.output;
+  }
 
   // ── Render ────────────────────────────────────────────────────
 
@@ -193,53 +416,82 @@ export default function BFlowRunComponent() {
 
               <Dropdown>
                 <Dropdown.Trigger>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
-                    isDisabled={
-                      exportStatus === "exporting" ||
-                      (hasTestRunResult
-                        ? testJobRuns.length === 0
-                        : jobRuns.length === 0)
-                    }
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors select-none"
+                    role="button"
+                    tabIndex={0}
                   >
-                    {exportStatus === "exported" ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Exported
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        Export
-                      </>
-                    )}
-                  </Button>
+                    <Download className="w-4 h-4" />
+                    Run Options
+                  </span>
                 </Dropdown.Trigger>
                 <Dropdown.Popover>
-                  <Dropdown.Menu aria-label="Export actions">
+                  <Dropdown.Menu aria-label="Run options">
+                    {/* ── Generate Full Report ────────────────────── */}
                     <Dropdown.Item
-                      key="generate-report"
-                      onPress={generateReport}
-                      isDisabled={!activeRun}
-                    >
-                      <FileBarChart className="w-4 h-4" />
-                      <Label>Generate Report</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      key="export-html"
-                      onPress={handleExportHtml}
+                      key="generate-full-report"
+                      onPress={generateFullReportPreview}
                       isDisabled={
-                        exportStatus === "exporting" ||
                         (hasTestRunResult
                           ? testJobRuns.length === 0
                           : jobRuns.length === 0)
                       }
                     >
-                      <Download className="w-4 h-4" />
-                      <Label>Export HTML</Label>
+                      <FileBarChart className="w-4 h-4" />
+                      <Label>Generate Full Report</Label>
                     </Dropdown.Item>
+
+                    {/* ── Generate Report from YAML Config ────────── */}
+                    <Dropdown.Item
+                      key="generate-yaml-report"
+                      onPress={generateYamlReport}
+                      isDisabled={
+                        (hasTestRunResult
+                          ? testJobRuns.length === 0
+                          : jobRuns.length === 0)
+                      }
+                    >
+                      <FileBarChart className="w-4 h-4" />
+                      <Label>Generate from YAML Config</Label>
+                    </Dropdown.Item>
+
+                    <Separator className="my-1" />
+
+                    {/* ── View HTML ──────────────────────────────── */}
+                    <Dropdown.Item
+                      key="view-html-preview"
+                      onPress={() => setViewHtmlPreview(true)}
+                      isDisabled={!htmlExportInput}
+                    >
+                      <Eye className="w-4 h-4" />
+                      <Label>View HTML</Label>
+                    </Dropdown.Item>
+
+                    <Separator className="my-1" />
+
+                    {/* ── View Raw YAML (Task 1) ───────────────── */}
+                    <Dropdown.Item
+                      key="view-raw-yaml"
+                      onPress={() => setViewRawYaml(true)}
+                      isDisabled={!template?.templateYaml}
+                    >
+                      <FileCode className="w-4 h-4" />
+                      <Label>View Raw YAML</Label>
+                    </Dropdown.Item>
+
+                    {/* ── View Reports HTML (consolidated) ────────── */}
+                    {resolvedReportItems.length > 0 && (
+                      <>
+                        <Separator className="my-1" />
+                        <Dropdown.Item
+                          key="view-reports-html"
+                          onPress={() => setViewReportsHtml(true)}
+                        >
+                          <FileBarChart className="w-4 h-4" />
+                          <Label>View Reports HTML</Label>
+                        </Dropdown.Item>
+                      </>
+                    )}
                   </Dropdown.Menu>
                 </Dropdown.Popover>
               </Dropdown>
@@ -424,6 +676,67 @@ export default function BFlowRunComponent() {
                     )}
               </div>
             </Card>
+
+            {/* ── Runs History (Task 3) ─────────────────────────── */}
+            {allRuns.length > 0 && (
+              <Card className="mt-4 p-4 bg-background border-default-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <History className="w-4 h-4 text-default-400" />
+                  <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wider">
+                    Run History
+                  </h3>
+                  <span className="text-xs text-default-400 ml-auto">
+                    {allRuns.length} run{allRuns.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {allRuns.map((run) => {
+                    const cfg = getStatusConfig(run.status);
+                    const isSelected = selectedRunId === run.id;
+                    return (
+                      <button
+                        key={run.id}
+                        onClick={() => setSelectedRunId(run.id)}
+                        className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center gap-2 ${
+                          isSelected
+                            ? "bg-default-100 border border-default-200 shadow-sm"
+                            : "hover:bg-default-50 border border-transparent"
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 ${cfg.color}`}>
+                          {cfg.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium truncate ${
+                            isSelected ? "text-default-700" : "text-default-600"
+                          }`}>
+                            {run.runNumber
+                              ? `Run #${run.runNumber}`
+                              : run.id.slice(0, 8)}
+                          </p>
+                          <p className="text-[10px] text-default-400">
+                            {run.startedAt
+                              ? run.startedAt.toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : run.createdAt.toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-medium ${cfg.color}`}>
+                          {cfg.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* ── Steps Display ──────────────────────────────────── */}
@@ -589,6 +902,64 @@ export default function BFlowRunComponent() {
           onClose={() => setViewComputedInputs(null)}
           step={viewComputedInputs.step}
           stepRun={viewComputedInputs.stepRun}
+        />
+      )}
+
+      {/* ── Raw YAML Schema Modal (Task 1) ─────────────────────── */}
+      {viewRawYaml && template?.templateYaml && (
+        <BFlowRawYamlModal
+          open={viewRawYaml}
+          onClose={() => setViewRawYaml(false)}
+          yaml={template.templateYaml}
+          label={template?.name ? `${template.name} — ${template.slug}` : undefined}
+        />
+      )}
+
+      {/* ── Report View Modal (Task 2) ─────────────────────────── */}
+      {viewReport && (
+        <BFlowReportViewModal
+          open={!!viewReport}
+          onClose={() => setViewReport(null)}
+          report={viewReport.report}
+          content={resolvedReportContent}
+          jobs={jobs}
+        />
+      )}
+
+      {/* ── HTML Preview Modal ─────────────────────────────────── */}
+      {viewHtmlPreview && htmlExportInput && (
+        <BFlowHtmlPreviewModal
+          open={viewHtmlPreview}
+          onClose={() => setViewHtmlPreview(false)}
+          input={htmlExportInput}
+          filename={`${pipeline?.slug ?? "pipeline"}-report.html`}
+          options={{
+            includeResolvedPrompts: false,
+            includeResolvedInputs: false,
+            includeDescription: true,
+          }}
+        />
+      )}
+
+      {/* ── Report Preview Modal (Full Report / YAML Config) ──── */}
+      {reportPreview && (
+        <BFlowReportPreviewModal
+          open={!!reportPreview}
+          onClose={() => setReportPreview(null)}
+          content={reportPreview.content}
+          title={reportPreview.title}
+          downloadFilename={reportPreview.filename}
+        />
+      )}
+
+      {/* ── Consolidated Reports HTML Preview ──────────────────── */}
+      {viewReportsHtml && resolvedReportItems.length > 0 && (
+        <BFlowReportsHtmlPreview
+          open={viewReportsHtml}
+          onClose={() => setViewReportsHtml(false)}
+          pipelineName={pipeline?.name ?? template?.name}
+          reports={resolvedReportItems}
+          filename={`${pipeline?.slug ?? "pipeline"}-reports.html`}
         />
       )}
     </div>

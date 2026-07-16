@@ -301,6 +301,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "nvidia/nemotron-3-nano-30b-a3b",
     "nvidia/nemotron-3-super-120b-a12b",
     "nvidia/nemotron-3-ultra-550b-a55b",
+    "novita/tencent/hy3",
     // non free 1m token
     "xiaomi/mimo-v2.5",
     "xai/grok-4-1-fast-reasoning",
@@ -338,6 +339,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "anthropic/claude-opus-4-8",
     "vertex/gemini-3.1-flash-lite@eu",
     "xiaomi/mimo-v2.5-pro",
+    "novita/tencent/hy3" 
   ] as const,
   openRouter: [
     "openrouter/fusion",

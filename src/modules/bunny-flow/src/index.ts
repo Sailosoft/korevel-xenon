@@ -163,6 +163,14 @@ export {
 } from "./run/BFlowRun.Repository";
 export { default as BFlowRunComponent } from "./run/BFlowRun.Component";
 
+// Runs List
+export { default as BFlowRunsList } from "./runs/BFlowRunsList.Component";
+export { useBFlowRunsList } from "./runs/BFlowRunsList.Hooks";
+export type {
+  BFlowRunDisplayItem,
+  BFlowRunsListProps,
+} from "./runs/BFlowRunsList.Types";
+
 // AI Engine
 export { BFlowAIEngine, bflowAIEngine } from "./ai/BFlowAIEngine";
 

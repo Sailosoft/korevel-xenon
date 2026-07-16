@@ -171,8 +171,12 @@ export const bflowPipelineModule = BunnyFeature.create<
         ],
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
+
+  feature.configureModal((builder) => {
+    builder.setSize(1000);
+  })
 
   feature.useDataLayer(bflowDB.pipelinesRepo.dataLayer);
 });

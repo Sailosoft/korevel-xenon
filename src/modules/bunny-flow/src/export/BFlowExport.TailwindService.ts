@@ -20,6 +20,8 @@ export interface BFlowTailwindExportOptions {
   includePrompts?: boolean;
   /** Whether to include system/user prompts */
   includeResolvedPrompts?: boolean;
+  /** Whether to include resolved input values. Defaults to true. */
+  includeResolvedInputs?: boolean;
   /** Custom title for the report */
   title?: string;
   /** Whether to include the pipeline description */
@@ -46,6 +48,7 @@ export interface BFlowTailwindExportInput {
 const DEFAULT_OPTIONS: BFlowTailwindExportOptions = {
   includePrompts: true,
   includeResolvedPrompts: false,
+  includeResolvedInputs: true,
   title: "Pipeline Report",
   includeDescription: true,
   theme: "light",
@@ -459,6 +462,7 @@ export class BFlowTailwindExportService {
               }
 
               ${
+                opts.includeResolvedInputs !== false &&
                 stepRun.resolvedInputs &&
                 Object.keys(stepRun.resolvedInputs).length > 0
                   ? `<div>
