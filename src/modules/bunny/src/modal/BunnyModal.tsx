@@ -19,10 +19,14 @@ export default function BunnyModal({
   onPrimaryAction?: () => void;
 }) {
   const kernel = useBunnyKernel();
-  const { adminPanel: admin,  } = kernel;
+  const { adminPanel: admin } = kernel;
   const { modal } = admin;
-  const { title, modalSize, modalSizeWidth, modalHeaderActions } =
+  const { title, modalSize: rawModalSize, modalSizeWidth, modalHeaderActions } =
     useBunnyConfig();
+
+  // When a custom pixel width is set via setSize(number), modalSize is undefined.
+  // Default to "md" so Modal.Container still has a valid size prop.
+  const modalSize = rawModalSize ?? "md";
   const { isOpen, setIsOpen, mode, isLoading } = modal;
 
   const handleOpenChange = useCallback(
@@ -34,11 +38,12 @@ export default function BunnyModal({
   );
 
   const dialogClassName = useMemo(() => {
-    // added standard relative positioning to safely anchor our loading layer
-    const base = "relative overflow-hidden";
-    if (modalSizeWidth) return `${base} sm:max-w-[${modalSizeWidth}px]`;
+    return "relative overflow-hidden";
+  }, []);
 
-    return base;
+  const dialogStyle = useMemo(() => {
+    if (!modalSizeWidth) return undefined;
+    return { maxWidth: `${modalSizeWidth}px` } as React.CSSProperties;
   }, [modalSizeWidth]);
 
   const computedTitle = useMemo(() => {
@@ -88,7 +93,7 @@ export default function BunnyModal({
       isDismissable={false}
     >
       <Modal.Container size={modalSize}>
-        <Modal.Dialog className={dialogClassName}>
+        <Modal.Dialog className={dialogClassName} style={dialogStyle}>
           {/* --- TOP LAYER LOADING OVERLAY --- */}
           {isLoading && (
             <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/70 dark:bg-black/70 backdrop-blur-[1px] transition-all animate-fade-in">
