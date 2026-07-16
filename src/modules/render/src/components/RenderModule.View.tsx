@@ -22,7 +22,7 @@
 //   3. Adding a rendering case in the switch below (if React rendering differs)
 // ───────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import MermaidRenderer from "./RenderView.Mermaid";
@@ -238,9 +238,60 @@ const markdownComponents: Components = {
       </code>
     );
   },
-  pre: ({ children, ...props }) => (
-    <pre {...props} style={{ background: "transparent", padding: 0, margin: 0, overflowX: "auto" }}>{children}</pre>
-  ),
+  pre: ({ children, ...props }) => {
+    const preRef = useRef<HTMLPreElement>(null);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = useCallback(async () => {
+      if (preRef.current) {
+        const text = preRef.current.textContent || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch {
+          // Clipboard write failed — silently ignore
+        }
+      }
+    }, []);
+
+    return (
+      <div style={{ position: "relative", margin: "0.75rem 0" }}>
+        <button
+          onClick={handleCopy}
+          title="Copy code block"
+          style={{
+            position: "absolute",
+            top: "0.5rem",
+            right: "0.5rem",
+            zIndex: 1,
+            background: "#2d2d2d",
+            border: "1px solid #444444",
+            borderRadius: "4px",
+            color: copied ? "#98c379" : "#858585",
+            padding: "0.2rem 0.5rem",
+            fontSize: "0.7rem",
+            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+            cursor: "pointer",
+            opacity: 0.6,
+            transition: "opacity 0.15s, color 0.15s",
+            lineHeight: 1.4,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+        <pre
+          ref={preRef}
+          {...props}
+          style={{ background: "transparent", padding: 0, margin: 0, overflowX: "auto" }}
+        >
+          {children}
+        </pre>
+      </div>
+    );
+  },
   blockquote: ({ children, ...props }) => (
     <blockquote {...props} style={{
       borderLeft: "4px solid #e5c07b",
