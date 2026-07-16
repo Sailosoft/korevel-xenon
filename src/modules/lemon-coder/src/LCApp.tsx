@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { directoryOpen } from "browser-fs-access";
 import "./LCStyle.css";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -14,7 +14,7 @@ import { useLCFileSystem } from "./useLCFileSystem";
 import { useLCChat } from "./useLCChat";
 import LCMenu from "./LCMenu";
 import LCSidebar from "./LCSidebar";
-import LCMainContent from "./LCMainContent";
+import LCMainContent, { type LCMainContentHandle } from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
 import LCSettingsModal from "./LCSettingsModal";
@@ -37,6 +37,7 @@ import type {
 import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
 import { applySearchReplace } from "./useLCChat";
+import { setSendToChatHandler } from "./LCFileTree.ContextMenu";
 
 export default function LCApp() {
   const {
@@ -112,6 +113,20 @@ export default function LCApp() {
     return true;
   });
   const isOpeningRef = useRef(false);
+  const mainContentRef = useRef<LCMainContentHandle>(null);
+
+  // Set the module-level send-to-chat handler so the context menu can append text to chat input
+  const handleSendToChat = useCallback((text: string) => {
+    console.log("[LCApp] handleSendToChat called with:", text, "mainContentRef:", !!mainContentRef.current);
+    if (mainContentRef.current) {
+      mainContentRef.current.appendToInput(text);
+    } else {
+      console.warn("[LCApp] mainContentRef.current is null!");
+    }
+  }, []);
+
+  // Register handler at module level so context menu can access it without prop chain
+  setSendToChatHandler(handleSendToChat);
 
   // Live query for stash items
   const stashItems =
@@ -149,15 +164,19 @@ export default function LCApp() {
 
   // ── Instruction Stash ─────────────────────────────────────────────────────
 
-  /** Live query: instruction stash items */
+  /** Live query: instruction stash items scoped to the current project */
   const instructionStashItems: LCInstructionStashItem[] =
-    useLiveQuery(() => lcDB.getInstructions()) || [];
+    useLiveQuery(
+      () => (currentProject ? lcDB.getInstructions(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
 
   const handleAddInstruction = useCallback(
     async (name: string, content: string) => {
-      await lcDB.addInstruction(name, content);
+      if (!currentProject) return;
+      await lcDB.addInstruction(currentProject.id, name, content);
     },
-    [],
+    [currentProject],
   );
 
   const handleRemoveInstruction = useCallback(
@@ -168,21 +187,23 @@ export default function LCApp() {
   );
 
   const handleClearInstructions = useCallback(async () => {
-    await lcDB.clearInstructions();
-  }, []);
+    if (!currentProject) return;
+    await lcDB.clearInstructions(currentProject.id);
+  }, [currentProject]);
 
   /** Context menu action: add file content to instruction stash */
   const handleAddToInstructionStash = useCallback(
     async (item: LCFileTreeItem) => {
+      if (!currentProject) return;
       try {
         const content = await readFileContent(item);
         const name = `📄 ${item.name}`;
-        await lcDB.addInstruction(name, content);
+        await lcDB.addInstruction(currentProject.id, name, content);
       } catch (err) {
         console.error("[lemon-coder] Failed to add to instruction stash:", err);
       }
     },
-    [readFileContent],
+    [currentProject, readFileContent],
   );
 
   /** Build a map of groupId → items for easy lookup */
@@ -873,10 +894,13 @@ export default function LCApp() {
           isFavoritesLoading={false}
           // Instruction stash
           onAddToInstructionStash={handleAddToInstructionStash}
+          // Send to Chat
+          onSendToChat={handleSendToChat}
         />
 
         {/* Main Content */}
         <LCMainContent
+          ref={mainContentRef}
           selectedFile={selectedFile}
           selectedFileContent={selectedFileContent}
           isDirty={isDirty}

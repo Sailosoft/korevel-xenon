@@ -367,6 +367,7 @@ export interface LCDeepstashItem {
 /** A single instruction snippet stored in the instruction stash */
 export interface LCInstructionStashItem {
   id: string;
+  projectId: string;
   name: string;
   content: string;
   addedAt: Date;

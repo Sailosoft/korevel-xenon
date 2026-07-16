@@ -15,8 +15,9 @@ import { useLCProject } from "./useLCProject";
 import { useLCFileSystem } from "./useLCFileSystem";
 import { useLCChat } from "./useLCChat";
 import LCMenu from "./LCMenu";
+import { setSendToChatHandler } from "./LCFileTree.ContextMenu";
 import LCSidebar from "./LCSidebar";
-import LCMainContent from "./LCMainContent";
+import LCMainContent, { type LCMainContentHandle } from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
 import LCSettingsModal from "./LCSettingsModal";
@@ -139,6 +140,14 @@ export default function LCStudio({ projectId }: LCStudioProps) {
     return true;
   });
   const cachedDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const mainContentRef = useRef<LCMainContentHandle>(null);
+
+  const handleSendToChat = useCallback((text: string) => {
+    mainContentRef.current?.appendToInput(text);
+  }, []);
+
+  // Register the module-level handler for the context menu's "Send to Chat"
+  setSendToChatHandler(handleSendToChat);
 
   // Live query for stash items
   const stashItems =
@@ -161,13 +170,17 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   // ── Instruction Stash ─────────────────────────────────────────────────────
 
   const instructionStashItems: LCInstructionStashItem[] =
-    useLiveQuery(() => lcDB.getInstructions()) || [];
+    useLiveQuery(
+      () => (currentProject ? lcDB.getInstructions(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
 
   const handleAddInstruction = useCallback(
     async (name: string, content: string) => {
-      await lcDB.addInstruction(name, content);
+      if (!currentProject) return;
+      await lcDB.addInstruction(currentProject.id, name, content);
     },
-    [],
+    [currentProject],
   );
 
   const handleRemoveInstruction = useCallback(
@@ -178,21 +191,23 @@ export default function LCStudio({ projectId }: LCStudioProps) {
   );
 
   const handleClearInstructions = useCallback(async () => {
-    await lcDB.clearInstructions();
-  }, []);
+    if (!currentProject) return;
+    await lcDB.clearInstructions(currentProject.id);
+  }, [currentProject]);
 
   /** Context menu action: add file content to instruction stash */
   const handleAddToInstructionStash = useCallback(
     async (item: LCFileTreeItem) => {
+      if (!currentProject) return;
       try {
         const content = await readFileContent(item);
         const name = `📄 ${item.name}`;
-        await lcDB.addInstruction(name, content);
+        await lcDB.addInstruction(currentProject.id, name, content);
       } catch (err) {
         console.error("[lemon-coder] Failed to add to instruction stash:", err);
       }
     },
-    [readFileContent],
+    [currentProject, readFileContent],
   );
 
   // ── Favourites ────────────────────────────────────────────────────────────
@@ -860,9 +875,11 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           onMoveFavoriteItem={handleMoveFavoriteItem}
           isFavoritesLoading={false}
           onAddToInstructionStash={handleAddToInstructionStash}
+          onSendToChat={handleSendToChat}
         />
 
         <LCMainContent
+          ref={mainContentRef}
           selectedFile={selectedFile}
           selectedFileContent={selectedFileContent}
           isDirty={isDirty}
@@ -889,6 +906,7 @@ export default function LCStudio({ projectId }: LCStudioProps) {
           onAddToStash={addToStash}
           onNewSession={handleCreateSession}
           onClearStash={clearStash}
+          instructionStashItems={instructionStashItems}
         />
 
         <LCRightSidebar

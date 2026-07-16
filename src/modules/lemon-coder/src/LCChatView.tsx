@@ -87,6 +87,7 @@ const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChat
   const [isViewAllChangesOpen, setIsViewAllChangesOpen] = useState(false);
   const [detailViewError, setDetailViewError] = useState<LCChatMessage | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // ── Imperative Handle ────────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
@@ -186,16 +187,21 @@ const LCChatView = forwardRef<LCChatViewHandle, LCChatViewProps>(function LCChat
 
       {/* Chat Input Area */}
       <div className="border-t border-[#333333]">
-        {/* Attached Context — with remove buttons */}
+        {/* Attached Context — with remove buttons and instruction count toggle */}
         <LCChatViewAttachedContext
           stashItems={stashItems}
           onRemoveFromStash={onRemoveFromStash}
+          instructionCount={instructionStashItems.length}
+          showInstructions={showInstructions}
+          onToggleInstructions={() => setShowInstructions((prev) => !prev)}
         />
 
-        {/* Instruction Stash */}
-        <LCChatViewInstructionStash
-          instructionStashItems={instructionStashItems}
-        />
+        {/* Instruction Stash — collapsible, hidden by default */}
+        {showInstructions && instructionStashItems.length > 0 && (
+          <LCChatViewInstructionStash
+            instructionStashItems={instructionStashItems}
+          />
+        )}
 
         {/* Input Row */}
         <LCChatViewChatInput

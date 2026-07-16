@@ -150,6 +150,28 @@ export default function LCFileViewDisplayMode({
   onInsertToChatInputRef.current = onInsertToChatInput;
   selectedFileRef.current = selectedFile;
 
+  // ── Editor ref for uncontrolled Monaco pattern ──────────────────
+  // Instead of passing `value={content}` (which causes cursor jumps on
+  // every keystroke re-render), we use an uncontrolled pattern: set initial
+  // content via `defaultValue`, then sync external changes only when they
+  // actually differ from the editor's current content.
+  const editorRef = useRef<any>(null);
+
+  // ── Sync external content changes (file reload, file switch) ──
+  // When the user switches files or reloads from disk, the content prop
+  // changes but the key={selectedFile.path} may not trigger a remount
+  // in all cases. This effect compares the editor's current value against
+  // the prop and only calls setValue when they actually differ, preserving
+  // cursor position during normal typing.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const currentValue = editor.getValue();
+    if (currentValue !== content) {
+      editor.setValue(content);
+    }
+  }, [content]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {displayMode === "file" && canPreviewFile(selectedFile.name) ? (
@@ -165,9 +187,10 @@ export default function LCFileViewDisplayMode({
           key={selectedFile.path}
           height="100%"
           language={getLanguage(selectedFile.name)}
-          value={content}
+          defaultValue={content}
           onChange={(val) => onContentChange(val || "")}
           onMount={(editor, monaco) => {
+            editorRef.current = editor;
             // Use refs to always invoke the LATEST callbacks / read the
             // latest selectedFile — the onMount closure would otherwise
             // capture stale references that don't reflect subsequent edits.

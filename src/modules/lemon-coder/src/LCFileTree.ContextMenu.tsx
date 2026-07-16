@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Button, Modal, toast } from "@heroui/react";
 import {
   Pencil,
@@ -20,6 +20,8 @@ import {
   Folder,
   BookOpenText,
   Move,
+  ClipboardCopy,
+  MessageSquareText,
 } from "lucide-react";
 import type { LCFileTreeItem, LCFavoriteGroup } from "./LCInterface";
 import type { LCContextMenuAction } from "./LCContextMenu";
@@ -27,6 +29,13 @@ import type { LCContextMenuAction } from "./LCContextMenu";
 // ── In-memory clipboard for copy/paste ────────────────────────────────────────
 
 let copiedItemClipboard: { item: LCFileTreeItem; cut: boolean } | null = null;
+
+/** Module-level handler for "Send to Chat" — set by LCApp to bypass prop chain */
+let sendToChatHandler: ((text: string) => void) | null = null;
+
+export function setSendToChatHandler(handler: ((text: string) => void) | null) {
+  sendToChatHandler = handler;
+}
 
 export function clearClipboard() {
   copiedItemClipboard = null;
@@ -70,7 +79,11 @@ export function useLCFileTreeContextMenu(
   onNewItem?: (parentPath: string, type: "file" | "directory") => void,
   /** Add file content to the instruction stash (reads file content and stores it) */
   onAddToInstructionStash?: (item: LCFileTreeItem) => void,
+  /** Send arbitrary text to the chat input */
+  onSendToChat?: (text: string) => void,
 ): UseLCFileTreeContextMenuReturn {
+  const onSendToChatRef = useRef(onSendToChat);
+  onSendToChatRef.current = onSendToChat;
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -259,6 +272,61 @@ export function useLCFileTreeContextMenu(
         });
       }
 
+      // ── File Paths submenu ───────────────────────────────────────────────
+
+      actions.push({
+        id: "file-paths",
+        label: "File Paths",
+        icon: <Copy className="w-3.5 h-3.5" />,
+        onClick: () => {
+          // Fallback if submenu not triggered — copy relative path
+          setContextMenu(null);
+          navigator.clipboard.writeText(item.path).catch(() => {});
+        },
+        children: [
+          {
+            id: "copy-relative-path",
+            label: "Copy Relative Path",
+            icon: <ClipboardCopy className="w-3.5 h-3.5" />,
+            onClick: () => {
+              navigator.clipboard.writeText(item.path).catch(() => {});
+            },
+          },
+          {
+            id: "copy-filename",
+            label: "Copy Filename",
+            icon: <ClipboardCopy className="w-3.5 h-3.5" />,
+            onClick: () => {
+              navigator.clipboard.writeText(item.name).catch(() => {});
+            },
+          },
+          {
+            id: "send-path-to-chat",
+            label: "Send Relative Path to Chat",
+            icon: <MessageSquareText className="w-3.5 h-3.5" />,
+            onClick: () => {
+              if (sendToChatHandler) {
+                sendToChatHandler(item.path);
+              } else {
+                navigator.clipboard.writeText(item.path).catch(() => {});
+              }
+            },
+          },
+          {
+            id: "send-filename-to-chat",
+            label: "Send Filename to Chat",
+            icon: <MessageSquareText className="w-3.5 h-3.5" />,
+            onClick: () => {
+              if (sendToChatHandler) {
+                sendToChatHandler(item.name);
+              } else {
+                navigator.clipboard.writeText(item.name).catch(() => {});
+              }
+            },
+          },
+        ],
+      });
+
       // "Add to Favourites" — only for files, with per-group sub-items if multiple groups
       if (!item.isDirectory && onAddToFavorites) {
         const groups = favoriteGroups || [];
@@ -327,7 +395,7 @@ export function useLCFileTreeContextMenu(
 
       return actions;
     },
-    [handleRenameStart, handleDelete, onAddToStash, onAddToFavorites, handleCopy, handlePaste, favoriteGroups, onNewItem, onAddToInstructionStash],
+    [handleRenameStart, handleDelete, onAddToStash, onAddToFavorites, handleCopy, handlePaste, favoriteGroups, onNewItem, onAddToInstructionStash, onSendToChatRef],
   );
 
   return {

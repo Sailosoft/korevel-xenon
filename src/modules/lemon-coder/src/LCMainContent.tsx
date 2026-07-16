@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Button, toast } from "@heroui/react";
 import { MessageSquare, FileCode, ArrowLeftRight } from "lucide-react";
 import type {
@@ -23,6 +23,12 @@ import LCChatView from "./LCChatView";
 import type { LCChatViewHandle } from "./LCChatView";
 import LCFileView from "./LCFileView";
 import { applySearchReplace } from "./useLCChat";
+
+/** Imperative handle exposed by LCMainContent */
+export interface LCMainContentHandle {
+  /** Append text to the chat input */
+  appendToInput: (text: string) => void;
+}
 
 export interface LCMainContentProps {
   selectedFile: LCFileTreeItem | null;
@@ -69,7 +75,7 @@ export interface LCMainContentProps {
   instructionStashItems?: LCInstructionStashItem[];
 }
 
-export default function LCMainContent({
+const LCMainContent = forwardRef<LCMainContentHandle, LCMainContentProps>(function LCMainContent({
   selectedFile,
   selectedFileContent,
   isDirty,
@@ -93,9 +99,16 @@ export default function LCMainContent({
   onNewSession,
   onClearStash,
   instructionStashItems,
-}: LCMainContentProps) {
+}: LCMainContentProps, ref) {
   const chatViewRef = useRef<LCChatViewHandle>(null);
   const [viewMode, setViewMode] = useState<LCMainViewMode>("chat");
+
+  // Expose appendToInput via imperative handle
+  useImperativeHandle(ref, () => ({
+    appendToInput: (text: string) => {
+      chatViewRef.current?.appendToInput(text);
+    },
+  }), []);
   const [diffPreview, setDiffPreview] = useState<LCDiffPreview | null>(null);
   const [diffWarning, setDiffWarning] = useState<string | null>(null);
 
@@ -108,6 +121,7 @@ export default function LCMainContent({
       setViewMode("file");
     }
   }, [selectedFile]);
+
 
   // ── Diff Preview Handlers ────────────────────────────────────────────────
 
@@ -384,4 +398,6 @@ export default function LCMainContent({
       </div>
     </div>
   );
-}
+});
+
+export default LCMainContent;

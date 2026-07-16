@@ -5,7 +5,7 @@
 
 "use client";
 
-import { Layers, FileCode, X } from "lucide-react";
+import { Layers, FileCode, BookOpenText, ChevronDown, ChevronRight, X } from "lucide-react";
 import type { LCContextStashItem } from "./LCInterface";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -15,6 +15,12 @@ export interface LCChatViewAttachedContextProps {
   stashItems: LCContextStashItem[];
   /** Called when user clicks the remove button on a stash item */
   onRemoveFromStash?: (id: string) => void;
+  /** Number of instruction stash items attached */
+  instructionCount?: number;
+  /** Whether the instruction details panel is currently visible */
+  showInstructions?: boolean;
+  /** Called when user clicks the instruction count badge to toggle visibility */
+  onToggleInstructions?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -22,8 +28,11 @@ export interface LCChatViewAttachedContextProps {
 export default function LCChatViewAttachedContext({
   stashItems,
   onRemoveFromStash,
+  instructionCount = 0,
+  showInstructions = false,
+  onToggleInstructions,
 }: LCChatViewAttachedContextProps) {
-  if (stashItems.length === 0) return null;
+  if (stashItems.length === 0 && instructionCount === 0) return null;
 
   return (
     <div className="px-4 pt-3 pb-2 border-b border-[#333333]/50">
@@ -35,6 +44,27 @@ export default function LCChatViewAttachedContext({
         <span className="text-[10px] text-[#858585] bg-[#3c3c3c] px-1.5 py-0.5 rounded-full">
           {stashItems.length}
         </span>
+
+        {/* Instruction stash count badge — clickable toggle to show/hide details */}
+        {instructionCount > 0 && (
+          <button
+            onClick={onToggleInstructions}
+            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
+              showInstructions
+                ? "text-[#98c379] bg-[#98c379]/20"
+                : "text-[#858585] bg-[#3c3c3c] hover:text-[#98c379] hover:bg-[#98c379]/10"
+            }`}
+            title={showInstructions ? "Hide instructions" : "Show instructions"}
+          >
+            <BookOpenText className="w-2.5 h-2.5" />
+            {instructionCount}
+            {showInstructions ? (
+              <ChevronDown className="w-2.5 h-2.5" />
+            ) : (
+              <ChevronRight className="w-2.5 h-2.5" />
+            )}
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {stashItems.map((item) => (
