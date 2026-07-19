@@ -3,22 +3,70 @@
 // BKMemoryDetailPage.tsx
 //
 // Memory Detail Page — view and extract compiled neuron output from
-// a memory's associated neurons.
+// a memory's associated neurons. Uses RenderView from the render module
+// for all format-aware rendering (markdown, html, tailwind, csv, json, etc.).
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Button, Card, Modal } from "@heroui/react";
-import { ArrowLeft, Download, Cpu, Eye, Maximize2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { Button, Card, Modal, toast } from "@heroui/react";
+import {
+  ArrowLeft,
+  Download,
+  Cpu,
+  Eye,
+  Maximize2,
+  ExternalLink,
+} from "lucide-react";
+import RenderView from "@/src/modules/render/src/components/RenderModule.View";
+import type { RenderFormat } from "@/src/modules/render/src/RenderModule.Types";
 import { useRouter } from "next/navigation";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKMemory, BKMemoryNeuron } from "./BKMemory.Types";
-import type { BKCraftFormat } from "../craft/BKCraft.Types";
-import { convertToExportHtml } from "../craft/BKCraft.Html";
+import {
+  bkCopyContent,
+  bkDownloadContent,
+  bkViewNeuronBlob,
+  bkViewAsHtml,
+  bkDownloadHtml,
+} from "./BKMemory.Export";
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+/** Formats that RenderView renders via sandboxed iframe (html/tailwind). */
+const IFRAME_FORMATS = new Set(["html", "tailwind"]);
+
+/** Maps BKCraftFormat to RenderFormat for safe casting. */
+const SAFE_RENDER_FORMATS = new Set([
+  "markdown", "html", "tailwind", "csv", "json", "mermaid", "plain", "codeblock",
+]);
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
 export interface BKMemoryDetailPageProps {
   memoryId: string;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Safely cast a format string to RenderFormat, falling back to "markdown". */
+function toRenderFormat(format?: string): RenderFormat {
+  if (format && SAFE_RENDER_FORMATS.has(format)) {
+    return format as RenderFormat;
+  }
+  return "markdown";
+}
+
+/** Get a display colour for a format badge. */
+function formatBadgeColor(format: string): string {
+  switch (format) {
+    case "html":      return "bg-orange-100 text-orange-700 border-orange-200";
+    case "tailwind":  return "bg-cyan-100 text-cyan-700 border-cyan-200";
+    case "csv":       return "bg-green-100 text-green-700 border-green-200";
+    case "json":      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "mermaid":   return "bg-blue-100 text-blue-700 border-blue-200";
+    case "plain":     return "bg-gray-100 text-gray-700 border-gray-200";
+    case "codeblock": return "bg-slate-100 text-slate-700 border-slate-300";
+    default:          return "bg-purple-100 text-purple-700 border-purple-200";
+  }
 }
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -34,9 +82,43 @@ export default function BKMemoryDetailPage({
   const [copied, setCopied] = useState(false);
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
-  const [viewingNeuron, setViewingNeuron] = useState<BKMemoryNeuron | null>(
-    null,
+  const [viewingNeuron, setViewingNeuron] = useState<BKMemoryNeuron | null>(null);
+
+  /** Per-neuron format overrides (neuronId → RenderFormat). Falls back to memory.format. */
+  const [neuronFormats, setNeuronFormats] = useState<Record<string, RenderFormat>>({});
+
+  const renderFormat = useMemo(() => toRenderFormat(memory?.format), [memory?.format]);
+  const isIframeFormat = memory?.format ? IFRAME_FORMATS.has(memory.format) : false;
+
+  /** Resolve format for a specific neuron: override → memory format → "markdown" */
+  const getNeuronFormat = useCallback(
+    (neuronId: string): RenderFormat =>
+      neuronFormats[neuronId] ?? renderFormat,
+    [neuronFormats, renderFormat],
   );
+
+  const handleNeuronFormatChange = useCallback(
+    async (neuronId: string, format: RenderFormat) => {
+      // Update local state immediately
+      setNeuronFormats((prev) => ({ ...prev, [neuronId]: format }));
+      // Persist to DB
+      try {
+        await bkThinkerDB.memoryNeuronsRepo.update(neuronId, {
+          format,
+        } as BKMemoryNeuron);
+        toast.success(`Format changed to ${format}`);
+      } catch (err) {
+        console.error("[BKMemoryDetail] Failed to save neuron format:", err);
+        toast.danger("Failed to save format");
+      }
+    },
+    [],
+  );
+
+  /** Available formats for the neuron format selector */
+  const FORMAT_OPTIONS: RenderFormat[] = [
+    "markdown", "html", "tailwind", "csv", "json", "mermaid", "plain", "codeblock",
+  ];
 
   useEffect(() => {
     bkLoadMemory();
@@ -44,17 +126,22 @@ export default function BKMemoryDetailPage({
 
   const bkLoadMemory = async () => {
     try {
-      // Load memory entity
       const memoryResult = await bkThinkerDB.memoriesRepo.get(memoryId);
       if (memoryResult.isSuccess) {
         setMemory(memoryResult.value);
       }
 
-      // Load associated neurons (already sorted by order via repository)
-      const sorted = await bkThinkerDB.memoryNeuronsRepo.getByMemoryId(
-        memoryId,
-      );
+      const sorted = await bkThinkerDB.memoryNeuronsRepo.getByMemoryId(memoryId);
       setNeurons(sorted);
+
+      // Populate per-neuron formats from persisted DB values
+      const formats: Record<string, RenderFormat> = {};
+      for (const n of sorted) {
+        if (n.format) {
+          formats[n.id] = toRenderFormat(n.format);
+        }
+      }
+      setNeuronFormats(formats);
     } catch (err) {
       console.error("[BKMemoryDetail] Failed to load:", err);
       setError("Failed to load memory");
@@ -65,66 +152,32 @@ export default function BKMemoryDetailPage({
 
   // ─── Compiled neuron content ────────────────────────────────────────────
 
-  const bkCompiledContent = neurons
-    .sort((a, b) => a.order - b.order)
-    .map((n) => n.value)
-    .join("\n\n");
+  const bkCompiledContent = useMemo(
+    () =>
+      [...neurons]
+        .sort((a, b) => a.order - b.order)
+        .map((n) => n.value)
+        .join("\n\n"),
+    [neurons],
+  );
 
-  // ─── Copy / Download helpers ────────────────────────────────────────────
+  // ─── Copy handler with feedback ─────────────────────────────────────────
 
-  const bkCopyContent = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-      const textarea = document.createElement("textarea");
-      textarea.value = content;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const handleCopy = useCallback(async (content: string) => {
+    await bkCopyContent(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
 
-  const bkDownloadContent = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // ─── View/download handlers that wire component state into export fns ───
 
-  // ─── View as HTML (new tab) ────────────────────────────────────────────
+  const handleViewAsHtml = useCallback(() => {
+    bkViewAsHtml(neurons, memory, getNeuronFormat);
+  }, [neurons, memory, getNeuronFormat]);
 
-  const bkViewAsHtml = useCallback(() => {
-    const format = (memory?.format || "markdown") as BKCraftFormat;
-    const html = convertToExportHtml(bkCompiledContent, format);
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
-  }, [bkCompiledContent, memory?.format]);
-
-  // ─── Download as HTML ──────────────────────────────────────────────────
-
-  const bkDownloadHtml = useCallback(() => {
-    const format = (memory?.format || "markdown") as BKCraftFormat;
-    const html = convertToExportHtml(bkCompiledContent, format);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `neurons-${memoryId.slice(0, 8)}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [bkCompiledContent, memoryId, memory?.format]);
+  const handleDownloadHtml = useCallback(() => {
+    bkDownloadHtml(neurons, memoryId, memory, getNeuronFormat);
+  }, [neurons, memoryId, memory, getNeuronFormat]);
 
   if (loading) {
     return (
@@ -152,31 +205,32 @@ export default function BKMemoryDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             size="sm"
             isIconOnly
-            onPress={() =>
-              router.push("/modules/bunny-thinker/memories")
-            }
+            onPress={() => router.push("/modules/bunny-thinker/memories")}
           >
             <ArrowLeft size={18} />
           </Button>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {memory?.name || "Memory Detail"}
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-2">
-              <span>{neurons.length} neuron{neurons.length !== 1 ? "s" : ""}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold text-gray-900 truncate">
+                {memory?.name || "Memory Detail"}
+              </h1>
               {memory?.format && (
-                <>
-                  <span className="text-gray-300">&middot;</span>
-                  <span>Format: {memory.format}</span>
-                </>
+                <span
+                  className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${formatBadgeColor(memory.format)}`}
+                >
+                  {memory.format}
+                </span>
               )}
+            </div>
+            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>{neurons.length} neuron{neurons.length !== 1 ? "s" : ""}</span>
               {memory?.createdAt && (
                 <>
                   <span className="text-gray-300">&middot;</span>
@@ -191,252 +245,172 @@ export default function BKMemoryDetailPage({
             <Button
               variant="ghost"
               size="sm"
-              onPress={bkDownloadHtml}
+              onPress={handleViewAsHtml}
+              className="flex items-center gap-1.5"
             >
-              <Download size={14} /> Download HTML
+              <Eye size={14} /> View HTML
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onPress={bkViewAsHtml}
+              onPress={handleDownloadHtml}
+              className="flex items-center gap-1.5"
             >
-              <Eye size={16} /> View HTML
+              <Download size={14} /> Download HTML
             </Button>
           </div>
         )}
       </div>
-
-      {/* ── Processed Output ───────────────────────────────────────── */}
-      {memory?.processedOutput && (
-        <Card className="p-4 border-none shadow-sm">
-          <button
-            onClick={() => setShowProcessedOutput(!showProcessedOutput)}
-            className="w-full flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <Download size={18} className="text-green-600" />
-              <h3 className="text-sm font-medium text-gray-700">
-                Processed Output
-              </h3>
-            </div>
-            <span className="text-xs text-gray-400">
-              {showProcessedOutput ? "Collapse" : "Expand"}
-            </span>
-          </button>
-          {showProcessedOutput && (
-            <div
-              className="mt-3 p-4 bg-white border border-gray-200 rounded-lg prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: memory.processedOutput }}
-            />
-          )}
-        </Card>
-      )}
-
-      {/* ── Raw Output ─────────────────────────────────────────────── */}
-      {memory?.rawOutput && (
-        <Card className="p-4 border-none shadow-sm">
-          <button
-            onClick={() => setShowRawOutput(!showRawOutput)}
-            className="w-full flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <Cpu size={18} className="text-blue-600" />
-              <h3 className="text-sm font-medium text-gray-700">
-                Raw Output
-              </h3>
-            </div>
-            <span className="text-xs text-gray-400">
-              {showRawOutput ? "Collapse" : "Expand"}
-            </span>
-          </button>
-          {showRawOutput && (
-            <pre className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg text-xs whitespace-pre-wrap max-h-96 overflow-y-auto">
-              {memory.rawOutput}
-            </pre>
-          )}
-        </Card>
-      )}
-
-      {/* Memory Neurons — Individual */}
+      {/* ── Memory Neurons — Individual ────────────────────────────── */}
       {neurons.length > 0 && (
-        <Card className="p-4 border-none shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Cpu size={18} className="text-purple-600" />
-            <h3 className="text-sm font-medium text-gray-700">
-              Individual Neurons ({neurons.length})
-            </h3>
+        <Card className="border-none shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Cpu size={16} className="text-purple-600" />
+              <h3 className="text-sm font-medium text-gray-700">
+                Individual Neurons
+              </h3>
+              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                {neurons.length}
+              </span>
+            </div>
           </div>
-          <div className="space-y-3">
-            {neurons
+          <div className="p-4 space-y-3">
+            {[...neurons]
               .sort((a, b) => a.order - b.order)
-              .map((neuron) => (
-                <div
-                  key={neuron.id}
-                  className="bg-purple-50 border border-purple-100 rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-purple-700">
-                      {neuron.name || `Neuron #${neuron.order + 1}`}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        isIconOnly
-                        onPress={() => setViewingNeuron(neuron)}
-                      >
-                        <Maximize2 size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onPress={() => bkCopyContent(neuron.value)}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-purple-900 max-h-64 overflow-y-auto">
-                    <ReactMarkdown
-                      components={{
-                        code({ className, children, ...props }) {
-                          const isInline = !className;
-                          if (isInline) {
-                            return (
-                              <code
-                                className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            );
+              .map((neuron) => {
+                const nFormat = getNeuronFormat(neuron.id);
+                const nIsIframe = IFRAME_FORMATS.has(nFormat);
+                return (
+                  <div
+                    key={neuron.id}
+                    className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow"
+                  >
+                    {/* Neuron header */}
+                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-semibold text-gray-700 truncate">
+                          {neuron.name || `Neuron #${neuron.order + 1}`}
+                        </span>
+                        {/* Format selector */}
+                        <select
+                          value={nFormat}
+                          onChange={(e) =>
+                            handleNeuronFormatChange(
+                              neuron.id,
+                              e.target.value as RenderFormat,
+                            )
                           }
-                          const codeStr = String(children).replace(/\n$/, "");
-                          return (
-                            <div className="relative group my-2">
-                              <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                                <span>code</span>
-                                <button
-                                  onClick={() =>
-                                    navigator.clipboard.writeText(codeStr)
-                                  }
-                                  className="hover:text-white transition-colors"
-                                  title="Copy code"
-                                >
-                                  Copy
-                                </button>
-                              </div>
-                              <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              </pre>
-                            </div>
-                          );
-                        },
-                        pre({ children }) {
-                          return <>{children}</>;
-                        },
-                      }}
-                    >
-                      {neuron.value}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Compiled Output (all neurons joined) */}
-      {neurons.length > 0 && (
-        <Card className="p-4 border-none shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Download size={18} className="text-purple-600" />
-              <h3 className="text-sm font-medium text-gray-700">
-                Compiled Output
-              </h3>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() => bkCopyContent(bkCompiledContent)}
-              >
-                {copied ? "Copied!" : "Copy All"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() =>
-                  bkDownloadContent(
-                    bkCompiledContent,
-                    `neurons-${memoryId.slice(0, 8)}.txt`,
-                  )
-                }
-              >
-                <Download size={14} /> Download
-              </Button>
-            </div>
-          </div>
-          <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-purple-900 max-h-96 overflow-y-auto">
-            <ReactMarkdown
-              components={{
-                code({ className, children, ...props }) {
-                  const isInline = !className;
-                  if (isInline) {
-                    return (
-                      <code
-                        className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono"
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  }
-                  const codeStr = String(children).replace(/\n$/, "");
-                  return (
-                    <div className="relative group my-2">
-                      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                        <span>code</span>
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border appearance-none cursor-pointer outline-none ${formatBadgeColor(nFormat)}`}
+                          title="Change render format"
+                        >
+                          {FORMAT_OPTIONS.map((fmt) => (
+                            <option key={fmt} value={fmt}>
+                              {fmt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {nIsIframe && (
+                          <button
+                            onClick={() => bkViewNeuronBlob(neuron.value, nFormat)}
+                            title="Open in new tab"
+                            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                          >
+                            <ExternalLink size={12} />
+                          </button>
+                        )}
                         <button
-                          onClick={() =>
-                            navigator.clipboard.writeText(codeStr)
-                          }
-                          className="hover:text-white transition-colors"
-                          title="Copy code"
+                          onClick={() => setViewingNeuron(neuron)}
+                          title="Maximize view"
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                        >
+                          <Maximize2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleCopy(neuron.value)}
+                          title="Copy content"
+                          className="px-2 py-1 text-[10px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
                         >
                           Copy
                         </button>
                       </div>
-                      <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      </pre>
                     </div>
-                  );
-                },
-                pre({ children }) {
-                  return <>{children}</>;
-                },
-              }}
-            >
-              {bkCompiledContent || "No neuron content available"}
-            </ReactMarkdown>
+                    {/* Neuron content */}
+                    <div className="max-h-64 overflow-y-auto">
+                      <RenderView
+                        format={nFormat}
+                        content={neuron.value}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </Card>
       )}
 
-      {/* No content */}
+      {/* ── Compiled Output ────────────────────────────────────────── */}
+      {neurons.length > 0 && (
+        <Card className="border-none shadow-sm overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Download size={16} className="text-purple-600" />
+                <h3 className="text-sm font-medium text-gray-700">
+                  Compiled Output
+                </h3>
+                {memory?.format && (
+                  <span
+                    className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${formatBadgeColor(memory.format)}`}
+                  >
+                    {memory.format}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 min-w-0 px-2"
+                  onPress={() => handleCopy(bkCompiledContent)}
+                >
+                  {copied ? "Copied!" : "Copy All"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 min-w-0 px-2"
+                  onPress={() =>
+                    bkDownloadContent(
+                      bkCompiledContent,
+                      `neurons-${memoryId.slice(0, 8)}.txt`,
+                    )
+                  }
+                >
+                  <Download size={12} /> TXT
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            <RenderView
+              format={renderFormat}
+              content={bkCompiledContent || "No neuron content available"}
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* ── No content ─────────────────────────────────────────────── */}
       {!memory?.rawOutput && !memory?.processedOutput && neurons.length === 0 && (
         <div className="text-center py-12 text-gray-400">
           <p>This memory has no content to display.</p>
         </div>
       )}
 
-      {/* ── Neuron Markdown Viewer Modal ──────────────────────────────── */}
+      {/* ── Neuron Viewer Modal ────────────────────────────────────── */}
       <Modal.Backdrop
         isOpen={viewingNeuron !== null}
         onClick={() => setViewingNeuron(null)}
@@ -449,72 +423,73 @@ export default function BKMemoryDetailPage({
             <Modal.CloseTrigger onClick={() => setViewingNeuron(null)} />
             <Modal.Header>
               <div className="flex items-center justify-between w-full pr-8">
-                <div>
-                  <span className="text-lg font-semibold text-foreground">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg font-semibold text-foreground truncate">
                     {viewingNeuron?.name ||
                       `Neuron #${(viewingNeuron?.order ?? 0) + 1}`}
                   </span>
+                  {viewingNeuron && (
+                    <select
+                      value={getNeuronFormat(viewingNeuron.id)}
+                      onChange={(e) => {
+                        handleNeuronFormatChange(
+                          viewingNeuron.id,
+                          e.target.value as RenderFormat,
+                        );
+                        // Force re-render by spreading state
+                        setViewingNeuron((prev) =>
+                          prev ? { ...prev } : null,
+                        );
+                      }}
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border appearance-none cursor-pointer outline-none shrink-0 ${formatBadgeColor(getNeuronFormat(viewingNeuron.id))}`}
+                      title="Change render format"
+                    >
+                      {FORMAT_OPTIONS.map((fmt) => (
+                        <option key={fmt} value={fmt}>
+                          {fmt}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onPress={() =>
-                    viewingNeuron &&
-                    bkCopyContent(viewingNeuron.value)
-                  }
-                >
-                  {copied ? "Copied!" : "Copy Content"}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {viewingNeuron &&
+                    IFRAME_FORMATS.has(getNeuronFormat(viewingNeuron.id)) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7"
+                        onPress={() =>
+                          bkViewNeuronBlob(
+                            viewingNeuron.value,
+                            getNeuronFormat(viewingNeuron.id),
+                          )
+                        }
+                      >
+                        <ExternalLink size={12} /> New Tab
+                      </Button>
+                    )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7"
+                    onPress={() =>
+                      viewingNeuron && handleCopy(viewingNeuron.value)
+                    }
+                  >
+                    {copied ? "Copied!" : "Copy Content"}
+                  </Button>
+                </div>
               </div>
             </Modal.Header>
 
             <Modal.Body className="overflow-y-auto max-h-[70vh]">
               {viewingNeuron && (
-                <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none prose-neutral p-4">
-                  <ReactMarkdown
-                    components={{
-                      code({ className, children, ...props }) {
-                        const isInline = !className;
-                        if (isInline) {
-                          return (
-                            <code
-                              className="px-1.5 py-0.5 bg-gray-100 text-gray-800 rounded text-xs font-mono"
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        }
-                        const codeStr = String(children).replace(/\n$/, "");
-                        return (
-                          <div className="relative group my-2">
-                            <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                              <span>code</span>
-                              <button
-                                onClick={() =>
-                                  navigator.clipboard.writeText(codeStr)
-                                }
-                                className="hover:text-white transition-colors"
-                                title="Copy code"
-                              >
-                                Copy
-                              </button>
-                            </div>
-                            <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                              <code className={className} {...props}>
-                                {children}
-                              </code>
-                            </pre>
-                          </div>
-                        );
-                      },
-                      pre({ children }) {
-                        return <>{children}</>;
-                      },
-                    }}
-                  >
-                    {viewingNeuron.value}
-                  </ReactMarkdown>
+                <div className="min-h-[200px]">
+                  <RenderView
+                    format={getNeuronFormat(viewingNeuron.id)}
+                    content={viewingNeuron.value}
+                  />
                 </div>
               )}
             </Modal.Body>

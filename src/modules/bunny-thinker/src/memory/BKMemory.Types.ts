@@ -10,6 +10,11 @@ export const BKMemoryNeuronSchema = z.object({
   name: z.string().min(1, "Neuron name is required"),
   value: z.string(),
   order: z.number().default(0),
+  /**
+   * Optional per-neuron render format override.
+   * When set, overrides the parent memory's format for this neuron.
+   */
+  format: z.string().optional(),
 });
 
 export type BKMemoryNeuron = z.infer<typeof BKMemoryNeuronSchema>;

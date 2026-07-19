@@ -7,28 +7,26 @@
 // - Manage the Chain of Thought (train of thoughts) with idea attachments
 // - Run the thought via Think Studio
 // - Create a Process from this thought and an association
+//
+// Uses the reusable BKThoughtConfigPanel for the shared thought definition
+// and steps editor, with BKThinkStudioAnon's design language.
 
-import React, { useEffect, useState } from "react";
-import { Button, Card, Select, ListBox, Toast, toast } from "@heroui/react";
+import React, { useEffect, useState, useCallback } from "react";
+import { Button, Card, Toast, toast } from "@heroui/react";
 import {
   ArrowLeft,
   PlayCircle,
-  Plus,
-  Trash2,
-  GripVertical,
-  Brain,
   Save,
   Workflow,
   Lightbulb,
-  Palette,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
+import BKThoughtConfigPanel from "./BKThoughtConfigPanel";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
 import type { BKCraftConfig, BKCraftFormat } from "../craft/BKCraft.Types";
-import { BKCraftFormats, BKCraftFormatDescriptions } from "../craft/BKCraft.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -145,8 +143,12 @@ export default function BKThoughtDetailPage({
   const [stepIdeaMap, setStepIdeaMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
+  const [craftConfigsLoading, setCraftConfigsLoading] = useState(false);
+
+  // Steps state using craftFormat string (e.g. "markdown", "html") — resolved to craftId on save
   const [editedSteps, setEditedSteps] = useState<
-    Array<{ id: string; name: string; thought: string; order: number; craftFormat?: BKCraftFormat }>
+    Array<{ id: string; name: string; thought: string; order: number; craftFormat?: string }>
   >([]);
 
   useEffect(() => {
@@ -159,18 +161,21 @@ export default function BKThoughtDetailPage({
       if (result.isSuccess) {
         setThought(result.value);
 
+        // Load craft configs
+        setCraftConfigsLoading(true);
+        const allCraftConfigs = await bkThinkerDB.craftConfigs
+          .toArray() as BKCraftConfig[];
+        setCraftConfigs(allCraftConfigs);
+        setCraftConfigsLoading(false);
+
         // Load train of thoughts
         const totList = await bkThinkerDB.trainOfThoughtsRepo
           .getByThoughtId(thoughtId);
         setTrainOfThoughts(totList);
 
-        // Resolve craft formats from craftConfigs by craftId
-        const allCraftConfigs = await bkThinkerDB.craftConfigs
-          .toArray() as BKCraftConfig[];
-        const craftConfigMap = new Map(
+        const craftConfigFormatMap = new Map(
           allCraftConfigs.map((c) => [c.id, c.format]),
         );
-
         setEditedSteps(
           totList.map((t) => ({
             id: t.id,
@@ -178,7 +183,7 @@ export default function BKThoughtDetailPage({
             thought: t.thought,
             order: t.order,
             craftFormat: t.craftId
-              ? (craftConfigMap.get(t.craftId) as BKCraftFormat)
+              ? craftConfigFormatMap.get(t.craftId)
               : undefined,
           })),
         );
@@ -209,7 +214,7 @@ export default function BKThoughtDetailPage({
     }
   };
 
-  const bkAddStep = () => {
+  const bkAddStep = useCallback(() => {
     const newId = uuidv7();
     setEditedSteps((prev) => [
       ...prev,
@@ -222,27 +227,26 @@ export default function BKThoughtDetailPage({
       },
     ]);
     setStepIdeaMap((prev) => ({ ...prev, [newId]: [] }));
-  };
+  }, []);
 
-  const bkRemoveStep = (stepId: string) => {
+  const bkRemoveStep = useCallback((index: number) => {
     setEditedSteps((prev) =>
       prev
-        .filter((s) => s.id !== stepId)
+        .filter((_, i) => i !== index)
         .map((s, i) => ({ ...s, order: i })),
     );
-  };
+  }, []);
 
-  const bkUpdateStep = (
-    stepId: string,
-    field: "name" | "thought" | "craftFormat",
-    value: string,
-  ) => {
-    setEditedSteps((prev) =>
-      prev.map((s) => (s.id === stepId ? { ...s, [field]: value } : s)),
-    );
-  };
+  const bkUpdateStep = useCallback(
+    (index: number, field: "name" | "thought" | "craftFormat", value: string) => {
+      setEditedSteps((prev) =>
+        prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
+      );
+    },
+    [],
+  );
 
-  const bkMoveStepUp = (index: number) => {
+  const bkMoveStepUp = useCallback((index: number) => {
     if (index === 0) return;
     setEditedSteps((prev) => {
       const updated = [...prev];
@@ -252,9 +256,9 @@ export default function BKThoughtDetailPage({
       ];
       return updated.map((s, i) => ({ ...s, order: i }));
     });
-  };
+  }, []);
 
-  const bkMoveStepDown = (index: number) => {
+  const bkMoveStepDown = useCallback((index: number) => {
     if (index >= editedSteps.length - 1) return;
     setEditedSteps((prev) => {
       const updated = [...prev];
@@ -264,9 +268,9 @@ export default function BKThoughtDetailPage({
       ];
       return updated.map((s, i) => ({ ...s, order: i }));
     });
-  };
+  }, []);
 
-  const bkToggleIdea = (stepId: string, ideaId: string) => {
+  const bkToggleIdea = useCallback((stepId: string, ideaId: string) => {
     setStepIdeaMap((prev) => {
       const current = prev[stepId] ?? [];
       const updated = current.includes(ideaId)
@@ -274,7 +278,7 @@ export default function BKThoughtDetailPage({
         : [...current, ideaId];
       return { ...prev, [stepId]: updated };
     });
-  };
+  }, []);
 
   const bkSaveTrainOfThoughts = async () => {
     if (!thought) return;
@@ -282,9 +286,12 @@ export default function BKThoughtDetailPage({
 
     try {
       // Delete existing train of thoughts for this thought
-      const allMappings = await bkThinkerDB.trainOfThoughtIdeas.toArray() as Array<{ id: string; ideaId: string; trainOfThoughtId: string }>;
+      const allMappings = await bkThinkerDB.trainOfThoughtIdeas.toArray() as Array<{
+        id: string;
+        ideaId: string;
+        trainOfThoughtId: string;
+      }>;
       for (const tot of trainOfThoughts) {
-        // Remove associated idea mappings first
         const existingMappings = allMappings.filter(
           (m) => m.trainOfThoughtId === tot.id,
         );
@@ -296,23 +303,21 @@ export default function BKThoughtDetailPage({
 
       // Create new train of thoughts and their idea mappings
       for (const step of editedSteps) {
-        // Resolve craft format — create a craft config if a format is selected
-        let craftId: string | undefined;
+        // Resolve craftFormat to a craftId by finding or creating a craft config
+        let resolvedCraftId: string | undefined;
         if (step.craftFormat) {
-          const existingConfigs = await bkThinkerDB.craftConfigs
-            .toArray() as Array<{ id: string; format: string }>;
-          const existing = existingConfigs.find(
+          const existing = craftConfigs.find(
             (c) => c.format === step.craftFormat,
           );
           if (existing) {
-            craftId = existing.id;
+            resolvedCraftId = existing.id;
           } else {
-            craftId = uuidv7();
+            resolvedCraftId = uuidv7();
             const { BKCraftConfigSchema } = await import("../craft/BKCraft.Types");
             await bkThinkerDB.craftConfigsRepo.create({
-              id: craftId,
+              id: resolvedCraftId,
               name: `Craft: ${step.craftFormat}`,
-              format: step.craftFormat,
+              format: step.craftFormat as BKCraftFormat,
               createdAt: Date.now(),
             });
           }
@@ -325,7 +330,7 @@ export default function BKThoughtDetailPage({
           thought: step.thought,
           order: step.order,
           includeInMemory: true,
-          craftId,
+          craftId: resolvedCraftId,
           createdAt: Date.now(),
         } as BKTrainOfThought);
 
@@ -365,6 +370,47 @@ export default function BKThoughtDetailPage({
     router.push(`/modules/bunny-thinker/think/${thinkId}`);
   };
 
+  // ── Render step extra actions (move up/down + idea selector) ────────
+
+  const renderStepActions = useCallback(
+    (step: { id: string }, index: number) => (
+      <>
+        {/* Move up */}
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          isDisabled={index === 0}
+          onPress={() => bkMoveStepUp(index)}
+          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          aria-label={`Move step ${index + 1} up`}
+        >
+          ↑
+        </Button>
+        {/* Move down */}
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          isDisabled={index >= editedSteps.length - 1}
+          onPress={() => bkMoveStepDown(index)}
+          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          aria-label={`Move step ${index + 1} down`}
+        >
+          ↓
+        </Button>
+        {/* Idea selector */}
+        <IdeaSelector
+          stepId={step.id}
+          selectedIdeaIds={stepIdeaMap[step.id] ?? []}
+          ideas={ideas}
+          onToggle={bkToggleIdea}
+        />
+      </>
+    ),
+    [editedSteps.length, stepIdeaMap, ideas, bkMoveStepUp, bkMoveStepDown, bkToggleIdea],
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -393,211 +439,110 @@ export default function BKThoughtDetailPage({
     <>
       <Toast.Provider />
       <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => router.push("/modules/bunny-thinker/thoughts")}
-            isIconOnly
-          >
-            <ArrowLeft size={18} />
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {thought.name}
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {thought.description || "Chain of Thought Studio"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            onPress={bkRunThink}
-          >
-            <PlayCircle size={18} /> Run Thought
-          </Button>
-          <Button
-            variant="secondary"
-            onPress={bkSaveTrainOfThoughts}
-            isDisabled={saving}
-          >
-            <Save size={18} /> {saving ? "Saving..." : "Save Chain"}
-          </Button>
-        </div>
-      </div>
-
-      {/* Thought Content Preview */}
-      <Card className="p-4 border-none shadow-sm">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">
-          Thought Content
-        </h3>
-        <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg whitespace-pre-wrap">
-          {thought.thought}
-        </p>
-      </Card>
-
-      {/* Chain of Thought (Train of Thoughts) Editor */}
-      <Card className="p-4 border-none shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-gray-700">
-            Chain of Thought Steps ({editedSteps.length})
-          </h2>
-          <Button variant="secondary" size="sm" onPress={bkAddStep}>
-            <Plus size={16} /> Add Step
-          </Button>
-        </div>
-
-        {editedSteps.length === 0 ? (
-          <p className="text-sm text-gray-400 italic text-center py-8">
-            No steps defined. Click &ldquo;Add Step&rdquo; to build your chain of
-            thought.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {editedSteps.map((step, index) => (
-              <div
-                key={step.id}
-                className="p-3 border border-gray-200 rounded-lg bg-white"
-              >
-                {/* Step Header */}
-                <div className="flex items-center gap-2 mb-2">
-                  <GripVertical
-                    size={16}
-                    className="text-gray-300 cursor-grab"
-                  />
-                  <span className="text-xs font-medium text-gray-400 w-6">
-                    #{index + 1}
-                  </span>
-                  <input
-                    className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded-md focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
-                    placeholder="Step name"
-                    value={step.name}
-                    onChange={(e) =>
-                      bkUpdateStep(step.id, "name", e.target.value)
-                    }
-                  />
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      isIconOnly
-                      isDisabled={index === 0}
-                      onPress={() => bkMoveStepUp(index)}
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      isIconOnly
-                      isDisabled={index >= editedSteps.length - 1}
-                      onPress={() => bkMoveStepDown(index)}
-                    >
-                      ↓
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      isIconOnly
-                      onPress={() => bkRemoveStep(step.id)}
-                    >
-                      <Trash2 size={14} className="text-red-400" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Step Prompt */}
-                <textarea
-                  className="w-full min-h-[60px] px-3 py-2 text-sm border border-gray-200 rounded-md focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none resize-y"
-                  placeholder="Step prompt / instruction..."
-                  value={step.thought}
-                  onChange={(e) =>
-                    bkUpdateStep(step.id, "thought", e.target.value)
-                  }
-                />
-
-                {/* Craft Format Selector */}
-                <div className="mt-2 flex items-center gap-2">
-                  <Palette size={14} className="text-gray-400" />
-                  <Select
-                    value={step.craftFormat ?? ""}
-                    onChange={(val) =>
-                      bkUpdateStep(step.id, "craftFormat", String(val))
-                    }
-                    placeholder="No craft format"
-                    className="min-w-[180px]"
-                  >
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        <ListBox.Item key="" id="" textValue="No craft format">
-                          None
-                        </ListBox.Item>
-                        {BKCraftFormats.map((format) => (
-                          <ListBox.Item key={format} id={format} textValue={format}>
-                            <div className="flex flex-col">
-                              <span className="text-sm">{format}</span>
-                              <span className="text-xs text-gray-400">
-                                {BKCraftFormatDescriptions[format]}
-                              </span>
-                            </div>
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-
-                {/* Attached Ideas */}
-                <div className="mt-2 border-t border-gray-100 pt-2">
-                  <IdeaSelector
-                    stepId={step.id}
-                    selectedIdeaIds={stepIdeaMap[step.id] ?? []}
-                    ideas={ideas}
-                    onToggle={bkToggleIdea}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {/* Create Process */}
-      <Card className="p-4 border-none shadow-sm bg-purple-50 border border-purple-100">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-start gap-3">
-            <Workflow size={20} className="text-purple-600 mt-0.5" />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push("/modules/bunny-thinker/thoughts")}
+              isIconOnly
+            >
+              <ArrowLeft size={18} />
+            </Button>
             <div>
-              <h3 className="text-sm font-medium text-purple-900">
-                Automate with Process
-              </h3>
-              <p className="text-xs text-purple-700 mt-0.5">
-                Create a Process to bind this thought with an association and
-                auto-export results to memory.
+              <h1 className="text-xl font-semibold text-gray-900">
+                {thought.name}
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {thought.description || "Chain of Thought Studio"}
               </p>
             </div>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bg-purple-600 text-white hover:bg-purple-700"
-            onPress={() =>
-              router.push("/modules/bunny-thinker/processes")
-            }
-          >
-            <Workflow size={16} /> Create Process
-          </Button>
+
+          <div className="flex gap-2">
+            <Button variant="primary" onPress={bkRunThink}>
+              <PlayCircle size={18} /> Run Thought
+            </Button>
+            <Button
+              variant="secondary"
+              onPress={bkSaveTrainOfThoughts}
+              isDisabled={saving}
+            >
+              <Save size={18} /> {saving ? "Saving..." : "Save Chain"}
+            </Button>
+          </div>
         </div>
-      </Card>
+
+        {/* Thought Content Preview */}
+        <Card className="p-4 border-none shadow-sm">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">
+            Thought Content
+          </h3>
+          <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg whitespace-pre-wrap">
+            {thought.thought}
+          </p>
+        </Card>
+
+        {/* ── Reusable Config Panel (steps only — thought preview above) ── */}
+        <BKThoughtConfigPanel
+          thoughtName={thought.name}
+          onThoughtNameChange={() => {
+            // Name is read-only on the detail page; changes go through Save
+          }}
+          thoughtDescription={thought.description || ""}
+          onThoughtDescriptionChange={() => {}}
+          thoughtContent={thought.thought}
+          onThoughtContentChange={() => {}}
+          steps={editedSteps}
+          onAddStep={bkAddStep}
+          onRemoveStep={bkRemoveStep}
+          onUpdateStep={bkUpdateStep}
+          hideThoughtDefinition
+          renderStepActions={renderStepActions}
+          renderStepsFooter={
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={bkSaveTrainOfThoughts}
+                isDisabled={saving}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 text-sm"
+              >
+                <Save size={14} />
+                {saving ? "Saving..." : "Save Chain"}
+              </Button>
+            </div>
+          }
+        />
+
+        {/* Create Process */}
+        <Card className="p-4 border-none shadow-sm bg-purple-50 border border-purple-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <Workflow size={20} className="text-purple-600 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-medium text-purple-900">
+                  Automate with Process
+                </h3>
+                <p className="text-xs text-purple-700 mt-0.5">
+                  Create a Process to bind this thought with an association and
+                  auto-export results to memory.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-purple-600 text-white hover:bg-purple-700"
+              onPress={() =>
+                router.push("/modules/bunny-thinker/processes")
+              }
+            >
+              <Workflow size={16} /> Create Process
+            </Button>
+          </div>
+        </Card>
       </div>
     </>
   );

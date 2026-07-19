@@ -12,9 +12,21 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import ReactMarkdown from "react-markdown";
+import RenderView from "@/src/modules/render/src/components/RenderModule.View";
+import type { RenderFormat } from "@/src/modules/render/src/RenderModule.Types";
 import Editor from "@monaco-editor/react";
 import MermaidRenderer from "../components/MermaidRenderer";
-import { Button, Select, ListBox } from "@heroui/react";
+import {
+  Button,
+  Select,
+  ListBox,
+  Toast,
+  toast,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+} from "@heroui/react";
 import {
   ArrowLeft,
   RotateCcw,
@@ -44,6 +56,11 @@ import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThinkMetaModal from "./BKThinkMetaModal";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThinkStudioAnon from "./BKThinkStudioAnon";
+import {
+  bkViewAsHtml,
+  bkDownloadHtml,
+} from "@/src/modules/bunny-thinker/src/memory/BKMemory.Export";
+import type { BKMemoryNeuron, BKMemory } from "@/src/modules/bunny-thinker/src/memory/BKMemory.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -53,13 +70,41 @@ export interface BKThinkStudioProps {
 
 // ─── Step Panel Component ────────────────────────────────────────────────
 
+/**
+ * Resolve a BKCraftFormat to a storage-friendly format string.
+ * If the craft format maps to a known RenderFormat, use it.
+ * Otherwise fall back to "markdown" so craft-only formats
+ * (architecture, agentSwarm, docker, imageList) don't get
+ * stored as unrecognized formats.
+ */
+function resolveMemoryFormat(craftFormat: BKCraftFormat): string {
+  const renderFormat = BKCRAFT_TO_RENDER_FORMAT[craftFormat];
+  return renderFormat ?? "markdown";
+}
+
+/** Resolve a BKCraftFormat to a RenderFormat for export functions. */
+function resolveRenderFormat(craftFormat: string): RenderFormat {
+  return BKCRAFT_TO_RENDER_FORMAT[craftFormat as BKCraftFormat] ?? "markdown";
+}
+
+// ─── Map BKCraftFormat → RenderFormat for common formats ───────────────
+const BKCRAFT_TO_RENDER_FORMAT: Partial<Record<BKCraftFormat, RenderFormat>> = {
+  markdown: "markdown",
+  html: "html",
+  tailwind: "tailwind",
+  csv: "csv",
+  json: "json",
+  mermaid: "mermaid",
+  plain: "plain",
+};
+
 function renderCraftContent(
   content: string,
   craftFormat: BKCraftFormat,
   viewMode: "view" | "raw",
 ) {
-  // Raw mode OR markdown: render through ReactMarkdown
-  if (viewMode === "raw" || craftFormat === "markdown") {
+  // Raw mode: render through ReactMarkdown
+  if (viewMode === "raw") {
     return (
       <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
         <ReactMarkdown
@@ -113,40 +158,20 @@ function renderCraftContent(
     );
   }
 
-  // View mode for non-markdown formats — use the Craft Engine
+  // View mode: use RenderView for common formats, fallback for craft-only formats
+  const renderFormat = BKCRAFT_TO_RENDER_FORMAT[craftFormat];
+  if (renderFormat) {
+    return (
+      <div className="min-h-[120px]">
+        <RenderView format={renderFormat} content={content} />
+      </div>
+    );
+  }
+
+  // View mode for craft-only formats — use the Craft Engine + existing renderers
   const processed = BKCraftEngine.process(content, craftFormat);
 
   switch (craftFormat) {
-    case "html":
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-    case "tailwind":
-      return (
-        <iframe
-          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${content}</body></html>`}
-          className="w-full border-0 rounded-lg"
-          title="Tailwind Preview"
-          style={{ minHeight: 400 }}
-        />
-      );
-    case "csv":
-      return (
-        <div
-          className="prose prose-sm max-w-none overflow-x-auto"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-    case "json":
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
     case "imageList":
       return (
         <div
@@ -154,16 +179,6 @@ function renderCraftContent(
           dangerouslySetInnerHTML={{ __html: processed.parsed }}
         />
       );
-    case "mermaid": {
-      // Strip ```mermaid fences — pass raw diagram value only, no code wrap
-      const mermaidMatch = content.match(/```mermaid\n?([\s\S]*?)```/);
-      const diagram = mermaidMatch ? mermaidMatch[1].trim() : content.trim();
-      return (
-        <div className="bg-white p-4 rounded-lg">
-          <MermaidRenderer chart={diagram} />
-        </div>
-      );
-    }
     case "architecture":
       return (
         <div
@@ -241,12 +256,6 @@ function renderCraftContent(
             }}
           />
         </div>
-      );
-    case "plain":
-      return (
-        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
-          {content}
-        </pre>
       );
     default:
       return (
@@ -400,6 +409,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   // auto-switch to the current processing step is suppressed so they can read
   // another completed train of thought while generation continues.
   const isTabPinnedRef = useRef(false);
+
+  // ── Ref for last resolved craft format ────────────────────────────
+  // Tracks the actual per-step format used in the last step of bkStartThink,
+  // so bkGenerateMemory saves the correct format on the memory entity.
+  const lastResolvedFormatRef = useRef<BKCraftFormat>("markdown");
 
   // ── Load Thinkers ───────────────────────────────────────────────────
 
@@ -725,6 +739,9 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           aiConfig,
         });
 
+        // Track the resolved format so bkGenerateMemory uses the correct one
+        lastResolvedFormatRef.current = stepCraftConfig?.format ?? craftFormat;
+
         if (!response.success) {
           setError(`Step "${step.name}" failed: ${response.error}`);
           break;
@@ -755,15 +772,28 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         }
       }
 
-      // Process final output through craft engine
+      // Process final output through craft engine — use the last resolved step format
       if (initialConversation.length > 0) {
         const lastMessage = initialConversation[initialConversation.length - 1];
         setRawResult(lastMessage.content);
+        const finalFormat = lastResolvedFormatRef.current;
         const processed = BKCraftEngine.process(
           lastMessage.content,
-          craftFormat,
+          finalFormat,
         );
         setResult(processed.parsed);
+      }
+
+      // ── Store last think ID in localStorage ──────────────────────
+      if (think?.id && thought?.id) {
+        try {
+          localStorage.setItem(
+            `bunny-last-think-${thought.id}`,
+            think.id,
+          );
+        } catch {
+          // localStorage may not be available
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown thinking error");
@@ -977,9 +1007,16 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         name: `Memory - ${think.name} - ${new Date().toLocaleDateString()}`,
         rawOutput: lastMessage.content,
         processedOutput: result || lastMessage.content,
-        format: craftFormat,
+        format: resolveMemoryFormat(lastResolvedFormatRef.current),
         createdAt: Date.now(),
       });
+
+      // Load craft configs to resolve per-step neuron formats
+      const allCraftConfigs = await bkThinkerDB.craftConfigs
+        .toArray() as BKCraftConfig[];
+      const craftConfigMap = new Map(
+        allCraftConfigs.map((c) => [c.id, c]),
+      );
 
       // Create memory neurons from assistant responses only.
       // Conversation structure:
@@ -995,21 +1032,110 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         const assistantMsg = conversation[i + 1];
 
         if (assistantMsg && assistantMsg.role === "assistant") {
+          const stepIndex = (i - 1) / 2;
+          const step = trainOfThoughts[stepIndex];
+
+          // Resolve per-neuron format based on step's craft config.
+          // If the step has no craftId, default to "markdown".
+          const stepCraftConfig = step?.craftId
+            ? craftConfigMap.get(step.craftId)
+            : null;
+          const neuronFormat = resolveMemoryFormat(
+            stepCraftConfig?.format ?? "markdown",
+          );
+
           await bkThinkerDB.memoryNeuronsRepo.create({
             id: uuidv7(),
             memoryId,
-            name: `Neuron ${(i - 1) / 2 + 1}`,
+            name: `Neuron ${stepIndex + 1}${step?.name ? ` - ${step.name}` : ""}`,
             value: assistantMsg.content,
-            order: (i - 1) / 2,
+            order: stepIndex,
+            format: neuronFormat,
           });
         }
       }
+
+      toast.success("Memory saved successfully!");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to generate memory",
+      const msg = err instanceof Error ? err.message : "Failed to generate memory";
+      setError(msg);
+      toast.danger(msg);
+    }
+  }, [think, conversation, result, trainOfThoughts]);
+
+  // ── Handle memory actions (save / view HTML / download HTML) ──────────
+
+  const handleMemoryAction = useCallback((actionKey: string | number) => {
+    if (!think || conversation.length === 0) return;
+
+    const key = String(actionKey);
+
+    if (key === "save") {
+      bkGenerateMemory();
+      return;
+    }
+
+    // Build a map of step index → craft format from trainOfThoughts
+    const stepFormatMap = new Map<number, RenderFormat>();
+    for (const step of trainOfThoughts) {
+      const stepCraftConfig = step.craftId
+        ? craftConfigs.find((c) => c.id === step.craftId)
+        : null;
+      // If the step has no craft config, default to "markdown"
+      stepFormatMap.set(
+        step.order,
+        resolveRenderFormat(stepCraftConfig?.format ?? "markdown"),
       );
     }
-  }, [think, thought, thinker, conversation, result, craftFormat]);
+
+    // Build neurons from assistant messages for view/download,
+    // each with its own format resolved from the corresponding step.
+    const neurons: BKMemoryNeuron[] = [];
+    for (let i = 1; i < conversation.length; i += 2) {
+      const assistantMsg = conversation[i + 1];
+      if (assistantMsg && assistantMsg.role === "assistant") {
+        const stepIndex = (i - 1) / 2;
+        const step = trainOfThoughts[stepIndex];
+        const neuronFormat = step
+          ? (stepFormatMap.get(step.order) ?? "markdown")
+          : "markdown";
+
+        neurons.push({
+          id: uuidv7(),
+          memoryId: think.id,
+          name: `Neuron ${stepIndex + 1}${step?.name ? ` - ${step.name}` : ""}`,
+          value: assistantMsg.content,
+          order: stepIndex,
+          format: neuronFormat,
+        });
+      }
+    }
+
+    if (neurons.length === 0) {
+      toast.warning("No assistant responses to export.");
+      return;
+    }
+
+    const memory: BKMemory = {
+      id: think.id,
+      thinkId: think.id,
+      name: think.name || "Memory Export",
+      format: resolveMemoryFormat(lastResolvedFormatRef.current),
+      createdAt: Date.now(),
+    };
+
+    // Resolve neuron format: check the neuron's own format field, fall back to memory format
+    const getNeuronFormat = (neuronId: string): RenderFormat => {
+      const neuron = neurons.find((n) => n.id === neuronId);
+      return resolveRenderFormat(neuron?.format ?? lastResolvedFormatRef.current);
+    };
+
+    if (key === "view") {
+      bkViewAsHtml(neurons, memory, getNeuronFormat);
+    } else if (key === "download") {
+      bkDownloadHtml(neurons, think.id, memory, getNeuronFormat);
+    }
+  }, [think, conversation, bkGenerateMemory, trainOfThoughts, craftConfigs]);
 
   // ── Derive completed steps with conversation pairs ───────────────────
 
@@ -1034,7 +1160,9 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="bk-think-studio space-y-6">
+    <>
+      <Toast.Provider />
+      <div className="bk-think-studio space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1106,13 +1234,51 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
             </Button>
           )}
           {think && conversation.length > 0 && !isThinking && (
-            <Button
-              onPress={bkGenerateMemory}
-              isDisabled={isThinking}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
-            >
-              Save to Memory
-            </Button>
+            <Dropdown>
+              <Dropdown.Trigger>
+                <Button
+                  isDisabled={isThinking}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  Save to Memory
+                </Button>
+              </Dropdown.Trigger>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu
+                  aria-label="Memory actions"
+                  onAction={handleMemoryAction}
+                >
+                  <Dropdown.Item id="save">
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">Save to Memory</span>
+                        <span className="text-xs text-gray-400">Persist to database</span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="view">
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">View as HTML</span>
+                        <span className="text-xs text-gray-400">Open in new browser tab</span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="download">
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">Download as HTML</span>
+                        <span className="text-xs text-gray-400">Save as .html file</span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           )}
           {think && (
             <Button
@@ -1319,58 +1485,19 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           </button>
           {showProcessedOutput && (
             <div className="p-4 bg-white border-t border-gray-200">
-              {viewMode === "view" && craftFormat !== "markdown" ? (
-                /* ── View mode: format-specific rendering ── */
+              {viewMode === "view" && !BKCRAFT_TO_RENDER_FORMAT[craftFormat] ? (
+                /* ── View mode for craft-only formats (no RenderView equivalent) ── */
                 (() => {
                   const displayContent = rawResult || result;
+                  const processed = BKCraftEngine.process(displayContent, craftFormat);
                   switch (craftFormat) {
-                    case "html":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: displayContent }}
-                        />
-                      );
-                    case "tailwind":
-                      return (
-                        <iframe
-                          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${displayContent}</body></html>`}
-                          className="w-full border-0 rounded-lg"
-                          title="Tailwind Preview"
-                          style={{ minHeight: 400 }}
-                        />
-                      );
-                    case "csv":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none overflow-x-auto"
-                          dangerouslySetInnerHTML={{ __html: result }}
-                        />
-                      );
-                    case "json":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
-                        />
-                      );
                     case "imageList":
                       return (
                         <div
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
+                          dangerouslySetInnerHTML={{ __html: processed.parsed }}
                         />
                       );
-                    case "mermaid": {
-                      // Strip ```mermaid fences — pass raw diagram value only
-                      const mermaidMatch = displayContent.match(/```mermaid\n?([\s\S]*?)```/);
-                      const diagram = mermaidMatch ? mermaidMatch[1].trim() : displayContent.trim();
-                      return (
-                        <div className="bg-white p-4 rounded-lg">
-                          <MermaidRenderer chart={diagram} />
-                        </div>
-                      );
-                    }
                     case "architecture":
                       return (
                         <div
@@ -1449,72 +1576,75 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                           />
                         </div>
                       );
-                    case "plain":
-                      return (
-                        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
-                          {displayContent}
-                        </pre>
-                      );
                     default:
                       return (
                         <div
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
+                          dangerouslySetInnerHTML={{ __html: processed.parsed }}
                         />
                       );
                   }
                 })()
               ) : (
-                /* ── Raw mode OR markdown: show raw content via ReactMarkdown ── */
-                <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
-                  <ReactMarkdown
-                    components={{
-                      code({ className, children, ...props }) {
-                        const isInline = !className;
-                        const match = /language-(\w+)/.exec(className || "");
-                        const codeStr = String(children).replace(/\n$/, "");
+                /* ── Use RenderView for common formats or raw mode ── */
+                viewMode === "raw" ? (
+                  <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const isInline = !className;
+                          const match = /language-(\w+)/.exec(className || "");
+                          const codeStr = String(children).replace(/\n$/, "");
 
-                        if (isInline) {
-                          return (
-                            <code
-                              className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        }
-
-                        return (
-                          <div className="relative group">
-                            <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                              <span>{match?.[1] || "code"}</span>
-                              <button
-                                onClick={() =>
-                                  navigator.clipboard.writeText(codeStr)
-                                }
-                                className="hover:text-white transition-colors"
-                                title="Copy code"
+                          if (isInline) {
+                            return (
+                              <code
+                                className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                                {...props}
                               >
-                                Copy
-                              </button>
-                            </div>
-                            <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                              <code className={className} {...props}>
                                 {children}
                               </code>
-                            </pre>
-                          </div>
-                        );
-                      },
-                      pre({ children }) {
-                        return <>{children}</>;
-                      },
-                    }}
-                  >
-                    {rawResult || result}
-                  </ReactMarkdown>
-                </div>
+                            );
+                          }
+
+                          return (
+                            <div className="relative group">
+                              <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                                <span>{match?.[1] || "code"}</span>
+                                <button
+                                  onClick={() =>
+                                    navigator.clipboard.writeText(codeStr)
+                                  }
+                                  className="hover:text-white transition-colors"
+                                  title="Copy code"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              </pre>
+                            </div>
+                          );
+                        },
+                        pre({ children }) {
+                          return <>{children}</>;
+                        },
+                      }}
+                    >
+                      {rawResult || result}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="min-h-[120px]">
+                    <RenderView
+                      format={BKCRAFT_TO_RENDER_FORMAT[craftFormat] ?? "markdown"}
+                      content={rawResult || result}
+                    />
+                  </div>
+                )
               )}
             </div>
           )}
@@ -1667,6 +1797,18 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           selectedThinkerId={thinker?.id}
           selectedThinker={thinker}
           onThinkerChange={handleThinkerChange}
+          onClearLastThought={() => {
+            if (thought?.id) {
+              try {
+                localStorage.removeItem(
+                  `bunny-last-think-${thought.id}`,
+                );
+                toast.success("Last thought cleared");
+              } catch {
+                // localStorage may not be available
+              }
+            }
+          }}
         />
       )}
 
@@ -1681,6 +1823,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           onClose={() => setShowMeta(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

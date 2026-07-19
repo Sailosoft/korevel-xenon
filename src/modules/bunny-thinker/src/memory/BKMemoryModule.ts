@@ -1,6 +1,6 @@
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { createElement } from "react";
-import { Download } from "lucide-react";
+import { Download, MemoryStick } from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKMemory } from "./BKMemory.Types";
 
@@ -32,7 +32,7 @@ export const bkMemoryModule = BunnyFeature.create<BKMemory, BKMemory>(
     feature.configureRow((row) => {
       row.addAction({
         id: "extract-memory",
-        icon: createElement(Download),
+        icon: createElement(MemoryStick),
         variant: "secondary",
         label: "Extract Memory",
         onClick(row, context) {

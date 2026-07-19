@@ -24,6 +24,7 @@ export const RenderFormats = [
   "plain",
   "json",
   "yaml",
+  "codeblock",
 ] as const;
 
 /** Union type of all built-in render formats */
