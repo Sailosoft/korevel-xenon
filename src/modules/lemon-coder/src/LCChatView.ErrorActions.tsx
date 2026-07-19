@@ -44,7 +44,7 @@ export default function LCChatViewErrorActions({
         onPress={onViewDetails}
       >
         <Eye className="w-3 h-3" />
-        View Details
+        <span className="hidden sm:inline">View Details</span>
       </Button>
       {onRetryMessage && error.failedContent && (
         <Button
@@ -54,7 +54,7 @@ export default function LCChatViewErrorActions({
           onPress={() => error.failedContent && onRetryMessage(error.failedContent)}
         >
           <RefreshCw className="w-3 h-3" />
-          Retry
+          <span className="hidden sm:inline">Retry</span>
         </Button>
       )}
     </div>

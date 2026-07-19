@@ -1,4 +1,4 @@
-// ───────────────────────────────────────────────────────────────────────────────
+﻿// ───────────────────────────────────────────────────────────────────────────────
 // Lemon Coder — LCRightSidebar Component
 // ───────────────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Plus,
   BookOpenText,
+  Download,
 } from "lucide-react";
 import type { LCContextStashItem, LCChatSession, LCInstructionStashItem } from "./LCInterface";
 import type { LCDeepstash, LCDeepstashItem, LCDeepstashMergeStrategy } from "./LCInterface";
@@ -61,6 +62,17 @@ export interface LCRightSidebarProps {
   onRemoveInstruction: (id: string) => void;
   /** Clear all instructions */
   onClearInstructions: () => void;
+  /** Export the active session as markdown */
+  onExportSession?: (
+    sessionId: string,
+    mode: "all" | "ai-only",
+    fileName: string,
+    saveDirectory: string,
+  ) => Promise<void>;
+  /** List of all directory paths in the project (for export directory autocomplete) */
+  projectDirectories?: string[];
+  /** Path of the currently selected file (to derive current directory) */
+  currentFilePath?: string;
 }
 
 export default function LCRightSidebar({
@@ -86,6 +98,9 @@ export default function LCRightSidebar({
   onAddInstruction = () => {},
   onRemoveInstruction = () => {},
   onClearInstructions = () => {},
+  onExportSession,
+  projectDirectories = [],
+  currentFilePath,
 }: LCRightSidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [expandedDeepstashes, setExpandedDeepstashes] = useState<Set<string>>(new Set());
@@ -95,6 +110,14 @@ export default function LCRightSidebar({
   const [applyStrategy, setApplyStrategy] = useState<LCDeepstashMergeStrategy>("override");
   const [clearDeepstashConfirm, setClearDeepstashConfirm] = useState(false);
 
+  // ── Export modal state ──────────────────────────────────────────────────
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<"all" | "ai-only">("all");
+  const [exportSaveMethod, setExportSaveMethod] = useState<"download" | "save-to-dir">("save-to-dir");
+  const [exportFileName, setExportFileName] = useState("");
+  const [exportDirectory, setExportDirectory] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportTargetSessionId, setExportTargetSessionId] = useState<string | null>(null);
   // ── Instruction Stash inline add state ──────────────────────────────────
   const [isAddingInstruction, setIsAddingInstruction] = useState(false);
   const [newInstName, setNewInstName] = useState("");
@@ -645,6 +668,24 @@ export default function LCRightSidebar({
                   <Trash2 className="w-3 h-3" />
                 </Button>
               )}
+              {onExportSession && chatSessions.length > 0 && (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => {
+                    const targetId = activeSessionId || chatSessions[0]?.id; if (!targetId) return; const session = chatSessions.find((s) => s.id === targetId); setExportTargetSessionId(targetId);
+                    setExportFileName((session?.title || "chat-export").replace(/[^a-zA-Z0-9_\- ]/g, "_") + ".md");
+                    setExportDirectory("");
+                    setExportMode("all");
+                    setExportSaveMethod("download");
+                    setIsExportOpen(true);
+                  }}
+                  className="w-5 h-5 min-w-0 text-[#858585] hover:text-[#61afef]"
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="ghost"
@@ -821,6 +862,149 @@ export default function LCRightSidebar({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Clear All
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* Export Session Modal */}
+      <Modal.Backdrop
+        isOpen={isExportOpen}
+        onOpenChange={(open: boolean) => { if (!open) setIsExportOpen(false); }}
+      >
+        <Modal.Container>
+          <Modal.Dialog className="sm:max-w-sm bg-[#1e1e1e] text-white">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading className="text-white flex items-center gap-2 text-sm">
+                <Download className="w-4 h-4 text-[#61afef]" />
+                Export Conversation
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="flex flex-col gap-4">
+                {/* Content filter */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Content</p>
+                  <div className="flex gap-2">
+                    <button
+                      className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                        exportMode === "all"
+                          ? "bg-[#61afef]/20 border-[#61afef]/40 text-white"
+                          : "border-[#333] text-gray-400 hover:bg-[#333]"
+                      }`}
+                      onClick={() => setExportMode("all")}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Full conversation
+                    </button>
+                    <button
+                      className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                        exportMode === "ai-only"
+                          ? "bg-[#61afef]/20 border-[#61afef]/40 text-white"
+                          : "border-[#333] text-gray-400 hover:bg-[#333]"
+                      }`}
+                      onClick={() => setExportMode("ai-only")}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      AI responses only
+                    </button>
+                  </div>
+                </div>
+
+                {/* Save method */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Save as</p>
+                  <div className="flex gap-2">
+                    <button
+                      className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                        exportSaveMethod === "download"
+                          ? "bg-[#61afef]/20 border-[#61afef]/40 text-white"
+                          : "border-[#333] text-gray-400 hover:bg-[#333]"
+                      }`}
+                      onClick={() => setExportSaveMethod("download")}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download
+                    </button>
+                    <button
+                      className={`flex-1 flex items-center gap-2 px-3 py-2 rounded text-xs border transition-colors ${
+                        exportSaveMethod === "save-to-dir"
+                          ? "bg-[#61afef]/20 border-[#61afef]/40 text-white"
+                          : "border-[#333] text-gray-400 hover:bg-[#333]"
+                      }`}
+                      onClick={() => setExportSaveMethod("save-to-dir")}
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save to project
+                    </button>
+                  </div>
+                </div>
+
+                {/* File name */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">File name</p>
+                  <input
+                    value={exportFileName}
+                    onChange={(e) => setExportFileName(e.target.value)}
+                    placeholder="chat-export.md"
+                    className="w-full bg-[#3c3c3c] text-xs text-[#d4d4d4] placeholder:text-[#858585] border border-[#444444] rounded px-2 py-1.5 outline-none focus:border-[#61afef] transition-colors"
+                  />
+                </div>
+
+                {/* Directory (save-to-dir only) */}
+                {exportSaveMethod === "save-to-dir" && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">
+                      Directory path <span className="text-[10px] text-[#858585]">(relative to project root)</span>
+                    </p>
+                    <input
+                      value={exportDirectory}
+                      onChange={(e) => setExportDirectory(e.target.value)}
+                      placeholder="e.g. exports or leave empty for root"
+                      className="w-full bg-[#3c3c3c] text-xs text-[#d4d4d4] placeholder:text-[#858585] border border-[#444444] rounded px-2 py-1.5 outline-none focus:border-[#61afef] transition-colors"
+                    />
+                  </div>
+                )}
+
+                <p className="text-[10px] text-gray-500">
+                  {exportMode === "all"
+                    ? "Exports the full conversation including user messages and AI responses."
+                    : "Exports only AI assistant responses, omitting user messages."}
+                </p>
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                slot="close"
+                variant="ghost"
+                className="bg-transparent text-gray-300 hover:bg-[#333] text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                slot="close"
+                isDisabled={!exportFileName.trim() || isExporting}
+                onPress={async () => {
+                  if (!exportTargetSessionId || !onExportSession) return;
+                    const sessionId = exportTargetSessionId;
+                  setIsExporting(true);
+                  try {
+                    await onExportSession(
+                      sessionId,
+                      exportMode,
+                      exportFileName.trim(),
+                      exportSaveMethod === "save-to-dir" ? exportDirectory.trim() : "",
+                    );
+                  } finally {
+                    setIsExporting(false);
+                  }
+                }}
+                className="bg-[#61afef] text-white hover:bg-[#4a9de0] text-xs disabled:opacity-40"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {isExporting ? "Exporting..." : "Export"}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

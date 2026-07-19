@@ -37,6 +37,7 @@ import type {
   BFlowJobRun,
   BFlowStepRun,
   BFlowRunStatus,
+  BFlowRunSnapshot,
 } from "./BFlowRun.Types";
 
 // ─── Shared instances ──────────────────────────────────────────────
@@ -127,6 +128,15 @@ export function useBFlowRunSubmit(
         status: "running",
         prompt: pipeline.prompt,
         variablesSnapshot: resolvedVariables,
+        snapshot: {
+          pipelineName: pipeline.name,
+          pipelineSlug: pipeline.slug,
+          description: template?.description,
+          jobs: jobs,
+          reports: template?.template?.reports ?? [],
+          templateName: template?.name,
+          templateYaml: template?.templateYaml,
+        },
         startedAt: now,
         createdAt: now,
         updatedAt: now,

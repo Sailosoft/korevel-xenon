@@ -10,7 +10,16 @@
  */
 
 import { marked } from "marked";
-import type { BFlowWorkflowReport } from "../workflow/BFlowWorkflow.Types";
+import {
+  RenderEngine,
+  registerBuiltinAdapters,
+} from "@/src/modules/render";
+import type { RenderFormat } from "@/src/modules/render";
+import type {
+  BFlowWorkflowReport,
+  BFlowWorkflowJob,
+  BFlowStepOutputType,
+} from "../workflow/BFlowWorkflow.Types";
 import type { BFlowJobRun, BFlowStepRun } from "../run/BFlowRun.Types";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -20,12 +29,19 @@ export interface BFlowTailwindExportOptions {
   includePrompts?: boolean;
   /** Whether to include system/user prompts */
   includeResolvedPrompts?: boolean;
+  /** Whether to include resolved input values. Defaults to true. */
+  includeResolvedInputs?: boolean;
   /** Custom title for the report */
   title?: string;
   /** Whether to include the pipeline description */
   includeDescription?: boolean;
   /** Color theme: "light" | "dark" */
   theme?: "light" | "dark";
+  /**
+   * Workflow job definitions — used internally to resolve step output types.
+   * Passed through from BFlowTailwindExportInput.jobs.
+   */
+  jobs?: BFlowWorkflowJob[];
 }
 
 export interface BFlowTailwindExportInput {
@@ -39,6 +55,11 @@ export interface BFlowTailwindExportInput {
   stepRuns: BFlowStepRun[];
   /** Optional report configuration from workflow YAML */
   reports?: BFlowWorkflowReport[];
+  /**
+   * Workflow job definitions — used to resolve step output types
+   * for format-aware rendering (e.g., HTML output is embedded directly).
+   */
+  jobs?: BFlowWorkflowJob[];
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -46,6 +67,7 @@ export interface BFlowTailwindExportInput {
 const DEFAULT_OPTIONS: BFlowTailwindExportOptions = {
   includePrompts: true,
   includeResolvedPrompts: false,
+  includeResolvedInputs: true,
   title: "Pipeline Report",
   includeDescription: true,
   theme: "light",
@@ -62,6 +84,24 @@ const GT_ENTITY = "\u0026gt;";
 const QUOT_ENTITY = "\u0026quot;";
 const APOS_ENTITY = "\u0026#039;";
 const HTML_APOS = "&#039;";
+
+/**
+ * Look up the output type for a step run from the workflow job definitions.
+ * Returns "markdown" as the default if the step or its outputType is not defined.
+ */
+function resolveStepOutputType(
+  stepRun: BFlowStepRun,
+  jobs?: BFlowWorkflowJob[],
+): BFlowStepOutputType | undefined {
+  if (!jobs) return undefined;
+  for (const job of jobs) {
+    const step = job.steps?.find(
+      (s) => s.id === stepRun.stepId || s.name === stepRun.stepName,
+    );
+    if (step?.outputType) return step.outputType;
+  }
+  return undefined;
+}
 
 function escapeHtml(str: string): string {
   return str
@@ -110,11 +150,25 @@ function getStatusBadge(status?: string): string {
   }
 }
 
+// ─── Lazy adapter registration guard ─────────────────────────────────
+
+let _adaptersRegistered = false;
+
 // ═══════════════════════════════════════════════════════════════════════
 // BFlowTailwindExportService
 // ═══════════════════════════════════════════════════════════════════════
 
 export class BFlowTailwindExportService {
+  /**
+   * Ensure built-in render adapters are registered with the RenderEngine.
+   * Called lazily on first render to avoid side effects at import time.
+   */
+  private static ensureAdaptersRegistered(): void {
+    if (!_adaptersRegistered) {
+      registerBuiltinAdapters();
+      _adaptersRegistered = true;
+    }
+  }
   /**
    * Generate a complete HTML document with Tailwind CSS styling.
    */
@@ -122,7 +176,7 @@ export class BFlowTailwindExportService {
     input: BFlowTailwindExportInput,
     options?: BFlowTailwindExportOptions,
   ): string {
-    const opts = { ...DEFAULT_OPTIONS, ...options };
+    const opts = { ...DEFAULT_OPTIONS, ...options, jobs: input.jobs };
     const title = opts.title ?? input.pipelineName ?? "Pipeline Report";
     const jobsHtml = this.renderJobs(input, opts);
     const summaryHtml = this.renderSummary(input);
@@ -380,6 +434,7 @@ export class BFlowTailwindExportService {
     index: number,
     opts: BFlowTailwindExportOptions,
   ): string {
+    const outputType = resolveStepOutputType(stepRun, opts.jobs);
     return `
           <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden">
             <!-- Step Header -->
@@ -442,7 +497,7 @@ export class BFlowTailwindExportService {
                   ? `<div>
                     <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Output:</p>
                     <div class="prose prose-sm max-w-none dark:prose-invert bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 output-content text-sm text-slate-700 dark:text-slate-300">
-                      ${marked.parse(stepRun.output)}
+                      ${this.renderOutputContent(stepRun.output, outputType)}
                     </div>
                   </div>`
                   : ""
@@ -459,6 +514,7 @@ export class BFlowTailwindExportService {
               }
 
               ${
+                opts.includeResolvedInputs !== false &&
                 stepRun.resolvedInputs &&
                 Object.keys(stepRun.resolvedInputs).length > 0
                   ? `<div>
@@ -479,6 +535,46 @@ export class BFlowTailwindExportService {
               }
             </div>
           </div>`;
+  }
+
+  /**
+   * Map BFlowStepOutputType to RenderFormat for the RenderEngine.
+   */
+  private static readonly STEP_FORMAT_MAP: Record<string, RenderFormat> = {
+    plain: "plain",
+    markdown: "markdown",
+    json: "json",
+    html: "html",
+    csv: "csv",
+    json_array: "json",
+    yaml: "yaml",
+  };
+
+  /**
+   * Render step output content using the RenderEngine — the same engine
+   * that powers the UI's RenderView — ensuring consistent rendering
+   * between interactive preview and exported HTML for all output types.
+   *
+   * Adapts BFlowStepOutputType values (html, csv, json, plain, markdown,
+   * json_array, yaml) to the corresponding RenderFormat and delegates to
+   * the engine's renderHtml() method. Falls back to marked.parse() if the
+   * engine or adapter is unavailable.
+   */
+  private renderOutputContent(
+    output: string,
+    outputType: BFlowStepOutputType | undefined,
+  ): string {
+    BFlowTailwindExportService.ensureAdaptersRegistered();
+    const format =
+      outputType
+        ? (BFlowTailwindExportService.STEP_FORMAT_MAP[outputType] ?? "markdown")
+        : "markdown";
+    try {
+      return RenderEngine.renderHtml(format, output).html.html;
+    } catch {
+      // Fallback: render through marked's markdown parser
+      return marked.parse(output) as string;
+    }
   }
 
   /**

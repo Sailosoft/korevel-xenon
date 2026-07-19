@@ -50,6 +50,14 @@ import {
 
 import { configureBFlowMigrations } from "./BFlowMigration";
 
+// Pool imports
+import { BFlowPoolEntity } from "../pool/BFlowPool.Types";
+import { BFlowPoolRepository } from "../pool/BFlowPool.Repository";
+
+// Pool Agent imports
+import { BFlowPoolAgentEntity } from "../pool/BFlowPoolAgent.Types";
+import { BFlowPoolAgentRepository } from "../pool/BFlowPoolAgent.Repository";
+
 /**
  * BFlowDatabase — IndexedDB persistence layer for BunnyFlow.
  *
@@ -170,6 +178,14 @@ export class BFlowDatabase extends PhazeDB {
   public pipelineAIConfigRepo = new BFlowPipelineAIConfigRepository(
     this.pipelineAIConfig,
   );
+
+  /** Pools — groups of AI agents scoped to a flow */
+  public pools = this.table<BFlowPoolEntity, string>("pools");
+  public poolsRepo = new BFlowPoolRepository(this.pools);
+
+  /** Pool Agents — individual agents belonging to a pool */
+  public poolAgents = this.table<BFlowPoolAgentEntity, string>("poolAgents");
+  public poolAgentsRepo = new BFlowPoolAgentRepository(this.poolAgents);
 
   protected dbName(): string {
     return "BunnyFlowDB";

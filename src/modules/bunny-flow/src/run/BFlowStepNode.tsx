@@ -81,6 +81,12 @@ export function BFlowStepNode({
           <p className="text-xs text-default-400 mt-0.5">Agent: {step.agent}</p>
         )}
 
+        {stepRun?.aiProvider && stepRun?.aiModel && (
+          <p className="text-xs text-violet-500 font-medium mt-0.5">
+            {stepRun.aiProvider} — {stepRun.aiModel}
+          </p>
+        )}
+
         {stepRun?.error && (
           <p className="text-xs text-danger mt-1 bg-danger-50 p-2 rounded-lg">
             {stepRun.error}

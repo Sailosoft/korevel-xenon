@@ -259,6 +259,7 @@ function buildSystemContext(
     step: {
       name: step.name,
       prompts: interpolatedPrompts,
+      outputType: step.outputType,
       output: step.output ?? [],
     },
     job: {

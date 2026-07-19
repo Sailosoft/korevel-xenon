@@ -162,7 +162,7 @@ export function InlineFileDiff({
               onPress={() => onPreviewDiff(file)}
             >
               <ArrowLeftRight className="w-3 h-3" />
-              Diff
+              <span className="hidden sm:inline">Diff</span>
             </Button>
           )}
           <Button
@@ -173,7 +173,7 @@ export function InlineFileDiff({
             onPress={handleApply}
           >
             {statusStyle.icon}
-            {statusStyle.label}
+            <span className="hidden sm:inline">{statusStyle.label}</span>
           </Button>
         </div>
       </div>
@@ -416,7 +416,7 @@ export function ViewAllChangesModal({
                       onPress={handleToggleExpandAll}
                     >
                       <ChevronsUpDown className="w-3 h-3" />
-                      {viewAllExpanded ? "Collapse All" : "Expand All"}
+                      <span className="hidden sm:inline">{viewAllExpanded ? "Collapse All" : "Expand All"}</span>
                     </Button>
                   </div>
                   <Button
@@ -425,7 +425,7 @@ export function ViewAllChangesModal({
                     onPress={handleAcceptAll}
                   >
                     <GitMerge className="w-3.5 h-3.5" />
-                    Accept All Changes
+                    <span className="hidden sm:inline">Accept All Changes</span>
                   </Button>
                 </div>
 
@@ -466,7 +466,7 @@ export function ViewAllChangesModal({
                             onPress={() => handlePreviewDiff(file)}
                           >
                             <ArrowLeftRight className="w-3 h-3" />
-                            Full Diff
+                            <span className="hidden sm:inline">Full Diff</span>
                           </Button>
                           {fileApplyStatuses[idx] === "applied" ? (
                             <Chip
@@ -485,7 +485,7 @@ export function ViewAllChangesModal({
                               className="text-xs h-6 text-[#e5c07b] hover:bg-[#e5c07b]/10"
                             >
                               <Loader2 className="w-3 h-3 animate-spin" />
-                              Applying...
+                              <span className="hidden sm:inline">Applying...</span>
                             </Button>
                           ) : (
                             <Button
@@ -495,7 +495,7 @@ export function ViewAllChangesModal({
                               onPress={() => handleAcceptFile(idx, file)}
                             >
                               <Check className="w-3 h-3" />
-                              Accept
+                              <span className="hidden sm:inline">Accept</span>
                             </Button>
                           )}
                         </div>
@@ -582,7 +582,7 @@ export function ViewAllChangesModal({
                 className="bg-[#98c379] text-black hover:bg-[#7daf5e] text-xs"
               >
                 <GitMerge className="w-3.5 h-3.5" />
-                Accept All Changes
+                <span className="hidden sm:inline">Accept All Changes</span>
               </Button>
             )}
           </Modal.Footer>

@@ -19,7 +19,8 @@ export type HelixAIProvider =
   | "deepinfra"
   | "openRouter"
   | "requesty"
-  | "googleAIStudio";
+  | "googleAIStudio"
+  | "siliconFlow";
 
 // ── Temperature presets ───────────────────────────────────────────────────────
 
@@ -129,6 +130,12 @@ export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
     model: "gemini-3.1-flash-lite",
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai",
   },
+  {
+    provider: "siliconFlow",
+    apiKey: process.env.SILICON_FLOW_API_KEY || "",
+    model: "tencent/Hy3",
+    endpoint: "https://api.siliconflow.com/v1"
+  },
 ];
 
 // ── Human-readable labels for each provider ───────────────────────────────────
@@ -144,6 +151,7 @@ export const HELIX_PROVIDER_LABELS: Record<HelixAIProvider, string> = {
   requesty: "Requesty",
   deepinfra: "DeepInfra",
   googleAIStudio: "Google AI Studio",
+  siliconFlow: "SiliconFlow"
 };
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -293,6 +301,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "nvidia/nemotron-3-nano-30b-a3b",
     "nvidia/nemotron-3-super-120b-a12b",
     "nvidia/nemotron-3-ultra-550b-a55b",
+    "novita/tencent/hy3",
     // non free 1m token
     "xiaomi/mimo-v2.5",
     "xai/grok-4-1-fast-reasoning",
@@ -330,6 +339,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "anthropic/claude-opus-4-8",
     "vertex/gemini-3.1-flash-lite@eu",
     "xiaomi/mimo-v2.5-pro",
+    "novita/tencent/hy3" 
   ] as const,
   openRouter: [
     "openrouter/fusion",
@@ -388,6 +398,20 @@ const HELIX_PROVIDER_MODELS: Record<
     "deepseek/deepseek-v4-flash",
     "stepfun/step-3.5-flash",
   ] as const,
+  siliconFlow: [
+    "tencent/Hy3",
+    "meituan-longcat/LongCat-2.0",
+    "zai-org/GLM-5.2",
+    "moonshotai/Kimi-K2.7-Code",
+    "MiniMaxAI/MiniMax-M3",
+    "nex-agi/Nex-N2-Pro",
+    "deepseek-ai/DeepSeek-V4-Pro",
+    "deepseek-ai/DeepSeek-V4-Flash",
+    "Qwen/Qwen3.6-35B-A3B",
+    "Qwen/Qwen3.5-122B-A10B",
+    "google/gemma-4-31B-it",
+    "stepfun-ai/Step-3.5-Flash"
+  ] as const
 };
 
 // ── Default: auto-merge all provider models (deduplicated) ─────────────────────

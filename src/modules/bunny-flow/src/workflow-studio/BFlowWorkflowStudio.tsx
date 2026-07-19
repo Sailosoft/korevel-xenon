@@ -57,6 +57,7 @@ import { BFlowStepNode } from "../run/BFlowStepNode";
 import { BFlowStepDetailsModal } from "../run/BFlowStepDetailsModal";
 import { BFlowOutputModal } from "../run/BFlowOutputModal";
 import { BFlowComputedInputsModal } from "../run/BFlowComputedInputsModal";
+import { BFlowReportViewModal } from "../run/BFlowReportViewModal";
 import { BFlowRunInputResolver } from "../run/BFlowRun.InputResolver";
 import { BFlowRunPromptBuilder } from "../run/BFlowRun.SectionBuilder";
 import { BFlowPromptBuilderKind } from "../run/BFlowRun.Prompt.Types";
@@ -66,13 +67,21 @@ import type {
   BFlowWorkflowJob,
   BFlowStep,
   BFlowVariable,
+  BFlowWorkflowReport,
 } from "../workflow/BFlowWorkflow.Types";
 import type { BFlowStepRun, BFlowJobRun } from "../run/BFlowRun.Types";
 import type { BFlowPipelineVariable } from "../pipeline/BFlowPipeline.Types";
 
 // Import Interactive component from new location
 import BFlowWorkflowInteractive from "../workflow-interactive/BFlowWorkflowInteractive";
-import type { BFlowInteractiveWorkflowData } from "../workflow-interactive/BFlowWorkflowInteractive.Types";
+import type {
+  BFlowInteractiveWorkflowData,
+  BFlowInteractiveAgent,
+  BFlowInteractiveAgentPool,
+} from "../workflow-interactive/BFlowWorkflowInteractive.Types";
+
+// Agent Pool integration
+import { useBFlowPools } from "../pool/useBFlowPools";
 
 import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
 import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
@@ -119,6 +128,93 @@ export default function BFlowWorkflowStudio({
   // ── Interactive mode toggle ─────────────────────────────────────
   const [interactiveMode, setInteractiveMode] = useState(false);
 
+  // ── Agent Pools (for filling agents in interactive mode) ────────
+  const {
+    pools: rawPools,
+    loading: poolsLoading,
+  } = useBFlowPools();
+
+  // ── Pool Agents (actual agent records within pools) ─────────────
+  const [poolAgents, setPoolAgents] = useState<Record<string, BFlowInteractiveAgent[]>>({});
+  const [poolAgentsLoaded, setPoolAgentsLoaded] = useState(false);
+
+  // Load pool agents for the active pools and group them by poolId
+  useEffect(() => {
+    let cancelled = false;
+    const activePools = rawPools.filter(
+      (p) =>
+        p.flowId === flowId &&
+        (p.status === "active" || p.status === "draft"),
+    );
+    if (activePools.length === 0) {
+      setPoolAgents({});
+      setPoolAgentsLoaded(true);
+      return;
+    }
+
+    const loadAgents = async () => {
+      try {
+        const allPoolAgents = await bflowDB.poolAgents.toArray();
+        if (cancelled) return;
+
+        const grouped: Record<string, BFlowInteractiveAgent[]> = {};
+        for (const pool of activePools) {
+          const agentsForPool = allPoolAgents
+            .filter((pa) => pa.poolId === pool.id)
+            .map((pa) => ({
+              id: pa.id,
+              name: pa.name,
+              role: pa.role,
+              prompt: pa.prompt,
+              // Carry provider/model so the interactive component
+              // can surface them in the UI if needed
+              ...(pa.provider ? { provider: pa.provider } : {}),
+              ...(pa.model ? { model: pa.model } : {}),
+            })) as BFlowInteractiveAgent[];
+          grouped[pool.id] = agentsForPool;
+        }
+        if (!cancelled) {
+          setPoolAgents(grouped);
+          setPoolAgentsLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setPoolAgentsLoaded(true);
+      }
+    };
+    loadAgents();
+    return () => { cancelled = true; };
+  }, [rawPools, flowId]);
+
+  /** Map raw DB entities to the lightweight interactive pool type,
+   *  scoped to the current flowId. Includes actual pool agent records
+   *  so the interactive builder can fill real agents instead of
+   *  generating synthetic ones. */
+  const interactiveAgentPools: BFlowInteractiveAgentPool[] = useMemo(
+    () =>
+      rawPools
+        .filter(
+          (p) =>
+            p.flowId === flowId &&
+            (p.status === "active" || p.status === "draft"),
+        )
+        .map((p) => {
+          const agents = poolAgents[p.id] ?? [];
+          return {
+            slug: p.code,        // Use code as slug for pool identification
+            name: p.name,
+            agentCount: Math.max(1, agents.length || 1),
+            template: {
+              systemPrompt: p.description,
+              provider: undefined,
+              model: undefined,
+            },
+            // Pass actual pool agents if available
+            agents: agents.length > 0 ? agents : undefined,
+          };
+        }),
+    [rawPools, poolAgents, flowId],
+  );
+
   // ── Editor state ──────────────────────────────────────────────────
   const [yamlContent, setYamlContent] = useState<string>("");
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -134,6 +230,8 @@ export default function BFlowWorkflowStudio({
   const [parsedJobs, setParsedJobs] = useState<BFlowWorkflowJob[]>([]);
   /** Variables parsed from the live YAML (kept in sync with parsedJobs). */
   const [parsedVariables, setParsedVariables] = useState<BFlowVariable[]>([]);
+  /** Reports parsed from the live YAML (displayed below jobs in pipeline view). */
+  const [parsedReports, setParsedReports] = useState<BFlowWorkflowReport[]>([]);
   const [selectedJobIndex, setSelectedJobIndex] = useState(0);
 
   // ── Modal state ───────────────────────────────────────────────────
@@ -149,13 +247,18 @@ export default function BFlowWorkflowStudio({
     step: BFlowStep;
     stepRun?: BFlowStepRun;
   } | null>(null);
+  /** Report view modal — displays rendered report output using RenderView. */
+  const [viewReport, setViewReport] = useState<{
+    report: BFlowWorkflowReport;
+    content?: string;
+  } | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // ── Generative Menu state ──────────────────────────────────────────
   const [generativeMenuOption, setGenerativeMenuOption] =
     useState<GenerativeMenuOption>(null);
 
-  // ── Parse YAML and extract jobs + variables ───────────────────────
+  // ── Parse YAML and extract jobs, variables + reports ──────────────
   const parseAndSetJobs = useCallback((yaml: string) => {
     try {
       const parsed = parseYaml(yaml);
@@ -165,10 +268,13 @@ export default function BFlowWorkflowStudio({
       // `vars.{name}` input resolution reflects unsaved edits.
       const variables: BFlowVariable[] = parsed?.variables ?? [];
       setParsedVariables(variables);
+      // Extract reports from the live YAML (displayed below jobs in pipeline view)
+      const reports: BFlowWorkflowReport[] = parsed?.reports ?? [];
+      setParsedReports(reports);
       setYamlError(null);
     } catch {
       setYamlError("Invalid YAML — pipeline display may be incomplete");
-      // Keep previous jobs/variables visible if parsing fails
+      // Keep previous jobs/variables/reports visible if parsing fails
     }
   }, []);
 
@@ -312,6 +418,41 @@ export default function BFlowWorkflowStudio({
       parseAndSetJobs(newYaml);
     },
     [parseAndSetJobs],
+  );
+
+  /**
+   * Resolve report content from test run step outputs.
+   * Parses the report source (e.g. "jobName.stepName.outputs.__raw__")
+   * and looks up the corresponding step run output.
+   */
+  const resolveReportContent = useCallback(
+    (
+      report: BFlowWorkflowReport,
+      stepRuns: BFlowStepRun[],
+      jobs: BFlowWorkflowJob[],
+    ): string | undefined => {
+      const source = report.source || "";
+      // Match patterns like: "jobName.stepName.outputs.__raw__" or "jobName.stepName"
+      const match = source.match(/^([^.]+)\.([^.]+?)(?:\.outputs\.([^.]+))?$/);
+      if (!match) return undefined;
+
+      const jobName = match[1];
+      const stepName = match[2];
+
+      // Find the step run by matching job name and step name
+      const stepRun = stepRuns.find((sr) => {
+        // sr.stepId could be a GUID or the step name
+        const job = jobs.find((j) => j.name === jobName || j.id === jobName);
+        if (!job) return false;
+        const step = job.steps?.find(
+          (s) => s.name === stepName || s.id === stepName || s.id === sr.stepId,
+        );
+        return step && sr.stepId === (step.id ?? step.name);
+      });
+
+      return stepRun?.output;
+    },
+    [],
   );
 
   // ── Validate YAML against workflow schema ────────────────────────
@@ -776,6 +917,7 @@ export default function BFlowWorkflowStudio({
                 <BFlowWorkflowInteractive
                   initialYaml={yamlContent}
                   onDataChange={handleInteractiveDataChange}
+                  agentPools={interactiveAgentPools}
                 />
               </div>
             </>
@@ -896,6 +1038,11 @@ export default function BFlowWorkflowStudio({
                               </>
                             )}
                           </p>
+                          {currentJobRunEffective?.aiProvider && currentJobRunEffective?.aiModel && (
+                            <p className="text-xs text-violet-500 font-medium mt-0.5">
+                              {currentJobRunEffective.aiProvider} — {currentJobRunEffective.aiModel}
+                            </p>
+                          )}
                         </div>
                         {currentJobRunEffective && (
                           <BFlowStatusBadge
@@ -977,6 +1124,53 @@ export default function BFlowWorkflowStudio({
                 )}
               </div>
             )}
+
+            {/* ── Reports Section ──────────────────────────────────────── */}
+            {parsedReports.length > 0 && (
+              <div className="mt-8 border-t border-default-100 pt-6">
+                <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5" />
+                  Reports ({parsedReports.length})
+                </h3>
+                <div className="space-y-2">
+                  {parsedReports.map((report, idx) => {
+                    // Parse source to extract job.step path for display
+                    const sourceDisplay = report.source || "—";
+                    return (
+                      <div
+                        key={report.name ?? `report-${idx}`}
+                        className="bg-background rounded-lg border border-default-100 p-3 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {report.label || report.name}
+                          </p>
+                          <p className="text-xs text-default-400 truncate font-mono">
+                            source: {sourceDisplay}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="min-w-0 px-2 text-default-400 shrink-0"
+                          onPress={() => {
+                            // Resolve report content from test run step outputs
+                            const content = resolveReportContent(
+                              report,
+                              testStepRuns,
+                              currentJobs,
+                            );
+                            setViewReport({ report, content });
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1013,6 +1207,19 @@ export default function BFlowWorkflowStudio({
           onClose={() => setViewComputedInputs(null)}
           step={viewComputedInputs.step}
           stepRun={viewComputedInputs.stepRun}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+           REPORT VIEW MODAL — Renders report output using RenderView
+           ═══════════════════════════════════════════════════════════════ */}
+      {viewReport && (
+        <BFlowReportViewModal
+          open={!!viewReport}
+          onClose={() => setViewReport(null)}
+          report={viewReport.report}
+          content={viewReport.content}
+          jobs={currentJobs}
         />
       )}
 

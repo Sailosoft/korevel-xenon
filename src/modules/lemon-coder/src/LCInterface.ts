@@ -336,6 +336,14 @@ export const LC_SETTINGS_FIELDS: LCSettingsField[] = [
     type: "boolean",
     defaultValue: "true",
   },
+  {
+    key: "editor.useCodeMirror",
+    label: "Use CodeMirror 6 as Code Editor",
+    description:
+      "Switch to CodeMirror 6 instead of Monaco Editor. Useful on mobile or for faster load times.",
+    type: "boolean",
+    defaultValue: "false",
+  },
 ];
 
 // ── Deepstash ─────────────────────────────────────────────────────────────────
@@ -367,6 +375,7 @@ export interface LCDeepstashItem {
 /** A single instruction snippet stored in the instruction stash */
 export interface LCInstructionStashItem {
   id: string;
+  projectId: string;
   name: string;
   content: string;
   addedAt: Date;

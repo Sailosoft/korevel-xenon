@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { directoryOpen } from "browser-fs-access";
 import "./LCStyle.css";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -14,7 +14,7 @@ import { useLCFileSystem } from "./useLCFileSystem";
 import { useLCChat } from "./useLCChat";
 import LCMenu from "./LCMenu";
 import LCSidebar from "./LCSidebar";
-import LCMainContent from "./LCMainContent";
+import LCMainContent, { type LCMainContentHandle } from "./LCMainContent";
 import LCRightSidebar from "./LCRightSidebar";
 import LCHelixConfigModal from "./LCHelixConfigModal";
 import LCSettingsModal from "./LCSettingsModal";
@@ -28,6 +28,7 @@ import type {
   LCDeepstash,
   LCDeepstashMergeStrategy,
   LCChatSession,
+  LCChatMessage,
   LCFileActionResult,
   LCFileEdit,
   LCFavoriteGroup,
@@ -37,6 +38,7 @@ import type {
 import { resolveFilePath, DEFAULT_FAVORITE_GROUP_NAME } from "./LCInterface";
 import { LCTheme } from "./LCTheme";
 import { applySearchReplace } from "./useLCChat";
+import { setSendToChatHandler } from "./LCFileTree.ContextMenu";
 
 export default function LCApp() {
   const {
@@ -112,6 +114,20 @@ export default function LCApp() {
     return true;
   });
   const isOpeningRef = useRef(false);
+  const mainContentRef = useRef<LCMainContentHandle>(null);
+
+  // Set the module-level send-to-chat handler so the context menu can append text to chat input
+  const handleSendToChat = useCallback((text: string) => {
+    console.log("[LCApp] handleSendToChat called with:", text, "mainContentRef:", !!mainContentRef.current);
+    if (mainContentRef.current) {
+      mainContentRef.current.appendToInput(text);
+    } else {
+      console.warn("[LCApp] mainContentRef.current is null!");
+    }
+  }, []);
+
+  // Register handler at module level so context menu can access it without prop chain
+  setSendToChatHandler(handleSendToChat);
 
   // Live query for stash items
   const stashItems =
@@ -149,15 +165,19 @@ export default function LCApp() {
 
   // ── Instruction Stash ─────────────────────────────────────────────────────
 
-  /** Live query: instruction stash items */
+  /** Live query: instruction stash items scoped to the current project */
   const instructionStashItems: LCInstructionStashItem[] =
-    useLiveQuery(() => lcDB.getInstructions()) || [];
+    useLiveQuery(
+      () => (currentProject ? lcDB.getInstructions(currentProject.id) : []),
+      [currentProject?.id],
+    ) || [];
 
   const handleAddInstruction = useCallback(
     async (name: string, content: string) => {
-      await lcDB.addInstruction(name, content);
+      if (!currentProject) return;
+      await lcDB.addInstruction(currentProject.id, name, content);
     },
-    [],
+    [currentProject],
   );
 
   const handleRemoveInstruction = useCallback(
@@ -168,21 +188,23 @@ export default function LCApp() {
   );
 
   const handleClearInstructions = useCallback(async () => {
-    await lcDB.clearInstructions();
-  }, []);
+    if (!currentProject) return;
+    await lcDB.clearInstructions(currentProject.id);
+  }, [currentProject]);
 
   /** Context menu action: add file content to instruction stash */
   const handleAddToInstructionStash = useCallback(
     async (item: LCFileTreeItem) => {
+      if (!currentProject) return;
       try {
         const content = await readFileContent(item);
         const name = `📄 ${item.name}`;
-        await lcDB.addInstruction(name, content);
+        await lcDB.addInstruction(currentProject.id, name, content);
       } catch (err) {
         console.error("[lemon-coder] Failed to add to instruction stash:", err);
       }
     },
-    [readFileContent],
+    [currentProject, readFileContent],
   );
 
   /** Build a map of groupId → items for easy lookup */
@@ -788,6 +810,114 @@ export default function LCApp() {
     await lcDB.clearAllDeepstashes(currentProject.id);
   }, [currentProject]);
 
+  // ── Export Session ──────────────────────────────────────────────────────
+
+  /**
+   * Format a single chat message as markdown, with role heading and timestamp.
+   * Filters out error messages from export.
+   */
+  const formatMessageAsMarkdown = useCallback(
+    (msg: LCChatMessage, index: number): string => {
+      if (msg.error) return "";
+      const roleLabel = msg.role === "user" ? "User" : "AI Assistant";
+      const time = new Date(msg.timestamp).toLocaleString();
+      const lines: string[] = [];
+      lines.push(`### ${roleLabel} — ${time}`);
+      lines.push("");
+      lines.push(msg.content);
+      lines.push("");
+      if (msg.fileContents && msg.fileContents.length > 0) {
+        for (const fc of msg.fileContents) {
+          const filePath = resolveFilePath(fc);
+          lines.push(`> **${fc.ExistingFile ? "Edit" : "New"}:** \`${filePath}\``);
+          if (fc.Description) lines.push(`> ${fc.Description}`);
+        }
+        lines.push("");
+      }
+      return lines.join("\n");
+    },
+    [],
+  );
+
+  /**
+   * Generate the full markdown document for the given session, optionally
+   * including only AI responses.
+   */
+  const generateSessionMarkdown = useCallback(
+    (session: LCChatSession, mode: "all" | "ai-only"): string => {
+      const lines: string[] = [];
+      lines.push(`# ${session.title}`);
+      lines.push("");
+      lines.push(`*Exported on ${new Date().toLocaleString()}*`);
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+
+      const msgs = mode === "ai-only"
+        ? session.messages.filter((m) => m.role === "assistant")
+        : session.messages;
+
+      if (msgs.length === 0) {
+        lines.push("*No messages to export.*");
+        lines.push("");
+        return lines.join("\n");
+      }
+
+      let msgIndex = 0;
+      for (const msg of msgs) {
+        const block = formatMessageAsMarkdown(msg, msgIndex);
+        if (block) {
+          lines.push(block);
+          msgIndex++;
+        }
+      }
+
+      return lines.join("\n");
+    },
+    [formatMessageAsMarkdown],
+  );
+
+  const handleExportSession = useCallback(
+    async (
+      sessionId: string,
+      mode: "all" | "ai-only",
+      fileName: string,
+      saveDirectory: string,
+    ) => {
+      const session = chatSessions.find((s) => s.id === sessionId);
+      if (!session) return;
+
+      const markdown = generateSessionMarkdown(session, mode);
+      const finalName = fileName.endsWith(".md") ? fileName : `${fileName}.md`;
+
+      if (saveDirectory) {
+        // Write to project directory
+        const filePath = `${saveDirectory}/${finalName}`.replace(/\/+/g, "/");
+        try {
+          await writeFile(filePath, markdown);
+          console.log(`[lemon-coder] Export written: ${filePath}`);
+        } catch (err) {
+          console.error("[lemon-coder] Export write failed, falling back to download:", err);
+          downloadMarkdown(markdown, finalName);
+        }
+      } else {
+        downloadMarkdown(markdown, finalName);
+      }
+    },
+    [chatSessions, generateSessionMarkdown, writeFile],
+  );
+
+  /** Download markdown content as a .md file blob */
+  function downloadMarkdown(content: string, fileName: string) {
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Landing screen when no project is selected
   if (!currentProject) {
     return (
@@ -873,10 +1003,13 @@ export default function LCApp() {
           isFavoritesLoading={false}
           // Instruction stash
           onAddToInstructionStash={handleAddToInstructionStash}
+          // Send to Chat
+          onSendToChat={handleSendToChat}
         />
 
         {/* Main Content */}
         <LCMainContent
+          ref={mainContentRef}
           selectedFile={selectedFile}
           selectedFileContent={selectedFileContent}
           isDirty={isDirty}
@@ -931,6 +1064,7 @@ export default function LCApp() {
           onAddInstruction={handleAddInstruction}
           onRemoveInstruction={handleRemoveInstruction}
           onClearInstructions={handleClearInstructions}
+          onExportSession={handleExportSession}
         />
       </div>
 

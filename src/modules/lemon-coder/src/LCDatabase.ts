@@ -40,7 +40,7 @@ export class LCDatabase extends Dexie {
     // If you add a new table, create the NEXT version number with the new table included.
     // Existing databases will only create new tables when a higher version is declared.
 
-    this.version(7).stores({
+    this.version(8).stores({
       projects: "id, name, lastOpened",
       projectHandles: "projectId",
       chatSessions: "id, projectId, title, createdAt",
@@ -51,7 +51,7 @@ export class LCDatabase extends Dexie {
       deepstashItems: "id, deepstashId, path",
       favoriteGroups: "id, projectId, name, createdAt",
       favoriteItems: "id, groupId, projectId, path, addedAt",
-      instructionStash: "id, name, addedAt",
+      instructionStash: "id, projectId, name, addedAt",
       appSettings: "key",
     });
 
@@ -613,9 +613,10 @@ export class LCDatabase extends Dexie {
   /**
    * Add an instruction snippet to the instruction stash.
    */
-  async addInstruction(name: string, content: string): Promise<LCInstructionStashItem> {
+  async addInstruction(projectId: string, name: string, content: string): Promise<LCInstructionStashItem> {
     const item: LCInstructionStashItem = {
       id: uuidv4(),
+      projectId,
       name,
       content,
       addedAt: new Date(),
@@ -625,9 +626,17 @@ export class LCDatabase extends Dexie {
   }
 
   /**
-   * Get all instruction stash items, most recent first.
+   * Get instruction stash items, most recent first.
+   * If projectId is provided, only returns items scoped to that project.
    */
-  async getInstructions(): Promise<LCInstructionStashItem[]> {
+  async getInstructions(projectId?: string): Promise<LCInstructionStashItem[]> {
+    if (projectId) {
+      return this.instructionStash
+        .where("projectId")
+        .equals(projectId)
+        .reverse()
+        .sortBy("addedAt");
+    }
     return this.instructionStash
       .orderBy("addedAt")
       .reverse()
@@ -642,10 +651,23 @@ export class LCDatabase extends Dexie {
   }
 
   /**
-   * Clear all instruction stash items.
+   * Clear instruction stash items.
+   * If projectId is provided, only clears instructions scoped to that project.
+   * Otherwise, clears all instructions across all projects.
    */
-  async clearInstructions(): Promise<void> {
-    await this.instructionStash.clear();
+  async clearInstructions(projectId?: string): Promise<void> {
+    if (projectId) {
+      const items = await this.instructionStash
+        .where("projectId")
+        .equals(projectId)
+        .toArray();
+      const ids = items.map((i) => i.id);
+      if (ids.length > 0) {
+        await this.instructionStash.bulkDelete(ids);
+      }
+    } else {
+      await this.instructionStash.clear();
+    }
   }
 
   // ── App Settings helpers ────────────────────────────────────────────────────

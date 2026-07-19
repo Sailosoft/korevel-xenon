@@ -82,6 +82,7 @@ export class BFlowAIEngine {
       status: "running" as BFlowRunStatus,
       prompt: pipeline.prompt,
       variablesSnapshot: [],
+      snapshot: undefined,
       startedAt: now,
       createdAt: now,
       updatedAt: now,

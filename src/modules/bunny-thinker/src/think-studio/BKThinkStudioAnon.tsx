@@ -10,13 +10,12 @@
 import React, { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import RenderView from "@/src/modules/render/src/components/RenderModule.View";
+import type { RenderFormat } from "@/src/modules/render/src/RenderModule.Types";
 import Editor from "@monaco-editor/react";
-import { Button, Select, ListBox } from "@heroui/react";
+import { Button, Select, ListBox, toast } from "@heroui/react";
 import {
-  ArrowLeft,
   Brain,
-  Plus,
-  Trash2,
   RotateCcw,
   MessageSquareText,
   Download,
@@ -25,9 +24,7 @@ import {
   Settings2,
   ChevronDown,
   ChevronRight,
-  Info,
   Sparkles,
-  GripVertical,
   List,
   Pencil,
   Link2,
@@ -38,9 +35,9 @@ import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
 import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
-import { BKCraftFormatDescriptions } from "../craft/BKCraft.Types";
 import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
+import BKThoughtConfigPanel from "../thoughts/BKThoughtConfigPanel";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -48,15 +45,24 @@ export interface BKThinkStudioAnonProps {
   aiConfig: HelixAIOption;
 }
 
-// ─── Step Panel Component ────────────────────────────────────────────────
+// ─── Map BKCraftFormat → RenderFormat for common formats ───────────────
+const BKCRAFT_TO_RENDER_FORMAT: Partial<Record<BKCraftFormat, RenderFormat>> = {
+  markdown: "markdown",
+  html: "html",
+  tailwind: "tailwind",
+  csv: "csv",
+  json: "json",
+  mermaid: "mermaid",
+  plain: "plain",
+};
 
 function renderCraftContent(
   content: string,
   craftFormat: BKCraftFormat,
   viewMode: "view" | "raw",
 ) {
-  // Raw mode OR markdown: always render through ReactMarkdown
-  if (viewMode === "raw" || craftFormat === "markdown") {
+  // Raw mode: render through ReactMarkdown
+  if (viewMode === "raw") {
     return (
       <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
         <ReactMarkdown
@@ -110,40 +116,20 @@ function renderCraftContent(
     );
   }
 
-  // View mode for non-markdown formats — use the Craft Engine
+  // View mode: use RenderView for common formats, fallback for craft-only formats
+  const renderFormat = BKCRAFT_TO_RENDER_FORMAT[craftFormat];
+  if (renderFormat) {
+    return (
+      <div className="min-h-[120px]">
+        <RenderView format={renderFormat} content={content} />
+      </div>
+    );
+  }
+
+  // View mode for craft-only formats — use the Craft Engine + existing renderers
   const processed = BKCraftEngine.process(content, craftFormat);
 
   switch (craftFormat) {
-    case "html":
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-    case "tailwind":
-      return (
-        <iframe
-          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${content}</body></html>`}
-          className="w-full border-0 rounded-lg"
-          title="Tailwind Preview"
-          style={{ minHeight: 400 }}
-        />
-      );
-    case "csv":
-      return (
-        <div
-          className="prose prose-sm max-w-none overflow-x-auto"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-    case "json":
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
     case "imageList":
       return (
         <div
@@ -151,16 +137,6 @@ function renderCraftContent(
           dangerouslySetInnerHTML={{ __html: processed.parsed }}
         />
       );
-    case "mermaid": {
-      // Strip ```mermaid fences — pass raw diagram value only
-      const mermaidMatch = content.match(/```mermaid\n?([\s\S]*?)```/);
-      const diagram = mermaidMatch ? mermaidMatch[1].trim() : content.trim();
-      return (
-        <div className="bg-white p-4 rounded-lg">
-          <MermaidRenderer chart={diagram} />
-        </div>
-      );
-    }
     case "architecture":
       return (
         <div
@@ -238,12 +214,6 @@ function renderCraftContent(
             }}
           />
         </div>
-      );
-    case "plain":
-      return (
-        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
-          {content}
-        </pre>
       );
     default:
       return (
@@ -447,6 +417,43 @@ export default function BKThinkStudioAnon({
 
   // ── Has thinking been started? ──────────────────────────────────────
   const hasThinkingStarted = conversation.length > 0;
+
+  // ── Adapt steps/handlers for BKThoughtConfigPanel (craftFormat bridge) ──
+  const craftConfigMapForFormat = useMemo(
+    () => new Map(craftConfigs.map((c) => [c.id, c.format])),
+    [craftConfigs],
+  );
+
+  const panelSteps = useMemo(
+    () =>
+      steps.map((s) => ({
+        id: s.id,
+        name: s.name,
+        thought: s.thought,
+        order: s.order,
+        craftFormat: s.craftId
+          ? craftConfigMapForFormat.get(s.craftId)
+          : undefined,
+      })),
+    [steps, craftConfigMapForFormat],
+  );
+
+  const handleUpdateStep = useCallback(
+    (
+      index: number,
+      field: "name" | "thought" | "craftFormat",
+      value: string,
+    ) => {
+      if (field === "craftFormat") {
+        // Find a craft config matching the selected format, or clear
+        const matchingCfg = craftConfigs.find((c) => c.format === value);
+        updateStep(index, "craftId", matchingCfg?.id ?? "");
+      } else {
+        updateStep(index, field, value);
+      }
+    },
+    [updateStep, craftConfigs],
+  );
 
   // ── Setup phase UI (before thinking starts) ────────────────────────
   if (!hasThinkingStarted && !isThinking) {
@@ -699,222 +706,19 @@ export default function BKThinkStudioAnon({
           </div>
         </section>
 
-        {/* ── Thought Editor ──────────────────────────────────────── */}
-        <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Brain size={18} className="text-purple-600" />
-            <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
-              Thought Definition
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Thought Name
-              </label>
-              <input
-                type="text"
-                value={thoughtName}
-                onChange={(e) => setThoughtName(e.target.value)}
-                placeholder="e.g. The Nature of Consciousness"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Description (optional)
-              </label>
-              <input
-                type="text"
-                value={thoughtDescription}
-                onChange={(e) => setThoughtDescription(e.target.value)}
-                placeholder="Brief description of this thought"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Thought Content / System Prompt
-              </label>
-              <textarea
-                value={thoughtContent}
-                onChange={(e) => setThoughtContent(e.target.value)}
-                placeholder="Write the main thought content or system prompt here..."
-                rows={5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none resize-y font-mono"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* ── Steps Editor ────────────────────────────────────────── */}
-        <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-amber-600" />
-              <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
-                Train of Thoughts (Steps)
-              </h3>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={addStep}
-              className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1 text-xs"
-            >
-              <Plus size={14} /> Add Step
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {steps.map((step, index) => (
-              <div
-                key={step.id}
-                className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Step {index + 1}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    isDisabled={steps.length <= 1}
-                    onPress={() => removeStep(index)}
-                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                    aria-label={`Remove step ${index + 1}`}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">
-                    Step Name
-                  </label>
-                  <input
-                    type="text"
-                    value={step.name}
-                    onChange={(e) => updateStep(index, "name", e.target.value)}
-                    placeholder="e.g. Define the problem"
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">
-                    Step Prompt
-                  </label>
-                  <textarea
-                    value={step.thought}
-                    onChange={(e) =>
-                      updateStep(index, "thought", e.target.value)
-                    }
-                    placeholder="Write the prompt for this step..."
-                    rows={3}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none resize-y font-mono"
-                  />
-                </div>
-
-                {/* ── Craft Selector ───────────────────────────────── */}
-                <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">
-                    Craft Output Format <span className="text-gray-400">(optional)</span>
-                  </label>
-                  <Select
-                    aria-label="Select craft format"
-                    value={step.craftId ?? ""}
-                    placeholder={
-                      craftConfigsLoading
-                        ? "Loading craft configs..."
-                        : craftConfigs.length === 0
-                          ? "No craft configs"
-                          : "markdown"
-                    }
-                    isDisabled={craftConfigsLoading}
-                    onChange={(val: unknown) => {
-                      const id = String(val);
-                      updateStep(index, "craftId", id);
-                    }}
-                    className="w-full"
-                  >
-                    <Select.Trigger className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      {craftConfigsLoading ? (
-                        <ListBox key="loading">
-                          <ListBox.Item
-                            key="loading-item"
-                            id="loading"
-                            textValue="Loading..."
-                            className="text-default-400 italic"
-                          >
-                            Loading craft configs...
-                          </ListBox.Item>
-                        </ListBox>
-                      ) : (
-                        <ListBox key="ready">
-                          <ListBox.Item key="" id="" textValue="markdown">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-gray-400">markdown</span>
-                              <span className="text-[10px] text-gray-400">Standard Markdown — plain readable output</span>
-                            </div>
-                          </ListBox.Item>
-                          {craftConfigs.map((cfg) => {
-                            const formatDesc = BKCraftFormatDescriptions[cfg.format];
-                            return (
-                              <ListBox.Item key={cfg.id} id={cfg.id} textValue={cfg.format}>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium">{cfg.format}</span>
-                                  {cfg.description && (
-                                    <span className="text-xs text-gray-400 mt-0.5 truncate max-w-[280px]">
-                                      {cfg.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </ListBox.Item>
-                            );
-                          })}
-                        </ListBox>
-                      )}
-                    </Select.Popover>
-                  </Select>
-                  {(() => {
-                    const selectedCfg = step.craftId
-                      ? craftConfigs.find((c) => c.id === step.craftId)
-                      : null;
-                    if (!selectedCfg) return null;
-                    const formatDesc = BKCraftFormatDescriptions[selectedCfg.format];
-                    return (
-                      <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
-                        {(selectedCfg.description || formatDesc) && (
-                          <p className="text-xs text-amber-800 leading-relaxed">
-                            {selectedCfg.description || formatDesc}
-                          </p>
-                        )}
-                        {selectedCfg.instruction && (
-                          <div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-                              Craft Prompt
-                            </span>
-                            <p className="text-xs text-amber-700 mt-0.5 font-mono leading-relaxed whitespace-pre-wrap line-clamp-3">
-                              {selectedCfg.instruction}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* ── Reusable Config Panel (thought definition + steps) ──── */}
+        <BKThoughtConfigPanel
+          thoughtName={thoughtName}
+          onThoughtNameChange={setThoughtName}
+          thoughtDescription={thoughtDescription}
+          onThoughtDescriptionChange={setThoughtDescription}
+          thoughtContent={thoughtContent}
+          onThoughtContentChange={setThoughtContent}
+          steps={panelSteps}
+          onAddStep={addStep}
+          onRemoveStep={removeStep}
+          onUpdateStep={handleUpdateStep}
+        />
 
         {/* ── Thinker Selector ────────────────────────────────────── */}
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
@@ -1176,219 +980,18 @@ export default function BKThinkStudioAnon({
             </span>
           </div>
 
-          {/* ── Thought Editor ──────────────────────────────────────── */}
-          <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <Brain size={18} className="text-purple-600" />
-              <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
-                Thought Definition
-              </h4>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Thought Name
-                </label>
-                <input
-                  type="text"
-                  value={thoughtName}
-                  onChange={(e) => setThoughtName(e.target.value)}
-                  placeholder="e.g. The Nature of Consciousness"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Description (optional)
-                </label>
-                <input
-                  type="text"
-                  value={thoughtDescription}
-                  onChange={(e) => setThoughtDescription(e.target.value)}
-                  placeholder="Brief description of this thought"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Thought Content / System Prompt
-                </label>
-                <textarea
-                  value={thoughtContent}
-                  onChange={(e) => setThoughtContent(e.target.value)}
-                  placeholder="Write the main thought content or system prompt here..."
-                  rows={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none resize-y font-mono"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* ── Steps Editor ────────────────────────────────────────── */}
-          <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-amber-600" />
-                <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
-                  Train of Thoughts (Steps)
-                </h4>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={addStep}
-                className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1 text-xs"
-              >
-                <Plus size={14} /> Add Step
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {steps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Step {index + 1}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      isDisabled={steps.length <= 1}
-                      onPress={() => removeStep(index)}
-                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                      aria-label={`Remove step ${index + 1}`}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-0.5">
-                      Step Name
-                    </label>
-                    <input
-                      type="text"
-                      value={step.name}
-                      onChange={(e) =>
-                        updateStep(index, "name", e.target.value)
-                      }
-                      placeholder="e.g. Define the problem"
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-0.5">
-                      Step Prompt
-                    </label>
-                    <textarea
-                      value={step.thought}
-                      onChange={(e) =>
-                        updateStep(index, "thought", e.target.value)
-                      }
-                      placeholder="Write the prompt for this step..."
-                      rows={3}
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none resize-y font-mono"
-                    />
-                  </div>
-
-                  {/* ── Craft Selector ───────────────────────────────── */}
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-0.5">
-                      Craft Output Format <span className="text-gray-400">(optional)</span>
-                    </label>
-                    <Select
-                      aria-label="Select craft format"
-                      value={step.craftId ?? ""}
-                      placeholder={
-                        craftConfigsLoading
-                          ? "Loading craft configs..."
-                          : craftConfigs.length === 0
-                            ? "No craft configs"
-                            : "markdown"
-                      }
-                      isDisabled={craftConfigsLoading}
-                      onChange={(val: unknown) => {
-                        const id = String(val);
-                        updateStep(index, "craftId", id);
-                      }}
-                      className="w-full"
-                    >
-                      <Select.Trigger className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-                        <Select.Value />
-                        <Select.Indicator />
-                      </Select.Trigger>
-                      <Select.Popover>
-                        {craftConfigsLoading ? (
-                          <ListBox key="loading">
-                            <ListBox.Item
-                              key="loading-item"
-                              id="loading"
-                              textValue="Loading..."
-                              className="text-default-400 italic"
-                            >
-                              Loading craft configs...
-                            </ListBox.Item>
-                          </ListBox>
-                        ) : (
-                          <ListBox key="ready">
-                            <ListBox.Item key="" id="" textValue="markdown">
-                              <div className="flex flex-col">
-                                <span className="text-sm text-gray-400">markdown</span>
-                                <span className="text-[10px] text-gray-400">Standard Markdown — plain readable output</span>
-                              </div>
-                            </ListBox.Item>
-                            {craftConfigs.map((cfg) => {
-                              const formatDesc = BKCraftFormatDescriptions[cfg.format];
-                              return (
-                                <ListBox.Item key={cfg.id} id={cfg.id} textValue={cfg.format}>
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-medium">{cfg.format}</span>
-                                    {cfg.description && (
-                                      <span className="text-xs text-gray-400 mt-0.5 truncate max-w-[280px]">
-                                        {cfg.description}
-                                      </span>
-                                    )}
-                                  </div>
-                                </ListBox.Item>
-                              );
-                            })}
-                          </ListBox>
-                        )}
-                      </Select.Popover>
-                    </Select>
-                    {(() => {
-                      const selectedCfg = step.craftId
-                        ? craftConfigs.find((c) => c.id === step.craftId)
-                        : null;
-                      if (!selectedCfg) return null;
-                      const formatDesc = BKCraftFormatDescriptions[selectedCfg.format];
-                      return (
-                        <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
-                          {(selectedCfg.description || formatDesc) && (
-                            <p className="text-xs text-amber-800 leading-relaxed">
-                              {selectedCfg.description || formatDesc}
-                            </p>
-                          )}
-                          {selectedCfg.instruction && (
-                            <div>
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-                                Craft Prompt
-                              </span>
-                              <p className="text-xs text-amber-700 mt-0.5 font-mono leading-relaxed whitespace-pre-wrap line-clamp-3">
-                                {selectedCfg.instruction}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <BKThoughtConfigPanel
+            thoughtName={thoughtName}
+            onThoughtNameChange={setThoughtName}
+            thoughtDescription={thoughtDescription}
+            onThoughtDescriptionChange={setThoughtDescription}
+            thoughtContent={thoughtContent}
+            onThoughtContentChange={setThoughtContent}
+            steps={panelSteps}
+            onAddStep={addStep}
+            onRemoveStep={removeStep}
+            onUpdateStep={handleUpdateStep}
+          />
 
           <p className="text-xs text-purple-500 italic">
             Click <strong>&ldquo;Rethink All&rdquo;</strong> above to run the
@@ -1564,58 +1167,19 @@ export default function BKThinkStudioAnon({
           </button>
           {showProcessedOutput && (
             <div className="p-4 bg-white border-t border-gray-200">
-              {viewMode === "view" && craftFormat !== "markdown" ? (
-                /* ── View mode: format-specific rendering ── */
+              {viewMode === "view" && !BKCRAFT_TO_RENDER_FORMAT[craftFormat] ? (
+                /* ── View mode: craft-only formats (no RenderView equivalent) ── */
                 (() => {
                   const displayContent = rawResult || result;
+                  const processed = BKCraftEngine.process(displayContent, craftFormat);
                   switch (craftFormat) {
-                    case "html":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: displayContent }}
-                        />
-                      );
-                    case "tailwind":
-                      return (
-                        <iframe
-                          srcDoc={`<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body>${displayContent}</body></html>`}
-                          className="w-full border-0 rounded-lg"
-                          title="Tailwind Preview"
-                          style={{ minHeight: 400 }}
-                        />
-                      );
-                    case "csv":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none overflow-x-auto"
-                          dangerouslySetInnerHTML={{ __html: result }}
-                        />
-                      );
-                    case "json":
-                      return (
-                        <div
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
-                        />
-                      );
                     case "imageList":
                       return (
                         <div
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
+                          dangerouslySetInnerHTML={{ __html: processed.parsed }}
                         />
                       );
-                    case "mermaid": {
-                      // Strip ```mermaid fences — pass raw diagram value only
-                      const mermaidMatch = displayContent.match(/```mermaid\n?([\s\S]*?)```/);
-                      const diagram = mermaidMatch ? mermaidMatch[1].trim() : displayContent.trim();
-                      return (
-                        <div className="bg-white p-4 rounded-lg">
-                          <MermaidRenderer chart={diagram} />
-                        </div>
-                      );
-                    }
                     case "architecture":
                       return (
                         <div
@@ -1694,72 +1258,74 @@ export default function BKThinkStudioAnon({
                           />
                         </div>
                       );
-                    case "plain":
-                      return (
-                        <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
-                          {displayContent}
-                        </pre>
-                      );
                     default:
                       return (
                         <div
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: result }}
+                          dangerouslySetInnerHTML={{ __html: processed.parsed }}
                         />
                       );
                   }
                 })()
               ) : (
-                /* ── Raw mode OR markdown: show raw content via ReactMarkdown ── */
-                <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
-                  <ReactMarkdown
-                    components={{
-                      code({ className, children, ...props }) {
-                        const isInline = !className;
-                        const match = /language-(\w+)/.exec(className || "");
-                        const codeStr = String(children).replace(/\n$/, "");
+                viewMode === "raw" ? (
+                  <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const isInline = !className;
+                          const match = /language-(\w+)/.exec(className || "");
+                          const codeStr = String(children).replace(/\n$/, "");
 
-                        if (isInline) {
-                          return (
-                            <code
-                              className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        }
-
-                        return (
-                          <div className="relative group">
-                            <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                              <span>{match?.[1] || "code"}</span>
-                              <button
-                                onClick={() =>
-                                  navigator.clipboard.writeText(codeStr)
-                                }
-                                className="hover:text-white transition-colors"
-                                title="Copy code"
+                          if (isInline) {
+                            return (
+                              <code
+                                className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
+                                {...props}
                               >
-                                Copy
-                              </button>
-                            </div>
-                            <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                              <code className={className} {...props}>
                                 {children}
                               </code>
-                            </pre>
-                          </div>
-                        );
-                      },
-                      pre({ children }) {
-                        return <>{children}</>;
-                      },
-                    }}
-                  >
-                    {rawResult || result}
-                  </ReactMarkdown>
-                </div>
+                            );
+                          }
+
+                          return (
+                            <div className="relative group">
+                              <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
+                                <span>{match?.[1] || "code"}</span>
+                                <button
+                                  onClick={() =>
+                                    navigator.clipboard.writeText(codeStr)
+                                  }
+                                  className="hover:text-white transition-colors"
+                                  title="Copy code"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              </pre>
+                            </div>
+                          );
+                        },
+                        pre({ children }) {
+                          return <>{children}</>;
+                        },
+                      }}
+                    >
+                      {rawResult || result}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="min-h-[120px]">
+                    <RenderView
+                      format={BKCRAFT_TO_RENDER_FORMAT[craftFormat] ?? "markdown"}
+                      content={rawResult || result}
+                    />
+                  </div>
+                )
               )}
             </div>
           )}
@@ -1915,6 +1481,18 @@ export default function BKThinkStudioAnon({
           onThinkerChange={(val: unknown) => {
             const id = String(val);
             selectThinker(id);
+          }}
+          onClearLastThought={() => {
+            if (selectedThought?.id) {
+              try {
+                localStorage.removeItem(
+                  `bunny-last-think-${selectedThought.id}`,
+                );
+                toast.success("Last thought cleared");
+              } catch {
+                // localStorage may not be available
+              }
+            }
           }}
         />
       )}

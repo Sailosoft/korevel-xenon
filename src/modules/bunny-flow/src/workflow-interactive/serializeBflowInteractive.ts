@@ -31,20 +31,16 @@ export function serializeBflowInteractive(
     });
   }
 
+  if (data.agentPoolSlugs.length > 0) {
+    workflow.agentPools = data.agentPoolSlugs;
+  }
+
   if (data.agents.length > 0) {
     workflow.agents = data.agents.map((a) => {
       const entry: Record<string, unknown> = { name: a.name, prompt: a.prompt };
       if (a.role) entry.role = a.role;
       return entry;
     });
-  }
-
-  if (data.reports.length > 0) {
-    workflow.reports = data.reports.map((r) => ({
-      name: r.name,
-      label: r.label,
-      source: r.source,
-    }));
   }
 
   workflow.jobs = data.jobs.map((j) => {
@@ -92,6 +88,15 @@ export function serializeBflowInteractive(
     }
     return job;
   });
+
+  // Reports go AFTER jobs in the YAML output
+  if (data.reports.length > 0) {
+    workflow.reports = data.reports.map((r) => ({
+      name: r.name,
+      label: r.label,
+      source: r.source,
+    }));
+  }
 
   try {
     return stringifyYaml(workflow, {

@@ -79,6 +79,8 @@ export const BFlowPipelineReportSchema = z.object({
   id: GuidSchema,
   /** Reference to BFlowPipeline */
   pipelineId: z.string(),
+  /** Reference to BFlowPipelineRun */
+  runId: z.string(),
   /** GUID reference to BFlowReportTemplate */
   templateId: z.string(),
   /** GUID reference to BFlowDefinition */
@@ -89,6 +91,12 @@ export const BFlowPipelineReportSchema = z.object({
   storeId: z.string(),
   /** Type of the report */
   type: BFlowPipelineReportTypeSchema,
+  /** Human-readable title for this saved report */
+  title: z.string().optional(),
+  /** Filename for download (without extension) */
+  filename: z.string().optional(),
+  /** The full generated report content (HTML or markdown) */
+  content: z.string().optional(),
   /** Created timestamp */
   createdAt: z.date(),
   /** Updated timestamp */

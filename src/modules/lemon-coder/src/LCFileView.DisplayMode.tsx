@@ -1,23 +1,37 @@
 // ───────────────────────────────────────────────────────────────────────────────
 // Lemon Coder — LCFileView.DisplayMode Sub-Component
 // Renders file content based on display mode: Monaco editor for source,
-// ReactMarkdown for .md files, MermaidRenderer for .mermaid/.mmd files,
-// and an iframe with blob URL for .html files.
+// or the Render Module's RenderView for previewable files (markdown, mermaid,
+// mindmap, html, etc.).
 // ───────────────────────────────────────────────────────────────────────────────
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import MermaidRenderer from "@/src/modules/bunny-thinker/src/components/MermaidRenderer";
+import { useLiveQuery } from "dexie-react-hooks";
+import { lcDB } from "./LCDatabase";
+import { RenderView, registerBuiltinAdapters } from "@/src/modules/render";
+import type { RenderFormat, RenderTableColors } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
+import type { Components } from "react-markdown";
 
-// ── Dynamically import Monaco Editor to avoid SSR issues ────────────────────
+// ── Dynamically import editors to avoid SSR issues ─────────────────────────
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.default),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full text-xs text-[#858585]">
+        Loading Editor...
+      </div>
+    ),
+  },
+);
+
+const CodeMirrorEditor = dynamic(
+  () => import("./LCCodeMirrorEditor").then((mod) => mod.default),
   {
     ssr: false,
     loading: () => (
@@ -68,7 +82,7 @@ export function getFileExt(fileName: string): string {
 }
 
 export function isMarkdownFile(fileName: string): boolean {
-  return getFileExt(fileName) === "md";
+  return getFileExt(fileName) === "md" && !fileName.toLowerCase().endsWith(".mm.md");
 }
 
 export function isMermaidFile(fileName: string): boolean {
@@ -76,12 +90,26 @@ export function isMermaidFile(fileName: string): boolean {
   return ext === "mermaid" || ext === "mmd";
 }
 
+export function isMindmapFile(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith(".mm.md");
+}
+
 export function isHtmlFile(fileName: string): boolean {
   return getFileExt(fileName) === "html";
 }
 
 export function canPreviewFile(fileName: string): boolean {
-  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isHtmlFile(fileName);
+  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isMindmapFile(fileName) || isHtmlFile(fileName);
+}
+
+// ── Map file name to RenderFormat ───────────────────────────────────────────
+
+function getRenderFormat(fileName: string): RenderFormat {
+  if (isMermaidFile(fileName)) return "mermaid";
+  if (isMindmapFile(fileName)) return "mindmap";
+  if (isMarkdownFile(fileName)) return "markdown";
+  if (isHtmlFile(fileName)) return "html";
+  return "plain";
 }
 
 // ── Display mode type ───────────────────────────────────────────────────────
@@ -107,6 +135,185 @@ export interface LCFileViewDisplayModeProps {
   wordWrap?: boolean;
 }
 
+// ── Lemon Coder table colours (CSV preview) ───────────────────────────────────
+
+const lemonCoderTableColors: RenderTableColors = {
+  headerBackground: "#2d2d2d",
+  headerColor: "#e5c07b",
+  border: "#444444",
+  cellColor: "#d4d4d4",
+  rowAlternateBackground: "#1a1a1a",
+};
+
+// ── Lemon Coder markdown theme (dark code-editor aesthetic) ──────────────────
+
+const lemonCoderMarkdownComponentsBase: Components = {
+  h1: ({ children, ...props }) => (
+    <h1 {...props} style={{
+      fontSize: "1.25rem",
+      fontWeight: 700,
+      color: "#e5c07b",
+      marginTop: "1.5rem",
+      marginBottom: "0.75rem",
+      paddingBottom: "0.25rem",
+      borderBottom: "1px solid #333333",
+    }}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }) => (
+    <h2 {...props} style={{ fontSize: "1.1rem", fontWeight: 700, color: "#e5c07b", marginTop: "1.25rem", marginBottom: "0.5rem" }}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3 {...props} style={{ fontSize: "1rem", fontWeight: 600, color: "#d4d4d4", marginTop: "1rem", marginBottom: "0.25rem" }}>
+      {children}
+    </h3>
+  ),
+  h4: ({ children, ...props }) => (
+    <h4 {...props} style={{ fontSize: "0.9rem", fontWeight: 600, color: "#d4d4d4", marginTop: "0.75rem", marginBottom: "0.25rem" }}>
+      {children}
+    </h4>
+  ),
+  p: ({ children, ...props }) => (
+    <p {...props} style={{ margin: "0.5rem 0", color: "#d4d4d4", lineHeight: 1.7 }}>{children}</p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul {...props} style={{ listStyle: "disc", paddingLeft: "1.5rem", margin: "0.5rem 0", color: "#d4d4d4" }}>{children}</ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol {...props} style={{ listStyle: "decimal", paddingLeft: "1.5rem", margin: "0.5rem 0", color: "#d4d4d4" }}>{children}</ol>
+  ),
+  code: ({ className, children, ...props }) => {
+    const isInline = !className;
+    return isInline ? (
+      <code {...props} style={{
+        background: "#2d2d2d",
+        color: "#e06c75",
+        padding: "0.125rem 0.375rem",
+        borderRadius: "4px",
+        fontSize: "0.75rem",
+        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+      }}>
+        {children}
+      </code>
+    ) : (
+      <code {...props} style={{
+        display: "block",
+        background: "#1a1a1a",
+        color: "#abb2bf",
+        padding: "0.75rem",
+        borderRadius: "8px",
+        fontSize: "0.75rem",
+        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+        overflowX: "auto",
+        margin: "0.75rem 0",
+        border: "1px solid #333333",
+      }}>
+        {children}
+      </code>
+    );
+  },
+};
+
+function LemonCoderPreWithCopy({ children, ...props }: React.ComponentPropsWithoutRef<"pre">) {
+  const preRef = useRef<HTMLPreElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (preRef.current) {
+      const text = preRef.current.textContent || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard write failed — silently ignore
+      }
+    }
+  }, []);
+
+  return (
+    <div style={{ position: "relative", margin: "0.75rem 0" }}>
+      <button
+        onClick={handleCopy}
+        title="Copy code block"
+        style={{
+          position: "absolute",
+          top: "0.5rem",
+          right: "0.5rem",
+          zIndex: 1,
+          background: "#2d2d2d",
+          border: "1px solid #444444",
+          borderRadius: "4px",
+          color: copied ? "#98c379" : "#858585",
+          padding: "0.2rem 0.5rem",
+          fontSize: "0.7rem",
+          fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+          cursor: "pointer",
+          opacity: 0.6,
+          transition: "opacity 0.15s, color 0.15s",
+          lineHeight: 1.4,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+      <pre
+        ref={preRef}
+        {...props}
+        style={{ background: "transparent", padding: 0, margin: 0, overflowX: "auto" }}
+      >
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+const lemonCoderMarkdownComponents: Components = {
+  ...lemonCoderMarkdownComponentsBase,
+  pre: LemonCoderPreWithCopy,
+  blockquote: ({ children, ...props }) => (
+    <blockquote {...props} style={{
+      borderLeft: "4px solid #e5c07b",
+      paddingLeft: "1rem",
+      margin: "0.75rem 0",
+      fontStyle: "italic",
+      color: "#858585",
+    }}>
+      {children}
+    </blockquote>
+  ),
+  a: ({ href, children, ...props }) => (
+    <a href={href} {...props} style={{ color: "#61afef", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  hr: (props) => <hr {...props} style={{ border: "none", borderTop: "1px solid #333333", margin: "1rem 0" }} />,
+  table: ({ children, ...props }) => (
+    <div style={{ overflowX: "auto", margin: "0.75rem 0" }}>
+      <table {...props} style={{ minWidth: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }) => (
+    <th {...props} style={{
+      border: "1px solid #333333",
+      background: "#2d2d2d",
+      color: "#e5c07b",
+      padding: "0.375rem 0.75rem",
+      fontWeight: 600,
+      textAlign: "left",
+    }}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }) => (
+    <td {...props} style={{ border: "1px solid #333333", padding: "0.375rem 0.75rem", color: "#d4d4d4" }}>{children}</td>
+  ),
+};
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function LCFileViewDisplayMode({
@@ -118,32 +325,28 @@ export default function LCFileViewDisplayMode({
   onInsertToChatInput,
   wordWrap = true,
 }: LCFileViewDisplayModeProps) {
-  const mdFile = isMarkdownFile(selectedFile.name);
-  const mmdFile = isMermaidFile(selectedFile.name);
-  const htmlFile = isHtmlFile(selectedFile.name);
-
-  // ── Blob URL management for HTML preview ──────────────────────────
-  const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
-
+  // Register built-in render adapters once at mount
   useEffect(() => {
-    // Revoke previous blob URL when content changes or we leave HTML preview
-    if (htmlPreviewUrl) {
-      URL.revokeObjectURL(htmlPreviewUrl);
-      setHtmlPreviewUrl(null);
-    }
+    registerBuiltinAdapters();
+  }, []);
 
-    if (displayMode === "file" && htmlFile && content) {
-      const blob = new Blob([content], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      setHtmlPreviewUrl(url);
-    }
+  // ── Read CodeMirror toggle and editor settings from DB ────────────
+  const useCodeMirrorEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.useCodeMirror"),
+    [],
+  );
+  const useCodeMirror = useCodeMirrorEntry?.value === "true";
 
-    // Cleanup on unmount
-    return () => {
-      if (htmlPreviewUrl) URL.revokeObjectURL(htmlPreviewUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, displayMode, htmlFile]);
+  const fontSizeEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.fontSize"),
+    [],
+  );
+  const tabSizeEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.tabSize"),
+    [],
+  );
+  const cmFontSize = fontSizeEntry ? parseInt(fontSizeEntry.value, 10) : 13;
+  const cmTabSize = tabSizeEntry ? parseInt(tabSizeEntry.value, 10) : 2;
 
   // ── Refs to keep Monaco's onMount closures non-stale ──────────────
   // Monaco's onMount callback fires only once per editor lifetime.
@@ -155,155 +358,68 @@ export default function LCFileViewDisplayMode({
   const onSaveRef = useRef(onSave);
   const onInsertToChatInputRef = useRef(onInsertToChatInput);
   const selectedFileRef = useRef(selectedFile);
-  onSaveRef.current = onSave;
-  onInsertToChatInputRef.current = onInsertToChatInput;
-  selectedFileRef.current = selectedFile;
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+    onInsertToChatInputRef.current = onInsertToChatInput;
+    selectedFileRef.current = selectedFile;
+  });
+
+  // ── Editor ref for uncontrolled Monaco pattern ──────────────────
+  // Instead of passing `value={content}` (which causes cursor jumps on
+  // every keystroke re-render), we use an uncontrolled pattern: set initial
+  // content via `defaultValue`, then sync external changes only when they
+  // actually differ from the editor's current content.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null);
+
+  // ── Sync external content changes (file reload, file switch) ──
+  // When the user switches files or reloads from disk, the content prop
+  // changes but the key={selectedFile.path} may not trigger a remount
+  // in all cases. This effect compares the editor's current value against
+  // the prop and only calls setValue when they actually differ, preserving
+  // cursor position during normal typing.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const currentValue = editor.getValue();
+    if (currentValue !== content) {
+      editor.setValue(content);
+    }
+  }, [content]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {displayMode === "file" && mdFile ? (
-        /* ── Rendered Markdown Preview ───────────────────────────── */
-        <div
-          className="flex-1 overflow-y-auto p-6"
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "#555 transparent",
-          } as React.CSSProperties}
-        >
-          <div className="text-[#d4d4d4] text-sm leading-relaxed">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h1: ({ children }) => (
-                  <h1 className="text-xl font-bold text-[#e5c07b] mt-6 mb-3 pb-1 border-b border-[#333333]">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-lg font-bold text-[#e5c07b] mt-5 mb-2">
-                    {children}
-                  </h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-base font-semibold text-[#d4d4d4] mt-4 mb-1">
-                    {children}
-                  </h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="text-sm font-semibold text-[#d4d4d4] mt-3 mb-1">
-                    {children}
-                  </h4>
-                ),
-                p: ({ children }) => (
-                  <p className="my-2 text-[#d4d4d4]">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-6 my-2 text-[#d4d4d4]">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-6 my-2 text-[#d4d4d4]">{children}</ol>
-                ),
-                code: ({ className, children, ...props }) => {
-                  const isInline = !className;
-                  return isInline ? (
-                    <code className="bg-[#2d2d2d] text-[#e06c75] px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                      {children}
-                    </code>
-                  ) : (
-                    <code className="block bg-[#1a1a1a] text-[#abb2bf] p-3 rounded-lg text-xs font-mono overflow-x-auto my-3 border border-[#333333]" {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                pre: ({ children }) => (
-                  <pre className="bg-transparent p-0 m-0 overflow-x-auto">{children}</pre>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-[#e5c07b] pl-4 my-3 italic text-[#858585]">
-                    {children}
-                  </blockquote>
-                ),
-                a: ({ href, children }) => (
-                  <a href={href} className="text-[#61afef] hover:underline" target="_blank" rel="noopener noreferrer">
-                    {children}
-                  </a>
-                ),
-                hr: () => <hr className="border-[#333333] my-4" />,
-                table: ({ children }) => (
-                  <div className="overflow-x-auto my-3">
-                    <table className="min-w-full border-collapse border border-[#333333] text-sm">
-                      {children}
-                    </table>
-                  </div>
-                ),
-                th: ({ children }) => (
-                  <th className="border border-[#333333] bg-[#2d2d2d] text-[#e5c07b] px-3 py-1.5 font-semibold text-left">
-                    {children}
-                  </th>
-                ),
-                td: ({ children }) => (
-                  <td className="border border-[#333333] px-3 py-1.5 text-[#d4d4d4]">
-                    {children}
-                  </td>
-                ),
-                img: ({ src, alt }) => (
-                  <img src={src} alt={alt || ""} className="max-w-full rounded-lg my-3" />
-                ),
-              }}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      ) : displayMode === "file" && mmdFile ? (
-        /* ── Mermaid Diagram Preview ─────────────────────────────── */
-        content.trim() ? (
-          <div className="flex items-start justify-center h-full p-4 overflow-y-auto">
-            <MermaidRenderer
-              chart={content}
-              className="w-full max-w-full"
-            />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-            No diagram content to render
-          </div>
-        )
-      ) : displayMode === "file" && htmlFile ? (
-        /* ── HTML Preview (iframe with blob URL) ──────────────────── */
-        <div className="flex-1 flex flex-col min-h-0 bg-white">
-          {/* Info bar */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-[#1e2d1e] border-b border-[#333333] shrink-0">
-            <span className="text-[10px] text-[#98c379]">●</span>
-            <span className="text-[11px] text-[#858585]">
-              HTML preview — rendered in an isolated iframe
-            </span>
-          </div>
-          {/* Iframe */}
-          <div className="flex-1 min-h-0">
-            {htmlPreviewUrl ? (
-              <iframe
-                src={htmlPreviewUrl}
-                className="w-full h-full border-0"
-                title="HTML Preview"
-                sandbox="allow-scripts allow-same-origin"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-                No content to preview
-              </div>
-            )}
-          </div>
-        </div>
+      {displayMode === "file" && canPreviewFile(selectedFile.name) ? (
+        /* ── Render Module Preview (markdown, mermaid, mindmap, html) ─── */
+        <RenderView
+          format={getRenderFormat(selectedFile.name)}
+          content={content}
+          className="flex-1 min-h-0"
+          markdownComponents={lemonCoderMarkdownComponents}
+          tableColors={lemonCoderTableColors}
+        />
+      ) : useCodeMirror ? (
+        <CodeMirrorEditor
+          key={selectedFile.path}
+          content={content}
+          onChange={onContentChange}
+          language={getLanguage(selectedFile.name)}
+          wordWrap={wordWrap}
+          fontSize={cmFontSize}
+          tabSize={cmTabSize}
+          onSave={onSave}
+        />
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
         <MonacoEditor
           key={selectedFile.path}
           height="100%"
           language={getLanguage(selectedFile.name)}
-          value={content}
+          defaultValue={content}
           onChange={(val) => onContentChange(val || "")}
           onMount={(editor, monaco) => {
+            editorRef.current = editor;
             // Use refs to always invoke the LATEST callbacks / read the
             // latest selectedFile — the onMount closure would otherwise
             // capture stale references that don't reflect subsequent edits.

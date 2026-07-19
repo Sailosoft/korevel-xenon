@@ -147,6 +147,22 @@ class BFlowPromptSectionBuilder {
           `code blocks. Return ONLY the raw JSON object.`,
       );
     }
+    if (type === "csv") {
+      return this.add(
+        `\n\nIMPORTANT: Your response MUST be valid CSV (comma-separated values) data ONLY. ` +
+          `The first line MUST be a header row with column names. Each subsequent line MUST be ` +
+          `a data row. Do NOT include any introductory text, explanations, or commentary. ` +
+          `Do NOT wrap the output in markdown code blocks. Return ONLY the raw CSV data.`,
+      );
+    }
+    if (type === "yaml") {
+      return this.add(
+        `\n\nIMPORTANT: Your response MUST be valid YAML ONLY. Use proper YAML syntax with ` +
+          `correct indentation (2 spaces), key-value pairs, lists, and nested structures. ` +
+          `Do NOT include any introductory text, explanations, or commentary. ` +
+          `Do NOT wrap the output in markdown code blocks. Return ONLY the raw YAML content.`,
+      );
+    }
     // Default: markdown
     return this.add(
       `\n\nIMPORTANT: Format your response using markdown. Use headings, lists, code blocks, ` +

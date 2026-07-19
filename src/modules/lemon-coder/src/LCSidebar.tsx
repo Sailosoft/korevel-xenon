@@ -75,6 +75,8 @@ export interface LCSidebarProps {
   isFavoritesLoading?: boolean;
   /** Add file content to the instruction stash */
   onAddToInstructionStash?: (item: LCFileTreeItem) => void;
+  /** Send arbitrary text to the chat input */
+  onSendToChat?: (text: string) => void;
 }
 
 export default function LCSidebar({
@@ -105,6 +107,7 @@ export default function LCSidebar({
   onMoveFavoriteItem,
   isFavoritesLoading = false,
   onAddToInstructionStash,
+  onSendToChat,
 }: LCSidebarProps) {
   const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
   const [activeIcon, setActiveIcon] = useState<string>("files");
@@ -360,6 +363,7 @@ export default function LCSidebar({
                   onDeleteItem={onDeleteItem}
                   onCopyItem={onCopyItem}
                   onAddToInstructionStash={onAddToInstructionStash}
+                  onSendToChat={onSendToChat}
                 />
               )}
               {activeIcon === "search" && (

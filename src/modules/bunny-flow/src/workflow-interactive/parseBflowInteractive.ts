@@ -32,6 +32,9 @@ export function parseBflowInteractive(
       name: (parsed?.name as string) ?? "",
       description: (parsed?.description as string) ?? "",
       semanticVersion: (parsed?.semanticVersion as string) ?? "",
+      agentPoolSlugs: Array.isArray(parsed?.agentPools)
+        ? (parsed.agentPools as string[])
+        : [],
       variables: Array.isArray(variables)
         ? variables.map((v: Record<string, unknown>) => ({
             id: v.id as string | undefined,
@@ -129,6 +132,7 @@ export function parseBflowInteractive(
       agents: [],
       jobs: [],
       reports: [],
+      agentPoolSlugs: [],
     };
   }
 }

@@ -77,6 +77,8 @@ export interface LCFileTreeProps {
   favoriteGroups?: LCFavoriteGroup[];
   /** Add file content to the instruction stash */
   onAddToInstructionStash?: (item: LCFileTreeItem) => void;
+  /** Send arbitrary text to the chat input */
+  onSendToChat?: (text: string) => void;
 }
 
 // ── Hover Tooltip ────────────────────────────────────────────────────────────
@@ -335,6 +337,7 @@ export default function LCFileTree({
   onAddToFavorites,
   favoriteGroups,
   onAddToInstructionStash,
+  onSendToChat,
 }: LCFileTreeProps) {
   const [hoveredItem, setHoveredItem] = useState<{
     item: LCFileTreeItem;
@@ -344,7 +347,7 @@ export default function LCFileTree({
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ctx = useLCFileTreeContextMenu(onRenameItem, onDeleteItem, onAddToStash, onCopyItem, onAddToFavorites, favoriteGroups, onNewItem, onAddToInstructionStash);
+  const ctx = useLCFileTreeContextMenu(onRenameItem, onDeleteItem, onAddToStash, onCopyItem, onAddToFavorites, favoriteGroups, onNewItem, onAddToInstructionStash, onSendToChat);
 
   const handleHover = useCallback(
     (item: LCFileTreeItem, x: number, y: number) => {
