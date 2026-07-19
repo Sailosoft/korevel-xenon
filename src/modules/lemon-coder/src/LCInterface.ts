@@ -336,6 +336,14 @@ export const LC_SETTINGS_FIELDS: LCSettingsField[] = [
     type: "boolean",
     defaultValue: "true",
   },
+  {
+    key: "editor.useCodeMirror",
+    label: "Use CodeMirror 6 as Code Editor",
+    description:
+      "Switch to CodeMirror 6 instead of Monaco Editor. Useful on mobile or for faster load times.",
+    type: "boolean",
+    defaultValue: "false",
+  },
 ];
 
 // ── Deepstash ─────────────────────────────────────────────────────────────────

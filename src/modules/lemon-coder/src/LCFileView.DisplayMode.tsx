@@ -9,15 +9,29 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { useLiveQuery } from "dexie-react-hooks";
+import { lcDB } from "./LCDatabase";
 import { RenderView, registerBuiltinAdapters } from "@/src/modules/render";
 import type { RenderFormat, RenderTableColors } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
 import type { Components } from "react-markdown";
 
-// ── Dynamically import Monaco Editor to avoid SSR issues ────────────────────
+// ── Dynamically import editors to avoid SSR issues ─────────────────────────
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.default),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full text-xs text-[#858585]">
+        Loading Editor...
+      </div>
+    ),
+  },
+);
+
+const CodeMirrorEditor = dynamic(
+  () => import("./LCCodeMirrorEditor").then((mod) => mod.default),
   {
     ssr: false,
     loading: () => (
@@ -316,6 +330,24 @@ export default function LCFileViewDisplayMode({
     registerBuiltinAdapters();
   }, []);
 
+  // ── Read CodeMirror toggle and editor settings from DB ────────────
+  const useCodeMirrorEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.useCodeMirror"),
+    [],
+  );
+  const useCodeMirror = useCodeMirrorEntry?.value === "true";
+
+  const fontSizeEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.fontSize"),
+    [],
+  );
+  const tabSizeEntry = useLiveQuery(
+    () => lcDB.appSettings.get("editor.tabSize"),
+    [],
+  );
+  const cmFontSize = fontSizeEntry ? parseInt(fontSizeEntry.value, 10) : 13;
+  const cmTabSize = tabSizeEntry ? parseInt(tabSizeEntry.value, 10) : 2;
+
   // ── Refs to keep Monaco's onMount closures non-stale ──────────────
   // Monaco's onMount callback fires only once per editor lifetime.
   // If we reference onSave / onInsertToChatInput / selectedFile directly,
@@ -326,15 +358,19 @@ export default function LCFileViewDisplayMode({
   const onSaveRef = useRef(onSave);
   const onInsertToChatInputRef = useRef(onInsertToChatInput);
   const selectedFileRef = useRef(selectedFile);
-  onSaveRef.current = onSave;
-  onInsertToChatInputRef.current = onInsertToChatInput;
-  selectedFileRef.current = selectedFile;
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+    onInsertToChatInputRef.current = onInsertToChatInput;
+    selectedFileRef.current = selectedFile;
+  });
 
   // ── Editor ref for uncontrolled Monaco pattern ──────────────────
   // Instead of passing `value={content}` (which causes cursor jumps on
   // every keystroke re-render), we use an uncontrolled pattern: set initial
   // content via `defaultValue`, then sync external changes only when they
   // actually differ from the editor's current content.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
 
   // ── Sync external content changes (file reload, file switch) ──
@@ -362,6 +398,17 @@ export default function LCFileViewDisplayMode({
           className="flex-1 min-h-0"
           markdownComponents={lemonCoderMarkdownComponents}
           tableColors={lemonCoderTableColors}
+        />
+      ) : useCodeMirror ? (
+        <CodeMirrorEditor
+          key={selectedFile.path}
+          content={content}
+          onChange={onContentChange}
+          language={getLanguage(selectedFile.name)}
+          wordWrap={wordWrap}
+          fontSize={cmFontSize}
+          tabSize={cmTabSize}
+          onSave={onSave}
         />
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
