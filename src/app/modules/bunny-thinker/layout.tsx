@@ -52,18 +52,20 @@ const THINKER_SHELL_CONFIG: BUIDocumentShellConfig = {
       href: "/modules/bunny-thinker/thought-patterns",
       label: "Patterns",
       icon: GitBranch,
+      section: "Variables"
     },
     {
       href: "/modules/bunny-thinker/thought-associations",
       label: "Associations",
       icon: Link2,
+      section: "Variables"
     },
-    {
-      href: "/modules/bunny-thinker/processes",
-      label: "Processes",
-      icon: Workflow,
-      section: "Automation",
-    },
+    // {
+    //   href: "/modules/bunny-thinker/processes",
+    //   label: "Processes",
+    //   icon: Workflow,
+    //   section: "Automation",
+    // },
     {
       href: "/modules/bunny-thinker/thoughts",
       label: "Thoughts",

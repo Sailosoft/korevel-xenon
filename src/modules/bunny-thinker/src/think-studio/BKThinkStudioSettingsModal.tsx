@@ -10,7 +10,7 @@
 "use client";
 
 import React from "react";
-import { X, Link2, Settings2, Brain } from "lucide-react";
+import { X, Link2, Settings2, Brain, RotateCcw } from "lucide-react";
 import { Select, ListBox } from "@heroui/react";
 import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
 import type { BKThinker } from "../thinker/BKThinker.Types";
@@ -35,6 +35,9 @@ export interface BKThinkStudioSettingsModalProps {
   selectedThinkerId?: string;
   selectedThinker: BKThinker | null;
   onThinkerChange: (val: unknown) => void;
+
+  // Last thought
+  onClearLastThought?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -53,6 +56,7 @@ export default function BKThinkStudioSettingsModal({
   selectedThinkerId,
   selectedThinker,
   onThinkerChange,
+  onClearLastThought,
 }: BKThinkStudioSettingsModalProps) {
   if (!isOpen) return null;
 
@@ -334,6 +338,32 @@ export default function BKThinkStudioSettingsModal({
                   thought with a pattern to configure association overrides.
                 </p>
               )}
+            </div>
+          </section>
+
+          {/* ─── Section: Last Thought ──────────────────────────── */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <RotateCcw size={18} className="text-orange-600" />
+              <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                Last Thought
+              </h4>
+            </div>
+
+            <div className="bg-orange-50 rounded-lg p-4 border border-orange-100 space-y-3">
+              <p className="text-xs text-orange-700 leading-relaxed">
+                Clear the stored last thought reference. When you visit a
+                thought&rsquo;s detail page, you will no longer be
+                automatically redirected to the last think studio session.
+              </p>
+
+              <button
+                onClick={onClearLastThought}
+                className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium"
+              >
+                <RotateCcw size={14} />
+                Clear Last Thought
+              </button>
             </div>
           </section>
         </div>

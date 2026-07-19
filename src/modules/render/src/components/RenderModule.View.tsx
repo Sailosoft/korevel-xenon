@@ -90,7 +90,34 @@ function HtmlIframeView({ content }: { content: string }) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const blob = new Blob([content], { type: "text/html" });
+    // Wrap the HTML fragment in a full document so the browser renders it
+    // correctly inside the sandboxed iframe.
+    const doc = [
+      `<!DOCTYPE html>`,
+      `<html lang="en">`,
+      `<head>`,
+      `  <meta charset="UTF-8" />`,
+      `  <meta name="viewport" content="width=device-width, initial-scale=1.0" />`,
+      `  <style>`,
+      `    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`,
+      `    body {`,
+      `      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,`,
+      `        "Helvetica Neue", Arial, sans-serif;`,
+      `      padding: 1rem;`,
+      `      line-height: 1.6;`,
+      `      color: #1f2937;`,
+      `    }`,
+      `    img { max-width: 100%; height: auto; }`,
+      `    pre { overflow-x: auto; }`,
+      `    table { border-collapse: collapse; width: 100%; }`,
+      `    th, td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; }`,
+      `  </style>`,
+      `</head>`,
+      `<body>${content}</body>`,
+      `</html>`,
+    ].join("\n");
+
+    const blob = new Blob([doc], { type: "text/html" });
     const blobUrl = URL.createObjectURL(blob);
     setUrl(blobUrl);
 
@@ -99,8 +126,14 @@ function HtmlIframeView({ content }: { content: string }) {
     };
   }, [content]);
 
+  const handleOpenInNewTab = useCallback(() => {
+    if (url) {
+      window.open(url, "_blank");
+    }
+  }, [url]);
+
   return (
-    <div className="rm-html-wrapper" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div className="rm-html-wrapper" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 300 }}>
       <div
         style={{
           display: "flex",
@@ -113,17 +146,39 @@ function HtmlIframeView({ content }: { content: string }) {
         }}
       >
         <span style={{ color: "#98c379", fontSize: "0.6rem" }}>{"\u25CF"}</span>
-        <span style={{ fontSize: "0.7rem", color: "#858585" }}>
+        <span style={{ fontSize: "0.7rem", color: "#858585", flex: 1 }}>
           HTML preview &mdash; rendered in an isolated iframe
         </span>
+        {url && (
+          <button
+            onClick={handleOpenInNewTab}
+            title="Open in new tab"
+            style={{
+              fontSize: "0.7rem",
+              padding: "0.15rem 0.5rem",
+              border: "1px solid #555",
+              borderRadius: "4px",
+              background: "transparent",
+              color: "#98c379",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              lineHeight: 1.5,
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#2a3a2a"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            ↗ New tab
+          </button>
+        )}
       </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {url ? (
           <iframe
             src={url}
-            style={{ width: "100%", height: "100%", border: 0 }}
             title="HTML Preview"
             sandbox="allow-scripts allow-same-origin"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
           />
         ) : (
           <div style={emptyStyle}>Preparing preview...</div>
@@ -160,8 +215,14 @@ function TailwindIframeView({ content }: { content: string }) {
     };
   }, [content]);
 
+  const handleOpenInNewTab = useCallback(() => {
+    if (url) {
+      window.open(url, "_blank");
+    }
+  }, [url]);
+
   return (
-    <div className="rm-tailwind-wrapper" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div className="rm-tailwind-wrapper" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 300 }}>
       <div
         style={{
           display: "flex",
@@ -174,17 +235,39 @@ function TailwindIframeView({ content }: { content: string }) {
         }}
       >
         <span style={{ color: "#61afef", fontSize: "0.6rem" }}>{"\u25CF"}</span>
-        <span style={{ fontSize: "0.7rem", color: "#858585" }}>
+        <span style={{ fontSize: "0.7rem", color: "#858585", flex: 1 }}>
           Tailwind preview &mdash; rendered with Tailwind CDN
         </span>
+        {url && (
+          <button
+            onClick={handleOpenInNewTab}
+            title="Open in new tab"
+            style={{
+              fontSize: "0.7rem",
+              padding: "0.15rem 0.5rem",
+              border: "1px solid #555",
+              borderRadius: "4px",
+              background: "transparent",
+              color: "#61afef",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              lineHeight: 1.5,
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2d3a"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            ↗ New tab
+          </button>
+        )}
       </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {url ? (
           <iframe
             src={url}
-            style={{ width: "100%", height: "100%", border: 0 }}
             title="Tailwind Preview"
             sandbox="allow-scripts allow-same-origin"
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
           />
         ) : (
           <div style={emptyStyle}>Preparing Tailwind preview...</div>
@@ -429,6 +512,117 @@ function JsonView({ content }: { content: string }) {
   );
 }
 
+// ── CodeBlock View ───────────────────────────────────────────────────────────
+
+function CodeBlockView({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard write failed — silently ignore
+    }
+  }, [content]);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        margin: 0,
+        borderRadius: "8px",
+        overflow: "hidden",
+        border: "1px solid #e5e7eb",
+        background: "#1e293b",
+      }}
+    >
+      {/* Header bar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0.4rem 0.75rem",
+          background: "#334155",
+          borderBottom: "1px solid #475569",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.65rem",
+            fontWeight: 600,
+            color: "#94a3b8",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+          }}
+        >
+          Code
+        </span>
+        <button
+          onClick={handleCopy}
+          title="Copy code"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            fontSize: "0.7rem",
+            padding: "0.2rem 0.5rem",
+            border: "1px solid #64748b",
+            borderRadius: "4px",
+            background: copied ? "#166534" : "transparent",
+            color: copied ? "#86efac" : "#cbd5e1",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            lineHeight: 1.5,
+            transition: "background 0.15s, color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            if (!copied) e.currentTarget.style.background = "#475569";
+          }}
+          onMouseLeave={(e) => {
+            if (!copied) e.currentTarget.style.background = "transparent";
+          }}
+        >
+          {/* Clipboard icon (SVG) */}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      {/* Code content */}
+      <pre
+        style={{
+          margin: 0,
+          padding: "1rem",
+          overflow: "auto",
+          fontSize: "0.8rem",
+          lineHeight: 1.6,
+          fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace',
+          color: "#e2e8f0",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        <code>{content}</code>
+      </pre>
+    </div>
+  );
+}
+
 // ── CSV View ────────────────────────────────────────────────────────────────
 
 const defaultTableColors: Required<RenderTableColors> = {
@@ -590,6 +784,26 @@ export default function RenderView({
     return content.trim();
   }
 
+  /**
+   * Pre-process content to replace common LaTeX math notations
+   * with appropriate Unicode symbols.
+   */
+  const preprocessContent = (text: string): string => {
+    return text
+      // $\rightarrow$ → → (Unicode right arrow)
+      .replace(/\$\\(?:to|rightarrow)\$/g, "→")
+      // $\Rightarrow$ → ⇒
+      .replace(/\$\\(?:Rightarrow|implies)\$/g, "⇒")
+      // $\leftarrow$ → ←
+      .replace(/\$\\(?:from|leftarrow)\$/g, "←")
+      // $\Leftarrow$ → ⇐
+      .replace(/\$\\(?:Leftarrow)\$/g, "⇐")
+      // $\leftrightarrow$ → ↔
+      .replace(/\$\\(?:leftrightarrow)\$/g, "↔")
+      // $\mapsto$ → ↦
+      .replace(/\$\\(?:mapsto)\$/g, "↦");
+  };
+
   const renderContent = () => {
     const markdownComponents = markdownComponentsProp ?? defaultMarkdownComponents;
 
@@ -600,7 +814,7 @@ export default function RenderView({
           <div style={scrollableStyle} className={className}>
             <div style={{ padding: "1.5rem", color: "#374151", fontSize: "0.85rem", lineHeight: 1.7 }}>
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {content}
+                {preprocessContent(content)}
               </ReactMarkdown>
             </div>
           </div>
@@ -641,6 +855,10 @@ export default function RenderView({
             <MermaidRenderer chart={toMindmapSyntax(content)} />
           </div>
         );
+
+      // ── CodeBlock ────────────────────────────────────────────────
+      case "codeblock":
+        return <CodeBlockView content={content} />;
 
       // ── CSV ─────────────────────────────────────────────────────
       case "csv":

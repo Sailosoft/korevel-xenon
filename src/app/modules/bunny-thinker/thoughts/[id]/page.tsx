@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import BKThoughtDetailPage from "@/src/modules/bunny-thinker/src/pages/BKThoughtDetailPage";
+import BKThoughtDetailPage from "@/src/modules/bunny-thinker/src/thoughts/BKThoughtDetailPage";
 
 export default function ThoughtDetailRoute() {
   const params = useParams();
