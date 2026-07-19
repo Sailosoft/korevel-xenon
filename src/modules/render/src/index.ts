@@ -70,6 +70,7 @@ export type {
   RenderEngineOptions,
   RenderEngineHtmlResult,
   RenderViewProps,
+  RenderTableColors,
   RenderOptionItem,
 } from "./RenderModule.Types";
 
@@ -77,6 +78,7 @@ export { RenderFormats } from "./RenderModule.Types";
 
 // ── Adapters ────────────────────────────────────────────────────────────────
 export { registerBuiltinAdapters } from "./adapters";
+export { yamlAdapter } from "./adapters/RenderAdapter.Yaml";
 export {
   markdownAdapter,
   mermaidAdapter,
@@ -89,7 +91,7 @@ export {
 } from "./adapters";
 
 // ── Components ──────────────────────────────────────────────────────────────
-export { RenderView, MermaidRenderer } from "./components";
+export { RenderView, MermaidRenderer, defaultMarkdownComponents } from "./components";
 
 // ── Per-Module Extension ────────────────────────────────────────────────────
 export { createModuleRenderer, ModuleRenderer } from "./RenderModule.Extend";

@@ -146,6 +146,10 @@ IMPORTANT: Your response MUST be plain text only. Do NOT use markdown formatting
 IMPORTANT: Your response MUST be valid HTML. Use proper HTML tags for structure (e.g. <h1>, <p>, <ul>, <li>, <code>). Do NOT wrap the output in markdown code fences.
 {{else if (eq step.outputType "json")}}
 IMPORTANT: Your response MUST be a valid JSON object. Do NOT wrap it in markdown code blocks. Return ONLY the raw JSON object.
+{{else if (eq step.outputType "csv")}}
+IMPORTANT: Your response MUST be valid CSV (comma-separated values) data ONLY. The first line MUST be a header row with column names. Each subsequent line MUST be a data row. Do NOT include any introductory text, explanations, or commentary. Do NOT wrap the output in markdown code blocks. Return ONLY the raw CSV data.
+{{else if (eq step.outputType "yaml")}}
+IMPORTANT: Your response MUST be valid YAML ONLY. Use proper YAML syntax with correct indentation (2 spaces), key-value pairs, lists, and nested structures. Do NOT include any introductory text, explanations, or commentary. Do NOT wrap the output in markdown code blocks. Return ONLY the raw YAML content.
 {{else}}
 IMPORTANT: Format your response using markdown. Use headings, lists, code blocks, and other markdown elements as appropriate for readability.
 {{/if}}

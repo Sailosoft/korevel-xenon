@@ -6,6 +6,7 @@
 // ───────────────────────────────────────────────────────────────────────────────
 
 import type { ReactNode } from "react";
+import type { Components } from "react-markdown";
 
 // ─── Render Format Enum ──────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ export const RenderFormats = [
   "html",
   "plain",
   "json",
+  "yaml",
 ] as const;
 
 /** Union type of all built-in render formats */
@@ -128,6 +130,20 @@ export interface RenderEngineHtmlResult {
 // ─── React Component Props ──────────────────────────────────────────────────
 
 /** Props for the RenderView component */
+export interface RenderTableColors {
+  /** Background colour for table header cells */
+  headerBackground?: string;
+  /** Text colour for table header cells */
+  headerColor?: string;
+  /** Border colour for all table cells */
+  border?: string;
+  /** Text colour for body cells */
+  cellColor?: string;
+  /** Background colour for alternating rows */
+  rowAlternateBackground?: string;
+}
+
+/** Props for the RenderView component */
 export interface RenderViewProps {
   /** The format to render */
   format: RenderFormat;
@@ -139,6 +155,20 @@ export interface RenderViewProps {
   options?: RenderOptions;
   /** Fallback content shown when no adapter is found */
   fallback?: ReactNode;
+  /**
+   * Optional ReactMarkdown component overrides.
+   *
+   * Use this to theme markdown rendering for a specific host module.
+   * When omitted, RenderView falls back to a neutral, generic default theme.
+   */
+  markdownComponents?: Components;
+  /**
+   * Optional colour overrides for the CSV/table renderer.
+   *
+   * When omitted, RenderView uses the same neutral palette as the default
+   * markdown theme.
+   */
+  tableColors?: RenderTableColors;
 }
 
 // ─── Render Option Item (for UI pickers) ────────────────────────────────────

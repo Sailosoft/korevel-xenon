@@ -11,6 +11,7 @@ import React from "react";
 import { Button, Modal } from "@heroui/react";
 import { Download } from "lucide-react";
 import { RenderView } from "@/src/modules/render";
+import { bflowMarkdownComponents, bflowTableColors } from "./BFlowMarkdownTheme";
 
 export interface BFlowReportPreviewModalProps {
   /** Whether the modal is open */
@@ -70,7 +71,7 @@ export function BFlowReportPreviewModal({
               className="rounded-xl text-foreground"
               style={{ minHeight: 300, display: "flex", flexDirection: "column" }}
             >
-              <RenderView format="markdown" content={content} />
+              <RenderView format="markdown" content={content} markdownComponents={bflowMarkdownComponents} tableColors={bflowTableColors} />
             </div>
           </Modal.Body>
 

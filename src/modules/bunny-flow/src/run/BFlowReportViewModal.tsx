@@ -11,6 +11,7 @@
 import React, { useMemo } from "react";
 import { Button, Modal } from "@heroui/react";
 import { RenderView } from "@/src/modules/render";
+import { bflowMarkdownComponents, bflowTableColors } from "./BFlowMarkdownTheme";
 import type { BFlowWorkflowReport, BFlowWorkflowJob } from "../workflow/BFlowWorkflow.Types";
 import type { RenderFormat } from "@/src/modules/render";
 
@@ -105,7 +106,7 @@ export function BFlowReportViewModal({
                 className="rounded-xl p-2 text-foreground"
                 style={{ minHeight: 200, display: "flex", flexDirection: "column" }}
               >
-                <RenderView format={format} content={content} />
+                <RenderView format={format} content={content} markdownComponents={bflowMarkdownComponents} tableColors={bflowTableColors} />
               </div>
             ) : (
               <div className="text-center py-12 text-default-400 text-sm">

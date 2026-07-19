@@ -9,6 +9,7 @@
 import React from "react";
 import { Button, Modal } from "@heroui/react";
 import { RenderView } from "@/src/modules/render";
+import { bflowMarkdownComponents, bflowTableColors } from "./BFlowMarkdownTheme";
 import type { BFlowStepRun } from "./BFlowRun.Types";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
 import type { RenderFormat } from "@/src/modules/render";
@@ -74,7 +75,7 @@ export function BFlowOutputModal({
           <Modal.Body className="overflow-y-auto max-h-[70vh]">
             {output ? (
               <div className="rounded-xl p-6 text-foreground" style={{ minHeight: 200, display: "flex", flexDirection: "column" }}>
-                <RenderView format={format} content={output} />
+                <RenderView format={format} content={output} markdownComponents={bflowMarkdownComponents} tableColors={bflowTableColors} />
               </div>
             ) : (
               <div className="text-center py-12 text-default-400 text-sm">

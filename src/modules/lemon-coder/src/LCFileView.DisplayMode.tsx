@@ -7,11 +7,12 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { RenderView, registerBuiltinAdapters } from "@/src/modules/render";
-import type { RenderFormat } from "@/src/modules/render";
+import type { RenderFormat, RenderTableColors } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
+import type { Components } from "react-markdown";
 
 // ── Dynamically import Monaco Editor to avoid SSR issues ────────────────────
 
@@ -120,6 +121,185 @@ export interface LCFileViewDisplayModeProps {
   wordWrap?: boolean;
 }
 
+// ── Lemon Coder table colours (CSV preview) ───────────────────────────────────
+
+const lemonCoderTableColors: RenderTableColors = {
+  headerBackground: "#2d2d2d",
+  headerColor: "#e5c07b",
+  border: "#444444",
+  cellColor: "#d4d4d4",
+  rowAlternateBackground: "#1a1a1a",
+};
+
+// ── Lemon Coder markdown theme (dark code-editor aesthetic) ──────────────────
+
+const lemonCoderMarkdownComponentsBase: Components = {
+  h1: ({ children, ...props }) => (
+    <h1 {...props} style={{
+      fontSize: "1.25rem",
+      fontWeight: 700,
+      color: "#e5c07b",
+      marginTop: "1.5rem",
+      marginBottom: "0.75rem",
+      paddingBottom: "0.25rem",
+      borderBottom: "1px solid #333333",
+    }}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }) => (
+    <h2 {...props} style={{ fontSize: "1.1rem", fontWeight: 700, color: "#e5c07b", marginTop: "1.25rem", marginBottom: "0.5rem" }}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3 {...props} style={{ fontSize: "1rem", fontWeight: 600, color: "#d4d4d4", marginTop: "1rem", marginBottom: "0.25rem" }}>
+      {children}
+    </h3>
+  ),
+  h4: ({ children, ...props }) => (
+    <h4 {...props} style={{ fontSize: "0.9rem", fontWeight: 600, color: "#d4d4d4", marginTop: "0.75rem", marginBottom: "0.25rem" }}>
+      {children}
+    </h4>
+  ),
+  p: ({ children, ...props }) => (
+    <p {...props} style={{ margin: "0.5rem 0", color: "#d4d4d4", lineHeight: 1.7 }}>{children}</p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul {...props} style={{ listStyle: "disc", paddingLeft: "1.5rem", margin: "0.5rem 0", color: "#d4d4d4" }}>{children}</ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol {...props} style={{ listStyle: "decimal", paddingLeft: "1.5rem", margin: "0.5rem 0", color: "#d4d4d4" }}>{children}</ol>
+  ),
+  code: ({ className, children, ...props }) => {
+    const isInline = !className;
+    return isInline ? (
+      <code {...props} style={{
+        background: "#2d2d2d",
+        color: "#e06c75",
+        padding: "0.125rem 0.375rem",
+        borderRadius: "4px",
+        fontSize: "0.75rem",
+        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+      }}>
+        {children}
+      </code>
+    ) : (
+      <code {...props} style={{
+        display: "block",
+        background: "#1a1a1a",
+        color: "#abb2bf",
+        padding: "0.75rem",
+        borderRadius: "8px",
+        fontSize: "0.75rem",
+        fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+        overflowX: "auto",
+        margin: "0.75rem 0",
+        border: "1px solid #333333",
+      }}>
+        {children}
+      </code>
+    );
+  },
+};
+
+function LemonCoderPreWithCopy({ children, ...props }: React.ComponentPropsWithoutRef<"pre">) {
+  const preRef = useRef<HTMLPreElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (preRef.current) {
+      const text = preRef.current.textContent || "";
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard write failed — silently ignore
+      }
+    }
+  }, []);
+
+  return (
+    <div style={{ position: "relative", margin: "0.75rem 0" }}>
+      <button
+        onClick={handleCopy}
+        title="Copy code block"
+        style={{
+          position: "absolute",
+          top: "0.5rem",
+          right: "0.5rem",
+          zIndex: 1,
+          background: "#2d2d2d",
+          border: "1px solid #444444",
+          borderRadius: "4px",
+          color: copied ? "#98c379" : "#858585",
+          padding: "0.2rem 0.5rem",
+          fontSize: "0.7rem",
+          fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+          cursor: "pointer",
+          opacity: 0.6,
+          transition: "opacity 0.15s, color 0.15s",
+          lineHeight: 1.4,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; }}
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+      <pre
+        ref={preRef}
+        {...props}
+        style={{ background: "transparent", padding: 0, margin: 0, overflowX: "auto" }}
+      >
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+const lemonCoderMarkdownComponents: Components = {
+  ...lemonCoderMarkdownComponentsBase,
+  pre: LemonCoderPreWithCopy,
+  blockquote: ({ children, ...props }) => (
+    <blockquote {...props} style={{
+      borderLeft: "4px solid #e5c07b",
+      paddingLeft: "1rem",
+      margin: "0.75rem 0",
+      fontStyle: "italic",
+      color: "#858585",
+    }}>
+      {children}
+    </blockquote>
+  ),
+  a: ({ href, children, ...props }) => (
+    <a href={href} {...props} style={{ color: "#61afef", textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  hr: (props) => <hr {...props} style={{ border: "none", borderTop: "1px solid #333333", margin: "1rem 0" }} />,
+  table: ({ children, ...props }) => (
+    <div style={{ overflowX: "auto", margin: "0.75rem 0" }}>
+      <table {...props} style={{ minWidth: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }) => (
+    <th {...props} style={{
+      border: "1px solid #333333",
+      background: "#2d2d2d",
+      color: "#e5c07b",
+      padding: "0.375rem 0.75rem",
+      fontWeight: 600,
+      textAlign: "left",
+    }}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }) => (
+    <td {...props} style={{ border: "1px solid #333333", padding: "0.375rem 0.75rem", color: "#d4d4d4" }}>{children}</td>
+  ),
+};
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function LCFileViewDisplayMode({
@@ -180,6 +360,8 @@ export default function LCFileViewDisplayMode({
           format={getRenderFormat(selectedFile.name)}
           content={content}
           className="flex-1 min-h-0"
+          markdownComponents={lemonCoderMarkdownComponents}
+          tableColors={lemonCoderTableColors}
         />
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
