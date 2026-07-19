@@ -28,6 +28,7 @@ import type {
   LCDeepstash,
   LCDeepstashMergeStrategy,
   LCChatSession,
+  LCChatMessage,
   LCFileActionResult,
   LCFileEdit,
   LCFavoriteGroup,
@@ -809,6 +810,114 @@ export default function LCApp() {
     await lcDB.clearAllDeepstashes(currentProject.id);
   }, [currentProject]);
 
+  // ── Export Session ──────────────────────────────────────────────────────
+
+  /**
+   * Format a single chat message as markdown, with role heading and timestamp.
+   * Filters out error messages from export.
+   */
+  const formatMessageAsMarkdown = useCallback(
+    (msg: LCChatMessage, index: number): string => {
+      if (msg.error) return "";
+      const roleLabel = msg.role === "user" ? "User" : "AI Assistant";
+      const time = new Date(msg.timestamp).toLocaleString();
+      const lines: string[] = [];
+      lines.push(`### ${roleLabel} — ${time}`);
+      lines.push("");
+      lines.push(msg.content);
+      lines.push("");
+      if (msg.fileContents && msg.fileContents.length > 0) {
+        for (const fc of msg.fileContents) {
+          const filePath = resolveFilePath(fc);
+          lines.push(`> **${fc.ExistingFile ? "Edit" : "New"}:** \`${filePath}\``);
+          if (fc.Description) lines.push(`> ${fc.Description}`);
+        }
+        lines.push("");
+      }
+      return lines.join("\n");
+    },
+    [],
+  );
+
+  /**
+   * Generate the full markdown document for the given session, optionally
+   * including only AI responses.
+   */
+  const generateSessionMarkdown = useCallback(
+    (session: LCChatSession, mode: "all" | "ai-only"): string => {
+      const lines: string[] = [];
+      lines.push(`# ${session.title}`);
+      lines.push("");
+      lines.push(`*Exported on ${new Date().toLocaleString()}*`);
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+
+      const msgs = mode === "ai-only"
+        ? session.messages.filter((m) => m.role === "assistant")
+        : session.messages;
+
+      if (msgs.length === 0) {
+        lines.push("*No messages to export.*");
+        lines.push("");
+        return lines.join("\n");
+      }
+
+      let msgIndex = 0;
+      for (const msg of msgs) {
+        const block = formatMessageAsMarkdown(msg, msgIndex);
+        if (block) {
+          lines.push(block);
+          msgIndex++;
+        }
+      }
+
+      return lines.join("\n");
+    },
+    [formatMessageAsMarkdown],
+  );
+
+  const handleExportSession = useCallback(
+    async (
+      sessionId: string,
+      mode: "all" | "ai-only",
+      fileName: string,
+      saveDirectory: string,
+    ) => {
+      const session = chatSessions.find((s) => s.id === sessionId);
+      if (!session) return;
+
+      const markdown = generateSessionMarkdown(session, mode);
+      const finalName = fileName.endsWith(".md") ? fileName : `${fileName}.md`;
+
+      if (saveDirectory) {
+        // Write to project directory
+        const filePath = `${saveDirectory}/${finalName}`.replace(/\/+/g, "/");
+        try {
+          await writeFile(filePath, markdown);
+          console.log(`[lemon-coder] Export written: ${filePath}`);
+        } catch (err) {
+          console.error("[lemon-coder] Export write failed, falling back to download:", err);
+          downloadMarkdown(markdown, finalName);
+        }
+      } else {
+        downloadMarkdown(markdown, finalName);
+      }
+    },
+    [chatSessions, generateSessionMarkdown, writeFile],
+  );
+
+  /** Download markdown content as a .md file blob */
+  function downloadMarkdown(content: string, fileName: string) {
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Landing screen when no project is selected
   if (!currentProject) {
     return (
@@ -955,6 +1064,7 @@ export default function LCApp() {
           onAddInstruction={handleAddInstruction}
           onRemoveInstruction={handleRemoveInstruction}
           onClearInstructions={handleClearInstructions}
+          onExportSession={handleExportSession}
         />
       </div>
 
