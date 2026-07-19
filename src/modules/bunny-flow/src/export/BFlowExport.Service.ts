@@ -21,7 +21,16 @@
  */
 
 import { marked } from "marked";
-import type { BFlowWorkflowReport } from "../workflow/BFlowWorkflow.Types";
+import {
+  RenderEngine,
+  registerBuiltinAdapters,
+} from "@/src/modules/render";
+import type { RenderFormat } from "@/src/modules/render";
+import type {
+  BFlowWorkflowReport,
+  BFlowWorkflowJob,
+  BFlowStepOutputType,
+} from "../workflow/BFlowWorkflow.Types";
 import type { BFlowJobRun, BFlowStepRun } from "../run/BFlowRun.Types";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -48,6 +57,11 @@ export interface BFlowExportInput {
   stepRuns: BFlowStepRun[];
   /** Optional report configuration from workflow YAML */
   reports?: BFlowWorkflowReport[];
+  /**
+   * Workflow job definitions — used to resolve step output types
+   * for format-aware rendering (e.g., HTML output is embedded directly).
+   */
+  jobs?: BFlowWorkflowJob[];
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -70,18 +84,25 @@ export class BFlowExportService {
    */
   generate(input: BFlowExportInput, options?: BFlowExportOptions): string {
     const opts = { ...DEFAULT_OPTIONS, ...options };
+    // Store jobs reference for resolution during rendering
+    this._currentJobs = input.jobs;
 
-    switch (opts.format) {
-      case "html":
-        return this.generateHtml(input, opts);
-      case "html-docs":
-        return this.generateHtmlDocs(input, opts);
-      case "plain":
-        return this.generatePlain(input, opts);
-      case "markdown":
-      default:
-        return this.generateMarkdown(input, opts);
-    }
+    const result = (() => {
+      switch (opts.format) {
+        case "html":
+          return this.generateHtml(input, opts);
+        case "html-docs":
+          return this.generateHtmlDocs(input, opts);
+        case "plain":
+          return this.generatePlain(input, opts);
+        case "markdown":
+        default:
+          return this.generateMarkdown(input, opts);
+      }
+    })();
+
+    this._currentJobs = undefined;
+    return result;
   }
 
   /**
@@ -412,34 +433,194 @@ export class BFlowExportService {
 
   /**
    * Generate an HTML report.
+   *
+   * For steps with outputType "html", the raw HTML is embedded directly
+   * without any markdown processing. All other types are rendered through
+   * marked for markdown-to-HTML conversion.
    */
   private generateHtml(
     input: BFlowExportInput,
     opts: BFlowExportOptions,
   ): string {
-    const md = this.generateMarkdown(input, { ...opts, format: "markdown" });
-    // Simple markdown-to-HTML conversion
     const title = input.pipelineName ?? "Pipeline Report";
-    const body = md
-      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/^- (.+)$/gm, "<li>$1</li>")
-      .replace(/(<li>.*<\/li>\n?)+/g, "<ul>$&</ul>")
-      .replace(/```(\w*)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>")
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/^(.+)$/gm, (match) => {
-        if (match.startsWith("<")) return match;
-        return `<p>${match}</p>`;
-      });
+    const bodyParts: string[] = [];
+
+    // ── Title ──────────────────────────────────────────────────────
+    const reportLabel =
+      input.reports?.[0]?.label ?? input.pipelineName ?? "Pipeline Report";
+    bodyParts.push(`<h1>${this.escapeHtml(reportLabel)}</h1>`);
+
+    if (input.description) {
+      bodyParts.push(`<p>${this.escapeHtml(input.description)}</p>`);
+    }
+
+    // ── Process each report configuration ──────────────────────────
+    if (input.reports && input.reports.length > 0) {
+      for (const report of input.reports) {
+        const reportLabel = report.label ?? report.name;
+        bodyParts.push(`<h2>${this.escapeHtml(reportLabel)}</h2>`);
+
+        const source = report.source;
+        const stepPattern = /^([^.]+)\.([^.]+)$/;
+        const outputsRawPattern = /^([^.]+)\.([^.]+)\.outputs\.__raw__$/;
+        const outputsNamedPattern = /^([^.]+)\.steps\.outputs\.(.+)$/;
+
+        const stepMatch = source.match(stepPattern);
+        const outputsRawMatch = source.match(outputsRawPattern);
+        const outputsNamedMatch = source.match(outputsNamedPattern);
+
+        if (stepMatch) {
+          const [, jobName, stepName] = stepMatch;
+          const stepRun = this.findStepRun(input, jobName, stepName);
+          if (stepRun?.output) {
+            const outputType = this.resolveStepOutputType(stepRun);
+            bodyParts.push(
+              this.renderOutputAsHtml(stepRun.output, outputType),
+            );
+          }
+        } else if (outputsRawMatch) {
+          const [, jobName, stepName] = outputsRawMatch;
+          const stepRun = this.findStepRun(input, jobName, stepName);
+          if (stepRun?.output) {
+            const outputType = this.resolveStepOutputType(stepRun);
+            bodyParts.push(
+              this.renderOutputAsHtml(stepRun.output, outputType),
+            );
+          }
+        } else if (outputsNamedMatch) {
+          const [, jobName, outputName] = outputsNamedMatch;
+          const jobRun = input.jobRuns.find(
+            (jr) => jr.jobName === jobName || jr.jobId === jobName,
+          );
+          if (jobRun) {
+            const jobStepRuns = input.stepRuns.filter(
+              (sr) => sr.jobRunId === jobRun.id,
+            );
+            for (const sr of jobStepRuns) {
+              if (
+                sr.structuredOutput &&
+                outputName in sr.structuredOutput
+              ) {
+                bodyParts.push(
+                  `<h3>${this.escapeHtml(sr.stepName)} → ${this.escapeHtml(outputName)}</h3>`,
+                );
+                bodyParts.push(
+                  this.renderOutputAsHtml(
+                    String(sr.structuredOutput[outputName]),
+                    this.resolveStepOutputType(sr),
+                  ),
+                );
+              } else if (outputName === "__raw__" && sr.output) {
+                bodyParts.push(`<h3>${this.escapeHtml(sr.stepName)}</h3>`);
+                const outputType = this.resolveStepOutputType(sr);
+                bodyParts.push(
+                  this.renderOutputAsHtml(sr.output, outputType),
+                );
+              }
+            }
+          }
+        } else {
+          bodyParts.push(
+            `<p><em>Source: ${this.escapeHtml(source)}</em></p>`,
+          );
+        }
+      }
+    } else {
+      // ── Default: group by jobs → steps (no report config) ──────
+      for (const jobRun of input.jobRuns) {
+        bodyParts.push(`<h2>Job: ${this.escapeHtml(jobRun.jobName)}</h2>`);
+
+        if (jobRun.status) {
+          bodyParts.push(
+            `<p><strong>Status:</strong> ${this.escapeHtml(jobRun.status)}</p>`,
+          );
+        }
+
+        const jobStepRuns = input.stepRuns.filter(
+          (sr) => sr.jobRunId === jobRun.id,
+        );
+
+        if (jobStepRuns.length === 0) {
+          bodyParts.push("<p><em>No step runs available.</em></p>");
+        }
+
+        for (const stepRun of jobStepRuns) {
+          bodyParts.push(
+            `<h3>Step: ${this.escapeHtml(stepRun.stepName)}</h3>`,
+          );
+
+          if (stepRun.status) {
+            bodyParts.push(
+              `<p><strong>Status:</strong> ${this.escapeHtml(stepRun.status)}</p>`,
+            );
+          }
+
+          // Prompts
+          if (opts.includePrompts) {
+            if (stepRun.resolvedSystemPrompt) {
+              bodyParts.push("<p><strong>System Prompt:</strong></p>");
+              bodyParts.push(
+                `<pre><code>${this.escapeHtml(stepRun.resolvedSystemPrompt)}</code></pre>`,
+              );
+            }
+            if (stepRun.resolvedUserPrompt) {
+              bodyParts.push("<p><strong>User Prompt:</strong></p>");
+              bodyParts.push(
+                `<pre><code>${this.escapeHtml(stepRun.resolvedUserPrompt)}</code></pre>`,
+              );
+            }
+          }
+
+          // Output
+          if (stepRun.output) {
+            bodyParts.push("<p><strong>Output:</strong></p>");
+            const outputType = this.resolveStepOutputType(stepRun);
+            bodyParts.push(
+              this.renderOutputAsHtml(stepRun.output, outputType),
+            );
+          } else if (stepRun.error) {
+            bodyParts.push(
+              `<p><strong>Error:</strong> ${this.escapeHtml(stepRun.error)}</p>`,
+            );
+          }
+
+          // Structured outputs
+          if (
+            stepRun.structuredOutput &&
+            Object.keys(stepRun.structuredOutput).length > 0
+          ) {
+            bodyParts.push("<p><strong>Structured Outputs:</strong></p>");
+            bodyParts.push(
+              `<pre><code>${this.escapeHtml(JSON.stringify(stepRun.structuredOutput, null, 2))}</code></pre>`,
+            );
+          }
+
+          // Resolved inputs
+          if (
+            stepRun.resolvedInputs &&
+            Object.keys(stepRun.resolvedInputs).length > 0
+          ) {
+            bodyParts.push("<p><strong>Resolved Inputs:</strong></p>");
+            for (const [key, value] of Object.entries(
+              stepRun.resolvedInputs,
+            )) {
+              bodyParts.push(
+                `<p><code>${this.escapeHtml(key)}</code>: ${this.escapeHtml(String(value))}</p>`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const body = bodyParts.join("\n");
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${this.escapeHtml(title)}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; color: #1a1a2e; line-height: 1.6; }
     h1 { border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
@@ -450,6 +631,7 @@ export class BFlowExportService {
     ul { padding-left: 1.5rem; }
     li { margin-bottom: 0.25rem; }
     strong { color: #0f172a; }
+    .rm-html-output { margin: 1rem 0; }
   </style>
 </head>
 <body>
@@ -770,6 +952,78 @@ ${body}
   }
 
   /**
+   * Resolve the output type for a step run from the workflow job definitions.
+   * Returns undefined if the step or its outputType is not defined.
+   */
+  private resolveStepOutputType(
+    stepRun: BFlowStepRun,
+  ): BFlowStepOutputType | undefined {
+    const jobs = this._currentJobs;
+    if (!jobs) return undefined;
+    for (const job of jobs) {
+      const step = job.steps?.find(
+        (s) => s.id === stepRun.stepId || s.name === stepRun.stepName,
+      );
+      if (step?.outputType) return step.outputType;
+    }
+    return undefined;
+  }
+
+  /**
+   * Map BFlowStepOutputType to RenderFormat for the RenderEngine.
+   */
+  private static readonly STEP_FORMAT_MAP: Record<string, RenderFormat> = {
+    plain: "plain",
+    markdown: "markdown",
+    json: "json",
+    html: "html",
+    csv: "csv",
+    json_array: "json",
+    yaml: "yaml",
+  };
+
+  /**
+   * Render step output content using the RenderEngine — the same engine
+   * that powers the UI's RenderView — ensuring consistent rendering
+   * between interactive preview and exported HTML for all output types.
+   *
+   * Adapts BFlowStepOutputType values (html, csv, json, plain, markdown,
+   * json_array, yaml) to the corresponding RenderFormat and delegates to
+   * the engine's renderHtml() method. Falls back to marked.parse() if the
+   * engine or adapter is unavailable.
+   */
+  private renderOutputAsHtml(
+    output: string,
+    outputType: BFlowStepOutputType | undefined,
+  ): string {
+    BFlowExportService.ensureAdaptersRegistered();
+    const format =
+      outputType
+        ? (BFlowExportService.STEP_FORMAT_MAP[outputType] ?? "markdown")
+        : "markdown";
+    try {
+      return RenderEngine.renderHtml(format, output).html.html;
+    } catch {
+      // Fallback: render through marked's markdown parser
+      return marked.parse(output) as string;
+    }
+  }
+
+  /**
+   * Ensure built-in render adapters are registered with the RenderEngine.
+   * Called lazily on first render to avoid side effects at import time.
+   */
+  private static ensureAdaptersRegistered(): void {
+    if (!_bfExportAdaptersRegistered) {
+      registerBuiltinAdapters();
+      _bfExportAdaptersRegistered = true;
+    }
+  }
+
+  /** Temporary reference to jobs, set during generate() */
+  private _currentJobs: BFlowWorkflowJob[] | undefined;
+
+  /**
    * Export pipeline run data and return as a downloadable blob.
    */
   exportToBlob(input: BFlowExportInput, options?: BFlowExportOptions): Blob {
@@ -806,6 +1060,10 @@ ${body}
     return url;
   }
 }
+
+// ─── Lazy adapter registration guard ─────────────────────────────────
+
+let _bfExportAdaptersRegistered = false;
 
 // ─── Singleton ──────────────────────────────────────────────────────
 

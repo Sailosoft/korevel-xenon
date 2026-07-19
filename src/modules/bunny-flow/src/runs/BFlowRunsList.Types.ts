@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BFlowRunStatusSchema } from "../run/BFlowRun.Types";
+import { BFlowRunStatusSchema, BFlowRunSnapshotSchema } from "../run/BFlowRun.Types";
 
 // ─── Run Display Item ──────────────────────────────────────────────
 
@@ -24,6 +24,8 @@ export const BFlowRunDisplayItemSchema = z.object({
   status: BFlowRunStatusSchema,
   /** Run number (incremental) */
   runNumber: z.number().int().optional(),
+  /** Snapshot of the workflow structure at run time */
+  snapshot: BFlowRunSnapshotSchema.optional(),
   /** Timestamp when pipeline run started */
   startedAt: z.date().optional(),
   /** Timestamp when pipeline run completed */

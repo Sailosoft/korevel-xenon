@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { BFlowPipelineVariableSchema } from "../pipeline/BFlowPipeline.Types";
+import {
+  BFlowWorkflowJobSchema,
+  BFlowWorkflowReportSchema,
+} from "../workflow/BFlowWorkflow.Types";
 
 // ─── Shared Primitives ─────────────────────────────────────────────
 
@@ -16,6 +20,33 @@ export const BFlowRunStatusSchema = z.enum([
   "skipped",
 ]);
 export type BFlowRunStatus = z.infer<typeof BFlowRunStatusSchema>;
+
+// ─── Run Snapshot (for export/report stability) ────────────────────
+
+/**
+ * Snapshot of the workflow template structure at the time a pipeline run executed.
+ * Stored on the pipeline run entity so that exports, HTML preview, and report
+ * generation always use the SAME job/step definitions and report configuration
+ * that were present when the run happened — never the (potentially changed)
+ * current workflow template.
+ */
+export const BFlowRunSnapshotSchema = z.object({
+  /** Pipeline name at time of run */
+  pipelineName: z.string().optional(),
+  /** Pipeline slug at time of run */
+  pipelineSlug: z.string().optional(),
+  /** Pipeline / template description */
+  description: z.string().optional(),
+  /** Snapshot of workflow template jobs (for output-type resolution & structure) */
+  jobs: z.array(BFlowWorkflowJobSchema).optional().default([]),
+  /** Snapshot of workflow template reports configuration */
+  reports: z.array(BFlowWorkflowReportSchema).optional().default([]),
+  /** Template display name */
+  templateName: z.string().optional(),
+  /** Template YAML source */
+  templateYaml: z.string().optional(),
+});
+export type BFlowRunSnapshot = z.infer<typeof BFlowRunSnapshotSchema>;
 
 // ─── Step Run ──────────────────────────────────────────────────────
 
@@ -146,6 +177,8 @@ export const BFlowPipelineRunSchema = z.object({
   error: z.string().optional(),
   /** Run number (incremental) */
   runNumber: z.number().int().optional(),
+  /** Snapshot of workflow structure at run time — used for export & report generation */
+  snapshot: BFlowRunSnapshotSchema.optional(),
   /** Timestamp when pipeline run started */
   startedAt: z.date().optional(),
   /** Timestamp when pipeline run completed */
