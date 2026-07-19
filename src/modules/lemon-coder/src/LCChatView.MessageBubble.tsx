@@ -259,7 +259,7 @@ export default function LCChatViewMessageBubble({
                   onPress={onAcceptAll}
                 >
                   <GitMerge className="w-3.5 h-3.5" />
-                  Accept All ({msg.fileContents.length} files)
+                  <span className="hidden sm:inline">Accept All ({msg.fileContents.length} files)</span>
                 </Button>
                 <Button
                   size="sm"
@@ -268,7 +268,7 @@ export default function LCChatViewMessageBubble({
                   onPress={onViewAllChanges}
                 >
                   <Eye className="w-3.5 h-3.5" />
-                  View All Changes
+                  <span className="hidden sm:inline">View All Changes</span>
                 </Button>
               </div>
             )}
@@ -295,12 +295,12 @@ export default function LCChatViewMessageBubble({
             {copiedMsgId === msg.id ? (
               <>
                 <Check className="w-3 h-3 text-[#98c379]" />
-                <span className="text-[#98c379]">Copied</span>
+                <span className="text-[#98c379] hidden sm:inline">Copied</span>
               </>
             ) : (
               <>
                 <Copy className="w-3 h-3" />
-                <span>Copy</span>
+                <span className="hidden sm:inline">Copy</span>
               </>
             )}
           </button>
