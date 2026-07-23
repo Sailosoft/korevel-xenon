@@ -47,26 +47,6 @@ export default function BFlowFlowSettingsPage() {
               <p className="text-sm text-slate-400">{flow.description}</p>
             </div>
           )}
-          <div>
-            <label className="text-sm font-medium text-slate-700">
-              Version
-            </label>
-            <p className="text-sm text-slate-400">{flow.version ?? "—"}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700">Status</label>
-            <span
-              className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                flow.status === "published"
-                  ? "bg-emerald-50 text-emerald-600"
-                  : flow.status === "archived"
-                    ? "bg-slate-100 text-slate-500"
-                    : "bg-amber-50 text-amber-600"
-              }`}
-            >
-              {flow.status}
-            </span>
-          </div>
         </div>
       )}
 
