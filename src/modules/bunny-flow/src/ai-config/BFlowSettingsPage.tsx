@@ -1,11 +1,16 @@
 "use client";
 
-import { Settings, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { Settings, Brain, ChevronDown, ChevronUp, Code } from "lucide-react";
 import { useState } from "react";
 import { BFlowGlobalAIConfigComponent } from "./BFlowAIConfig.Component";
+import {
+  useBFlowEditorSettings,
+  EDITOR_OPTIONS,
+} from "../settings/BFlowEditorSettings";
 
 export default function BFlowSettingsPage() {
   const [aiExpanded, setAiExpanded] = useState(false);
+  const { editorKind, setEditorKind } = useBFlowEditorSettings();
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -31,6 +36,66 @@ export default function BFlowSettingsPage() {
             <p className="text-sm text-slate-400">
               General workspace settings and preferences for Bunny Flow.
             </p>
+          </div>
+
+          {/* ── Editor Preference ────────────────────────────────── */}
+          <div className="rounded-xl bg-slate-50 overflow-hidden">
+            <div className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                  <Code className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">
+                    YAML Editor Preference
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Choose the code editor used in the Workflow Studio for
+                    editing YAML workflow definitions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                {EDITOR_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setEditorKind(opt.value)}
+                    className={`text-left p-3 rounded-xl border-2 transition-all ${
+                      editorKind === opt.value
+                        ? "border-blue-500 bg-blue-50 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          editorKind === opt.value
+                            ? "border-blue-500"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {editorKind === opt.value && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        )}
+                      </div>
+                      <span
+                        className={`text-sm font-semibold ${
+                          editorKind === opt.value
+                            ? "text-blue-700"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {opt.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 ml-6">
+                      {opt.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* ── Database ────────────────────────────────────────── */}

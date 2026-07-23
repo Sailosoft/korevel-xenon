@@ -4,6 +4,7 @@ import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowGlobalVariableFormValidation } from "../adapters/BFlowZodAdapter";
 import { Eye } from "lucide-react";
 import { createElement } from "react";
+import { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
 export const bflowGlobalVariableModule = BunnyFeature.create<
   BFlowGlobalVariableEntity,
@@ -61,13 +62,11 @@ export const bflowGlobalVariableModule = BunnyFeature.create<
         label: "Type",
         type: "select",
         required: true,
-        options: [
-          { label: "Text", value: "text" },
-          { label: "Number", value: "number" },
-          { label: "Boolean", value: "boolean" },
-          { label: "Select", value: "select" },
-          { label: "Textarea", value: "textarea" },
-        ],
+        // Variable type options derived from the canonical
+        // BFlowVariableBaseSchema (shared/BFlowVariableBase.ts),
+        // which is the source of truth for variable record patterns
+        // across the entire Bunny Flow codebase.
+        options: VARIABLE_TYPE_OPTIONS,
       },
       {
         name: "group",

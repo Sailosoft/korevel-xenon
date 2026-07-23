@@ -2,7 +2,7 @@
 
 /**
  * BFlowRunsList — Display a list of pipeline runs with pipeline name,
- * workflow name, status, and timestamps.
+ * workflow name, status, timestamps, delete capability, and pagination.
  *
  * Clicking a row expands it to reveal the workflow snapshot details
  * (jobs, steps, reports configuration) captured at run time.
@@ -10,7 +10,7 @@
  * Supports optional filtering by flowId (scoped to a flow) or pipelineId.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Play,
@@ -25,6 +25,11 @@ import {
   XCircle,
   AlertCircle,
   SkipForward,
+  Trash2,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronRight as ChevronRightIcon,
+  ChevronsRight,
 } from "lucide-react";
 import { Button } from "@heroui/react";
 import { useBFlowRunsList } from "./BFlowRunsList.Hooks";
@@ -33,6 +38,11 @@ import { BFlowStatusBadge, getStatusConfig } from "../run/BFlowStatusBadge";
 import { useBFlowFlow } from "../context/BFlowFlowContext";
 import { bflowRunDB } from "../run/BFlowRunDB";
 import type { BFlowPipelineRunEntity, BFlowRunSnapshot } from "../run/BFlowRun.Types";
+
+// ─── Constants ──────────────────────────────────────────────────────
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -290,11 +300,157 @@ function SnapshotDetailsPanel({ runId }: SnapshotDetailsProps) {
   );
 }
 
+// ─── Delete Confirmation Modal ─────────────────────────────────────
+
+interface DeleteConfirmModalProps {
+  open: boolean;
+  runLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  deleting: boolean;
+}
+
+function DeleteConfirmModal({ open, runLabel, onConfirm, onCancel, deleting }: DeleteConfirmModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-background rounded-2xl shadow-xl max-w-sm w-full mx-4 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+            <Trash2 className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Delete Run</h3>
+            <p className="text-xs text-default-400 mt-0.5">
+              This action cannot be undone.
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-default-600 mb-6">
+          Are you sure you want to delete run <strong>{runLabel}</strong> and all
+          associated job and step data?
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            onPress={onCancel}
+            variant="ghost"
+            size="sm"
+            className="text-default-500"
+            isDisabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button
+            onPress={onConfirm}
+            variant="primary"
+            size="sm"
+            className="bg-red-500 text-white hover:bg-red-600 border-red-500"
+            isDisabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pagination Controls ──────────────────────────────────────────
+
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  pageSize: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}
+
+function PaginationControls({
+  currentPage,
+  totalPages,
+  pageSize,
+  totalItems,
+  onPageChange,
+  onPageSizeChange,
+}: PaginationProps) {
+  if (totalPages <= 1) return null;
+
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-t border-default-100 bg-default-50/30">
+      <div className="flex items-center gap-3 text-xs text-default-500">
+        <span>
+          {startItem}&ndash;{endItem} of {totalItems}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-default-400">Per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="bg-background border border-default-200 rounded-md px-2 py-1 text-xs text-default-600 focus:outline-none focus:border-primary"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded-md text-default-400 hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="First page"
+        >
+          <ChevronsLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-1.5 rounded-md text-default-400 hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Previous page"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        <span className="px-3 py-1 text-xs font-medium text-default-600">
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded-md text-default-400 hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Next page"
+        >
+          <ChevronRightIcon className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          className="p-1.5 rounded-md text-default-400 hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Last page"
+        >
+          <ChevronsRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────
 
 /**
  * Renders a list of pipeline runs with enriched pipeline and workflow names.
  * Clicking a row expands it to show the workflow snapshot details.
+ * Each row has a delete action. The list is paginated client-side.
  *
  * When rendered inside a `BFlowFlowProvider` (i.e. within
  * `/modules/bunny-flow/flow/[id]/...`), it automatically reads the
@@ -320,12 +476,60 @@ export default function BFlowRunsList(props: BFlowRunsListProps) {
     pipelineId: props.pipelineId,
   });
 
+  // ── Pagination state ──────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [flowId, props.pipelineId]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  // Clamp current page when total pages changes
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedRuns = useMemo(
+    () => runs.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [runs, currentPage, pageSize],
+  );
+
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }, []);
+
   // ── Expanded run state ─────────────────────────────────────────
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const toggleExpand = useCallback((runId: string) => {
     setExpandedRunId((prev) => (prev === runId ? null : runId));
   }, []);
+
+  // ── Delete state ──────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await bflowRunDB.pipelineRuns.mutation.delete(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("[BFlowRunsList] Failed to delete run:", err);
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget]);
 
   // ── Render States ─────────────────────────────────────────────
 
@@ -449,17 +653,22 @@ export default function BFlowRunsList(props: BFlowRunsListProps) {
                 <th className="text-right text-xs font-semibold text-default-500 uppercase tracking-wider px-5 py-3">
                   Run #
                 </th>
+                <th className="w-16 px-2 py-3 text-right">
+                  <span className="text-xs font-semibold text-default-500 uppercase tracking-wider">
+                    Actions
+                  </span>
+                </th>
               </tr>
             </thead>
 
             {/* Table Body */}
             <tbody className="divide-y divide-default-100">
-              {runs.map((run) => {
+              {paginatedRuns.map((run) => {
                 const cfg = getStatusConfig(run.status);
                 const isExpanded = expandedRunId === run.id;
                 return (
                   <tr key={run.id} className="group">
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       {/* Main Row */}
                       <div
                         onClick={() => toggleExpand(run.id)}
@@ -535,32 +744,39 @@ export default function BFlowRunsList(props: BFlowRunsListProps) {
                           </div>
                         </div>
 
-                        {/* View button */}
+                        {/* Actions: Delete */}
                         <div
-                          className="px-3 py-4 flex-shrink-0"
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(
-                              `/modules/bunny-flow/flow/${run.flowId}/pipeline/${run.pipelineId}/run`,
-                            );
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.stopPropagation();
-                              router.push(
-                                `/modules/bunny-flow/flow/${run.flowId}/pipeline/${run.pipelineId}/run`,
-                              );
-                            }
-                          }}
+                          className="px-2 py-4 flex-shrink-0 flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                          role="toolbar"
                         >
+                          {/* View button */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="min-w-0 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                            className="min-w-0 px-2 text-default-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onPress={() =>
+                              router.push(
+                                `/modules/bunny-flow/flow/${run.flowId}/pipeline/${run.pipelineId}/run`,
+                              )
+                            }
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
+                          </Button>
+
+                          {/* Delete button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-w-0 px-2 text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onPress={() =>
+                              setDeleteTarget({
+                                id: run.id,
+                                label: `#${run.runNumber ?? run.id.slice(0, 6)}`,
+                              })
+                            }
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -595,7 +811,26 @@ export default function BFlowRunsList(props: BFlowRunsListProps) {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ──────────────────────────────────────── */}
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalCount}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </div>
+
+      {/* ── Delete Confirmation Modal ──────────────────────────── */}
+      <DeleteConfirmModal
+        open={!!deleteTarget}
+        runLabel={deleteTarget?.label ?? ""}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        deleting={deleting}
+      />
     </div>
   );
 }

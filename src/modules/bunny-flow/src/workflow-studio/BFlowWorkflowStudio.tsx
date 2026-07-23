@@ -6,13 +6,20 @@
  * database (IndexedDB).  All test-run results live only in browser memory.
  *
  * ─── Modes ─────────────────────────────────────────────────────────────
- *   • YAML Editor (default) — Monaco code editor pre-loaded with the workflow YAML.
+ *   • YAML Editor (default) — Monaco or CodeMirror code editor pre-loaded
+ *                             with the workflow YAML (see Settings for editor
+ *                             preference).
  *   • Interactive Mode      — Form-based UI for building workflow interactively
- *                             using heroUI components. Replaces Monaco editor,
+ *                             using heroUI components. Replaces code editor,
  *                             skips YAML validation, and serializes to YAML on save.
  *
+ * ─── Editor Preference ─────────────────────────────────────────────────
+ *   The user can choose between MonacoEditor (default) and CodeMirror in
+ *   the global BFlow Settings page.  The preference is persisted in
+ *   localStorage via BFlowEditorSettingsProvider.
+ *
  * ─── Panels ───────────────────────────────────────────────────────────
- *   Left  (editor) — Monaco code editor OR interactive form.
+ *   Left  (editor) — Code editor (Monaco or CodeMirror) OR interactive form.
  *   Right (runner) — Pipeline display showing jobs, steps, outputs & prompts.
  *
  * ─── Actions ──────────────────────────────────────────────────────────
@@ -85,6 +92,7 @@ import { useBFlowPools } from "../pool/useBFlowPools";
 
 import type { BFlowWorkflowStudioProps } from "./BFlowWorkflowStudio.Types";
 import { BFlowStudioLoadingFallback } from "./BFlowWorkflowStudio.LoadingFallback";
+import { useBFlowEditorSettings } from "../settings/BFlowEditorSettings";
 
 // ─── Generative Menu ────────────────────────────────────────────────
 
@@ -102,6 +110,13 @@ const MonacoEditor = dynamic(
   { ssr: false, loading: () => <BFlowStudioLoadingFallback /> },
 );
 
+// ─── Dynamic CodeMirror import (SSR-safe) ────────────────────────────
+
+const BFlowCodeMirrorEditor = dynamic(
+  () => import("./BFlowCodeMirrorEditor"),
+  { ssr: false, loading: () => <BFlowStudioLoadingFallback /> },
+);
+
 // ═══════════════════════════════════════════════════════════════════════
 // BFlowWorkflowStudio
 // ═══════════════════════════════════════════════════════════════════════
@@ -110,6 +125,7 @@ export default function BFlowWorkflowStudio({
   params,
 }: BFlowWorkflowStudioProps) {
   const { id: flowId, workflowId } = use(params);
+  const { editorKind } = useBFlowEditorSettings();
   const router = useRouter();
 
   // ── Edit mode (YAML editor caching via ?edit) ─────────────────────
@@ -927,32 +943,47 @@ export default function BFlowWorkflowStudio({
                 <span className="text-xs font-semibold text-default-500 uppercase tracking-wider">
                   YAML Editor
                 </span>
-                <span className="text-[10px] text-default-400 font-mono">
-                  {yamlContent.split("\n").length} lines
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-default-400 font-mono bg-default-100 px-1.5 py-0.5 rounded">
+                    {editorKind === "codemirror" ? "CM" : "Monaco"}
+                  </span>
+                  <span className="text-[10px] text-default-400 font-mono">
+                    {yamlContent.split("\n").length} lines
+                  </span>
+                </div>
               </div>
               <div className="flex-1 min-h-[50vh] lg:min-h-0">
-                <MonacoEditor
-                  height="100%"
-                  defaultLanguage="yaml"
-                  language="yaml"
-                  theme="vs-light"
-                  value={yamlContent}
-                  onChange={handleYamlChange}
-                  options={{
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    fontSize: 13,
-                    lineNumbers: "on",
-                    automaticLayout: true,
-                    tabSize: 2,
-                    wordWrap: "on",
-                    formatOnPaste: true,
-                    renderWhitespace: "selection",
-                    bracketPairColorization: { enabled: true },
-                    padding: { top: 12 },
-                  }}
-                />
+                {editorKind === "codemirror" ? (
+                  <BFlowCodeMirrorEditor
+                    value={yamlContent}
+                    onChange={handleYamlChange}
+                    fontSize={13}
+                    tabSize={2}
+                    wordWrap={true}
+                  />
+                ) : (
+                  <MonacoEditor
+                    height="100%"
+                    defaultLanguage="yaml"
+                    language="yaml"
+                    theme="vs-light"
+                    value={yamlContent}
+                    onChange={handleYamlChange}
+                    options={{
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      fontSize: 13,
+                      lineNumbers: "on",
+                      automaticLayout: true,
+                      tabSize: 2,
+                      wordWrap: "on",
+                      formatOnPaste: true,
+                      renderWhitespace: "selection",
+                      bracketPairColorization: { enabled: true },
+                      padding: { top: 12 },
+                    }}
+                  />
+                )}
               </div>
             </>
           )}

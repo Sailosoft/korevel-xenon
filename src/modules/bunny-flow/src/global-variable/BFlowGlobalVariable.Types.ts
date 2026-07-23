@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  BFlowVariableBaseSchema,
+  BFlowVariableTypeSchema,
+} from "../shared/BFlowVariableBase";
+
+export type { BFlowVariableType } from "../shared/BFlowVariableBase";
 
 // ─── Shared Primitives ─────────────────────────────────────────────
 
@@ -6,23 +12,28 @@ const GuidSchema = z.string().min(1);
 
 // ─── Global Variable ───────────────────────────────────────────────
 
-export const BFlowVariableTypeSchema = z.enum([
-  "text",
-  "number",
-  "boolean",
-  "select",
-  "textarea",
-]);
-export type BFlowVariableType = z.infer<typeof BFlowVariableTypeSchema>;
-
+/**
+ * BFlowGlobalVariableEntity — IndexedDB entity for global (workspace-level) variables.
+ *
+ * Extends the canonical `BFlowVariableBaseSchema` (source of truth from
+ * the workflow YAML definition) with entity-specific fields:
+ *   - id         — GUIDv7 primary key
+ *   - group      — optional grouping tag (e.g. "system", "env", "custom")
+ *   - metadata   — extensibility key-value store
+ *   - createdAt  — creation timestamp
+ *   - updatedAt  — last-updated timestamp
+ *
+ * Core variable fields (name, value, type, description) follow the
+ * pattern defined in BFlowVariableBaseSchema.
+ */
 export const BFlowGlobalVariableSchema = z.object({
   /** GUIDv7 */
   id: z.string(),
-  /** Name of the variable */
-  name: z.string().min(1),
-  /** Default value (used when no override exists at any higher level) */
-  value: z.string(),
-  /** Type of the variable */
+  /** Name of the variable (from base schema) */
+  name: BFlowVariableBaseSchema.shape.name,
+  /** Default value (from base schema) */
+  value: BFlowVariableBaseSchema.shape.value,
+  /** Type of the variable (required at entity level) */
   type: BFlowVariableTypeSchema,
   /** Description of the variable */
   description: z.string().optional(),
@@ -44,9 +55,12 @@ export type BFlowGlobalVariableEntity = z.infer<
 /**
  * Form schema for creating/updating a global variable.
  * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
+ *
+ * Core variable fields (name, value, type, description) follow the
+ * pattern defined in BFlowVariableBaseSchema.
  */
 export const BFlowGlobalVariableFormSchema = z.object({
-  name: z.string().min(1, "Name must not be empty").max(256),
+  name: BFlowVariableBaseSchema.shape.name,
   value: z.string().min(1, "Default value is required"),
   type: BFlowVariableTypeSchema,
   description: z.string().optional(),

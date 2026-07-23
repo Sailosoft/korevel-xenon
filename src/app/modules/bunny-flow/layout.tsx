@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, GitBranch, Globe, Brain } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
+import { BFlowEditorSettingsProvider } from "@/src/modules/bunny-flow/src/settings/BFlowEditorSettings";
 
 // ── Shell Configuration (outer) ────────────────────────────────────
 
@@ -57,9 +58,15 @@ export default function BFlowLayout({
     /^\/modules\/bunny-flow\/flow\/[^/]+(\/|$)/.test(pathname) &&
     !pathname.startsWith("/modules/bunny-flow/definitions");
 
+  // Wrap everything in the editor settings provider so the hook is available
+  // throughout the bunny-flow module (including the workflow studio and settings page).
+  const content = (
+    <BFlowEditorSettingsProvider>{children}</BFlowEditorSettingsProvider>
+  );
+
   // Inner routes get a bare wrapper — the [id]/layout.tsx provides its own shell.
   if (isInnerRoute) {
-    return <Suspense fallback={null}>{children}</Suspense>;
+    return <Suspense fallback={null}>{content}</Suspense>;
   }
 
   // Outer routes (Dashboard, Definitions) get the document shell.
@@ -72,7 +79,7 @@ export default function BFlowLayout({
       }
     >
       <BUIDocumentShell config={BFLOW_SHELL_CONFIG}>
-        {children}
+        {content}
       </BUIDocumentShell>
     </Suspense>
   );

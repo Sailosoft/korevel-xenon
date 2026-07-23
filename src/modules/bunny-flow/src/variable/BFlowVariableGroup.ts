@@ -49,6 +49,14 @@ export const bflowVariableGroupModule = BunnyFeature.create<
         options: () => bflowDB.definitionsRepo.toSelectOptions(),
       },
       {
+        name: "workflowId",
+        label: "Workflow Template",
+        placeholder: "Select workflow (optional)",
+        type: "select",
+        required: false,
+        options: () => bflowDB.workflowTemplatesRepo.toSelectOptions(),
+      },
+      {
         name: "name",
         label: "Name",
         placeholder: "Enter variable group name",

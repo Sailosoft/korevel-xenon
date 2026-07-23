@@ -2,9 +2,16 @@
  * BFlowWorkflowInteractive.Types — Interfaces and types for the interactive workflow builder.
  *
  * All exported interfaces are prefixed with BFlow.
+ *
+ * Variable types follow the canonical pattern defined in `BFlowVariableBaseSchema`
+ * (shared/BFlowVariableBase.ts), which is the source of truth for variable
+ * record shapes across Bunny Flow.
  */
 
 "use client";
+
+import type { BFlowVariableType } from "../shared/BFlowVariableBase";
+import { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -24,7 +31,7 @@ export interface BFlowInteractiveVariable {
   id?: string;
   name: string;
   value: string;
-  type: "text" | "number" | "boolean" | "select" | "textarea";
+  type: BFlowVariableType;
   description?: string;
 }
 
@@ -177,13 +184,12 @@ export const OUTPUT_TYPE_OPTIONS = [
   { label: "YAML", value: "yaml" },
 ];
 
-export const VARIABLE_TYPE_OPTIONS = [
-  { label: "Text", value: "text" },
-  { label: "Number", value: "number" },
-  { label: "Boolean", value: "boolean" },
-  { label: "Select", value: "select" },
-  { label: "Textarea", value: "textarea" },
-];
+/**
+ * NOTE: `VARIABLE_TYPE_OPTIONS` is now defined in the shared base schema
+ * (`shared/BFlowVariableBase.ts`) as the single source of truth.
+ * Re-exported from there to keep backward compatibility.
+ */
+export { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
 export const CONDITION_OPTIONS = [
   { label: "==", value: "==" },

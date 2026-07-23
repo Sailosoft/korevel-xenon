@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  BFlowVariableBaseSchema,
+  BFlowVariableTypeSchema,
+} from "../shared/BFlowVariableBase";
+
+export type { BFlowVariableType } from "../shared/BFlowVariableBase";
 
 // ─── Shared Primitives ─────────────────────────────────────────────
 
@@ -14,23 +20,18 @@ const NameSchema = z
 
 // ─── Variable ──────────────────────────────────────────────────────
 
-export const BFlowVariableTypeSchema = z.enum([
-  "text",
-  "number",
-  "boolean",
-  "select",
-  "textarea",
-]);
-export type BFlowVariableType = z.infer<typeof BFlowVariableTypeSchema>;
-
-export const BFlowVariableSchema = z.object({
+/**
+ * BFlowVariable — Workflow YAML variable definition.
+ *
+ * The source of truth for the variable record shape is `BFlowVariableBaseSchema`
+ * in `shared/BFlowVariableBase.ts`.  This schema extends the base with an
+ * optional `id` field for workflow-level variables.
+ *
+ * NOTE: `BFlowVariableTypeSchema` is re-exported from the shared base to
+ * ensure a single canonical source for variable types across the codebase.
+ */
+export const BFlowVariableSchema = BFlowVariableBaseSchema.extend({
   id: GuidSchema.optional(),
-  name: NameSchema,
-  /** The variable value (replaces legacy defaultValue) */
-  value: z.string(),
-  /** Variable type is now optional — defaults to "text" in the UI */
-  type: BFlowVariableTypeSchema.optional(),
-  description: z.string().optional(),
 });
 export type BFlowVariable = z.infer<typeof BFlowVariableSchema>;
 

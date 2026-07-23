@@ -2,6 +2,7 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowFlowVariableEntity } from "./BFlowFlowVariable.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowFlowVariableFormValidation } from "../adapters/BFlowZodAdapter";
+import { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
 export const bflowFlowVariableModule = BunnyFeature.create<
   BFlowFlowVariableEntity,
@@ -54,13 +55,11 @@ export const bflowFlowVariableModule = BunnyFeature.create<
         label: "Type",
         type: "select",
         required: true,
-        options: [
-          { label: "Text", value: "text" },
-          { label: "Number", value: "number" },
-          { label: "Boolean", value: "boolean" },
-          { label: "Select", value: "select" },
-          { label: "Textarea", value: "textarea" },
-        ],
+        // Variable type options derived from the canonical
+        // BFlowVariableBaseSchema (shared/BFlowVariableBase.ts),
+        // which is the source of truth for variable record patterns
+        // across the entire Bunny Flow codebase.
+        options: VARIABLE_TYPE_OPTIONS,
       },
       {
         name: "description",
