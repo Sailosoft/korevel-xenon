@@ -152,10 +152,10 @@ function MobileCardCell<TRow>({
 }: RowUiProps<TRow>) {
   return (
     <Table.Cell>
-      <div className="flex flex-col p-3 border border-default-200 rounded-xl gap-3 w-full bg-content1 shadow-sm text-left">
-        {/* Top row controls */}
-        <div className="flex items-center justify-between border-b border-default-100 pb-2">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col p-3 border border-default-200 rounded-xl gap-2 w-full bg-content1 shadow-sm text-left">
+        {/* Top row controls — wraps actions below on narrow screens */}
+        <div className="flex items-start gap-2 border-b border-default-100 pb-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
             {selectionMode !== "none" && (
               <Checkbox
                 aria-label="Select row"
@@ -180,9 +180,9 @@ function MobileCardCell<TRow>({
             </span>
           </div>
 
-          {/* Row Actions pinned top right */}
+          {/* Row Actions — wraps below title when space is tight */}
           {actions && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0 self-center ml-auto">
               {actions.map((action, idx) =>
                 action.icon && action.label ? (
                   <Tooltip key={idx}>

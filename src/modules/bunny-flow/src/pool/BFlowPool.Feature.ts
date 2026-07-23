@@ -68,8 +68,8 @@ const mutationPools: AdminPanelMutation<BFlowPoolForm> = {
 const columns: BunnyColumn<BFlowPoolEntity>[] = [
   { field: "name", header: "Name", sortable: true, isRowHeader: true },
   { field: "code", header: "Code", sortable: true },
-  { field: "status", header: "Status", sortable: true },
-  { field: "createdAt", header: "Created", sortable: true },
+  // { field: "status", header: "Status", sortable: true },
+  // { field: "createdAt", header: "Created", sortable: true },
 ];
 
 // ─── Export the feature ─────────────────────────────────────────────
@@ -110,20 +110,20 @@ export const bflowPoolModule = BunnyFeature.create<
         label: "Description",
         placeholder: "Describe the purpose of this agent pool",
         type: "textarea",
-        rows: 3,
+        rows: 4,
       },
-      {
-        name: "status",
-        label: "Status",
-        type: "select",
-        required: true,
-        options: [
-          { label: "Draft", value: "draft" },
-          { label: "Active", value: "active" },
-          { label: "Inactive", value: "inactive" },
-          { label: "Archived", value: "archived" },
-        ],
-      },
+      // {
+      //   name: "status",
+      //   label: "Status",
+      //   type: "select",
+      //   required: true,
+      //   options: [
+      //     { label: "Draft", value: "draft" },
+      //     { label: "Active", value: "active" },
+      //     { label: "Inactive", value: "inactive" },
+      //     { label: "Archived", value: "archived" },
+      //   ],
+      // },
     ]);
     form.setGridCols(1);
   });

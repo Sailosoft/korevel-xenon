@@ -16,13 +16,16 @@ export const bflowFlowVariableModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowFlowVariableFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "value", header: "Value", sortable: true },
       { field: "type", header: "Type", sortable: true },
       { field: "description", header: "Description" },
       { field: "createdAt", header: "Created", sortable: true },
     ]);
+  });
+
+  feature.configureModal((modal) => {
+    modal.setSize("lg")
   });
 
   feature.configureForm((form) => {
@@ -69,7 +72,7 @@ export const bflowFlowVariableModule = BunnyFeature.create<
         rows: 4,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.flowVariablesRepo.dataLayer);

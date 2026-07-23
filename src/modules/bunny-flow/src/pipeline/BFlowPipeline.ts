@@ -20,9 +20,9 @@ export const bflowPipelineModule = BunnyFeature.create<
       // { field: "id", header: "ID", sortable: true, isRowHeader: true },
       { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
-      { field: "status", header: "Status", sortable: true },
-      { field: "version", header: "Version", sortable: true },
-      { field: "createdAt", header: "Created", sortable: true },
+      // { field: "status", header: "Status", sortable: true },
+      // { field: "version", header: "Version", sortable: true },
+      // { field: "createdAt", header: "Created", sortable: true },
       // Add a visual indicator for the prompt builder strategy
       {
         field: "metadata",
@@ -124,23 +124,23 @@ export const bflowPipelineModule = BunnyFeature.create<
         required: true,
         options: () => bflowDB.variableGroupsRepo.toSelectOptions(),
       },
-      {
-        name: "versionLabel",
-        label: "Version Label",
-        placeholder: "e.g. v1.0.0",
-        type: "text",
-      },
-      {
-        name: "status",
-        label: "Status",
-        type: "select",
-        options: [
-          { label: "Running", value: "running" },
-          { label: "Completed", value: "completed" },
-          { label: "Failed", value: "failed" },
-          { label: "Cancelled", value: "cancelled" },
-        ],
-      },
+      // {
+      //   name: "versionLabel",
+      //   label: "Version Label",
+      //   placeholder: "e.g. v1.0.0",
+      //   type: "text",
+      // },
+      // {
+      //   name: "status",
+      //   label: "Status",
+      //   type: "select",
+      //   options: [
+      //     { label: "Running", value: "running" },
+      //     { label: "Completed", value: "completed" },
+      //     { label: "Failed", value: "failed" },
+      //     { label: "Cancelled", value: "cancelled" },
+      //   ],
+      // },
       {
         name: "prompt",
         label: "Prompt Override",

@@ -673,7 +673,7 @@ export default function BFlowWorkflowStudio({
       {/* ═══════════════════════════════════════════════════════════════
            HEADER — Back, title, action buttons
            ═══════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-default-100">
+      <header className="lg:sticky lg:top-0 lg:z-20 bg-background/80 backdrop-blur-sm border-b border-default-100">
         <div className="px-2 md:px-3 py-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             {/* Left: Back + Title */}
@@ -698,7 +698,7 @@ export default function BFlowWorkflowStudio({
             </div>
 
             {/* Right: Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-start">
               {/* Save status indicator */}
               {saveStatus === "saved" && (
                 <span className="flex items-center gap-1 text-xs text-success font-medium">

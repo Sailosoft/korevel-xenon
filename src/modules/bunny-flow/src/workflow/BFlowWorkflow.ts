@@ -94,9 +94,9 @@ export const bflowWorkflowModule = BunnyFeature.create<
       // { field: "id", header: "ID", sortable: true, isRowHeader: true },
       { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
-      { field: "version", header: "Version", sortable: true },
-      { field: "status", header: "Status", sortable: true },
-      { field: "createdAt", header: "Created", sortable: true },
+      // { field: "version", header: "Version", sortable: true },
+      // { field: "status", header: "Status", sortable: true },
+      // { field: "createdAt", header: "Created", sortable: true },
     ]);
   });
 
@@ -185,22 +185,22 @@ jobs:
         type: "textarea",
         rows: 4,
       },
-      {
-        name: "version",
-        label: "Version",
-        placeholder: "e.g. 1.0.0",
-        type: "text",
-      },
-      {
-        name: "status",
-        label: "Status",
-        type: "select",
-        options: [
-          { label: "Draft", value: "draft" },
-          { label: "Published", value: "published" },
-          { label: "Archived", value: "archived" },
-        ],
-      },
+      // {
+      //   name: "version",
+      //   label: "Version",
+      //   placeholder: "e.g. 1.0.0",
+      //   type: "text",
+      // },
+      // {
+      //   name: "status",
+      //   label: "Status",
+      //   type: "select",
+      //   options: [
+      //     { label: "Draft", value: "draft" },
+      //     { label: "Published", value: "published" },
+      //     { label: "Archived", value: "archived" },
+      //   ],
+      // },
       {
         name: "templateYaml",
         label: "Template YAML",

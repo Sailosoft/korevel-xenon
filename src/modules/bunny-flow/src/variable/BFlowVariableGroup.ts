@@ -17,11 +17,9 @@ export const bflowVariableGroupModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowVariableGroupFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
-      { field: "description", header: "Description", sortable: true },
-      { field: "createdAt", header: "Created", sortable: true },
+      { field: "description", header: "Description", sortable: true }
     ]);
   });
 
@@ -35,6 +33,10 @@ export const bflowVariableGroupModule = BunnyFeature.create<
         );
       },
     });
+  });
+
+  feature.configureModal((modal) => {
+    modal.setSize("lg");
   });
 
   feature.configureForm((form) => {
@@ -78,7 +80,7 @@ export const bflowVariableGroupModule = BunnyFeature.create<
         rows: 4,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.variableGroupsRepo.dataLayer);
