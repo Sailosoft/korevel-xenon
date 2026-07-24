@@ -2,6 +2,7 @@ import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { BFlowFlowVariableEntity } from "./BFlowFlowVariable.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowFlowVariableFormValidation } from "../adapters/BFlowZodAdapter";
+import { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
 export const bflowFlowVariableModule = BunnyFeature.create<
   BFlowFlowVariableEntity,
@@ -15,13 +16,16 @@ export const bflowFlowVariableModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowFlowVariableFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "value", header: "Value", sortable: true },
       { field: "type", header: "Type", sortable: true },
       { field: "description", header: "Description" },
       { field: "createdAt", header: "Created", sortable: true },
     ]);
+  });
+
+  feature.configureModal((modal) => {
+    modal.setSize("lg")
   });
 
   feature.configureForm((form) => {
@@ -54,13 +58,11 @@ export const bflowFlowVariableModule = BunnyFeature.create<
         label: "Type",
         type: "select",
         required: true,
-        options: [
-          { label: "Text", value: "text" },
-          { label: "Number", value: "number" },
-          { label: "Boolean", value: "boolean" },
-          { label: "Select", value: "select" },
-          { label: "Textarea", value: "textarea" },
-        ],
+        // Variable type options derived from the canonical
+        // BFlowVariableBaseSchema (shared/BFlowVariableBase.ts),
+        // which is the source of truth for variable record patterns
+        // across the entire Bunny Flow codebase.
+        options: VARIABLE_TYPE_OPTIONS,
       },
       {
         name: "description",
@@ -70,7 +72,7 @@ export const bflowFlowVariableModule = BunnyFeature.create<
         rows: 4,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.flowVariablesRepo.dataLayer);

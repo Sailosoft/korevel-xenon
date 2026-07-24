@@ -15,7 +15,10 @@
 "use server";
 
 import OpenAI from "openai";
-import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
+import {
+  HELIX_AI_PROVIDERS,
+  HELIX_NON_SUPPORTED_JSON_OBJECT_PROVIDER,
+} from "@/src/modules/helix";
 import type { LCAIResponse, LCAIConversationMessage } from "./LCInterface";
 import { parseLCAIResponse } from "./LCSafeJsonParse";
 
@@ -45,7 +48,9 @@ const SYSTEM_MESSAGE =
   "When providing file Content, always output the COMPLETE file from the first line to the last — " +
   "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
   "The Content field must be ready to copy-paste and write directly to the file as-is. " +
-  "CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
+  // before
+  // CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
+  'CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\", backslashes as \\\\, ' +
   "and replace literal newlines with \\n. Never use trailing commas in objects or arrays. " +
   "Verify your JSON is valid before responding.";
 
@@ -54,6 +59,13 @@ function getProviderConfig(provider: string) {
     HELIX_AI_PROVIDERS.find((p) => p.provider === provider) ??
     HELIX_AI_PROVIDERS.find((p) => p.provider === "default")
   );
+}
+
+/** Whether the given provider supports the `json_object` response_format parameter */
+function supportsJsonResponseFormat(provider: string): boolean {
+  return !(
+    HELIX_NON_SUPPORTED_JSON_OBJECT_PROVIDER as readonly string[]
+  ).includes(provider);
 }
 
 async function callOpenAI(
@@ -118,7 +130,9 @@ export async function callHelixAI({
         { role: "system", content: SYSTEM_MESSAGE },
         { role: "user", content: prompt },
       ],
-      response_format: { type: "json_object" },
+      ...(supportsJsonResponseFormat(provider)
+        ? { response_format: { type: "json_object" as const } }
+        : {}),
       temperature: 0.7,
     });
 
@@ -163,8 +177,11 @@ export async function callHelixAIWithConversation({
 
     const response = await ai.chat.completions.create({
       model,
-      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      response_format: { type: "json_object" },
+      messages:
+        messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      ...(supportsJsonResponseFormat(provider)
+        ? { response_format: { type: "json_object" as const } }
+        : {}),
       temperature: 0.7,
     });
 

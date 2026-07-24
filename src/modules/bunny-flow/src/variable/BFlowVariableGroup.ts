@@ -17,11 +17,9 @@ export const bflowVariableGroupModule = BunnyFeature.create<
   feature.setValidationAdapter(useBFlowVariableGroupFormValidation());
   feature.configureTable((table) => {
     table.addColumns([
-      { field: "id", header: "ID", sortable: true, isRowHeader: true },
-      { field: "name", header: "Name", sortable: true },
+      { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
-      { field: "description", header: "Description", sortable: true },
-      { field: "createdAt", header: "Created", sortable: true },
+      { field: "description", header: "Description", sortable: true }
     ]);
   });
 
@@ -37,6 +35,10 @@ export const bflowVariableGroupModule = BunnyFeature.create<
     });
   });
 
+  feature.configureModal((modal) => {
+    modal.setSize("lg");
+  });
+
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
     form.addFields([
@@ -47,6 +49,14 @@ export const bflowVariableGroupModule = BunnyFeature.create<
         type: "select",
         required: true,
         options: () => bflowDB.definitionsRepo.toSelectOptions(),
+      },
+      {
+        name: "workflowId",
+        label: "Workflow Template",
+        placeholder: "Select workflow (optional)",
+        type: "select",
+        required: false,
+        options: () => bflowDB.workflowTemplatesRepo.toSelectOptions(),
       },
       {
         name: "name",
@@ -70,7 +80,7 @@ export const bflowVariableGroupModule = BunnyFeature.create<
         rows: 4,
       },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.variableGroupsRepo.dataLayer);

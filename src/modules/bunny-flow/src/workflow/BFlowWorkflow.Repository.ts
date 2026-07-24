@@ -18,6 +18,21 @@ export class BFlowWorkflowRepository extends PhazeRepository<
     return items.map((item) => ({ label: item.name, value: item.id }));
   }
 
+  /**
+   * Returns select options for workflow templates filtered by flow ID.
+   * Used by the variable group form to show only workflows belonging
+   * to the current flow definition.
+   */
+  async toSelectOptionsByFlowId(flowId: string): Promise<BunnySelectOption[]> {
+    const items = await this.set
+      .filter((item) => item.flowId === flowId)
+      .toArray();
+    return items.map((item) => ({
+      label: `${item.name}${item.version ? ` (v${item.version})` : ""}`,
+      value: item.id,
+    }));
+  }
+
   private parseTemplate(
     data: BFlowWorkflowTemplateEntity,
   ): BFlowWorkflowTemplateEntity {

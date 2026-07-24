@@ -179,4 +179,11 @@ export function configureBFlowMigrations(model: IPhazeModelBuilder): void {
       table.index("status");
     });
   });
+
+  // ── Version 9 — add workflowId index to variableGroups ─────────
+  model.schema((config) => {
+    config.update("variableGroups", (table) => {
+      table.addIndex("workflowId");
+    });
+  });
 }

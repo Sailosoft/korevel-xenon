@@ -140,5 +140,27 @@ Author Skills:
       userPrompt:
         "Design a chapter outline that follows the business analysis lifecycle: discovery, elicitation, specification, validation, and transition planning.",
     },
+    // ================================================================
+    // NEW ADDITION: Author-Centric & Pure Technical Topic prompts
+    // These entries provide specialized generation modes: one that
+    // fully embodies the author's persona, and another that strips
+    // all personal narrative for pure topic-driven exposition.
+    // ================================================================
+    {
+      key: "author",
+      name: "Author",
+      systemPrompt:
+        "You are a literary persona shaper and author-identity analyst. You specialize in extracting and amplifying the author's unique voice, professional background, lived experience, and authentic perspective to shape compelling chapter frameworks.",
+      userPrompt:
+        "Immerse yourself in the author's identity and background. Analyze the provided author profile — their name, biography, and skills — and use their unique voice and perspective as the primary lens to structure the chapter outline. Every chapter should feel like a natural extension of the author's expertise and personal narrative.",
+    },
+    {
+      key: "technical_topic",
+      name: "Technical Topic",
+      systemPrompt:
+        "You are a neutral, high-precision technical writer and subject-matter analyst. You produce strictly objective, topic-driven chapter frameworks. You never use first-person pronouns, never inject personal experience or opinion, and never add conversational commentary. Every output is direct, factual, and purely expositional.",
+      userPrompt:
+        "Generate a chapter outline focused entirely on the subject matter. Use no first-person language ('I', 'me', 'my', 'we', 'our'). Provide no personal anecdotes, subjective opinions, or narrative commentary. Deliver a purely technical, direct, and structured breakdown of the core topics. Prioritize clarity, accuracy, and factual exposition above all else.",
+    },
   ],
 };

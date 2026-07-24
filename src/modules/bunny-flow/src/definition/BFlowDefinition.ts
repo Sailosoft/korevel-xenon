@@ -21,7 +21,7 @@ export const bflowDefinitionModule = BunnyFeature.create<
       // { field: "code", header: "Code", sortable: true },
       { field: "name", header: "Name", sortable: true, isRowHeader: true },
       { field: "slug", header: "Slug", sortable: true },
-      { field: "status", header: "Status", sortable: true },
+      // { field: "status", header: "Status", sortable: true },
       // { field: "version", header: "Version", sortable: true },
     ]);
   });
@@ -35,6 +35,11 @@ export const bflowDefinitionModule = BunnyFeature.create<
       },
     });
   });
+
+  feature.configureModal((modal) => {
+    modal.setSize("lg")
+  })
+
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "redirect", route: "/modules/bunny-flow/flow" });
     form.addFields([
@@ -45,13 +50,13 @@ export const bflowDefinitionModule = BunnyFeature.create<
         type: "text",
         required: true,
       },
-      {
-        name: "code",
-        label: "Code",
-        type: "slug",
-        required: true,
-        slug: { sourceField: "name", prefix: "FLOW-" },
-      },
+      // {
+      //   name: "code",
+      //   label: "Code",
+      //   type: "slug",
+      //   required: true,
+      //   slug: { sourceField: "name", prefix: "FLOW-" },
+      // },
       {
         name: "slug",
         label: "Slug",
@@ -66,24 +71,24 @@ export const bflowDefinitionModule = BunnyFeature.create<
         type: "textarea",
         rows: 4,
       },
-      {
-        name: "version",
-        label: "Version",
-        placeholder: "e.g. 1.0.0",
-        type: "text",
-      },
-      {
-        name: "status",
-        label: "Status",
-        type: "select",
-        options: [
-          { label: "Draft", value: "draft" },
-          { label: "Published", value: "published" },
-          { label: "Archived", value: "archived" },
-        ],
-      },
+      // {
+      //   name: "version",
+      //   label: "Version",
+      //   placeholder: "e.g. 1.0.0",
+      //   type: "text",
+      // },
+      // {
+      //   name: "status",
+      //   label: "Status",
+      //   type: "select",
+      //   options: [
+      //     { label: "Draft", value: "draft" },
+      //     { label: "Published", value: "published" },
+      //     { label: "Archived", value: "archived" },
+      //   ],
+      // },
     ]);
-    form.setGridCols(2);
+    form.setGridCols(1);
   });
 
   feature.useDataLayer(bflowDB.definitionsRepo.dataLayer);

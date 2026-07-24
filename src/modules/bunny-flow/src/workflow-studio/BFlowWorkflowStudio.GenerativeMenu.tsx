@@ -33,7 +33,9 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type {
   BFlowWorkflowJob,
   BFlowWorkflowAgent,
+  BFlowVariable,
 } from "../workflow/BFlowWorkflow.Types";
+import { bflowWorkflowGenerateJobs } from "../workflow/BFlowWorkflow.GenerateJobs.Server";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Types
@@ -420,7 +422,7 @@ export function AgentSwarmModal({
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 2. GenerateJobsModal
+// 2. GenerateJobsModal — AI-powered job generation
 // ═══════════════════════════════════════════════════════════════════════
 
 interface GenerateJobsModalProps extends GenerativeMenuModalProps {
@@ -433,104 +435,134 @@ export function GenerateJobsModal({
   onYamlUpdate,
   onClose,
 }: GenerateJobsModalProps) {
-  const [minJobs, setMinJobs] = useState("1");
-  const [maxJobs, setMaxJobs] = useState("3");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(["frontend"]);
+  const [userDescription, setUserDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedJobs, setGeneratedJobs] = useState<BFlowWorkflowJob[] | null>(null);
+  const [generatedYaml, setGeneratedYaml] = useState<string | null>(null);
+  const [generatedVariablesYaml, setGeneratedVariablesYaml] = useState<string | null>(null);
+  const [missingVariables, setMissingVariables] = useState<BFlowVariable[]>([]);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const minLabelId = useId();
-  const maxLabelId = useId();
-  const typeLabelId = useId();
+  const descLabelId = useId();
 
-  const toggleType = useCallback((type: string) => {
-    setSelectedTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
-    );
-  }, []);
+  /** Parse workflow name/description from the YAML for context */
+  const workflowContext = React.useMemo(() => {
+    try {
+      const parsed = parseYaml(yamlContent);
+      return {
+        workflowName: (parsed?.name as string) ?? "Unnamed Workflow",
+        workflowDescription: (parsed?.description as string) ?? "",
+      };
+    } catch {
+      return { workflowName: "Unnamed Workflow", workflowDescription: "" };
+    }
+  }, [yamlContent]);
 
   const handleGenerate = useCallback(async () => {
+    if (!userDescription.trim()) {
+      setError("Please describe the jobs you want to generate.");
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
     setResult(null);
+    setGeneratedJobs(null);
+    setGeneratedYaml(null);
+    setGeneratedVariablesYaml(null);
+    setMissingVariables([]);
+
+    try {
+      const result = await bflowWorkflowGenerateJobs({
+        workflowName: workflowContext.workflowName,
+        workflowDescription: workflowContext.workflowDescription,
+        existingYaml: yamlContent,
+        userDescription: userDescription.trim(),
+      });
+
+      setGeneratedJobs(result.jobs);
+      setGeneratedYaml(result.jobsYaml);
+      setMissingVariables(result.missingVariables);
+      setGeneratedVariablesYaml(result.variablesYaml);
+      setResult(result.summary);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to generate jobs",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [userDescription, workflowContext, yamlContent]);
+
+  /** Apply the generated jobs + variables: merge into existing YAML and update */
+  const handleApply = useCallback(() => {
+    if (!generatedJobs || generatedJobs.length === 0) return;
 
     try {
       const parsed = parseYaml(yamlContent);
       const existingJobs: BFlowWorkflowJob[] = parsed?.jobs ?? [];
-      const min = Math.max(1, parseInt(minJobs, 10) || 1);
-      const max = Math.max(min, parseInt(maxJobs, 10) || 3);
-      const numToGenerate = Math.min(
-        Math.floor(Math.random() * (max - min + 1)) + min,
-        10,
+
+      // Merge: append generated jobs, skip duplicates by name
+      const existingNames = new Set(existingJobs.map((j) => j.name));
+      const uniqueNewJobs = generatedJobs.filter(
+        (j) => !existingNames.has(j.name),
       );
 
-      if (selectedTypes.length === 0) {
-        setError("Please select at least one job type.");
-        setIsGenerating(false);
+      if (uniqueNewJobs.length === 0 && missingVariables.length === 0) {
+        setError("All generated jobs already exist in the workflow.");
         return;
       }
 
-      const typeConfigs = selectedTypes.map((t) => {
-        const found = JOB_TYPE_OPTIONS.find((o) => o.name === t);
-        return { name: t, prompt: found?.prompt ?? `${t} task` };
-      });
-
-      const newJobs: BFlowWorkflowJob[] = [];
-
-      for (let i = 0; i < numToGenerate; i++) {
-        const typeConfig = typeConfigs[i % typeConfigs.length];
-        const jobName = `job-${typeConfig.name}-${String(i + 1).padStart(2, "0")}`;
-        const existing = existingJobs.find((j) => j.name === jobName);
-        if (existing) continue;
-
-        newJobs.push({
-          id: uuidv7(),
-          name: jobName,
-          prompt: `Execute ${typeConfig.name} tasks: ${typeConfig.prompt}`,
-          steps: [
-            {
-              id: uuidv7(),
-              name: `step-analyze`,
-              prompts: [
-                `Analyze and plan the ${typeConfig.name} task: ${typeConfig.prompt}`,
-              ],
-            },
-            {
-              id: uuidv7(),
-              name: `step-execute`,
-              prompts: [
-                `Execute the ${typeConfig.name} task based on the analysis`,
-              ],
-            },
-          ],
-        });
-      }
-
-      if (newJobs.length === 0) {
-        setResult("All suggested jobs already exist in the configuration.");
-        setIsGenerating(false);
-        return;
-      }
-
-      // Update YAML with new jobs
       const updatedParsed = { ...parsed };
-      updatedParsed.jobs = [...existingJobs, ...newJobs];
+
+      // Merge jobs
+      if (uniqueNewJobs.length > 0) {
+        updatedParsed.jobs = [...existingJobs, ...uniqueNewJobs];
+      }
+
+      // Merge variables: append missing variables detected from prompts
+      if (missingVariables.length > 0) {
+        const existingVars: BFlowVariable[] = parsed?.variables ?? [];
+        const existingVarNames = new Set(existingVars.map((v) => v.name));
+        const uniqueNewVars = missingVariables.filter(
+          (v) => !existingVarNames.has(v.name),
+        );
+        if (uniqueNewVars.length > 0) {
+          updatedParsed.variables = [...existingVars, ...uniqueNewVars];
+        }
+      }
+
       const newYaml = stringifyYaml(updatedParsed, {
         indent: 2,
         lineWidth: -1,
       });
-      onYamlUpdate(newYaml);
 
-      setResult(
-        `Generated ${newJobs.length} job${newJobs.length !== 1 ? "s" : ""} (range: ${min}-${max}) across ${selectedTypes.length} type${selectedTypes.length !== 1 ? "s" : ""}:\n${newJobs.map((j) => `  • ${j.name} — ${j.prompt.slice(0, 60)}...`).join("\n")}`,
-      );
+      onYamlUpdate(newYaml);
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate jobs");
-    } finally {
-      setIsGenerating(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to apply generated jobs",
+      );
     }
-  }, [yamlContent, minJobs, maxJobs, selectedTypes, onYamlUpdate]);
+  }, [generatedJobs, missingVariables, yamlContent, onYamlUpdate, onClose]);
+
+  /** Preview of generated jobs as a compact YAML block */
+  const jobsPreview = React.useMemo(() => {
+    if (!generatedJobs || generatedJobs.length === 0) return null;
+    return generatedJobs
+      .map((job) => {
+        const stepCount = job.steps?.length ?? 0;
+        const needsInfo = job.needs
+          ? ` [needs: ${Array.isArray(job.needs) ? job.needs.join(", ") : job.needs}]`
+          : "";
+        const agentInfo = job.agent ? ` [agent: ${job.agent}]` : "";
+        return `  • ${job.name}${agentInfo}${needsInfo}\n    ${stepCount} step${stepCount !== 1 ? "s" : ""} — ${(job.prompt ?? "").slice(0, 80)}${(job.prompt ?? "").length > 80 ? "..." : ""}`;
+      })
+      .join("\n");
+  }, [generatedJobs]);
 
   if (!open) return null;
 
@@ -546,7 +578,7 @@ export function GenerateJobsModal({
                 Generate Jobs
               </h3>
               <p className="text-xs text-default-400 mt-0.5">
-                Generate job definitions from workflow configuration
+                AI-powered job generation from your workflow context
               </p>
             </div>
           </div>
@@ -562,110 +594,183 @@ export function GenerateJobsModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Job Count Range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label id={minLabelId} className="text-xs font-medium">
-                Min Jobs
-              </Label>
-              <Input
-                aria-labelledby={minLabelId}
-                type="number"
-                min={1}
-                max={10}
-                value={minJobs}
-                onChange={(e) => setMinJobs(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label id={maxLabelId} className="text-xs font-medium">
-                Max Jobs
-              </Label>
-              <Input
-                aria-labelledby={maxLabelId}
-                type="number"
-                min={1}
-                max={10}
-                value={maxJobs}
-                onChange={(e) => setMaxJobs(e.target.value)}
-                placeholder="3"
-              />
-            </div>
+          {/* Workflow Context Indicator */}
+          <div className="bg-default-50 rounded-xl p-2.5 text-[11px] text-default-500">
+            <span className="font-medium text-default-600">Workflow: </span>
+            {workflowContext.workflowName}
+            {workflowContext.workflowDescription && (
+              <>
+                {" — "}
+                <span className="text-default-400">
+                  {workflowContext.workflowDescription.slice(0, 100)}
+                </span>
+              </>
+            )}
           </div>
 
-          {/* Job Type Selection */}
+          {/* User Description */}
           <div className="flex flex-col gap-1.5">
-            <Label id={typeLabelId} className="text-xs font-medium">
-              Job Types
+            <Label id={descLabelId} className="text-xs font-medium">
+              Describe the jobs you want to generate
             </Label>
-            <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
-              {JOB_TYPE_OPTIONS.map((type) => (
-                <button
-                  key={type.name}
-                  onClick={() => toggleType(type.name)}
-                  className={`text-left px-3 py-2 rounded-lg border text-xs transition-all ${
-                    selectedTypes.includes(type.name)
-                      ? "bg-primary-50 border-primary-200 text-primary-700"
-                      : "bg-background border-default-200 text-default-600 hover:bg-default-50"
-                  }`}
-                >
-                  <span className="block font-medium capitalize">
-                    {type.name}
-                  </span>
-                  <span className="block text-[10px] text-default-400 mt-0.5 truncate">
-                    {type.prompt}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <TextArea
+              aria-labelledby={descLabelId}
+              placeholder="Describe the jobs you need...&#10;e.g. Add a data extraction job that processes CSV files, followed by a validation job that checks data quality, and a reporting job that generates a summary"
+              value={userDescription}
+              onChange={(e) => setUserDescription(e.target.value)}
+              className="min-h-[100px]"
+              disabled={isGenerating}
+            />
+            <p className="text-[10px] text-default-400">
+              The AI considers your workflow name, description, existing
+              agents, and variables when generating jobs.
+            </p>
           </div>
 
-          {/* Result / Error */}
-          {result && (
-            <div className="bg-success-50 border border-success-200 rounded-xl p-3 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-              <pre className="text-xs text-success-700 whitespace-pre-wrap font-sans">
-                {result}
-              </pre>
+          {/* Generated Jobs Preview */}
+          {isGenerating && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-violet-500 animate-spin shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-violet-700">
+                  AI is generating jobs...
+                </p>
+                <p className="text-[10px] text-violet-500 mt-0.5">
+                  Analyzing workflow context and creating job definitions
+                </p>
+              </div>
             </div>
           )}
+
+          {result && !isGenerating && (
+            <div className="bg-success-50 border border-success-200 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-success-700 mb-1">
+                    Jobs generated successfully
+                  </p>
+                  <pre className="text-xs text-success-600 whitespace-pre-wrap font-sans">
+                    {result}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Detailed YAML preview */}
+              {jobsPreview && (
+                <div className="mt-2 bg-success-100/50 rounded-lg p-2.5">
+                  <p className="text-[10px] font-medium text-success-600 mb-1 uppercase tracking-wider">
+                    Job Preview
+                  </p>
+                  <pre className="text-[11px] text-success-700 whitespace-pre-wrap font-mono leading-relaxed">
+                    {jobsPreview}
+                  </pre>
+                </div>
+              )}
+
+              {/* Detected Variables */}
+              {missingVariables.length > 0 && (
+                <div className="mt-2 bg-primary-50 border border-primary-200 rounded-lg p-2.5">
+                  <p className="text-[10px] font-medium text-primary-600 mb-1.5 uppercase tracking-wider flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Variables to add ({missingVariables.length})
+                  </p>
+                  <div className="space-y-1">
+                    {missingVariables.map((v) => (
+                      <div key={v.name} className="flex items-center gap-2 text-[11px]">
+                        <code className="bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-mono text-[10px]">
+                          {`{{${v.name}}}`}
+                        </code>
+                        <span className="text-primary-600 truncate">
+                          {v.description || v.name}
+                        </span>
+                        <span className="text-primary-400 ml-auto text-[10px] capitalize">
+                          {v.type || "text"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <div className="bg-danger-50 border border-danger-200 rounded-xl p-3 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-              <p className="text-xs text-danger-700">{error}</p>
+              <div>
+                <p className="text-xs font-medium text-danger-700 mb-0.5">
+                  Generation Failed
+                </p>
+                <p className="text-xs text-danger-600">{error}</p>
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-default-100">
-          <Button
-            onPress={onClose}
-            variant="ghost"
-            size="sm"
-            className="text-default-500"
-          >
-            Close
-          </Button>
-          <Button
-            onPress={handleGenerate}
-            variant="primary"
-            size="sm"
-            isDisabled={isGenerating || selectedTypes.length === 0}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Generate Jobs
-              </>
-            )}
-          </Button>
+          {generatedJobs && generatedJobs.length > 0 ? (
+            <>
+              <Button
+                onPress={() => {
+                  setGeneratedJobs(null);
+                  setGeneratedYaml(null);
+                  setGeneratedVariablesYaml(null);
+                  setMissingVariables([]);
+                  setResult(null);
+                  setError(null);
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-default-500"
+              >
+                Regenerate
+              </Button>
+              <Button
+                onPress={handleApply}
+                variant="primary"
+                size="sm"
+                className="bg-violet-600 text-white"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Apply {generatedJobs.length} Job
+                {generatedJobs.length !== 1 ? "s" : ""}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                onPress={onClose}
+                variant="ghost"
+                size="sm"
+                className="text-default-500"
+              >
+                Cancel
+              </Button>
+              <Button
+                onPress={handleGenerate}
+                variant="primary"
+                size="sm"
+                isDisabled={isGenerating || !userDescription.trim()}
+                className="bg-violet-600 text-white"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    AI Generate
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

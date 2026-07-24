@@ -3,6 +3,10 @@
 // Bunny-backed pool list automatically scoped to the current
 // flow definition (flowId). Uses the existing bflowPoolModule
 // config but injects the flow id from BFlowFlowContext.
+//
+// Also overrides the "view-agents" row action to navigate to the
+// flow-scoped agents route (/modules/bunny-flow/flow/{flowId}/pools/{poolId}/agents)
+// instead of the top-level /modules/bunny-flow/pools/{poolId}/agents.
 
 "use client";
 
@@ -23,6 +27,23 @@ export default function BFlowScopedPools() {
 
   scopedConfig.beforeFormSubmit = () => ({
     flowId,
+  });
+
+  // ── Override the "view-agents" row action to navigate to the
+  //    flow-scoped route instead of the global pools route.
+  scopedConfig.rowActions = (scopedConfig.rowActions ?? []).map((action) => {
+    if (action.id === "view-agents") {
+      return {
+        ...action,
+        onClick: (row, context) => {
+          const rowData = row as unknown as { id: string };
+          context.router.push(
+            `/modules/bunny-flow/flow/${flowId}/pools/${rowData.id}/agents`,
+          );
+        },
+      };
+    }
+    return action;
   });
 
   return (
