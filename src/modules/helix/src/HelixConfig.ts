@@ -20,7 +20,8 @@ export type HelixAIProvider =
   | "openRouter"
   | "requesty"
   | "googleAIStudio"
-  | "siliconFlow";
+  | "siliconFlow"
+  | "fireworks";
 
 // ── Temperature presets ───────────────────────────────────────────────────────
 
@@ -136,6 +137,12 @@ export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
     model: "tencent/Hy3",
     endpoint: "https://api.siliconflow.com/v1"
   },
+  {
+    provider: "fireworks",
+    apiKey: process.env.FIREWORKS_API_KEY || "",
+    model: "accounts/fireworks/models/glm-5p2",
+    endpoint: "https://api.fireworks.ai/inference/v1"
+  }
 ];
 
 // ── Human-readable labels for each provider ───────────────────────────────────
@@ -151,7 +158,8 @@ export const HELIX_PROVIDER_LABELS: Record<HelixAIProvider, string> = {
   requesty: "Requesty",
   deepinfra: "DeepInfra",
   googleAIStudio: "Google AI Studio",
-  siliconFlow: "SiliconFlow"
+  siliconFlow: "SiliconFlow",
+  fireworks: "Fireworks"
 };
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -294,52 +302,133 @@ const HELIX_PROVIDER_MODELS: Record<
   requesty: [
     // free
     "google/gemma-4-31b-it",
-    "poolside/laguna-m.1",
-    "poolside/laguna-xs.2",
-    "nvidia/nemotron-3.5-content-safety",
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "mistral/leanstral-1-5",
     "nvidia/nemotron-3-nano-30b-a3b",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
     "nvidia/nemotron-3-super-120b-a12b",
     "nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nemotron-3.5-content-safety",
+    "poolside/laguna-m.1",
+    "poolside/laguna-xs.2",
+
+    // alibaba
+    "alibaba/qwen3-max",
+    "alibaba/qwen3.7-max",
+    "alibaba/qwen3.7-plus",
+    "alibaba/qwen3-coder-flash",
+    "alibaba/qwen3.7-plus",
+    "alibaba/qwen3-30b-a3b-instruct-2507",
+
+    // anthropic
+    "anthropic/claude-opus-4-8",
+    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-fable-5",
+    "anthropic/claude-opus-5",
+    "anthropic/claude-sonnet-4-5",
+
+    // azure
+    "azure/gpt-5.4-mini",
+    "azure/gpt-5.6-terra@swedencentral",
+    "azure/gpt-5-nano",
+
+    // bedrock
+    "bedrock/claude-haiku-4-5@eu-west-1",
+    "bedrock/claude-opus-4-7",
+    "bedrock/claude-opus-4-7@eu-central-1",
+    "bedrock/claude-sonnet-4-5@eu-central-1",
+    "bedrock/claude-sonnet-4-6",
+
+    // coding
+    "coding/gemini-2.5-flash",
+    "coding/gemini-2.5-pro",
+
+    // deepinfra
+    "deepinfra/nvidia/Nemotron-3-Nano-30B-A3B",
+    "deepinfra/Qwen/Qwen3-235B-A22B",
+    "deepinfra/Qwen/Qwen3-235B-A22B-Instruct-2507",
+
+    // deepseek
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-pro",
+
+    // doubleword
+    "doubleword/glm-5.2:flex",
+
+    // fireworks
+    "fireworks/deepseek-v4-flash",
+    "fireworks/deepseek-v4-pro",
+    "fireworks/glm-5.2",
+    "fireworks/gpt-oss-20b",
+    "fireworks/minimax-m3",
+
+    // google
+    "google/gemini-2.5-flash",
+    "google/gemini-3.1-flash-lite",
+
+    // groq
+    "groq/openai/gpt-oss-120b",
+    "groq/openai/gpt-oss-20b",
+    // minimaxi
+    "minimaxi/minimax-m3",
+    "minimaxi/MiniMax-M2.5",
+    "minimaxi/MiniMax-M2.5-highspeed",
+    "minimaxi/MiniMax-M2.7-highspeed",
+
+    // minstral
+    "mistral/open-mistral-7b",
+    "mistral/mistral-medium-3-5",
+
+    // moonshot
+    "moonshot/kimi-k2.7-code",
+    "moonshot/kimi-k3",
+    "moonshot/kimi-k2.6",
+
+    // nebius
+    "nebius/qwen/qwen3-30b-a3b-instruct-2507",
+    "nebius/qwen/qwen3-235b-a22b-instruct-2507",
+    "nebius/zai-org/glm-5.1",
+
+    // novita
+    "novita/minimax/minimax-m2.7",
     "novita/tencent/hy3",
-    // non free 1m token
-    "xiaomi/mimo-v2.5",
+
+    // openai
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4.1-nano",
+    "openai/gpt-5-mini",
+    "openai/gpt-5.4-nano",
+    "openai/gpt-5.4",
+    "openai/gpt-5.5",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+
+    // openai-responses
+    "openai-responses/gpt-5-nano",
+    "openai-responses/gpt-5.4-mini",
+
+    // perplexity
+    "perplexity/sonar",
+
+    // vertex
+    "vertex/claude-4-5-sonnet",
+    "vertex/claude-opus-4-7",
+    "vertex/gemini-3.1-flash-lite",
+    "vertex/gemini-3.1-flash-lite@eu",
+    "vertex/gemini-3.5-flash-lite",
+
+    // xai
+    "xai/grok-3-mini",
+    "xai/grok-4-1-fast-non-reasoning",
     "xai/grok-4-1-fast-reasoning",
     "xai/grok-4-fast",
-    "minimaxi/minimax-m3",
-    "alibaba/qwen3.7-plus",
-    "openai/gpt-4.1-mini",
-    "vertex/gemini-3.1-flash-lite",
-    "coding/gemini-2.5-flash",
-    "google/gemini-2.5-flash",
     "xai/grok-4.3",
-    "doubleword/glm-5.2:flex",
-    "zai/glm-5.2",
-    "alibaba/qwen3.7-max",
-    "openai/gpt-5.4",
-    "bedrock/claude-sonnet-4-6",
-    "vertex/claude-opus-4-7",
-    "openai/gpt-5.5",
-    // low out price
-    "groq/openai/gpt-oss-120b",
-    "fireworks/gpt-oss-20b",
-    "openai-responses/gpt-5-nano",
-    "xai/grok-4-fast",
-    // analytics good
-    "novita/minimax/minimax-m2.7",
-    "xai/grok-3-mini",
-    "nebius/qwen/qwen3-235b-a22b-instruct-2507",
-    "nebius/qwen/qwen3-30b-a3b-instruct-2507",
-    "vertex/claude-4-5-sonnet",
-    "openai/gpt-4.1-mini",
-    "openai/gpt-5-mini",
-    "openai/gpt-4.1-nano",
-    "perplexity/sonar",
-    "openai-responses/gpt-5.4-mini",
-    "anthropic/claude-opus-4-8",
-    "vertex/gemini-3.1-flash-lite@eu",
+
+    // xiaomi
+    "xiaomi/mimo-v2.5",
     "xiaomi/mimo-v2.5-pro",
-    "novita/tencent/hy3" 
+
+    // zai
+    "zai/glm-5.2",
   ] as const,
   openRouter: [
     "openrouter/fusion",
@@ -410,9 +499,28 @@ const HELIX_PROVIDER_MODELS: Record<
     "Qwen/Qwen3.6-35B-A3B",
     "Qwen/Qwen3.5-122B-A10B",
     "google/gemma-4-31B-it",
-    "stepfun-ai/Step-3.5-Flash"
-  ] as const
+    "stepfun-ai/Step-3.5-Flash",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b"
+  ] as const,
+  fireworks: [
+    "accounts/fireworks/models/glm-5p2",
+    "accounts/fireworks/models/kimi-k2p7-code",
+    "accounts/fireworks/models/minimax-m3",
+    "accounts/fireworks/models/deepseek-v4-pro",
+    "accounts/fireworks/models/kimi-k2p6",
+    "accounts/fireworks/models/minimax-m2p7",
+    "accounts/fireworks/models/glm-5p1",
+    "accounts/fireworks/models/gpt-oss-120b",
+    "accounts/fireworks/models/gpt-oss-20b",
+    "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+    "accounts/fireworks/models/deepseek-v4-flash",
+  ]
 };
+
+export const HELIX_NON_SUPPORTED_JSON_OBJECT_PROVIDER = [
+  'siliconFlow'
+];
 
 // ── Default: auto-merge all provider models (deduplicated) ─────────────────────
 // Dynamically aggregates every model from all other providers into one flat list.

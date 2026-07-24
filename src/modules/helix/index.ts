@@ -20,6 +20,7 @@ export {
   HELIX_PROVIDER_LABELS,
   isHelixProvider,
   HELIX_AI_MODELS,
+  HELIX_NON_SUPPORTED_JSON_OBJECT_PROVIDER,
 } from "./src/HelixConfig";
 
 // ── AI Schema types & service ──────────────────────────────────────────────────
