@@ -8,7 +8,7 @@ export const BFlowDefinitionSchema = z.object({
   /** GUIDv7 */
   id: z.string(),
   /** Unique code for flow, used for export and import key */
-  code: z.string().min(1),
+  // code: z.string().min(1),
   /** Name of the flow */
   name: z.string().min(1),
   /** Slug */
@@ -39,7 +39,7 @@ export type BFlowDefinitionEntity = z.infer<typeof BFlowDefinitionSchema>;
  * Excludes auto-generated fields: `id`, `createdAt`, `updatedAt`.
  */
 export const BFlowDefinitionFormSchema = z.object({
-  code: z.string().min(1, "Code is required"),
+  // code: z.string().min(1, "Code is required"),
   name: z.string().min(1, "Name must not be empty").max(256),
   slug: z.string().min(1, "Slug must not be empty").max(128),
   description: z.string().optional(),
