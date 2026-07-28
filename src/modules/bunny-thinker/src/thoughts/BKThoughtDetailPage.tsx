@@ -19,14 +19,18 @@ import {
   Save,
   Workflow,
   Lightbulb,
+  Trash2,
 } from "lucide-react";
+import BKStepActions from "../steps/BKStepActions";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import BKThoughtConfigPanel from "./BKThoughtConfigPanel";
+import BKConfirmDialog from "../components/BKConfirmDialog";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
 import type { BKCraftConfig, BKCraftFormat } from "../craft/BKCraft.Types";
+import type { BKThink } from "../think/BKThink.Types";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -145,6 +149,10 @@ export default function BKThoughtDetailPage({
   const [saving, setSaving] = useState(false);
   const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
   const [craftConfigsLoading, setCraftConfigsLoading] = useState(false);
+  const [previousRuns, setPreviousRuns] = useState<BKThink[]>([]);
+  const [confirmDeleteThink, setConfirmDeleteThink] = useState<BKThink | null>(
+    null,
+  );
 
   // Steps state using craftFormat string (e.g. "markdown", "html") — resolved to craftId on save
   const [editedSteps, setEditedSteps] = useState<
@@ -207,6 +215,10 @@ export default function BKThoughtDetailPage({
         filters: [],
       });
       setIdeas(allIdeas.data);
+
+      // Load previous run history for this thought
+      const allThinks = await bkThinkerDB.thinksRepo.getByThoughtId(thoughtId);
+      setPreviousRuns(allThinks);
     } catch (err) {
       console.error("[BKThoughtDetail] Failed to load:", err);
     } finally {
@@ -259,8 +271,8 @@ export default function BKThoughtDetailPage({
   }, []);
 
   const bkMoveStepDown = useCallback((index: number) => {
-    if (index >= editedSteps.length - 1) return;
     setEditedSteps((prev) => {
+      if (index >= prev.length - 1) return prev;
       const updated = [...prev];
       [updated[index], updated[index + 1]] = [
         updated[index + 1],
@@ -268,6 +280,34 @@ export default function BKThoughtDetailPage({
       ];
       return updated.map((s, i) => ({ ...s, order: i }));
     });
+  }, []);
+
+  const bkAddStepBefore = useCallback((index: number) => {
+    const newId = uuidv7();
+    setEditedSteps((prev) => {
+      const before = prev.slice(0, index);
+      const after = prev.slice(index);
+      return [
+        ...before,
+        { id: newId, name: "", thought: "", order: before.length, craftFormat: undefined },
+        ...after,
+      ].map((s, i) => ({ ...s, order: i }));
+    });
+    setStepIdeaMap((prev) => ({ ...prev, [newId]: [] }));
+  }, []);
+
+  const bkAddStepAfter = useCallback((index: number) => {
+    const newId = uuidv7();
+    setEditedSteps((prev) => {
+      const before = prev.slice(0, index + 1);
+      const after = prev.slice(index + 1);
+      return [
+        ...before,
+        { id: newId, name: "", thought: "", order: before.length, craftFormat: undefined },
+        ...after,
+      ].map((s, i) => ({ ...s, order: i }));
+    });
+    setStepIdeaMap((prev) => ({ ...prev, [newId]: [] }));
   }, []);
 
   const bkToggleIdea = useCallback((stepId: string, ideaId: string) => {
@@ -355,8 +395,38 @@ export default function BKThoughtDetailPage({
     }
   };
 
+  const bkDeleteThink = useCallback(async () => {
+    const targetThink = confirmDeleteThink;
+    if (!targetThink) return;
+
+    try {
+      await bkThinkerDB.thinksRepo.delete(targetThink.id);
+      const refreshed = await bkThinkerDB.thinksRepo.getByThoughtId(thoughtId);
+      setPreviousRuns(refreshed);
+      toast.success(`"${targetThink.name}" deleted`);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete think";
+      console.error("[BKThoughtDetail] Failed to delete think:", msg);
+      toast.danger(msg);
+    }
+  }, [confirmDeleteThink, thoughtId]);
+
   const bkRunThink = async () => {
     if (!thought) return;
+
+    // Check for any existing think for this thought to avoid stacking
+    const existingThinks = await bkThinkerDB.thinksRepo.getByThoughtId(
+      thought.id,
+    );
+    if (existingThinks.length > 0) {
+      // Navigate to the latest existing think regardless of status
+      router.push(
+        `/modules/bunny-thinker/think/${existingThinks[0].id}`,
+      );
+      return;
+    }
+
     const thinkId = uuidv7();
     await bkThinkerDB.thinksRepo.create({
       id: thinkId,
@@ -370,45 +440,27 @@ export default function BKThoughtDetailPage({
     router.push(`/modules/bunny-thinker/think/${thinkId}`);
   };
 
-  // ── Render step extra actions (move up/down + idea selector) ────────
+  // ── Render step extra actions via reusable BKStepActions ──────────
 
   const renderStepActions = useCallback(
     (step: { id: string }, index: number) => (
-      <>
-        {/* Move up */}
-        <Button
-          variant="ghost"
-          size="sm"
-          isIconOnly
-          isDisabled={index === 0}
-          onPress={() => bkMoveStepUp(index)}
-          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-          aria-label={`Move step ${index + 1} up`}
-        >
-          ↑
-        </Button>
-        {/* Move down */}
-        <Button
-          variant="ghost"
-          size="sm"
-          isIconOnly
-          isDisabled={index >= editedSteps.length - 1}
-          onPress={() => bkMoveStepDown(index)}
-          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-          aria-label={`Move step ${index + 1} down`}
-        >
-          ↓
-        </Button>
-        {/* Idea selector */}
+      <BKStepActions
+        stepIndex={index}
+        totalSteps={editedSteps.length}
+        onMoveUp={bkMoveStepUp}
+        onMoveDown={bkMoveStepDown}
+        onAddBefore={bkAddStepBefore}
+        onAddAfter={bkAddStepAfter}
+      >
         <IdeaSelector
           stepId={step.id}
           selectedIdeaIds={stepIdeaMap[step.id] ?? []}
           ideas={ideas}
           onToggle={bkToggleIdea}
         />
-      </>
+      </BKStepActions>
     ),
-    [editedSteps.length, stepIdeaMap, ideas, bkMoveStepUp, bkMoveStepDown, bkToggleIdea],
+    [editedSteps.length, stepIdeaMap, ideas, bkMoveStepUp, bkMoveStepDown, bkAddStepBefore, bkAddStepAfter, bkToggleIdea],
   );
 
   if (loading) {
@@ -516,6 +568,79 @@ export default function BKThoughtDetailPage({
           }
         />
 
+        {/* Previous Runs */}
+        {previousRuns.length > 0 && (
+          <Card className="p-4 border-none shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <PlayCircle size={16} className="text-gray-500" />
+              <h3 className="text-sm font-medium text-gray-700">
+                Previous Runs ({previousRuns.length})
+              </h3>
+            </div>
+            <div className="space-y-1.5">
+              {previousRuns.map((run) => {
+                const statusColor =
+                  run.status === "completed"
+                    ? "text-green-700 bg-green-50 border-green-200"
+                    : run.status === "thinking"
+                      ? "text-blue-700 bg-blue-50 border-blue-200"
+                      : run.status === "error"
+                        ? "text-red-700 bg-red-50 border-red-200"
+                        : "text-gray-700 bg-gray-50 border-gray-200";
+                return (
+                  <div
+                    key={run.id}
+                    className="flex items-center gap-1"
+                  >
+                    <Button
+                      variant="ghost"
+                      className="flex-1 flex items-center justify-between px-3 py-2 rounded-lg border hover:bg-gray-50 transition-colors h-auto min-h-0"
+                      onPress={() =>
+                        router.push(
+                          `/modules/bunny-thinker/think/${run.id}`,
+                        )
+                      }
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm text-gray-800 truncate">
+                          {run.name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize shrink-0 ${statusColor}`}
+                        >
+                          {run.status}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400 shrink-0">
+                        {run.createdAt
+                          ? new Date(run.createdAt).toLocaleDateString(
+                              undefined,
+                              {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )
+                          : "—"}
+                      </span>
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteThink(run)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                      aria-label={`Delete ${run.name}`}
+                      title="Delete this run"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Create Process */}
         <Card className="p-4 border-none shadow-sm bg-purple-50 border border-purple-100">
           <div className="flex items-center justify-between">
@@ -543,6 +668,17 @@ export default function BKThoughtDetailPage({
             </Button>
           </div>
         </Card>
+
+        {/* ── Delete Confirmation Dialog ─────────────────────── */}
+        <BKConfirmDialog
+          isOpen={confirmDeleteThink !== null}
+          title="Delete Think Run"
+          message={`Are you sure you want to delete "${confirmDeleteThink?.name}"?\n\nThis action cannot be undone. All conversation history for this run will be permanently removed.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={bkDeleteThink}
+          onClose={() => setConfirmDeleteThink(null)}
+        />
       </div>
     </>
   );

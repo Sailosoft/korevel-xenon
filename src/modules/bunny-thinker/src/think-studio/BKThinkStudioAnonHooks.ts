@@ -109,6 +109,10 @@ export interface UseAnonymousModeReturn {
   selectThinker: (thinkerId: string) => Promise<void>;
   selectAssociation: (associationId: string) => Promise<void>;
   addStep: () => void;
+  addStepBefore: (index: number) => void;
+  addStepAfter: (index: number) => void;
+  moveStepUp: (index: number) => void;
+  moveStepDown: (index: number) => void;
   removeStep: (index: number) => void;
   updateStep: (index: number, field: "name" | "thought" | "craftId", value: string) => void;
   startThinking: (aiConfig: HelixAIOption) => Promise<void>;
@@ -477,6 +481,56 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     },
     [],
   );
+
+  const moveStepUp = useCallback((index: number) => {
+    if (index === 0) return;
+    setSteps((prev) => {
+      const updated = [...prev];
+      [updated[index - 1], updated[index]] = [
+        updated[index],
+        updated[index - 1],
+      ];
+      return updated.map((s, i) => ({ ...s, order: i }));
+    });
+  }, []);
+
+  const moveStepDown = useCallback((index: number) => {
+    setSteps((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const updated = [...prev];
+      [updated[index], updated[index + 1]] = [
+        updated[index + 1],
+        updated[index],
+      ];
+      return updated.map((s, i) => ({ ...s, order: i }));
+    });
+  }, []);
+
+  const addStepBefore = useCallback((index: number) => {
+    const newId = uuidv7();
+    setSteps((prev) => {
+      const before = prev.slice(0, index);
+      const after = prev.slice(index);
+      return [
+        ...before,
+        { id: newId, name: "", thought: "", order: before.length },
+        ...after,
+      ].map((s, i) => ({ ...s, order: i }));
+    });
+  }, []);
+
+  const addStepAfter = useCallback((index: number) => {
+    const newId = uuidv7();
+    setSteps((prev) => {
+      const before = prev.slice(0, index + 1);
+      const after = prev.slice(index + 1);
+      return [
+        ...before,
+        { id: newId, name: "", thought: "", order: before.length },
+        ...after,
+      ].map((s, i) => ({ ...s, order: i }));
+    });
+  }, []);
 
   // ── Resolve association context ───────────────────────────────────
   const resolveAssociationContext = useCallback(async (): Promise<
@@ -941,6 +995,10 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     selectThinker,
     selectAssociation,
     addStep,
+    addStepBefore,
+    addStepAfter,
+    moveStepUp,
+    moveStepDown,
     removeStep,
     updateStep,
     startThinking,

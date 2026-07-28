@@ -88,6 +88,7 @@ export {
   tailwindAdapter,
   plainTextAdapter,
   jsonAdapter,
+  imageAdapter,
 } from "./adapters";
 
 // ── Components ──────────────────────────────────────────────────────────────

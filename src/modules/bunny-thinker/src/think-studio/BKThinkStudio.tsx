@@ -37,6 +37,8 @@ import {
   Info,
   List,
   Settings2,
+  Trash2,
+  Plus,
 } from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
@@ -56,6 +58,7 @@ import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThinkMetaModal from "./BKThinkMetaModal";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThinkStudioAnon from "./BKThinkStudioAnon";
+import BKConfirmDialog from "../components/BKConfirmDialog";
 import {
   bkViewAsHtml,
   bkDownloadHtml,
@@ -394,6 +397,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
   const [viewMode, setViewMode] = useState<"view" | "raw">("view");
   const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
+  const [thinksForThought, setThinksForThought] = useState<BKThink[]>([]);
+  const [confirmDeleteThink, setConfirmDeleteThink] = useState<BKThink | null>(
+    null,
+  );
+  const [confirmNewThinking, setConfirmNewThinking] = useState(false);
 
   // ── Association Select State ──────────────────────────────────────────
   const [associations, setAssociations] = useState<BKThoughtAssociation[]>([]);
@@ -480,6 +488,13 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         if (thoughtResult.value.patternId) {
           loadAssociations(thoughtResult.value.patternId);
         }
+
+        // Load all BKThinks for this thoughtId (run history)
+        const allThinksForThought =
+          await bkThinkerDB.thinksRepo.getByThoughtId(
+            loadedThink.thoughtId,
+          );
+        setThinksForThought(allThinksForThought);
       }
 
       // Load train of thoughts for this thought
@@ -795,6 +810,13 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           // localStorage may not be available
         }
       }
+
+      // ── Refresh run history list after completion ──────────────
+      if (thought?.id) {
+        const refreshedThinks =
+          await bkThinkerDB.thinksRepo.getByThoughtId(thought.id);
+        setThinksForThought(refreshedThinks);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown thinking error");
     } finally {
@@ -972,6 +994,13 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           );
           setResult(processed.parsed);
         }
+
+        // ── Refresh run history list after rethinking ───────────
+        if (thought?.id) {
+          const refreshedThinks =
+            await bkThinkerDB.thinksRepo.getByThoughtId(thought.id);
+          setThinksForThought(refreshedThinks);
+        }
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Unknown rethinking error",
@@ -1137,6 +1166,63 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     }
   }, [think, conversation, bkGenerateMemory, trainOfThoughts, craftConfigs]);
 
+  // ── Delete a think with confirmation ──────────────────────────────
+
+  const bkDeleteThink = useCallback(async () => {
+    const targetThink = confirmDeleteThink;
+    if (!targetThink || isThinking) return;
+
+    try {
+      await bkThinkerDB.thinksRepo.delete(targetThink.id);
+
+      // Refresh the runs list
+      if (thought?.id) {
+        const refreshed =
+          await bkThinkerDB.thinksRepo.getByThoughtId(thought.id);
+        setThinksForThought(refreshed);
+      }
+
+      toast.success(`"${targetThink.name}" deleted`);
+
+      // If the deleted think was the current session, navigate away
+      if (targetThink.id === think?.id) {
+        const remaining = thinksForThought.filter(
+          (t) => t.id !== targetThink.id,
+        );
+        if (remaining.length > 0) {
+          router.push(
+            `/modules/bunny-thinker/think/${remaining[0].id}`,
+          );
+        } else {
+          router.push("/modules/bunny-thinker/thoughts");
+        }
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete think";
+      console.error("[BKThinkStudio] bkDeleteThink failed:", msg);
+      toast.danger(msg);
+    }
+  }, [confirmDeleteThink, thought, thinksForThought, isThinking, router]);
+
+  // ── Create a new think (new run) for the current thought ──────────────
+
+  const bkCreateNewThink = useCallback(async () => {
+    if (!thought) return;
+
+    const newThinkId = uuidv7();
+    await bkThinkerDB.thinksRepo.create({
+      id: newThinkId,
+      slug: thought.name.toLowerCase().replace(/\s+/g, "-"),
+      name: `Run: ${thought.name}`,
+      thoughtId: thought.id,
+      status: "draft",
+      thinkConversation: [],
+      createdAt: Date.now(),
+    });
+    router.push(`/modules/bunny-thinker/think/${newThinkId}`);
+  }, [thought, router]);
+
   // ── Derive completed steps with conversation pairs ───────────────────
 
   const completedSteps = trainOfThoughts
@@ -1164,8 +1250,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       <Toast.Provider />
       <div className="bk-think-studio space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {think && thought && (
             <>
               <Button
@@ -1173,6 +1259,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 size="sm"
                 isIconOnly
                 aria-label="Back to Thought"
+                className="shrink-0"
                 onPress={() =>
                   router.push(`/modules/bunny-thinker/thoughts/${thought.id}`)
                 }
@@ -1184,65 +1271,172 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 size="sm"
                 isIconOnly
                 aria-label="Thought List"
+                className="shrink-0"
                 onPress={() => router.push("/modules/bunny-thinker/thoughts")}
               >
                 <List size={18} />
               </Button>
             </>
           )}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
               {think?.name || "Think Studio"}
             </h2>
             {thought && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500 truncate">
                 Thought: {thought.name}
               </p>
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {think && (
             <Button
               onPress={bkStartThink}
               isDisabled={isThinking}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
             >
               {isThinking ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Thinking...
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span className="hidden xs:inline">Thinking...</span>
+                  <span className="inline xs:hidden">...</span>
                 </>
               ) : conversation.length > 0 ? (
                 <>
-                  <RotateCcw size={16} /> Rethink
+                  <RotateCcw size={16} />
+                  <span className="hidden sm:inline">Rethink</span>
                 </>
               ) : (
-                "Start Thinking"
+                <>
+                  <span className="hidden sm:inline">Start Thinking</span>
+                  <span className="inline sm:hidden">Think</span>
+                </>
               )}
             </Button>
           )}
           {think && conversation.length > 0 && (
             <Button
-              variant="ghost"
-              size="sm"
               isDisabled={isThinking}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
+              onPress={() => setConfirmNewThinking(true)}
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">New Thinking</span>
+            </Button>
+          )}
+          {think && conversation.length > 0 && (
+            <Button
+              isDisabled={isThinking}
+              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
               onPress={() => setShowHistory(true)}
             >
-              <MessageSquareText size={16} /> History
+              <MessageSquareText size={16} />
+              <span className="hidden sm:inline">History</span>
             </Button>
+          )}
+          {think && thinksForThought.length > 1 && (
+            <Dropdown>
+              <Dropdown.Trigger>
+                <span
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1 sm:gap-1.5 cursor-pointer"
+                >
+                  <List size={16} />
+                  <span className="hidden sm:inline">Runs ({thinksForThought.length})</span>
+                </span>
+              </Dropdown.Trigger>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu
+                  aria-label="Think runs"
+                  onAction={(key) => {
+                    const targetId = String(key);
+                    if (targetId !== think.id) {
+                      router.push(
+                        `/modules/bunny-thinker/think/${targetId}`,
+                      );
+                    }
+                  }}
+                >
+                  {thinksForThought.map((t) => {
+                    const isCurrent = t.id === think.id;
+                    const statusColor =
+                      t.status === "completed"
+                        ? "text-green-600 bg-green-50"
+                        : t.status === "thinking"
+                          ? "text-blue-600 bg-blue-50"
+                          : t.status === "error"
+                            ? "text-red-600 bg-red-50"
+                            : "text-gray-600 bg-gray-50";
+                    return (
+                      <Dropdown.Item
+                        key={t.id}
+                        id={t.id}
+                        textValue={t.name}
+                      >
+                        <div
+                          className={`flex items-center gap-1.5 py-0.5 ${isCurrent ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
+                        >
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span
+                              className={`text-sm font-medium truncate ${isCurrent ? "text-blue-700" : "text-gray-800"}`}
+                            >
+                              {t.name}
+                              {isCurrent && (
+                                <span className="ml-1.5 text-[10px] text-blue-600">
+                                  (current)
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {t.createdAt
+                                ? new Date(
+                                    t.createdAt,
+                                  ).toLocaleDateString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "—"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 capitalize ${statusColor}`}
+                            >
+                              {t.status}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setConfirmDeleteThink(t);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                              aria-label={`Delete ${t.name}`}
+                              title="Delete this run"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </Dropdown.Item>
+                    );
+                  })}
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           )}
           {think && conversation.length > 0 && !isThinking && (
             <Dropdown>
               <Dropdown.Trigger>
-                <Button
-                  isDisabled={isThinking}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+                <span
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 sm:gap-1.5 cursor-pointer"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                  Save to Memory
-                </Button>
+                  <span className="hidden sm:inline">Export</span>
+                </span>
               </Dropdown.Trigger>
               <Dropdown.Popover placement="bottom end">
                 <Dropdown.Menu
@@ -1282,24 +1476,22 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           )}
           {think && (
             <Button
-              variant="ghost"
-              size="sm"
               isDisabled={isThinking}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
               onPress={() => setShowSettings(true)}
             >
-              <Settings2 size={16} /> Settings
+              <Settings2 size={16} />
+              <span className="hidden sm:inline">Settings</span>
             </Button>
           )}
           {think && (
             <Button
-              variant="ghost"
-              size="sm"
               isDisabled={isThinking}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1.5"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
               onPress={() => setShowMeta(true)}
             >
-              <Info size={16} /> Meta
+              <Info size={16} />
+              <span className="hidden sm:inline">Meta</span>
             </Button>
           )}
         </div>
@@ -1390,18 +1582,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       {/* Active Step Panel — Tab Content */}
       {completedSteps.length > 0 && (
         <div className="space-y-3">
-          {/* Step header with rethink button */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">Step Details</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              isDisabled={isThinking}
-              onPress={() => bkRethinkFromStep(activeStepIndex)}
-            >
-              <RotateCcw size={14} /> Rethink
-            </Button>
-          </div>
+          <h3 className="text-sm font-medium text-gray-700">Step Details</h3>
           <div>
             {completedSteps
               .filter((entry) => entry.index === activeStepIndex)
@@ -1823,6 +2004,27 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           onClose={() => setShowMeta(false)}
         />
       )}
+
+      {/* ── Delete Confirmation Dialog ─────────────────────────── */}
+      <BKConfirmDialog
+        isOpen={confirmDeleteThink !== null}
+        title="Delete Think Run"
+        message={`Are you sure you want to delete "${confirmDeleteThink?.name}"?\n\nThis action cannot be undone. All conversation history for this run will be permanently removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={bkDeleteThink}
+        onClose={() => setConfirmDeleteThink(null)}
+      />
+      {/* ── New Thinking Confirmation Dialog ───────────────────── */}
+      <BKConfirmDialog
+        isOpen={confirmNewThinking}
+        title="Start New Thinking"
+        message="Starting a new thinking session will create a fresh run. The current conversation will remain saved in the existing run. Continue?"
+        confirmLabel="Start New"
+        cancelLabel="Cancel"
+        onConfirm={bkCreateNewThink}
+        onClose={() => setConfirmNewThinking(false)}
+      />
       </div>
     </>
   );
