@@ -158,8 +158,28 @@ export class BLBookBuilderService {
     return this.generationRepo.getAll();
   }
 
+  async getGenerationById(id: number): Promise<IBLGeneration | undefined> {
+    return this.generationRepo.getById(id);
+  }
+
   async getChapters(generationId: number): Promise<IBLChapter[]> {
     return this.chapterRepo.getByGenerationId(generationId);
+  }
+
+  /**
+   * Returns a map of generationId → chapter count for all chapters.
+   */
+  async getChapterCounts(): Promise<Record<number, number>> {
+    const all = await this.chapterRepo.getAll();
+    const counts: Record<number, number> = {};
+    for (const ch of all) {
+      counts[ch.generationId] = (counts[ch.generationId] || 0) + 1;
+    }
+    return counts;
+  }
+
+  async updateGeneration(id: number, title: string, description: string): Promise<void> {
+    await this.generationRepo.update(id, { title, description });
   }
 
   async generateOutline(
@@ -281,6 +301,20 @@ export class BLBookBuilderService {
     }
 
     return chapters;
+  }
+
+  // ─── Delete Operations ────────────────────────────────────────────
+
+  async deleteGeneration(id: number): Promise<void> {
+    await this.generationRepo.delete(id);
+  }
+
+  async deleteChapter(id: number): Promise<void> {
+    await this.chapterRepo.delete(id);
+  }
+
+  async deleteAllChapters(generationId: number): Promise<void> {
+    await this.chapterRepo.deleteByGenerationId(generationId);
   }
 
   // ─── Export Operations ────────────────────────────────────────────

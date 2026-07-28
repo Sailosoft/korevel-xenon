@@ -42,6 +42,18 @@ interface IBookBuilderState {
   isBLDialogOpen: boolean;
   pendingChapterForDialog: IBLChapter | null;
 
+  /** Delete Book Confirmation Dialog */
+  isDeleteBookDialogOpen: boolean;
+  pendingDeleteGenerationId: number | null;
+
+  /** Delete Chapter Confirmation Dialog */
+  isDeleteChapterDialogOpen: boolean;
+  pendingDeleteChapter: IBLChapter | null;
+
+  /** Delete All Chapters Confirmation Dialog */
+  isDeleteAllChaptersDialogOpen: boolean;
+  pendingDeleteAllChaptersGenerationId: number | null;
+
   /** AI Config Modal */
   isAIConfigOpen: boolean;
 
@@ -71,11 +83,34 @@ interface IBookBuilderActions {
   onBLDialogOpenChange: (open: boolean) => void;
   onBLDialogConfirm: () => Promise<void>;
   onAIConfigOpenChange: (open: boolean) => void;
+  /** Delete a book (generation) — opens confirmation dialog */
+  onDeleteBook: () => void;
+  /** Delete book confirmation dialog visibility */
+  onDeleteBookDialogOpenChange: (open: boolean) => void;
+  /** Execute book deletion after confirmation */
+  onDeleteBookConfirm: () => Promise<void>;
+  /** Delete a single chapter — opens confirmation dialog */
+  onDeleteChapter: (chapter: IBLChapter) => void;
+  /** Delete chapter confirmation dialog visibility */
+  onDeleteChapterDialogOpenChange: (open: boolean) => void;
+  /** Execute chapter deletion after confirmation */
+  onDeleteChapterConfirm: () => Promise<void>;
+  /** Delete all chapters of the selected book — opens confirmation dialog */
+  onDeleteAllChapters: () => void;
+  /** Delete all chapters confirmation dialog visibility */
+  onDeleteAllChaptersDialogOpenChange: (open: boolean) => void;
+  /** Execute delete all chapters after confirmation */
+  onDeleteAllChaptersConfirm: () => Promise<void>;
+  /** Save/update the selected book's title and description */
+  onSaveBook: () => Promise<void>;
+  /** Reset book form for creating a new book */
+  onNewBook: () => void;
 }
 
 export type TUseBookBuilderReturn = IBookBuilderState & IBookBuilderActions & {
   allAuthors: IBLAuthor[];
   allGenerations: IBLGeneration[];
+  chapterCounts: Record<number, number>;
 };
 
 const db = new BLDatabase();
@@ -98,6 +133,7 @@ export function useBookBuilder(): TUseBookBuilderReturn {
 
   const allAuthors = useLiveQuery(() => serviceRef.current.getAllAuthors()) ?? [];
   const allGenerations = useLiveQuery(() => serviceRef.current.getAllGenerations()) ?? [];
+  const chapterCounts = useLiveQuery(() => serviceRef.current.getChapterCounts()) ?? {};
 
   // ─── AI Config from Dexie ───────────────────────────────────────────
   const aiOption = useHelixAIOption({ table: db.aiSettings, key: "default" });
@@ -124,6 +160,18 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   /** BLDialog (chapter regeneration confirmation) */
   const [isBLDialogOpen, setIsBLDialogOpen] = useState(false);
   const [pendingChapterForDialog, setPendingChapterForDialog] = useState<IBLChapter | null>(null);
+
+  /** Delete Book Confirmation Dialog */
+  const [isDeleteBookDialogOpen, setIsDeleteBookDialogOpen] = useState(false);
+  const [pendingDeleteGenerationId, setPendingDeleteGenerationId] = useState<number | null>(null);
+
+  /** Delete Chapter Confirmation Dialog */
+  const [isDeleteChapterDialogOpen, setIsDeleteChapterDialogOpen] = useState(false);
+  const [pendingDeleteChapter, setPendingDeleteChapter] = useState<IBLChapter | null>(null);
+
+  /** Delete All Chapters Confirmation Dialog */
+  const [isDeleteAllChaptersDialogOpen, setIsDeleteAllChaptersDialogOpen] = useState(false);
+  const [pendingDeleteAllChaptersGenerationId, setPendingDeleteAllChaptersGenerationId] = useState<number | null>(null);
 
   /** AI Config Modal */
   const [isAIConfigOpen, setIsAIConfigOpen] = useState(false);
@@ -311,21 +359,32 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const onSelectGeneration = useCallback((id: number | null) => {
     setSelectedGenerationId(id);
     if (id !== null) {
-      const generation = allGenerations.find((g) => g.id === id);
-      if (generation?.authorId) {
-        const authorId = generation.authorId;
-        setSelectedAuthorId(authorId.toString());
-        serviceRef.current.loadAuthorData(authorId).then(({ author, skills: authorSkills }) => {
-          setAuthorName(author.name);
-          setAuthorDesc(author.description);
-          setSkills(authorSkills);
-        }).catch(() => {
-          // If author data fails to load, keep current form state
-          console.warn(`Failed to load author data for authorId=${authorId}`);
-        });
-      }
+      // Use a direct DB read to ensure we always get the latest persisted data,
+      // bypassing any staleness in the useLiveQuery for allGenerations.
+      serviceRef.current.getGenerationById(id).then((generation) => {
+        if (generation) {
+          setBookTitle(generation.title);
+          setBookDesc(generation.description);
+        }
+        if (generation?.authorId) {
+          const authorId = generation.authorId;
+          setSelectedAuthorId(authorId.toString());
+          serviceRef.current.loadAuthorData(authorId).then(({ author, skills: authorSkills }) => {
+            setAuthorName(author.name);
+            setAuthorDesc(author.description);
+            setSkills(authorSkills);
+          }).catch(() => {
+            // If author data fails to load, keep current form state
+            console.warn(`Failed to load author data for authorId=${authorId}`);
+          });
+        }
+      });
+    } else {
+      // Reset book form when deselecting
+      setBookTitle("");
+      setBookDesc("");
     }
-  }, [allGenerations]);
+  }, []);
 
   const doGenerateChapter = useCallback(async (chapter: IBLChapter) => {
     if (selectedAuthorId === "new") {
@@ -398,6 +457,171 @@ export function useBookBuilder(): TUseBookBuilderReturn {
 
   const onAIConfigOpenChange = useCallback((open: boolean) => {
     setIsAIConfigOpen(open);
+  }, []);
+
+  // ─── Delete Book Actions ──────────────────────────────────────────────
+
+  const onDeleteBook = useCallback(() => {
+    if (!selectedGenerationId) {
+      toast.warning("No book selected to delete");
+      return;
+    }
+    setPendingDeleteGenerationId(selectedGenerationId);
+    setIsDeleteBookDialogOpen(true);
+  }, [selectedGenerationId]);
+
+  const onDeleteBookDialogOpenChange = useCallback((open: boolean) => {
+    setIsDeleteBookDialogOpen(open);
+    if (!open) {
+      setPendingDeleteGenerationId(null);
+    }
+  }, []);
+
+  const onDeleteBookConfirm = useCallback(async () => {
+    const generationId = pendingDeleteGenerationId;
+    setPendingDeleteGenerationId(null);
+    setIsDeleteBookDialogOpen(false);
+
+    if (generationId === null) return;
+
+    setIsLoading(true);
+    try {
+      const generation = allGenerations.find((g) => g.id === generationId);
+      const bookTitle_ = generation?.title || "Book";
+      await serviceRef.current.deleteGeneration(generationId);
+
+      // Clear selection if the deleted book was selected
+      if (selectedGenerationId === generationId) {
+        setSelectedGenerationId(null);
+        setChapters([]);
+      }
+
+      toast.success(`"${bookTitle_}" deleted successfully`);
+    } catch (error) {
+      console.error("Failed to delete book:", error);
+      toast.danger("Failed to delete book. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pendingDeleteGenerationId, allGenerations, selectedGenerationId]);
+
+  // ─── Delete Chapter Actions ───────────────────────────────────────────
+
+  const onDeleteChapter = useCallback((chapter: IBLChapter) => {
+    setPendingDeleteChapter(chapter);
+    setIsDeleteChapterDialogOpen(true);
+  }, []);
+
+  const onDeleteChapterDialogOpenChange = useCallback((open: boolean) => {
+    setIsDeleteChapterDialogOpen(open);
+    if (!open) {
+      setPendingDeleteChapter(null);
+    }
+  }, []);
+
+  const onDeleteChapterConfirm = useCallback(async () => {
+    const chapter = pendingDeleteChapter;
+    setPendingDeleteChapter(null);
+    setIsDeleteChapterDialogOpen(false);
+
+    if (!chapter || !chapter.id) return;
+
+    setIsLoading(true);
+    try {
+      await serviceRef.current.deleteChapter(chapter.id);
+
+      // Refresh chapters list
+      if (selectedGenerationId) {
+        const updated = await serviceRef.current.getChapters(selectedGenerationId);
+        setChapters(updated);
+      }
+
+      toast.success(`Chapter ${chapter.number}: "${chapter.title}" deleted`);
+    } catch (error) {
+      console.error("Failed to delete chapter:", error);
+      toast.danger("Failed to delete chapter. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pendingDeleteChapter, selectedGenerationId]);
+
+  // ─── Delete All Chapters Actions ───────────────────────────────────────
+
+  const onDeleteAllChapters = useCallback(() => {
+    if (!selectedGenerationId) {
+      toast.warning("No book selected");
+      return;
+    }
+    setPendingDeleteAllChaptersGenerationId(selectedGenerationId);
+    setIsDeleteAllChaptersDialogOpen(true);
+  }, [selectedGenerationId]);
+
+  const onDeleteAllChaptersDialogOpenChange = useCallback((open: boolean) => {
+    setIsDeleteAllChaptersDialogOpen(open);
+    if (!open) {
+      setPendingDeleteAllChaptersGenerationId(null);
+    }
+  }, []);
+
+  const onDeleteAllChaptersConfirm = useCallback(async () => {
+    const generationId = pendingDeleteAllChaptersGenerationId;
+    setPendingDeleteAllChaptersGenerationId(null);
+    setIsDeleteAllChaptersDialogOpen(false);
+
+    if (generationId === null) return;
+
+    setIsLoading(true);
+    try {
+      const generation = allGenerations.find((g) => g.id === generationId);
+      const title = generation?.title || "Book";
+      await serviceRef.current.deleteAllChapters(generationId);
+
+      // Refresh chapters list
+      if (selectedGenerationId === generationId) {
+        const updated = await serviceRef.current.getChapters(generationId);
+        setChapters(updated);
+      }
+
+      toast.success(`All chapters deleted from "${title}"`);
+    } catch (error) {
+      console.error("Failed to delete all chapters:", error);
+      toast.danger("Failed to delete chapters. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pendingDeleteAllChaptersGenerationId, allGenerations, selectedGenerationId]);
+
+  // ─── Save / New Book Actions ───────────────────────────────────────────
+
+  const onSaveBook = useCallback(async () => {
+    if (!selectedGenerationId) {
+      toast.warning("No book selected to update");
+      return;
+    }
+    if (!bookTitle.trim()) {
+      toast.warning("Book title is required");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await serviceRef.current.updateGeneration(selectedGenerationId, bookTitle, bookDesc);
+      toast.success(`Book "${bookTitle}" updated successfully`);
+    } catch (error) {
+      console.error("Failed to update book:", error);
+      toast.danger("Failed to update book. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedGenerationId, bookTitle, bookDesc]);
+
+  const onNewBook = useCallback(() => {
+    setBookTitle("");
+    setBookDesc("");
+    setIsBulkGenerating(false);
+    // Don't change selectedGenerationId — user can still see which book was selected
+    // but the form is cleared for creating a new book
+    toast("Book form cleared. Fill in new details and generate.");
   }, []);
 
   const onPreviewChapter = useCallback((chapter: IBLChapter | null) => {
@@ -506,6 +730,12 @@ export function useBookBuilder(): TUseBookBuilderReturn {
     isRegenerateDialogOpen,
     isBLDialogOpen,
     pendingChapterForDialog,
+    isDeleteBookDialogOpen,
+    pendingDeleteGenerationId,
+    isDeleteChapterDialogOpen,
+    pendingDeleteChapter,
+    isDeleteAllChaptersDialogOpen,
+    pendingDeleteAllChaptersGenerationId,
     isAIConfigOpen,
     isLoading,
 
@@ -530,10 +760,22 @@ export function useBookBuilder(): TUseBookBuilderReturn {
     onRegenerationFlow,
     onBLDialogOpenChange,
     onBLDialogConfirm,
+    onDeleteBook,
+    onDeleteBookDialogOpenChange,
+    onDeleteBookConfirm,
+    onDeleteChapter,
+    onDeleteChapterDialogOpenChange,
+    onDeleteChapterConfirm,
+    onDeleteAllChapters,
+    onDeleteAllChaptersDialogOpenChange,
+    onDeleteAllChaptersConfirm,
+    onSaveBook,
+    onNewBook,
     onAIConfigOpenChange,
 
     // Queries
     allAuthors,
     allGenerations,
+    chapterCounts,
   };
 }

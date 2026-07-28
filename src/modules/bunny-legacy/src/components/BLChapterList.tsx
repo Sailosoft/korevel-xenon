@@ -17,6 +17,7 @@ import {
   FileText,
   Globe,
   BookOpen,
+  Trash2,
 } from "lucide-react";
 import type { IBLChapter, IBLGeneration } from "../core/BLEntity";
 
@@ -47,6 +48,7 @@ export interface IBLChapterListProps {
   onExportMarkdown: () => void;
   onExportHTML: () => void;
   onRegenerateDialogOpenChange: (open: boolean) => void;
+  onDeleteChapter: (chapter: IBLChapter) => void;
 }
 
 export const BLChapterList: React.FC<IBLChapterListProps> = ({
@@ -60,6 +62,7 @@ export const BLChapterList: React.FC<IBLChapterListProps> = ({
   onExportMarkdown,
   onExportHTML,
   onRegenerateDialogOpenChange,
+  onDeleteChapter,
 }) => {
   if (!selectedGenerationId || chapters.length === 0) {
     return null;
@@ -189,6 +192,21 @@ export const BLChapterList: React.FC<IBLChapterListProps> = ({
                       <span className="text-xs sm:text-sm">Preview</span>
                     </Button>
                   )}
+                  {/* <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 sm:flex-none"
+                    onPress={() => onDeleteChapter(chapter)}
+                    isDisabled={isGenerating}
+                    style={{
+                      borderColor: "#dc2626",
+                      color: "#dc2626",
+                      background: "#fef2f2",
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 sm:mr-1" />
+                    <span className="text-xs sm:text-sm">Delete</span>
+                  </Button> */}
                 </div>
               </div>
               {hasContent && (

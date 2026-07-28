@@ -41,6 +41,9 @@ export const BLApp: React.FC = () => {
     previewChapter,
     isRegenerateDialogOpen,
     isBLDialogOpen,
+    isDeleteBookDialogOpen,
+    isDeleteChapterDialogOpen,
+    isDeleteAllChaptersDialogOpen,
     isAIConfigOpen,
     isLoading,
     onSelectAuthor,
@@ -63,10 +66,27 @@ export const BLApp: React.FC = () => {
     onRegenerationFlow,
     onBLDialogOpenChange,
     onBLDialogConfirm,
+    onDeleteBook,
+    onDeleteBookDialogOpenChange,
+    onDeleteBookConfirm,
+    onDeleteChapter,
+    onDeleteChapterDialogOpenChange,
+    onDeleteChapterConfirm,
+    onDeleteAllChapters,
+    onDeleteAllChaptersDialogOpenChange,
+    onDeleteAllChaptersConfirm,
+    onSaveBook,
+    onNewBook,
     onAIConfigOpenChange,
     allAuthors,
     allGenerations,
+    chapterCounts,
   } = useBookBuilder();
+
+  const selectedBook = selectedGenerationId
+    ? allGenerations.find((g) => g.id === selectedGenerationId)
+    : null;
+  const selectedBookTitle = selectedBook?.title || "this book";
 
   return (
     <>
@@ -92,6 +112,39 @@ export const BLApp: React.FC = () => {
           onConfirm={onBLDialogConfirm}
         />
 
+        {/* ─── Delete Book Confirmation Dialog ──────────────────────────── */}
+        <BLDialog
+          isOpen={isDeleteBookDialogOpen}
+          onOpenChange={onDeleteBookDialogOpenChange}
+          title="Delete Book"
+          message={`Are you sure you want to delete "${selectedBookTitle}"? This will permanently delete the book and ALL its chapters. This action cannot be undone.`}
+          confirmLabel="Delete Book"
+          cancelLabel="Cancel"
+          onConfirm={onDeleteBookConfirm}
+        />
+
+        {/* ─── Delete Chapter Confirmation Dialog ───────────────────────── */}
+        <BLDialog
+          isOpen={isDeleteChapterDialogOpen}
+          onOpenChange={onDeleteChapterDialogOpenChange}
+          title="Delete Chapter"
+          message="Are you sure you want to delete this chapter? This action cannot be undone."
+          confirmLabel="Delete Chapter"
+          cancelLabel="Cancel"
+          onConfirm={onDeleteChapterConfirm}
+        />
+
+        {/* ─── Delete All Chapters Confirmation Dialog ──────────────────── */}
+        <BLDialog
+          isOpen={isDeleteAllChaptersDialogOpen}
+          onOpenChange={onDeleteAllChaptersDialogOpenChange}
+          title="Delete All Chapters"
+          message={`Are you sure you want to delete ALL chapters from "${selectedBookTitle}"? The book outline will be preserved but all generated content will be lost. This action cannot be undone.`}
+          confirmLabel="Delete All Chapters"
+          cancelLabel="Cancel"
+          onConfirm={onDeleteAllChaptersConfirm}
+        />
+
         <BLAuthorPanel
           authors={allAuthors}
           selectedAuthorId={selectedAuthorId}
@@ -112,7 +165,10 @@ export const BLApp: React.FC = () => {
         <BLBookSelector
           generations={allGenerations}
           selectedGenerationId={selectedGenerationId}
+          chapterCounts={chapterCounts}
           onSelectGeneration={onSelectGeneration}
+          onDeleteBook={onDeleteBook}
+          onDeleteAllChapters={onDeleteAllChapters}
         />
 
         <BLBookGenerator
@@ -121,10 +177,14 @@ export const BLApp: React.FC = () => {
           isGeneratingOutline={isGeneratingOutline}
           isBulkGenerating={isBulkGenerating}
           selectedAuthorId={selectedAuthorId}
+          selectedGenerationId={selectedGenerationId}
+          isLoading={isLoading}
           onBookTitleChange={onBookTitleChange}
           onBookDescChange={onBookDescChange}
           onBulkGeneratingChange={onBulkGeneratingChange}
           onGenerateBook={onGenerateBook}
+          onSaveBook={onSaveBook}
+          onNewBook={onNewBook}
         />
 
         <BLChapterList
@@ -138,6 +198,7 @@ export const BLApp: React.FC = () => {
           onExportMarkdown={onExportMarkdown}
           onExportHTML={onExportHTML}
           onRegenerateDialogOpenChange={onRegenerateDialogOpenChange}
+          onDeleteChapter={onDeleteChapter}
         />
 
         <BLChapterPreview

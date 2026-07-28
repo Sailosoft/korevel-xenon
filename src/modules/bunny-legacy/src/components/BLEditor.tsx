@@ -23,7 +23,7 @@ import {
   CodeToggle,
 } from "@mdxeditor/editor";
 import "@mdxeditor/editor/style.css";
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useRef } from "react";
 
 export interface IBLEditorProps {
   markdown: string;
@@ -36,16 +36,32 @@ export interface IBLEditorProps {
 /**
  * BLEditor - A lightweight MDX/Markdown editor for bunny-legacy.
  * Based on BookBuilderEditor but with a simplified interface.
+ *
+ * Uses an internal ref + useEffect to sync the markdown prop into the editor,
+ * because MDXEditor treats the `markdown` prop as an initial value only
+ * (uncontrolled). Without this sync, switching between books would show
+ * stale content in the editor.
  */
 const BLEditor = forwardRef<MDXEditorMethods, IBLEditorProps>(
-  ({ markdown, onChange, readOnly, minHeight = "150px" }, ref) => {
+  ({ markdown, onChange, readOnly, minHeight = "150px" }, externalRef) => {
+    const internalRef = useRef<MDXEditorMethods | null>(null);
+    const editorRef = (externalRef ?? internalRef) as React.RefObject<MDXEditorMethods | null>;
+
+    // Sync the markdown prop into the editor whenever it changes,
+    // because MDXEditor only uses the initial value.
+    useEffect(() => {
+      if (editorRef.current) {
+        editorRef.current.setMarkdown(markdown);
+      }
+    }, [markdown, editorRef]);
+
     return (
       <div
         className="border rounded-md bg-white dark:bg-slate-950 overflow-hidden"
         style={{ minHeight }}
       >
         <MDXEditor
-          ref={ref}
+          ref={editorRef}
           markdown={markdown}
           onChange={onChange}
           readOnly={readOnly}
