@@ -50,7 +50,7 @@ export class BunnyFeature<TRow, TForm> {
   protected config: BunnyConfig<TRow, TForm>;
   protected util: BunnyFeatureUtil;
 
-  private constructor(title: string, rowKey: keyof TRow) {
+  public constructor(title: string, rowKey: keyof TRow) {
     this.util = new BunnyFeatureUtil();
     // Clone the default config so each module gets an independent object
     // (prevents cross-module corruption from shared mutable default)

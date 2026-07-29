@@ -186,7 +186,7 @@ export default function BKThinkerDashboard() {
             Recent Thinking Sessions
           </h2>
           <div className="space-y-2">
-            {recentThinks.map((thinkItem) => (
+            {recentThinks.slice(0, 5).map((thinkItem) => (
               <a
                 key={thinkItem.id}
                 href={`/modules/bunny-thinker/think/${thinkItem.id}`}

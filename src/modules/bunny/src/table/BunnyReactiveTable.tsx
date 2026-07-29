@@ -66,73 +66,6 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-interface TableHeadingsProps<TRow> {
-  isMobile: boolean;
-  selectionMode: string;
-  columns: BunnyColumn<TRow>[];
-  actions: BunnyRowAction<TRow>[] | undefined;
-  actionColumnLength: number;
-}
-
-function TableHeadings<TRow>({
-  isMobile,
-  selectionMode,
-  columns,
-  actions,
-  actionColumnLength,
-}: TableHeadingsProps<TRow>) {
-  if (isMobile) {
-    return (
-      <Table.Column id="mobile-list-col" isRowHeader>
-        Items
-      </Table.Column>
-    );
-  }
-
-  return (
-    <>
-      {selectionMode !== "none" && (
-        <Table.Column id="selection-col" className="pr-0" width={40}>
-          <Checkbox aria-label="Select all" slot="selection">
-            <Checkbox.Control>
-              <Checkbox.Indicator />
-            </Checkbox.Control>
-          </Checkbox>
-        </Table.Column>
-      )}
-
-      {columns.map((col, index) => (
-        <Table.Column
-          key={`col-${String(col.field)}-${index}`}
-          id={String(col.field)}
-          allowsSorting={col.sortable}
-          isRowHeader={col.isRowHeader}
-        >
-          {({ sortDirection }) =>
-            col.sortable ? (
-              <SortableColumnHeader sortDirection={sortDirection}>
-                {col.header}
-              </SortableColumnHeader>
-            ) : (
-              col.header
-            )
-          }
-        </Table.Column>
-      ))}
-
-      {actions && actions.length > 0 && (
-        <Table.Column
-          id="actions-col"
-          className="text-end"
-          width={actionColumnLength}
-        >
-          Actions
-        </Table.Column>
-      )}
-    </>
-  );
-}
-
 interface RowUiProps<TRow> {
   row: TRow;
   columns: BunnyColumn<TRow>[];
@@ -443,13 +376,74 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
               key={isMobile ? "mobile-view-header" : "desktop-view-header"}
               className="h-full w-full"
             >
-              <TableHeadings
-                isMobile={isMobile}
-                selectionMode={selectionMode}
-                columns={columns}
-                actions={actions}
-                actionColumnLength={actionColumnLength}
-              />
+              {isMobile ? (
+                <Table.Column id="mobile-list-col" isRowHeader>
+                  Items
+                </Table.Column>
+              ) : (
+                <>
+                  {selectionMode !== "none" && (
+                    <Table.Column className="pr-0" width={40}>
+                      {/*
+                       * HeroUI Checkbox renders CheckboxField (no <input>).
+                       * Click interaction for row checkboxes comes from the
+                       * Table.Row press handler — the header row has none.
+                       * We keep slot="selection" for visual state from the
+                       * slot provider, and add an onPointerDown wrapper to
+                       * make the checkbox interactive.
+                       */}
+                      <div
+                        role="presentation"
+                        onPointerDown={(e) => {
+                          // Prevent the column header's sort handler
+                          e.stopPropagation();
+                          setSelectedKeys((prev) =>
+                            prev === "all" ? new Set() : "all",
+                          );
+                        }}
+                      >
+                        <Checkbox
+                          aria-label="Select all"
+                          slot="selection"
+                        >
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                        </Checkbox>
+                      </div>
+                    </Table.Column>
+                  )}
+
+                  {columns.map((col, index) => (
+                    <Table.Column
+                      key={`col-${String(col.field)}-${index}`}
+                      id={String(col.field)}
+                      allowsSorting={col.sortable}
+                      isRowHeader={col.isRowHeader}
+                    >
+                      {({ sortDirection }) =>
+                        col.sortable ? (
+                          <SortableColumnHeader sortDirection={sortDirection}>
+                            {col.header}
+                          </SortableColumnHeader>
+                        ) : (
+                          col.header
+                        )
+                      }
+                    </Table.Column>
+                  ))}
+
+                  {actions && actions.length > 0 && (
+                    <Table.Column
+                      id="actions-col"
+                      className="text-end"
+                      width={actionColumnLength}
+                    >
+                      Actions
+                    </Table.Column>
+                  )}
+                </>
+              )}
             </Table.Header>
 
             <Table.Body
