@@ -56,10 +56,16 @@ export const BLBookBuilder: React.FC = () => {
     onExportHTML,
     onRegenerateDialogOpenChange,
     onRegenerationFlow,
+    onDeleteBook,
+    onDeleteChapter,
+    onDeleteAllChapters,
+    onSaveBook,
+    onNewBook,
 
     // Queries
     allAuthors,
     allGenerations,
+    chapterCounts,
   } = useBookBuilder();
 
   return (
@@ -86,7 +92,10 @@ export const BLBookBuilder: React.FC = () => {
       <BLBookSelector
         generations={allGenerations}
         selectedGenerationId={selectedGenerationId}
+        chapterCounts={chapterCounts}
         onSelectGeneration={onSelectGeneration}
+        onDeleteBook={onDeleteBook}
+        onDeleteAllChapters={onDeleteAllChapters}
       />
 
       {/* AI Book Generator Section */}
@@ -96,10 +105,14 @@ export const BLBookBuilder: React.FC = () => {
         isGeneratingOutline={isGeneratingOutline}
         isBulkGenerating={isBulkGenerating}
         selectedAuthorId={selectedAuthorId}
+        selectedGenerationId={selectedGenerationId}
+        isLoading={isLoading}
         onBookTitleChange={onBookTitleChange}
         onBookDescChange={onBookDescChange}
         onBulkGeneratingChange={onBulkGeneratingChange}
         onGenerateBook={onGenerateBook}
+        onSaveBook={onSaveBook}
+        onNewBook={onNewBook}
       />
 
       {/* Chapters Section */}
@@ -114,6 +127,7 @@ export const BLBookBuilder: React.FC = () => {
         onExportMarkdown={onExportMarkdown}
         onExportHTML={onExportHTML}
         onRegenerateDialogOpenChange={onRegenerateDialogOpenChange}
+        onDeleteChapter={onDeleteChapter}
       />
 
       {/* Preview Modal */}

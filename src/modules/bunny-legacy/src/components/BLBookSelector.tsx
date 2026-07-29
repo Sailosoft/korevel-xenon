@@ -8,21 +8,44 @@
 "use client";
 
 import React from "react";
-import { Card, Select, ListBox } from "@heroui/react";
-import { BookText, ChevronDown, BookMarked, Library } from "lucide-react";
+import { Card, Select, ListBox, Button } from "@heroui/react";
+import { BookText, ChevronDown, BookMarked, Library, Trash2 } from "lucide-react";
 import type { IBLGeneration } from "../core/BLEntity";
+
+/** Teal: lab(44.7267% -21.5987 -26.118) ≈ #007399 */
+const TEAL = "#007399";
+
+const btnDanger = {
+  borderColor: "#dc2626",
+  color: "#dc2626",
+  background: "#fef2f2",
+};
 
 export interface IBLBookSelectorProps {
   generations: IBLGeneration[];
   selectedGenerationId: number | null;
   onSelectGeneration: (id: number | null) => void;
+  onDeleteBook: () => void;
+  onDeleteAllChapters: () => void;
+  chapterCounts: Record<number, number>;
 }
 
 export const BLBookSelector: React.FC<IBLBookSelectorProps> = ({
   generations,
   selectedGenerationId,
   onSelectGeneration,
+  onDeleteBook,
+  onDeleteAllChapters,
+  chapterCounts,
 }) => {
+  const selectedGeneration = selectedGenerationId
+    ? generations.find((g) => g.id === selectedGenerationId)
+    : null;
+
+  const currentCount = selectedGenerationId
+    ? (chapterCounts[selectedGenerationId] ?? 0)
+    : 0;
+
   return (
     <Card className="bg-gradient-to-br from-content1 to-content1/80 border border-[lab(44.7267%_-21.5987_-26.118_/_0.15)]">
       <Card.Header>
@@ -38,7 +61,7 @@ export const BLBookSelector: React.FC<IBLBookSelectorProps> = ({
           </div>
         </div>
       </Card.Header>
-      <Card.Content>
+      <Card.Content className="space-y-3">
         <Select
           aria-label="Select a saved book"
           className="w-full"
@@ -85,6 +108,42 @@ export const BLBookSelector: React.FC<IBLBookSelectorProps> = ({
             </ListBox>
           </Select.Popover>
         </Select>
+
+        {selectedGeneration && (
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-default-400 truncate">
+                {currentCount} chapter{currentCount !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {currentCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onPress={onDeleteAllChapters}
+                  style={{
+                    borderColor: "#dc2626",
+                    color: "#dc2626",
+                    background: "#fef2f2",
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 sm:mr-1" />
+                  <span className="text-xs">Delete All Chapters</span>
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={onDeleteBook}
+                style={btnDanger}
+              >
+                <Trash2 className="w-4 h-4 sm:mr-1" />
+                <span className="text-xs">Delete Book</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </Card.Content>
     </Card>
   );

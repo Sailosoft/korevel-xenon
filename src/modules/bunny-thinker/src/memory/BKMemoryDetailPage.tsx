@@ -24,7 +24,7 @@ import type { BKMemory, BKMemoryNeuron } from "./BKMemory.Types";
 import {
   bkCopyContent,
   bkDownloadContent,
-  bkViewNeuronBlob,
+  bkViewThoughtBlob,
   bkViewAsHtml,
   bkDownloadHtml,
 } from "./BKMemory.Export";
@@ -314,7 +314,7 @@ export default function BKMemoryDetailPage({
                       <div className="flex items-center gap-1 shrink-0">
                         {nIsIframe && (
                           <button
-                            onClick={() => bkViewNeuronBlob(neuron.value, nFormat)}
+                            onClick={() => bkViewThoughtBlob(neuron.value, nFormat)}
                             title="Open in new tab"
                             className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
                           >
@@ -460,7 +460,7 @@ export default function BKMemoryDetailPage({
                         size="sm"
                         className="text-xs h-7"
                         onPress={() =>
-                          bkViewNeuronBlob(
+                          bkViewThoughtBlob(
                             viewingNeuron.value,
                             getNeuronFormat(viewingNeuron.id),
                           )

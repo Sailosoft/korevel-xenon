@@ -38,6 +38,7 @@ import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
 import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThoughtConfigPanel from "../thoughts/BKThoughtConfigPanel";
+import BKStepActions from "../steps/BKStepActions";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -386,6 +387,10 @@ export default function BKThinkStudioAnon({
     selectThinker,
     selectAssociation,
     addStep,
+    addStepBefore,
+    addStepAfter,
+    moveStepUp,
+    moveStepDown,
     removeStep,
     updateStep,
     startThinking,
@@ -718,6 +723,16 @@ export default function BKThinkStudioAnon({
           onAddStep={addStep}
           onRemoveStep={removeStep}
           onUpdateStep={handleUpdateStep}
+          renderStepActions={(_step, index) => (
+            <BKStepActions
+              stepIndex={index}
+              totalSteps={steps.length}
+              onMoveUp={moveStepUp}
+              onMoveDown={moveStepDown}
+              onAddBefore={addStepBefore}
+              onAddAfter={addStepAfter}
+            />
+          )}
         />
 
         {/* ── Thinker Selector ────────────────────────────────────── */}
@@ -991,6 +1006,16 @@ export default function BKThinkStudioAnon({
             onAddStep={addStep}
             onRemoveStep={removeStep}
             onUpdateStep={handleUpdateStep}
+            renderStepActions={(_step, index) => (
+              <BKStepActions
+                stepIndex={index}
+                totalSteps={steps.length}
+                onMoveUp={moveStepUp}
+                onMoveDown={moveStepDown}
+                onAddBefore={addStepBefore}
+                onAddAfter={addStepAfter}
+              />
+            )}
           />
 
           <p className="text-xs text-purple-500 italic">

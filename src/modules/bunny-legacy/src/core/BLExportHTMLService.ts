@@ -10,10 +10,13 @@
  * Mobile: hamburger button slides sidebar in from the left.
  *
  * Inspired by book-builder.export.service.interactive.ts
+ *
+ * Logic layer — templates live in BLOutputConstant.
  */
 
-import { marked } from "marked";
+import { marked, Renderer } from "marked";
 import type { IBLGeneration, IBLChapter } from "./BLEntity";
+import { BLOutputConstant } from "./BLOutputConstant";
 
 export class BLExportHTMLService {
   /** Teal primary color matching BLApp theme */
@@ -23,8 +26,116 @@ export class BLExportHTMLService {
   private static readonly TEAL_SUBTLE = "#f0f8fb";
 
   /**
+   * Creates a custom marked Renderer that applies the theme's Tailwind
+   * classes to each HTML element — replaces the old prose-based approach.
+   */
+  private static createThemeRenderer(): Renderer {
+    const renderer = new Renderer();
+
+    // ── Headings ───────────────────────────────────────────────────
+    renderer.heading = function (this: Renderer, token) {
+      const classes: Record<number, string> = {
+        1: "text-xl font-bold text-[lab(44.7267%_-21.5987_-26.118)] mt-6 mb-3 pb-1 border-b border-[#e0e0e0]",
+        2: "text-lg font-bold text-[lab(44.7267%_-21.5987_-26.118)] mt-5 mb-2",
+        3: "text-base font-semibold text-[#1a1a1a] mt-4 mb-1",
+        4: "text-sm font-semibold text-[#1a1a1a] mt-3 mb-1",
+      };
+      const cls = classes[token.depth] ?? "";
+      return `<h${token.depth} class="${cls}">${this.parser.parseInline(token.tokens)}</h${token.depth}>`;
+    };
+
+    // ── Paragraph ──────────────────────────────────────────────────
+    renderer.paragraph = function (this: Renderer, token) {
+      return `<p class="my-2 text-[#1a1a1a]">${this.parser.parseInline(token.tokens)}</p>`;
+    };
+
+    // ── Lists ──────────────────────────────────────────────────────
+    renderer.list = function (this: Renderer, token) {
+      const tag = token.ordered ? "ol" : "ul";
+      const cls = token.ordered
+        ? "list-decimal pl-4 sm:pl-6 my-2 text-[#1a1a1a] space-y-1"
+        : "list-disc pl-4 sm:pl-6 my-2 text-[#1a1a1a] space-y-1";
+      const items = token.items.map((item) => this.listitem(item)).join("");
+      return `<${tag} class="${cls}">${items}</${tag}>`;
+    };
+
+    renderer.listitem = function (this: Renderer, token) {
+      const content =
+        token.tokens.length === 1 && token.tokens[0].type === "paragraph"
+          ? this.parser.parseInline((token.tokens[0] as any).tokens)
+          : this.parser.parse(token.tokens);
+      return `<li>${content}</li>`;
+    };
+
+    // ── Code (block) ───────────────────────────────────────────────
+    renderer.code = function (_token) {
+      const escaped = _token.text
+        .replace(/&/g, "&")
+        .replace(/</g, "<")
+        .replace(/>/g, ">");
+      return `<pre class="bg-transparent p-0 m-0 overflow-x-auto"><code class="block bg-[#f8f8f8] text-[#1a1a1a] p-3 sm:p-4 rounded-lg text-xs font-mono overflow-x-auto my-3 border border-[#e0e0e0]">${escaped}</code></pre>`;
+    };
+
+    // ── Codespan (inline code) ─────────────────────────────────────
+    renderer.codespan = function (_token) {
+      return `<code class="bg-[#f0f0f0] text-[#e06c75] px-1.5 py-0.5 rounded text-xs font-mono">${_token.text}</code>`;
+    };
+
+    // ── Blockquote ─────────────────────────────────────────────────
+    renderer.blockquote = function (this: Renderer, token) {
+      return `<blockquote class="border-l-4 border-[lab(44.7267%_-21.5987_-26.118)] pl-3 sm:pl-4 my-3 italic text-[#666666]">${this.parser.parse(token.tokens)}</blockquote>`;
+    };
+
+    // ── Link ───────────────────────────────────────────────────────
+    renderer.link = function (this: Renderer, token) {
+      const href = token.href || "";
+      return `<a href="${href}" class="text-[lab(65%_-18_-22)] hover:underline hover:text-[lab(44.7267%_-21.5987_-26.118)] transition-colors" target="_blank" rel="noopener noreferrer">${this.parser.parseInline(token.tokens)}</a>`;
+    };
+
+    // ── Thematic break (hr) ────────────────────────────────────────
+    renderer.hr = function () {
+      return `<hr class="border-[#e0e0e0] my-4" />`;
+    };
+
+    // ── Table ──────────────────────────────────────────────────────
+    renderer.table = function (this: Renderer, token) {
+      const header = token.header
+        .map((cell) => this.tablecell(cell))
+        .join("");
+      const headerRow = `<tr>${header}</tr>`;
+      const bodyRows = token.rows
+        .map((row) => {
+          const cells = row.map((cell) => this.tablecell(cell)).join("");
+          return `<tr>${cells}</tr>`;
+        })
+        .join("");
+      return `<div class="overflow-x-auto my-3"><table class="min-w-full border-collapse border border-[#e0e0e0] text-xs sm:text-sm"><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table></div>`;
+    };
+
+    renderer.tablecell = function (this: Renderer, token) {
+      const tag = token.header ? "th" : "td";
+      const cls = token.header
+        ? "border border-[#e0e0e0] bg-[#f5f5f5] text-[lab(44.7267%_-21.5987_-26.118)] px-2 sm:px-3 py-1.5 font-semibold text-left"
+        : "border border-[#e0e0e0] px-2 sm:px-3 py-1.5 text-[#1a1a1a]";
+      const content = this.parser.parseInline(token.tokens);
+      return `<${tag} class="${cls}">${content}</${tag}>`;
+    };
+
+    // ── Image ──────────────────────────────────────────────────────
+    renderer.image = function (_token) {
+      const src = _token.href || "";
+      const alt = _token.text || "";
+      return `<img src="${src}" alt="${alt}" class="max-w-full rounded-lg my-3" />`;
+    };
+
+    return renderer;
+  }
+
+  /**
    * Generates a self-contained HTML file with Tailwind CSS,
    * sidebar navigation, quick-routing index, and chapter anchor links.
+   * Uses the theme renderer from createThemeRenderer() and
+   * delegates all template markup to BLOutputConstant.
    */
   static async generateHTML(
     book: IBLGeneration,
@@ -33,6 +144,9 @@ export class BLExportHTMLService {
     const sortedChapters = [...chapters].sort((a, b) => a.number - b.number);
     const teal = this.TEAL;
     const tealDark = this.TEAL_DARK;
+
+    // ── Set up the theme renderer for marked ───────────────────────
+    const renderer = this.createThemeRenderer();
 
     // ── Sidebar Navigation ──────────────────────────────────────────
     const sidebarLinks = sortedChapters
@@ -67,217 +181,32 @@ export class BLExportHTMLService {
         const sanitizedContent = (ch.content || "_Content not generated yet._")
           .replace(/\$\\rightarrow\$/g, "\u2192")
           .replace(/\\rightarrow/g, "\u2192");
-        const parsedContent = await marked.parse(sanitizedContent);
-        return `
-        <section id="chapter-${ch.number}" class="mb-32 scroll-mt-20 chapter-break">
-            <header class="mb-10">
-              <span class="text-[${teal}] font-mono text-xs font-semibold tracking-widest uppercase">Chapter ${ch.number}</span>
-              <h2 class="text-4xl font-light text-slate-900 mt-2 tracking-tight italic">
-                  ${this.escapeHtml(ch.title)}
-              </h2>
-            </header>
-            <div class="prose prose-slate prose-lg max-w-none prose-headings:font-normal prose-p:leading-relaxed text-slate-800">
-                ${parsedContent}
-            </div>
-            <div class="mt-12 pt-6 border-t border-[${teal}]/10 flex justify-end">
-              <a href="#toc" class="text-sm text-[${teal}] hover:text-[${tealDark}] transition-colors no-print font-medium">
-                &#11014; Back to Table of Contents
-              </a>
-            </div>
-        </section>`;
+        const parsedContent = await marked.parse(sanitizedContent, {
+          renderer,
+        });
+
+        return BLOutputConstant.chapter({
+          number: ch.number,
+          title: this.escapeHtml(ch.title),
+          content: parsedContent,
+          teal,
+          tealDark,
+        });
       }),
     );
 
-    return `<!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.escapeHtml(book.title)}</title>
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-
-        /* Teal Design System (matching BLApp) */
-        :root {
-          --teal: ${teal};
-          --teal-dark: ${tealDark};
-          --teal-soft: ${this.TEAL_SOFT};
-          --teal-subtle: ${this.TEAL_SUBTLE};
-        }
-
-        /* Sidebar Transition */
-        .sidebar-panel {
-          transform: translateX(-100%);
-          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .sidebar-panel.open {
-          transform: translateX(0);
-        }
-
-        /* Mobile Overlay */
-        .sidebar-overlay {
-          opacity: 0;
-          pointer-events: none;
-          transition: opacity 0.3s ease;
-        }
-        .sidebar-overlay.open {
-          opacity: 1;
-          pointer-events: auto;
-        }
-
-        /* Desktop sidebar always visible */
-        @media (min-width: 1024px) {
-          .sidebar-panel {
-            transform: translateX(0) !important;
-          }
-          .sidebar-overlay {
-            display: none !important;
-          }
-          .hamburger-btn {
-            display: none !important;
-          }
-        }
-
-        /* Print */
-        @media print {
-            .no-print { display: none !important; }
-            .content-area { margin-left: 0 !important; padding: 0 !important; }
-            .chapter-break { page-break-before: always; }
-        }
-
-        /* Sidebar Scrollbar */
-        .sidebar-scroll::-webkit-scrollbar {
-          width: 4px;
-        }
-        .sidebar-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .sidebar-scroll::-webkit-scrollbar-thumb {
-          background: var(--teal);
-          border-radius: 999px;
-        }
-        .sidebar-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: var(--teal) transparent;
-        }
-
-        /* TOC accent bar */
-        .teal-accent-bar {
-          width: 5rem;
-          height: 4px;
-          background: var(--teal);
-          border-radius: 999px;
-        }
-
-        /* Gradient card (matches BLApp card style) */
-        .toc-card {
-          background: linear-gradient(135deg, rgba(255,255,255,1), rgba(255,255,255,0.8));
-          border: 1px solid color-mix(in srgb, var(--teal) 15%, transparent);
-          border-radius: 0.75rem;
-        }
-    </style>
-</head>
-<body class="bg-white text-slate-900 antialiased">
-    <!-- Mobile Hamburger Button -->
-    <button id="hamburgerBtn"
-            class="hamburger-btn no-print fixed top-4 left-4 z-50 flex items-center justify-center w-10 h-10 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl active:scale-95"
-            style="background: linear-gradient(135deg, ${teal}, ${tealDark}); color: #fff; border: none;"
-            onclick="toggleSidebar()"
-            aria-label="Toggle navigation sidebar">
-        <svg id="hamburgerIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-    </button>
-
-    <!-- Mobile Overlay -->
-    <div id="sidebarOverlay"
-         class="sidebar-overlay no-print fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
-         onclick="toggleSidebar()">
-    </div>
-
-    <!-- Sidebar Navigation -->
-    <aside id="sidebarPanel"
-           class="sidebar-panel no-print fixed inset-y-0 left-0 z-40 w-72 bg-gradient-to-b from-[${this.TEAL_SUBTLE}] to-white border-r border-[${teal}]/10 p-6 overflow-y-auto sidebar-scroll lg:translate-x-0 lg:!z-auto lg:!bg-[${this.TEAL_SUBTLE}]/50">
-        <nav>
-            <div class="flex items-center gap-2 mb-6 pb-4 border-b border-[${teal}]/10">
-                <div class="w-2 h-2 rounded-full" style="background: ${teal};"></div>
-                <p class="text-[10px] font-bold text-[${teal}] tracking-[0.2em] uppercase">Navigation</p>
-            </div>
-            <ul class="space-y-1">
-                ${sidebarLinks}
-            </ul>
-        </nav>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="content-area lg:ml-72 min-h-screen">
-        <div class="max-w-5xl mx-auto py-24 px-8 lg:px-12">
-            <!-- Book Header / TOC -->
-            <header class="mb-20" id="toc">
-                <h1 class="text-7xl font-extrabold text-slate-900 tracking-tighter leading-[0.9] mb-8">
-                    ${this.escapeHtml(book.title)}
-                </h1>
-                ${book.description ? `<p class="text-lg text-slate-500 font-light mb-8 max-w-2xl">${this.escapeHtml(book.description)}</p>` : ""}
-                <div class="teal-accent-bar mb-16"></div>
-
-                <div class="toc-card p-6">
-                    <div class="flex items-center gap-2 mb-6">
-                        <div class="p-1.5 rounded-lg" style="background: ${teal}15;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${teal}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
-                            </svg>
-                        </div>
-                        <p class="text-[10px] font-bold text-[${teal}] tracking-[0.2em] uppercase">Quick Routing</p>
-                    </div>
-                    <div class="grid grid-cols-1 gap-0">
-                        ${mainIndexHtml}
-                    </div>
-                </div>
-            </header>
-
-            <!-- Chapters -->
-            <article class="mt-40">
-                ${contentHtml.join("")}
-            </article>
-
-            <!-- Footer -->
-            <footer class="mt-32 py-12 border-t border-[${teal}]/10 flex flex-col sm:flex-row justify-between items-center gap-4 text-slate-400 text-xs font-mono">
-                <span>&#169; ${new Date().getFullYear()} ${this.escapeHtml(book.title)}</span>
-                <span class="uppercase tracking-widest">Generated with Korevel Xenon</span>
-            </footer>
-        </div>
-    </main>
-
-    <!-- Sidebar Toggle Script -->
-    <script>
-        function toggleSidebar() {
-            var panel = document.getElementById('sidebarPanel');
-            var overlay = document.getElementById('sidebarOverlay');
-            var icon = document.getElementById('hamburgerIcon');
-            panel.classList.toggle('open');
-            overlay.classList.toggle('open');
-            if (panel.classList.contains('open')) {
-                icon.innerHTML = '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>';
-            } else {
-                icon.innerHTML = '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>';
-            }
-        }
-        // Close sidebar when clicking a link on mobile
-        document.querySelectorAll('#sidebarPanel a').forEach(function(link) {
-            link.addEventListener('click', function() {
-                if (window.innerWidth < 1024) {
-                    toggleSidebar();
-                }
-            });
-        });
-    </script>
-</body>
-</html>`;
+    // ── Assemble final document via template constant ───────────────
+    return BLOutputConstant.baseLine({
+      title: this.escapeHtml(book.title),
+      description: book.description ? this.escapeHtml(book.description) : null,
+      sidebarLinks,
+      mainIndexHtml,
+      contentHtml: contentHtml.join(""),
+      teal,
+      tealDark,
+      tealSoft: this.TEAL_SOFT,
+      tealSubtle: this.TEAL_SUBTLE,
+    });
   }
 
   /**

@@ -9,8 +9,24 @@
 
 import React from "react";
 import { Card, Button, Input, Checkbox } from "@heroui/react";
-import { Sparkles, BookOpen, Loader2, Wand2 } from "lucide-react";
+import { Sparkles, BookOpen, Loader2, Wand2, Save, FilePlus2 } from "lucide-react";
 import BLEditor from "./BLEditor";
+
+/** Teal: lab(44.7267% -21.5987 -26.118) ≈ #007399 */
+const TEAL = "#007399";
+const TEAL_DARK = "#00557a";
+
+const btnSolid = {
+  background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`,
+  color: "#fff",
+  border: "none",
+};
+
+const btnOutline = {
+  borderColor: TEAL,
+  color: TEAL,
+  background: "#f0f0f0",
+};
 
 export interface IBLBookGeneratorProps {
   bookTitle: string;
@@ -18,10 +34,14 @@ export interface IBLBookGeneratorProps {
   isGeneratingOutline: boolean;
   isBulkGenerating: boolean;
   selectedAuthorId: string;
+  selectedGenerationId: number | null;
+  isLoading: boolean;
   onBookTitleChange: (title: string) => void;
   onBookDescChange: (desc: string) => void;
   onBulkGeneratingChange: (value: boolean) => void;
   onGenerateBook: () => void;
+  onSaveBook: () => void;
+  onNewBook: () => void;
 }
 
 export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
@@ -30,15 +50,22 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
   isGeneratingOutline,
   isBulkGenerating,
   selectedAuthorId,
+  selectedGenerationId,
+  isLoading,
   onBookTitleChange,
   onBookDescChange,
   onBulkGeneratingChange,
   onGenerateBook,
+  onSaveBook,
+  onNewBook,
 }) => {
   const canGenerate =
     bookTitle.trim().length > 0 &&
     bookDesc.trim().length > 0 &&
     selectedAuthorId !== "new";
+
+  const isEditing = selectedGenerationId !== null;
+  const hasBookData = bookTitle.trim().length > 0 || bookDesc.trim().length > 0;
 
   return (
     <Card className="border border-[lab(44.7267%_-21.5987_-26.118_/_0.2)] bg-gradient-to-br from-[lab(44.7267%_-21.5987_-26.118_/_0.06)] via-transparent to-[lab(65%_-18_-22_/_0.06)]">
@@ -48,9 +75,13 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
             <Wand2 className="w-5 h-5 text-[lab(44.7267%_-21.5987_-26.118)]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">AI Book Builder</h2>
+            <h2 className="text-lg font-semibold">
+              {isEditing ? "Edit Book" : "AI Book Builder"}
+            </h2>
             <p className="text-xs sm:text-sm text-default-500 mt-0.5">
-              Generate a new book chapter outline using your selected author
+              {isEditing
+                ? "Update the book details or generate a new outline"
+                : "Generate a new book chapter outline using your selected author"}
             </p>
           </div>
         </div>
@@ -87,16 +118,45 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
           </Checkbox.Content>
         </Checkbox>
       </Card.Content>
-      <Card.Footer>
+      <Card.Footer className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
+          {hasBookData && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={onNewBook}
+              style={btnOutline}
+              className="flex-1 sm:flex-none"
+            >
+              <FilePlus2 className="w-4 h-4 sm:mr-1" />
+              <span className="text-xs sm:text-sm">New Book</span>
+            </Button>
+          )}
+          {isEditing && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={onSaveBook}
+              isDisabled={!bookTitle.trim() || isLoading}
+              style={btnOutline}
+              className="flex-1 sm:flex-none"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin sm:mr-1" />
+              ) : (
+                <Save className="w-4 h-4 sm:mr-1" />
+              )}
+              <span className="text-xs sm:text-sm">Save Book</span>
+            </Button>
+          )}
+        </div>
         <Button
-          className="w-full font-medium text-white border-0 transition-all duration-300"
+          className="w-full sm:flex-1 font-medium text-white border-0 transition-all duration-300"
           variant="primary"
           size="lg"
           onPress={onGenerateBook}
           isDisabled={!canGenerate || isGeneratingOutline}
-          style={{
-            background: "linear-gradient(135deg, lab(44.7267% -21.5987 -26.118), lab(32% -14 -18))",
-          }}
+          style={btnSolid}
         >
           {isGeneratingOutline ? (
             <>
@@ -106,7 +166,7 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
           ) : (
             <>
               <Sparkles className="w-5 h-5 mr-2" />
-              Generate Chapter Outline
+              {isEditing ? "Regenerate Outline" : "Generate Chapter Outline"}
             </>
           )}
         </Button>

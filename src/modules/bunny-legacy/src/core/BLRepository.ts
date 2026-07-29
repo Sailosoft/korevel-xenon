@@ -113,7 +113,14 @@ export class BLGenerationRepository {
   }
 
   async update(id: number, data: Partial<IBLGeneration>): Promise<void> {
-    await this.db.generations.update(id, data);
+    // Use get + put instead of update() to ensure Dexie live queries
+    // reliably detect the change and re-evaluate.
+    const existing = await this.db.generations.get(id);
+    if (!existing) {
+      throw new Error(`Generation with id ${id} not found`);
+    }
+    const merged: IBLGeneration = { ...existing, ...data, id };
+    await this.db.generations.put(merged);
   }
 
   async delete(id: number): Promise<void> {
@@ -128,6 +135,10 @@ export class BLGenerationRepository {
  */
 export class BLChapterRepository {
   constructor(private readonly db: BLDatabase) {}
+
+  async getAll(): Promise<IBLChapter[]> {
+    return this.db.chapters.toArray();
+  }
 
   async getByGenerationId(generationId: number): Promise<IBLChapter[]> {
     const chapters = await this.db.chapters
@@ -147,5 +158,13 @@ export class BLChapterRepository {
 
   async update(id: number, data: Partial<IBLChapter>): Promise<void> {
     await this.db.chapters.update(id, data);
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.db.chapters.delete(id);
+  }
+
+  async deleteByGenerationId(generationId: number): Promise<void> {
+    await this.db.chapters.where("generationId").equals(generationId).delete();
   }
 }

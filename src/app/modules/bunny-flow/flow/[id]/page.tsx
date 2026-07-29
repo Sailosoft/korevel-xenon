@@ -100,8 +100,7 @@ export default function BFlowDashboardPage({ params }: FlowDashboardPageProps) {
             {definition?.name || "Untitled Flow"}
           </h1>
           <p className="text-sm text-slate-400">
-            {definition?.code ?? ""}
-            {definition?.description ? ` — ${definition.description}` : ""}
+            {definition?.description ?? ""}
           </p>
         </div>
         {definition?.status && (

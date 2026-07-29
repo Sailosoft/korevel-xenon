@@ -44,10 +44,24 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
         id: "run-thought",
         icon: createElement(PlayCircle),
         variant: "primary",
-        onClick(row, context) {
+        async onClick(row, context) {
           const thought = row as BKThought;
+
+          // Check for an existing resumable think (draft or thinking) for this thought
+          const existingThinks = await bkThinkerDB.thinksRepo.getByThoughtId(thought.id);
+
+          // get last item of existing thinks regardless of status
+          const resumable = existingThinks[0];
+
+          if (resumable) {
+            // Reuse existing think instead of creating a new one
+            context.router.push(`/modules/bunny-thinker/think/${resumable.id}`);
+            return;
+          }
+
+          // No resumable think found — create a fresh one
           const thinkId = uuidv7();
-          bkThinkerDB.thinksRepo.create({
+          await bkThinkerDB.thinksRepo.create({
             id: thinkId,
             slug: thought.name.toLowerCase().replace(/\s+/g, "-"),
             name: `Run: ${thought.name}`,
@@ -55,9 +69,8 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
             status: "draft",
             thinkConversation: [],
             createdAt: Date.now(),
-          }).then(() => {
-            context.router.push(`/modules/bunny-thinker/think/${thinkId}`);
           });
+          context.router.push(`/modules/bunny-thinker/think/${thinkId}`);
         },
       });
     });

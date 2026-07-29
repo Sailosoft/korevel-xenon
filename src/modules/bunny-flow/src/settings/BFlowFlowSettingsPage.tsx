@@ -30,12 +30,6 @@ export default function BFlowFlowSettingsPage() {
       {flow && (
         <div className="bg-white rounded-2xl border border-slate-100 p-5 md:p-6 space-y-4">
           <div>
-            <label className="text-sm font-medium text-slate-700">
-              Flow Code
-            </label>
-            <p className="text-sm text-slate-400">{flow.code}</p>
-          </div>
-          <div>
             <label className="text-sm font-medium text-slate-700">Slug</label>
             <p className="text-sm text-slate-400">{flow.slug}</p>
           </div>
