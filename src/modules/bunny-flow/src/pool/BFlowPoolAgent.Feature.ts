@@ -88,8 +88,8 @@ const mutationPoolAgents: AdminPanelMutation<BFlowPoolAgentForm> = {
 const columns: BunnyColumn<BFlowPoolAgentEntity>[] = [
   { field: "name", header: "Name", sortable: true, isRowHeader: true },
   { field: "role", header: "Role", sortable: true },
-  { field: "provider", header: "Provider", sortable: true },
-  { field: "model", header: "Model", sortable: true },
+  // { field: "provider", header: "Provider", sortable: true },
+  // { field: "model", header: "Model", sortable: true },
   { field: "createdAt", header: "Created", sortable: true },
 ];
 

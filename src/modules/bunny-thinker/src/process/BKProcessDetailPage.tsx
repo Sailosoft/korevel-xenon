@@ -516,7 +516,7 @@ export default function BKProcessDetailPage({
       await bkThinkerDB.memoriesRepo.create({
         id: memoryId,
         thinkId,
-        name: `Memory - ${process.name} - ${new Date().toLocaleDateString()}`,
+        name: `${process.name} - ${new Date().toLocaleDateString()}`,
         description: `Exported from process "${process.name}"`,
         rawOutput: responseConversation[responseConversation.length - 1]?.content ?? "",
         processedOutput:

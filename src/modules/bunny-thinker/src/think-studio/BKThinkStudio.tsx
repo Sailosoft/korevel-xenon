@@ -1033,7 +1033,7 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       await bkThinkerDB.memoriesRepo.create({
         id: memoryId,
         thinkId: think.id,
-        name: `Memory - ${think.name} - ${new Date().toLocaleDateString()}`,
+        name: `${think.name} - ${new Date().toLocaleDateString()}`,
         rawOutput: lastMessage.content,
         processedOutput: result || lastMessage.content,
         format: resolveMemoryFormat(lastResolvedFormatRef.current),
