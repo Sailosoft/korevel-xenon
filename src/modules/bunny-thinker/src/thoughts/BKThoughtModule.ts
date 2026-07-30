@@ -64,7 +64,7 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
           await bkThinkerDB.thinksRepo.create({
             id: thinkId,
             slug: thought.name.toLowerCase().replace(/\s+/g, "-"),
-            name: `Run: ${thought.name}`,
+            name: thought.name,
             thoughtId: thought.id,
             status: "draft",
             thinkConversation: [],

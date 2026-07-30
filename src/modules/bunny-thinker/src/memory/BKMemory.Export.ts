@@ -29,6 +29,18 @@ export async function bkCopyContent(content: string): Promise<void> {
   }
 }
 
+// ─── Slugify helper ──────────────────────────────────────────────────────────
+
+/**
+ * Convert a string to a safe filename slug: lowercase, hyphens for separators.
+ */
+export function bkSlugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 // ─── Download as text ───────────────────────────────────────────────────────
 
 /**
@@ -161,7 +173,9 @@ export function bkDownloadHtml(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `thoughts-${memoryId.slice(0, 8)}.html`;
+  const label = memory?.name || "thoughts";
+  const prefix = memory?.thinkId ? memory.thinkId.slice(0, 6) : memoryId.slice(0, 6);
+  a.download = `${label}-${prefix}.html`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -257,10 +271,7 @@ function downloadImageThought(neuron: BKMemoryNeuron): void {
  * Generate a filename for a thought item based on its name/order and format.
  */
 function generateThoughtFilename(neuron: BKMemoryNeuron, format: RenderFormat): string {
-  const base = (neuron.name || `thought-${neuron.order + 1}`)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const base = bkSlugify(neuron.name || `thought-${neuron.order + 1}`);
 
   const extensionMap: Partial<Record<RenderFormat, string>> = {
     markdown: "md",

@@ -24,9 +24,9 @@ import type { BKMemory, BKMemoryNeuron } from "./BKMemory.Types";
 import {
   bkCopyContent,
   bkDownloadContent,
-  bkViewThoughtBlob,
-  bkViewAsHtml,
   bkDownloadHtml,
+  bkViewAsHtml,
+  bkViewThoughtBlob,
 } from "./BKMemory.Export";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -382,12 +382,16 @@ export default function BKMemoryDetailPage({
                   variant="ghost"
                   size="sm"
                   className="text-xs h-7 min-w-0 px-2"
-                  onPress={() =>
+                  onPress={() => {
+                    const label = memory?.name || "neurons";
+                    const prefix = memory?.thinkId
+                      ? memory.thinkId.slice(0, 6)
+                      : memoryId.slice(0, 6);
                     bkDownloadContent(
                       bkCompiledContent,
-                      `neurons-${memoryId.slice(0, 8)}.txt`,
-                    )
-                  }
+                      `${label}-${prefix}.txt`,
+                    );
+                  }}
                 >
                   <Download size={12} /> TXT
                 </Button>
