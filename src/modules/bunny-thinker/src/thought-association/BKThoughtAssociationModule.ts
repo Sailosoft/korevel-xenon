@@ -15,7 +15,16 @@ export const bkThoughtAssociationModule = BunnyFeature.create<
   feature.configureTable((table) => {
     table.addColumns([
       { field: "name", header: "Name", sortable: true, isRowHeader: true },
-      { field: "patternId", header: "Pattern", sortable: true },
+      {
+        field: "patternId",
+        header: "Pattern",
+        sortable: true,
+        mapping: {
+          getRecords: () => bkThinkerDB.thoughtPatterns.toArray(),
+          key: "id",
+          label: "name",
+        },
+      },
       { field: "description", header: "Description", sortable: false },
       {
         field: "createdAt",
@@ -42,7 +51,7 @@ export const bkThoughtAssociationModule = BunnyFeature.create<
 
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
-    form.setGridCols(2);
+    form.setGridCols(1);
     form.addFields([
       {
         name: "name",
@@ -63,7 +72,7 @@ export const bkThoughtAssociationModule = BunnyFeature.create<
         label: "Description",
         placeholder: "Describe this association",
         type: "textarea",
-        colSpan: 2,
+        // colSpan: 2,
         rows: 3,
       },
     ]);

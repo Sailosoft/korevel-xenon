@@ -25,6 +25,11 @@ import {
   BunnyRowAction,
   BunnyTableMobileView,
 } from "./BunnyTable.Interface";
+import {
+  ColumnRecordsMap,
+  resolveColumnContent,
+  useBunnyColumnMappings,
+} from "./BunnyTable.Column.Mapping";
 
 // ============================================================================
 // SUB-COMPONENTS & HOOKS
@@ -73,6 +78,7 @@ interface RowUiProps<TRow> {
   actions: BunnyRowAction<TRow>[] | undefined;
   tableMobileView?: BunnyTableMobileView<TRow>;
   callAction: (action: BunnyRowAction<BunnyHasId>, row: BunnyHasId) => void;
+  recordsMap: ColumnRecordsMap;
 }
 
 function MobileCardCell<TRow>({
@@ -82,6 +88,7 @@ function MobileCardCell<TRow>({
   actions,
   tableMobileView,
   callAction,
+  recordsMap,
 }: RowUiProps<TRow>) {
   return (
     <Table.Cell>
@@ -104,11 +111,14 @@ function MobileCardCell<TRow>({
               {(() => {
                 const firstCol = columns[0];
                 if (!firstCol) return "";
-                const val = row[firstCol.field as keyof TRow];
-                const formatted = firstCol.format
-                  ? firstCol.format(val, row, firstCol)
-                  : val;
-                return String(formatted ?? "").slice(0, 50);
+                const content = resolveColumnContent(
+                  firstCol,
+                  row,
+                  recordsMap,
+                );
+                return (
+                  content.render ?? String(content.value ?? "").slice(0, 50)
+                );
               })()}
             </span>
           </div>
@@ -162,10 +172,7 @@ function MobileCardCell<TRow>({
           /* Default Value Grid mapping fallback */
           <div className="grid grid-cols-2 gap-y-1.5 text-xs">
             {columns.map((col, index) => {
-              const rawValue = row[col.field as keyof TRow];
-              const formattedValue = col.format
-                ? col.format(rawValue, row, col)
-                : rawValue;
+              const content = resolveColumnContent(col, row, recordsMap);
               return (
                 <div
                   key={`cell-${String(col.field)}-${index}`}
@@ -175,9 +182,7 @@ function MobileCardCell<TRow>({
                     {String(col.header)}:
                   </span>
                   <span className="text-default-800 text-right truncate">
-                    {col.render
-                      ? col.render(row, col)
-                      : String(formattedValue ?? "")}
+                    {content.render ?? String(content.value ?? "")}
                   </span>
                 </div>
               );
@@ -195,6 +200,7 @@ function DesktopRowCells<TRow>({
   selectionMode,
   actions,
   callAction,
+  recordsMap,
 }: RowUiProps<TRow>) {
   return (
     <>
@@ -213,15 +219,10 @@ function DesktopRowCells<TRow>({
       )}
 
       {columns.map((col, index) => {
-        const rawValue = row[col.field as keyof TRow];
-        const formattedValue = col.format
-          ? col.format(rawValue, row, col)
-          : rawValue;
+        const content = resolveColumnContent(col, row, recordsMap);
         return (
           <Table.Cell key={`cell-${String(col.field)}-${index}`}>
-            {col.render
-              ? col.render(row, col)
-              : String(formattedValue ?? "").slice(0, 50)}
+            {content.render ?? String(content.value ?? "").slice(0, 50)}
           </Table.Cell>
         );
       })}
@@ -308,6 +309,8 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
     if (tableMode === "desktop") return false;
     return isMobileRaw;
   }, [tableMode, isMobileRaw]);
+
+  const recordsMap = useBunnyColumnMappings(columns);
 
   const actionColumnLength = useMemo(
     () => rowActionsColLength ?? 150,
@@ -466,6 +469,7 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
                           actions={actions}
                           callAction={callAction}
                           tableMobileView={tableMobileView}
+                          recordsMap={recordsMap}
                         />
                       ) : (
                         <DesktopRowCells
@@ -474,6 +478,7 @@ export function BunnyReactiveTable<TRow extends Record<string, unknown>>({
                           selectionMode={selectionMode}
                           actions={actions}
                           callAction={callAction}
+                          recordsMap={recordsMap}
                         />
                       )}
                     </Table.Row>
