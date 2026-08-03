@@ -3,7 +3,7 @@ import { BunnyRowDefaultActions } from "../rows/BunnyRow.Interface";
 import { BunnyRowAction } from "../table/BunnyTable.Interface";
 
 export class BunnyRowConfigurator<TRow, TForm> {
-  constructor(private config: BunnyConfig<TRow, TForm>) {}
+  constructor(private config: BunnyConfig<TRow, TForm>) { }
 
   public disableDefaults(): this {
     this.config.defaultRowActions = false;
@@ -18,6 +18,12 @@ export class BunnyRowConfigurator<TRow, TForm> {
   public addAction(action: BunnyRowAction<TRow>): this {
     if (!this.config.rowActions) this.config.rowActions = [];
     this.config.rowActions.push(action);
+    return this;
+  }
+
+  public addActions(actions: BunnyRowAction<TRow>[]): this {
+    if (!this.config.rowActions) this.config.rowActions = [];
+    this.config.rowActions.push(...actions);
     return this;
   }
 

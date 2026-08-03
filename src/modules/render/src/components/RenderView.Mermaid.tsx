@@ -21,6 +21,11 @@ function ensureInit() {
       startOnLoad: false,
       theme: "default",
       securityLevel: "loose",
+      // Turn OFF mermaid's built-in error rendering so it does not emit the
+      // "Syntax error" HTML/SVG popup when a diagram cannot be rendered.
+      // Errors are detected ourselves via mermaid.parse() and shown through a
+      // clean custom error UI (fix: mermaid popup when it cannot render).
+      suppressErrorRendering: true,
     });
     initialized = true;
   }
@@ -64,11 +69,14 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
   const pinchStartZoom = useRef(1);
   const lastTouchDistance = useRef(0);
 
-  // Reset pan/zoom when the chart changes
-  useEffect(() => {
+  // Reset pan/zoom when the chart changes. Uses the render-time adjustment
+  // pattern (not setState inside an effect) to avoid cascading renders.
+  const [prevChart, setPrevChart] = useState(chart);
+  if (chart !== prevChart) {
+    setPrevChart(chart);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [chart]);
+  }
 
   // Mermaid render
   useEffect(() => {
@@ -77,14 +85,27 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
     const id = ++renderIdRef.current;
     const renderId = `mermaid-${id}`;
 
-    mermaid
-      .render(renderId, chart)
-      .then(({ svg }) => {
+    // Validate the diagram first (with suppressErrors so it never throws) and
+    // only render valid diagrams. This avoids mermaid emitting its own error
+    // artifact / popup and keeps a clean custom error UI (fix: mermaid popup).
+    void (async () => {
+      try {
+        const parseResult = await mermaid.parse(chart, {
+          suppressErrors: true,
+        });
         if (id !== renderIdRef.current) return;
 
-        // Mermaid 11.x+ renders syntax errors as SVGs with error-text/error-icon
-        // classes instead of rejecting the promise. Detect this and route to
-        // the error path so the user sees a clean error UI rather than raw SVG.
+        if (parseResult === false) {
+          setError("Invalid Mermaid diagram definition.");
+          setSvgContent(null);
+          return;
+        }
+
+        const { svg } = await mermaid.render(renderId, chart);
+        if (id !== renderIdRef.current) return;
+
+        // Belt-and-suspenders: some malformed diagrams still resolve with an
+        // error-text SVG. Detect it and route to the clean error UI.
         const hasSyntaxError =
           svg.includes('class="error-text"') ||
           svg.includes("Syntax error in text");
@@ -103,14 +124,14 @@ export default function MermaidRenderer({ chart, className = "" }: MermaidRender
           setSvgContent(svg);
           setError(null);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (id === renderIdRef.current) {
           const msg = err instanceof Error ? err.message : String(err);
           setError(msg);
           setSvgContent(null);
         }
-      });
+      }
+    })();
   }, [chart]);
 
   // ── Pan handlers (mouse) ──────────────────────────────────────────────
