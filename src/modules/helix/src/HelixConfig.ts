@@ -253,6 +253,7 @@ const HELIX_PROVIDER_MODELS: Record<
     "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
   ],
   ollamaLocal: [
+    "gemma3:1b",
     "gemma4:31b",
     "llama3.2:8b",
     "llama3.2:3b",

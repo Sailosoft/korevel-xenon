@@ -201,11 +201,14 @@ const FieldRenderer = memo(function FieldRenderer({
               <Select.Value />
               <Select.Indicator />
             </Select.Trigger>
-            <Select.Popover>
+            <Select.Popover className="max-w-(--trigger-width)">
               {optionsError ? (
                 <p className="px-3 py-2 text-sm text-red-500">{optionsError}</p>
               ) : (
-                <ListBox key={isLoadingOptions ? "loading-state" : "ready-state"}>
+                <ListBox
+                  key={isLoadingOptions ? "loading-state" : "ready-state"}
+                  className="max-h-[320px] overflow-y-auto"
+                >
                   {isLoadingOptions ? (
                     <ListBox.Item
                       key="loading-item"

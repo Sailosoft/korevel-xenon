@@ -15,6 +15,17 @@ export interface CatalogApp {
 }
 
 export const catalogApps: CatalogApp[] = [
+  {
+    id: 10,
+    name: "Bunny AI Studio",
+    url: "/modules/bunny-studio",
+    description: "Multi-modal AI chat with streaming, agent pools, AI settings, and conversation management.",
+    category: "ai",
+    status: "Active",
+    iconColor: "from-violet-400 to-purple-300",
+    gradientFrom: "#8b5cf6",
+    gradientTo: "#c4b5fd",
+  },
   // {
   //   id: 1,
   //   name: "Book Builder",

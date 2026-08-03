@@ -1,0 +1,226 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Bunny AI Studio — Module-scoped stylesheet.
+ *
+ * Moved out of the app-wide src/app/globals.css so Bunny Studio's styling
+ * lives next to its module code (feature: extract bunny-studio CSS).
+ * Imported once by the Bunny Studio layout.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── BunnyStudio: pointer cursor on all interactive buttons ───────────── */
+.bs-studio button:not(:disabled),
+.bs-studio [role="button"]:not(:disabled),
+.bs-studio select:not(:disabled) {
+  cursor: pointer;
+}
+
+/* ── BunnyStudio: beating + circling-color animation (feature: animation) ─ */
+@keyframes bs-beat {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.45);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(168, 85, 247, 0);
+  }
+}
+.bs-beat {
+  animation: bs-beat 1.5s ease-in-out infinite;
+}
+
+@keyframes bs-hue {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+.bs-beat-color {
+  animation: bs-hue 4s linear infinite;
+}
+
+/* ── BunnyStudio: red theme (feature: Red Theme, similar to BunnyAI #ff2d20) ─ */
+.bs-studio .bs-accent-text {
+  color: #ff2d20;
+}
+.bs-studio .bs-accent-bg {
+  background-color: #ff2d20;
+}
+.bs-studio .bs-accent-border {
+  border-color: #ff2d20;
+}
+.bs-studio .bs-accent-soft-bg {
+  background-color: #ffebe9;
+}
+.bs-studio .bs-accent-hover:hover {
+  background-color: #e8251a;
+}
+.bs-studio .bs-accent-focus:focus {
+  border-color: #ff2d20;
+  box-shadow: 0 0 0 3px rgba(255, 45, 32, 0.15);
+}
+
+/* ── BunnyStudio: initial-chat gradient background (feature: Gradient) ────── */
+@keyframes bs-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+.bs-initial-gradient {
+  background: linear-gradient(
+    135deg,
+    #fff7f6,
+    #ffe4e0,
+    #ffc9c2,
+    #ffb4ab,
+    #ffe0dc,
+    #fff1ef
+  );
+  background-size: 300% 300%;
+  animation: bs-gradient-shift 14s ease infinite;
+  transition: opacity 0.7s ease;
+}
+.bs-gradient-fade {
+  opacity: 0;
+}
+
+/* ── BunnyStudio: spinning red line around chat input (feature) ───────────── */
+@keyframes bs-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.bs-spin-ring {
+  position: relative;
+  border-radius: 1.75rem;
+  overflow: hidden;
+  padding: 2px;
+}
+.bs-spin-ring::before {
+  content: "";
+  position: absolute;
+  inset: -150%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #ff2d20 80deg,
+    #ff8a7a 140deg,
+    #ff2d20 220deg,
+    transparent 300deg,
+    transparent 360deg
+  );
+  animation: bs-spin 2.4s linear infinite;
+}
+.bs-spin-ring > .bs-spin-ring-inner {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(1.75rem - 2px);
+}
+
+/* ── BunnyStudio: soft rainbow speaking ring around a chat bubble (feature).
+   Shown only while a bubble is actively speaking (manual TTS or auto-TTS).
+   Deliberately subtle: muted rainbow tones, a gentle slow sweep, and a soft
+   pulsing glow — no scaling so the message stays easy to read. */
+@keyframes bs-rainbow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Gentle pulsing glow (no scaling — keeps the text readable). */
+@keyframes bs-speak-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 5px 2px rgba(255, 130, 160, 0.3),
+      0 0 14px 5px rgba(130, 165, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 8px 3px rgba(255, 175, 120, 0.4),
+      0 0 22px 8px rgba(175, 120, 255, 0.3);
+  }
+}
+
+/* Soft, seamless breathing of the blurred halo. */
+@keyframes bs-speak-blur {
+  0%,
+  100% {
+    filter: blur(6px);
+    opacity: 0.3;
+  }
+  50% {
+    filter: blur(11px);
+    opacity: 0.5;
+  }
+}
+
+.bs-speak-ring {
+  position: relative;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  padding: 3px;
+  animation: bs-speak-glow 5s ease-in-out infinite;
+}
+
+/* Muted rotating rainbow border line. */
+.bs-speak-ring::before {
+  content: "";
+  position: absolute;
+  inset: -200%;
+  z-index: 1;
+  background: conic-gradient(
+    from 0deg,
+    #ff9db3,
+    #ffbf9e,
+    #e6d990,
+    #a3d9a0,
+    #9cc7e8,
+    #b2a8e6,
+    #d5a6e8,
+    #ff9db3
+  );
+  animation: bs-rainbow-spin 8s linear infinite;
+}
+
+/* Soft blurred rainbow halo beside the line (seamless glow + blur). */
+.bs-speak-ring::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 158, 180, 0.32),
+    rgba(255, 192, 160, 0.32),
+    rgba(230, 218, 150, 0.28),
+    rgba(164, 218, 162, 0.28),
+    rgba(158, 200, 232, 0.32),
+    rgba(180, 170, 230, 0.32),
+    rgba(214, 168, 232, 0.32),
+    rgba(255, 158, 180, 0.32)
+  );
+  animation:
+    bs-rainbow-spin 8s linear infinite,
+    bs-speak-blur 5s ease-in-out infinite;
+}
+
+.bs-speak-ring > .bs-speak-ring-inner {
+  position: relative;
+  z-index: 2;
+  border-radius: calc(1.5rem - 3px);
+}

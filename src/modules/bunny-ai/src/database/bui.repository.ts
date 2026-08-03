@@ -16,7 +16,7 @@ export class BUIRepository<T> {
   async getList(
     _options: AdminPanelQueryOptions,
   ): Promise<BuiRepositoryResult<T[]>> {
-    const data = await this.set.toArray();
+    const data = (await this.set.toArray()).reverse();
 
     return this.result.successList(data);
   }

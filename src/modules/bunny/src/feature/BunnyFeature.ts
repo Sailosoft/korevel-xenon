@@ -168,6 +168,16 @@ export class BunnyFeature<TRow, TForm> {
     return this;
   }
 
+  /**
+   * Enable only the default row actions (view / edit / delete) without the
+   * default header actions. Individual defaults can still be hidden later via
+   * `BunnyRowConfigurator.hide(...)`.
+   */
+  public useDefaultRowActions(): this {
+    this.config.defaultRowActions = true;
+    return this;
+  }
+
   public useDataLayer({
     query,
     mutation,
