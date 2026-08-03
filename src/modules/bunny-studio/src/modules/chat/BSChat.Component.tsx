@@ -505,7 +505,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               {/* Chat settings on the initial chat page (feature: Missing Chat
                   Settings). Settings picked here are applied to the chat when
                   the first message creates it. */}
-              <div className="absolute top-3 right-3 z-30">
+              <div className="absolute top-4 right-4 z-30">
                 <BSChatSettingsPanel
                   globalProvider={globalAI.provider}
                   globalModel={globalAI.model}
@@ -523,17 +523,17 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   onAutoTTSChange={handleAutoTTSChange}
                 />
               </div>
-              <div className="h-full flex flex-col items-center justify-center px-4">
-                <div className="relative mb-4">
+              <div className="h-full flex flex-col items-center justify-center px-6 py-12 sm:px-10">
+                <div className="relative mb-6">
                   <span className="absolute inset-0 rounded-3xl bg-red-400/40 animate-ping" />
                   <div className="relative w-14 h-14 rounded-3xl bg-red-100 text-red-600 flex items-center justify-center bs-beat bs-beat-color">
                     <Rabbit className="w-7 h-7" />
                   </div>
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-1">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">
                   Bunny AI Studio
                 </h2>
-                <p className="text-sm text-gray-500 mb-8 text-center max-w-md">
+                <p className="text-sm text-gray-500 mb-10 text-center max-w-md leading-relaxed">
                   {selectedAgent
                     ? `Chatting as ${selectedAgent.name}.`
                     : "Multi-modal AI chat. Import text, code, and images; stream responses with the Vercel AI SDK."}
