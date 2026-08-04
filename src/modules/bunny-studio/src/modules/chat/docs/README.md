@@ -39,7 +39,12 @@ Empty fields inherit from the next lower level.
 | [`BSChat.Hooks.ts`](../BSChat.Hooks.ts) | `useBSChat` streaming + persistence hook |
 | [`BSChat.Component.tsx`](../BSChat.Component.tsx) | Main chat view |
 | [`BSChat.ConversationView.tsx`](../BSChat.ConversationView.tsx) | Conversation bubble with render/raw toggle |
-| [`BSChat.Input.tsx`](../BSChat.Input.tsx) | Input with standard/instruction/codemirror modes |
+| [`BSChat.Input.tsx`](../BSChat.Input.tsx) | Input with standard/instruction/codemirror modes (UI orchestrator) |
+| [`BSChat.Input.Hooks.ts`](../BSChat.Input.Hooks.ts) | `useBSChatInput` — input state + logic hook |
+| [`BSChat.Input.SkillBubbles.tsx`](../BSChat.Input.SkillBubbles.tsx) | Agent skill bubble row (presentational) |
+| [`BSChat.Input.InstructionPanel.tsx`](../BSChat.Input.InstructionPanel.tsx) | Instruction group + prefill panel (presentational) |
+| [`BSChat.Input.Toolbar.tsx`](../BSChat.Input.Toolbar.tsx) | Mode selector + render type + open-in-modal toolbar (presentational) |
+| [`BSChat.Input.EditorModal.tsx`](../BSChat.Input.EditorModal.tsx) | CodeMirror "open in modal" with cover/window view (presentational) |
 | [`BSChat.SettingsPanel.tsx`](../BSChat.SettingsPanel.tsx) | Conversation settings + agent + render type |
 | [`BSChat.List.tsx`](../BSChat.List.tsx) | Chat history list |
 

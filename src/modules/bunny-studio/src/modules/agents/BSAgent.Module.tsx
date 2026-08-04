@@ -17,6 +17,8 @@ import {
   HELIX_AI_MODELS,
 } from "@/src/modules/helix";
 import type { HelixAIProvider } from "@/src/modules/helix";
+import { createElement } from "react";
+import { WandSparkles } from "lucide-react";
 import { bsDB } from "../../BSDatabase";
 import type { BSAgent } from "./BSAgent.Types";
 
@@ -192,6 +194,18 @@ export const bsAgentModule = BunnyFeature.create<BSAgent, BSAgent>(
         },
       ]);
       form.setGridCols(1);
+    });
+
+    feature.configureHeader((header) => {
+      // ── "Generate Agents" header action (opens BSGenerateAgentsModal) ─
+      // The onClick is overridden by the consuming component (global Agents
+      // page + BSScopedPoolAgents) to open the AI generation modal.
+      header.addAction({
+        id: "generate-agents",
+        label: "Generate Agents",
+        icon: createElement(WandSparkles, { className: "size-4" }),
+        variant: "secondary",
+      });
     });
 
     feature.useDataLayer(bsDB.agentsRepo.dataLayer);

@@ -28,22 +28,25 @@ export function BSHeader({ onLogout, onMenuClick }: BSHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-14 bg-white/80 backdrop-blur border-b border-gray-200 flex items-center px-4">
+    <header className="sticky top-0 z-30 h-14 bg-red-600 text-white shadow-[0_6px_18px_-8px_rgba(220,38,38,0.45)] flex items-center px-4">
+      {/* Glow — soft red light bleeding off the bottom edge of the header. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-gradient-to-b from-red-400/25 to-transparent" />
+
       {/* Hamburger — toggles the mobile drawer, and on desktop collapses /
           expands the sidebar (feature: sidebar desktop view). */}
       <button
         onClick={onMenuClick}
         title="Toggle sidebar"
-        className="flex items-center justify-center w-9 h-9 rounded-xl text-gray-600 hover:bg-gray-100 transition mr-1"
+        className="flex items-center justify-center w-9 h-9 rounded-xl text-white hover:bg-white/15 transition mr-1"
       >
         <Menu className="w-5 h-5" />
       </button>
 
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center">
+        <div className="w-8 h-8 rounded-xl bg-white/15 text-white flex items-center justify-center ring-1 ring-white/25">
           <Rabbit className="w-4.5 h-4.5" />
         </div>
-        <span className="text-base font-bold text-gray-900">
+        <span className="text-base font-bold text-white">
           Bunny AI Studio
         </span>
       </div>
@@ -52,7 +55,7 @@ export function BSHeader({ onLogout, onMenuClick }: BSHeaderProps) {
 
       <button
         onClick={handleLogout}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-red-500 hover:bg-red-50 transition"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-white/85 hover:text-white hover:bg-white/15 transition"
       >
         <LogOut className="w-4 h-4" />
         Logout

@@ -5,11 +5,12 @@
 // Router (feature: ChatHistory).
 
 import { createElement } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import type { AdminPanelQueryOptions } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { bsDB } from "../../BSDatabase";
 import type { BSChat } from "../chat/BSChat.Types";
+import { BSChatFavoriteSavePicker } from "../chat-favorite/BSChatFavorite.Picker";
 
 export const bsChatHistoryModule = BunnyFeature.create<BSChat, BSChat>(
   "Chat History",
@@ -67,6 +68,28 @@ export const bsChatHistoryModule = BunnyFeature.create<BSChat, BSChat>(
         variant: "primary",
         onClick: (chat, context) => {
           context.router.push(`/modules/bunny-studio/chat/${chat.id}`);
+        },
+      });
+      // Save the chat as a favorite — opens a modal to pick a category
+      // (or leave it undefined) before saving (feature: Chat Favorites).
+      row.addAction({
+        id: "favorite",
+        label: "Favorite",
+        icon: createElement(Star, { className: "w-4 h-4" }),
+        variant: "secondary",
+        onClick: (chat, context) => {
+          context.adminPanel.dialog.openDialog({
+            actionId: "save-chat-favorite",
+            title: "Save to Favorites",
+            contentOnly: true,
+            size: "sm",
+            hideFooter: true,
+            children: createElement(BSChatFavoriteSavePicker, {
+              chat,
+              onClose: () => context.adminPanel.dialog.closeDialog(),
+            }),
+            onConfirm: async () => ({ success: true }),
+          });
         },
       });
     });

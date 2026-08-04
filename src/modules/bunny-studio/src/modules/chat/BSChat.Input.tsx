@@ -3,45 +3,39 @@
 //  2. instruction field + text field
 //  3. CodeMirror input field
 //
-// Also implements feature requests:
-//  - Auto-growing textarea (no longer a fixed big box).
-//  - Animated send/stop button while the AI is streaming.
-//  - Per-request render type selector (resets after the request).
-//  - Spinning red line around the initial chat input (feature).
-//  - Code editor "open in modal" with cover/window view toggle (feature).
-//  - Agent skill bubbles — click a skill to create a bubble in the message (feature).
-//  - Custom Instructions — prefill the instruction from an InstructionGroup then
-//    an Instruction (or any instruction when no group is selected) (feature).
+// This file is a thin UI orchestrator. All state + logic lives in the
+// `useBSChatInput` hook (BSChat.Input.Hooks.ts) and the UI is decomposed
+// into presentational sub-components:
+//  - BSChatInputSkillBubbles     — agent skill bubble row (feature: Agent skill).
+//  - BSChatInputInstructionPanel — group + instruction prefill (feature: Custom
+//    Instructions).
+//  - BSChatInputToolbar          — mode selector + render type + open in modal.
+//  - BSChatInputEditorModal      — CodeMirror "open in modal" with cover/window
+//    view toggle (feature: Code Editor Open Modal).
 
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Send,
-  Square,
-  Type,
-  SlidersHorizontal,
-  Code2,
-  Sparkles,
-  ExternalLink,
-  X,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { BSCodeMirrorEditor, BSModal } from "../../components";
-import { bsDB } from "../../BSDatabase";
-import type { BSInstructionGroup } from "../instruction-groups/BSInstructionGroup.Types";
-import type { BSInstruction } from "../instructions/BSInstruction.Types";
+import React from "react";
+import { Send, Square, Sparkles } from "lucide-react";
+import { BSCodeMirrorEditor } from "../../components";
 import type { RenderFormat } from "@/src/modules/render";
+import {
+  useBSChatInput,
+  type BSChatInputMode,
+  type BSChatInputSendHandler,
+} from "./BSChat.Input.Hooks";
+import { BSChatInputSkillBubbles } from "./BSChat.Input.SkillBubbles";
+import { BSChatInputInstructionPanel } from "./BSChat.Input.InstructionPanel";
+import { BSChatInputToolbar } from "./BSChat.Input.Toolbar";
+import { BSChatInputEditorModal } from "./BSChat.Input.EditorModal";
 
 // ─── Modes ─────────────────────────────────────────────────────────────
 
-export type BSChatInputMode = "standard" | "instruction" | "codemirror";
+export type { BSChatInputMode } from "./BSChat.Input.Hooks";
 
 export interface BSChatInputProps {
   /** Called when the user submits content (and optional instruction + skills) */
-  onSend: (content: string, instruction?: string, skills?: string[]) => void;
+  onSend: BSChatInputSendHandler;
   /** True while a stream is in progress — disables send, shows stop */
   isStreaming?: boolean;
   onStop?: () => void;
@@ -61,14 +55,6 @@ export interface BSChatInputProps {
   skillSuggestions?: string[];
 }
 
-const MODE_ICONS: Record<BSChatInputMode, React.ReactNode> = {
-  standard: <Type className="w-4 h-4" />,
-  instruction: <SlidersHorizontal className="w-4 h-4" />,
-  codemirror: <Code2 className="w-4 h-4" />,
-};
-
-const MAX_TEXTAREA_HEIGHT = 200; // px
-
 // ─── Component ─────────────────────────────────────────────────────────
 
 export function BSChatInput({
@@ -83,124 +69,41 @@ export function BSChatInput({
   initial = false,
   skillSuggestions = [],
 }: BSChatInputProps) {
-  const [mode, setMode] = useState<BSChatInputMode>(defaultMode);
-  const [text, setText] = useState("");
-  const [instruction, setInstruction] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Skill bubbles (feature: Agent skill)
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-
-  // Code editor modal (feature: Code Editor Open Modal)
-  const [editorModalOpen, setEditorModalOpen] = useState(false);
-  const [editorCoverView, setEditorCoverView] = useState(false);
-
-  // Custom Instructions (feature): group filter + instruction prefill
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [selectedInstructionId, setSelectedInstructionId] =
-    useState<string>("");
-
-  const instructionGroups = useLiveQuery<BSInstructionGroup[]>(
-    () =>
-      bsDB.instructionGroupsRepo.query
-        .getAll({ page: 0, pageSize: 0 })
-        .then((r) => r.data),
-    [],
-  );
-
-  const allInstructions = useLiveQuery<BSInstruction[]>(
-    () =>
-      bsDB.instructionsRepo.query
-        .getAll({ page: 0, pageSize: 0 })
-        .then((r) => r.data),
-    [],
-  );
-
-  const filteredInstructions = useMemo<BSInstruction[]>(() => {
-    if (!allInstructions) return [];
-    if (selectedGroupId) {
-      return allInstructions.filter((i) => i.instructionGroupId === selectedGroupId);
-    }
-    return allInstructions;
-  }, [allInstructions, selectedGroupId]);
-
-  // Auto-grow the standard textarea so it is compact when empty and expands
-  // as the user types (feature: "Textarea input is too big").
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
-  }, [text, mode]);
-
-  const toggleSkill = (skill: string) => {
-    setSelectedSkills((prev) =>
-      prev.includes(skill)
-        ? prev.filter((s) => s !== skill)
-        : [...prev, skill],
-    );
-  };
-
-  const handleSend = () => {
-    const trimmed = text.trim();
-    if (!trimmed || isStreaming) return;
-    const instructionValue =
-      mode === "instruction" ? instruction.trim() || undefined : undefined;
-    onSend(trimmed, instructionValue, selectedSkills);
-    setText("");
-    setInstruction("");
-    setSelectedSkills([]);
-    setSelectedGroupId("");
-    setSelectedInstructionId("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleInstructionSelect = (id: string) => {
-    setSelectedInstructionId(id);
-    const inst = filteredInstructions.find((i) => i.id === id);
-    if (inst) setInstruction(inst.content);
-  };
-
-  const modeButtons: Array<{ mode: BSChatInputMode; label: string }> = [
-    { mode: "standard", label: "Standard" },
-    { mode: "instruction", label: "Instruction" },
-    { mode: "codemirror", label: "Code" },
-  ];
+  const {
+    mode,
+    setMode,
+    text,
+    setText,
+    instruction,
+    setInstruction,
+    textareaRef,
+    canSend,
+    handleSend,
+    handleKeyDown,
+    selectedSkills,
+    toggleSkill,
+    editorModalOpen,
+    editorCoverView,
+    openEditorModal,
+    closeEditorModal,
+    toggleEditorCoverView,
+    selectedGroupId,
+    handleGroupChange,
+    selectedInstructionId,
+    instructionGroups,
+    filteredInstructions,
+    handleInstructionSelect,
+  } = useBSChatInput({ onSend, isStreaming, defaultMode });
 
   return (
     <div className="w-full max-w-3xl mx-auto">
       {/* Skill bubbles (feature: Agent skill) — only on the initial chat */}
       {initial && skillSuggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {skillSuggestions.map((skill) => {
-            const active = selectedSkills.includes(skill);
-            return (
-              <button
-                key={skill}
-                onClick={() => toggleSkill(skill)}
-                title={
-                  active
-                    ? "Remove skill bubble"
-                    : "Add skill as a bubble in the message"
-                }
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition ${
-                  active
-                    ? "bg-red-600 text-white shadow-sm"
-                    : "bg-white border border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600"
-                }`}
-              >
-                {skill}
-                {active && <X className="w-3 h-3" />}
-              </button>
-            );
-          })}
-        </div>
+        <BSChatInputSkillBubbles
+          skills={skillSuggestions}
+          selectedSkills={selectedSkills}
+          onToggle={toggleSkill}
+        />
       )}
 
       {/* Input area (spinning red line around it only on the initial chat) */}
@@ -214,48 +117,18 @@ export function BSChatInput({
               : "border-gray-200 focus-within:border-red-300"
           }`}
         >
+          {/* Instruction group + instruction prefill (feature) */}
           {mode === "instruction" && (
-            <>
-              {/* Instruction group + instruction prefill (feature) */}
-              <div className="flex flex-col sm:flex-row gap-2 px-3 pt-2.5">
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) => {
-                    setSelectedGroupId(e.target.value);
-                    setSelectedInstructionId("");
-                  }}
-                  title="Instruction group"
-                  className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-600 outline-none focus:border-red-300 flex-1"
-                >
-                  <option value="">All instruction groups</option>
-                  {(instructionGroups ?? []).map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedInstructionId}
-                  onChange={(e) => handleInstructionSelect(e.target.value)}
-                  title="Saved instruction (prefills below)"
-                  className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-600 outline-none focus:border-red-300 flex-1"
-                >
-                  <option value="">Select instruction…</option>
-                  {filteredInstructions.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <textarea
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Custom instruction…"
-                className="w-full px-4 py-2.5 text-sm text-gray-600 border-b border-gray-100 outline-none resize-none placeholder:text-gray-400"
-                rows={2}
-              />
-            </>
+            <BSChatInputInstructionPanel
+              instruction={instruction}
+              onInstructionChange={setInstruction}
+              groups={instructionGroups}
+              selectedGroupId={selectedGroupId}
+              onGroupChange={handleGroupChange}
+              instructions={filteredInstructions}
+              selectedInstructionId={selectedInstructionId}
+              onInstructionSelect={handleInstructionSelect}
+            />
           )}
 
           {mode === "codemirror" ? (
@@ -281,77 +154,20 @@ export function BSChatInput({
 
           {/* Footer actions */}
           <div className="flex items-center justify-between gap-2 px-3 py-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Mode selector — Standard / Instruction / Code moved to the
-                  bottom of the input, next to the render selection and helper
-                  text (feature: input toolbar at the bottom). */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-                {modeButtons.map((b) => (
-                  <button
-                    key={b.mode}
-                    onClick={() => setMode(b.mode)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition ${
-                      mode === b.mode
-                        ? "bg-white shadow text-red-600 font-medium"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {MODE_ICONS[b.mode]}
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Per-request render type selector (feature) */}
-              {renderTypes && renderTypes.length > 0 && (
-                <select
-                  value={renderType ?? ""}
-                  onChange={(e) =>
-                    onRenderTypeChange?.(
-                      e.target.value
-                        ? (e.target.value as RenderFormat)
-                        : undefined,
-                    )
-                  }
-                  disabled={isStreaming}
-                  title="Render type for the next message"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 outline-none focus:border-red-300 disabled:opacity-50 max-w-[140px]"
-                >
-                  <option value="">No render</option>
-                  {renderTypes.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Open the code editor in a modal (feature) */}
-              {mode === "codemirror" && !isStreaming && (
-                <button
-                  onClick={() => {
-                    setEditorCoverView(false);
-                    setEditorModalOpen(true);
-                  }}
-                  title="Open code editor in a modal"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 hover:border-red-300 hover:text-red-600 transition"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Open in Modal
-                </button>
-              )}
-
-              <span className="text-[10px] text-gray-400 truncate">
-                {isStreaming
-                  ? "Generating…"
-                  : "Enter to send · Shift+Enter for new line"}
-              </span>
-            </div>
+            <BSChatInputToolbar
+              mode={mode}
+              onModeChange={setMode}
+              renderType={renderType}
+              renderTypes={renderTypes}
+              onRenderTypeChange={onRenderTypeChange}
+              isStreaming={isStreaming}
+              onOpenEditorModal={openEditorModal}
+            />
 
             {isStreaming ? (
               <button
                 onClick={onStop}
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-4 py-2 text-sm transition animate-pulse"
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-4 py-2 text-sm transition animate-pulse shrink-0"
               >
                 <Square className="w-3.5 h-3.5" />
                 Stop
@@ -359,8 +175,8 @@ export function BSChatInput({
             ) : (
               <button
                 onClick={handleSend}
-                disabled={!text.trim()}
-                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm transition"
+                disabled={!canSend}
+                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm transition shrink-0"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <Send className="w-3.5 h-3.5" />
@@ -372,44 +188,14 @@ export function BSChatInput({
       </div>
 
       {/* Code editor modal with cover/window view toggle (feature) */}
-      <BSModal
+      <BSChatInputEditorModal
         open={editorModalOpen}
-        onClose={() => setEditorModalOpen(false)}
-        title="Code Editor"
-        sizeClassName="max-w-3xl h-[80vh]"
-        fullscreen={editorCoverView}
-        onFullscreenChange={setEditorCoverView}
-        footer={
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">
-              Editing in a separate window
-            </span>
-            <button
-              onClick={() => setEditorCoverView((v) => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition"
-            >
-              {editorCoverView ? (
-                <>
-                  <Minimize2 className="w-3.5 h-3.5" /> Window View
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5" /> Cover View
-                </>
-              )}
-            </button>
-          </div>
-        }
-      >
-        <div className="h-full">
-          <BSCodeMirrorEditor
-            value={text}
-            onChange={setText}
-            height="100%"
-            className="rounded-none"
-          />
-        </div>
-      </BSModal>
+        coverView={editorCoverView}
+        value={text}
+        onValueChange={setText}
+        onClose={closeEditorModal}
+        onToggleCoverView={toggleEditorCoverView}
+      />
     </div>
   );
 }
