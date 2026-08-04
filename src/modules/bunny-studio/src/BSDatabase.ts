@@ -19,12 +19,16 @@ import type { BSAgent } from "./modules/agents/BSAgent.Types";
 import type { BSAgentPool } from "./modules/agent-pools/BSAgentPool.Types";
 import type { BSInstructionGroup } from "./modules/instruction-groups/BSInstructionGroup.Types";
 import type { BSInstruction } from "./modules/instructions/BSInstruction.Types";
+import type { BSChatCategory } from "./modules/chat-category/BSChatCategory.Types";
+import type { BSChatFavorite } from "./modules/chat-favorite/BSChatFavorite.Types";
 import type { HelixAISettings } from "@/src/modules/helix";
 import { BSChatRepository } from "./modules/chat/BSChat.Repository";
 import { BSAgentRepository } from "./modules/agents/BSAgent.Repository";
 import { BSAgentPoolRepository } from "./modules/agent-pools/BSAgentPool.Repository";
 import { BSInstructionGroupRepository } from "./modules/instruction-groups/BSInstructionGroup.Repository";
 import { BSInstructionRepository } from "./modules/instructions/BSInstruction.Repository";
+import { BSChatCategoryRepository } from "./modules/chat-category/BSChatCategory.Repository";
+import { BSChatFavoriteRepository } from "./modules/chat-favorite/BSChatFavorite.Repository";
 
 export class BSDatabase extends PhazeDB {
   // ── Chats ──────────────────────────────────────────────────────────
@@ -61,14 +65,25 @@ export class BSDatabase extends PhazeDB {
   public instructions = this.table<BSInstruction, string>("instructions");
   public instructionsRepo = new BSInstructionRepository(this.instructions);
 
+  // ── Chat Categories (feature: Chat Favorites) ──────────────────────
+  public chatCategories = this.table<BSChatCategory, string>("chatCategories");
+  public chatCategoriesRepo = new BSChatCategoryRepository(this.chatCategories);
+
+  // ── Chat Favorites (feature: Chat Favorites) ───────────────────────
+  public chatFavorites = this.table<BSChatFavorite, string>("chatFavorites");
+  public chatFavoritesRepo = new BSChatFavoriteRepository(this.chatFavorites);
+
   constructor() {
     super();
 
-    // Delete Chat cascade — when a chat is deleted, also remove its history.
+    // Delete Chat cascade — when a chat is deleted, also remove its history and
+    // any chat favorite referencing it (feature: Delete Chat → delete history).
     // Dexie supports table hooks; the "deleting" hook fires inside the same
-    // transaction as the chat delete (feature: Delete Chat → delete history).
+    // transaction as the chat delete. This guarantees no orphaned favorite can
+    // survive a chat delete, even if a delete path bypasses the UI guard.
     this.chats.hook("deleting", (pk) => {
       void this.conversations.where("chatId").equals(pk).delete();
+      void this.chatFavorites.where("chatId").equals(pk).delete();
     });
   }
 

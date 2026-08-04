@@ -180,7 +180,7 @@ export function BSChatConversationView({
               isStreaming ? "animate-ping" : ""
             }`}
           />
-          <div className="relative w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center bs-beat bs-beat-color">
+          <div className="relative w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center bs-beat">
             <Rabbit className="w-4 h-4" />
           </div>
         </div>

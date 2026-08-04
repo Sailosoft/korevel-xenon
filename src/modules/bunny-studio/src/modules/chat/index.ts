@@ -4,6 +4,12 @@ export { BSChatComponent } from "./BSChat.Component";
 export { BSChatConversationView } from "./BSChat.ConversationView";
 export { BSChatInput } from "./BSChat.Input";
 export type { BSChatInputMode, BSChatInputProps } from "./BSChat.Input";
+export { useBSChatInput } from "./BSChat.Input.Hooks";
+export type {
+  BSChatInputHookOptions,
+  BSChatInputHookReturn,
+  BSChatInputSendHandler,
+} from "./BSChat.Input.Hooks";
 export { BSChatSettingsPanel } from "./BSChat.SettingsPanel";
 export type { BSChatSettingsPanelProps } from "./BSChat.SettingsPanel";
 export { BSChatList } from "./BSChat.List";

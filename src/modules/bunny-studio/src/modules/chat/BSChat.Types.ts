@@ -28,6 +28,11 @@ export interface BSChat {
   voiceURI?: string;
   /** optional per-chat auto text-to-speech override */
   autoTTS?: boolean;
+  /**
+   * Transient display flag — whether this chat is saved in Chat Favorites.
+   * Annotated by the Chat History data layer; never persisted to IndexedDB.
+   */
+  isFavorite?: boolean;
 }
 
 // ─── Conversation ─────────────────────────────────────────────────────

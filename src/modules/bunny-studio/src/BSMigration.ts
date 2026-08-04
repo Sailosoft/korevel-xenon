@@ -59,4 +59,21 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.index("instructionGroupId");
     });
   });
+
+  // ── Version 2 — Chat Favorites + Categories ─────────────────────────
+  model.schema((config) => {
+    // Chat Categories — groups for saved chat favorites (feature)
+    config.create("chatCategories", (table) => {
+      table.uuid();
+      table.index("name");
+    });
+
+    // Chat Favorites — a saved chat, optionally assigned to a category
+    config.create("chatFavorites", (table) => {
+      table.uuid();
+      table.index("chatId");
+      table.index("categoryId");
+      table.index("createdDate");
+    });
+  });
 }

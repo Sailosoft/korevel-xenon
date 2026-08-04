@@ -16,3 +16,5 @@ export * from "./modules/configurations";
 export * from "./modules/chat-history";
 export * from "./modules/instructions";
 export * from "./modules/instruction-groups";
+export * from "./modules/chat-favorite";
+export * from "./modules/chat-category";

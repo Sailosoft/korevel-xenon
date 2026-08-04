@@ -87,7 +87,7 @@ export function BSAISettingsComponent() {
   // ── Render ─────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">AI Settings</h1>
@@ -152,7 +152,7 @@ export function BSAISettingsComponent() {
             <Button
               onPress={handleSave}
               isDisabled={saveStatus === "saving"}
-              className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-6"
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-6"
             >
               {saveStatus === "saving" ? (
                 <>
@@ -182,8 +182,8 @@ export function BSAISettingsComponent() {
       </Card>
 
       {/* Priority note */}
-      <Card className="p-4 border-none shadow-sm bg-purple-50">
-        <p className="text-sm text-purple-700">
+      <Card className="p-4 border-none shadow-sm bg-red-50">
+        <p className="text-sm text-red-700">
           <strong>Priority (least → most):</strong> Global AI Settings → Agent
           AI Settings → Conversation AI Settings → Input AI Settings. Leave a
           field empty to inherit from the next lower level.

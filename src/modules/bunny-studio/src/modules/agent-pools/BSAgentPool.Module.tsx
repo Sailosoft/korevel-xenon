@@ -6,6 +6,8 @@
 //
 // Agent pools group agents. Ungrouped agents (no agentPoolId) are global.
 
+import { createElement } from "react";
+import { Users, WandSparkles } from "lucide-react";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
 import { bsDB } from "../../BSDatabase";
 import type { BSAgentPool } from "./BSAgentPool.Types";
@@ -62,6 +64,32 @@ export const bsAgentPoolModule = BunnyFeature.create<BSAgentPool, BSAgentPool>(
         },
       ]);
       form.setGridCols(1);
+    });
+
+    feature.configureHeader((header) => {
+      // ── "Generate Pool" header action (opens BSGenerateAgentPoolModal) ─
+      // The onClick is overridden by the consuming component (Agent Pools
+      // page) to open the AI generation modal.
+      header.addAction({
+        id: "generate-pool",
+        label: "Generate Pool",
+        icon: createElement(WandSparkles, { className: "size-4" }),
+        variant: "secondary",
+      });
+    });
+
+    feature.configureRow((row) => {
+      // ── "View Agents" row action — drill into the pool's agents page ─
+      row.addAction({
+        id: "view-agents",
+        icon: createElement(Users, { className: "size-4" }),
+        label: "View Agents",
+        onClick: (rowData, context) => {
+          context.router.push(
+            `/modules/bunny-studio/agent-pools/${rowData.id}/agents`,
+          );
+        },
+      });
     });
 
     // Data layer. The generic Phaze create() would skip the required

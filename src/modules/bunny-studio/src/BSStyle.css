@@ -13,32 +13,132 @@
   cursor: pointer;
 }
 
-/* ── BunnyStudio: beating + circling-color animation (feature: animation) ─ */
+/* ── BunnyStudio: hero bunny animation (feature: animation) ──────────────
+ * Beating + hopping red bunny for the initial chat hero. No rainbow hue —
+ * a red heartbeat pulse with a breathing halo and a spinning gradient ring. */
+
+/* Base beat — refined red heartbeat pulse (used by the hero + conversation avatars). */
 @keyframes bs-beat {
   0%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.45);
+    box-shadow: 0 0 0 0 rgba(255, 45, 32, 0.45);
   }
-  50% {
-    transform: scale(1.1);
-    box-shadow: 0 0 0 10px rgba(168, 85, 247, 0);
+  14% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 12px rgba(255, 45, 32, 0);
+  }
+  28% {
+    transform: scale(1.02);
+  }
+  42% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(255, 45, 32, 0);
+  }
+  70% {
+    transform: scale(1.03);
   }
 }
 .bs-beat {
-  animation: bs-beat 1.5s ease-in-out infinite;
+  animation: bs-beat 2.2s ease-in-out infinite;
+  transform-origin: center;
 }
 
-@keyframes bs-hue {
-  0% {
-    filter: hue-rotate(0deg);
-  }
+/* Bunny glyph — gentle hopping/dancing inside the container. */
+@keyframes bs-bunny-hop {
+  0%,
   100% {
-    filter: hue-rotate(360deg);
+    transform: translateY(0) rotate(-4deg);
+  }
+  15% {
+    transform: translateY(-5px) rotate(4deg);
+  }
+  30% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  45% {
+    transform: translateY(-3px) rotate(3deg);
+  }
+  60% {
+    transform: translateY(0) rotate(0deg);
+  }
+  80% {
+    transform: translateY(-1px) rotate(-3deg);
   }
 }
-.bs-beat-color {
-  animation: bs-hue 4s linear infinite;
+.bs-bunny-hop {
+  animation: bs-bunny-hop 2.2s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+/* Breathing halo behind the hero bunny (replaces animate-ping). */
+@keyframes bs-bunny-halo {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  14% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+  28% {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+  42% {
+    opacity: 0.75;
+    transform: scale(1.04);
+  }
+  70% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+}
+.bs-bunny-halo {
+  animation: bs-bunny-halo 2.2s ease-in-out infinite;
+}
+
+/* Spinning red gradient ring around the hero bunny (reuses bs-spin). */
+.bs-bunny-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 1.75rem;
+  padding: 2.5px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #ff2d20 50deg,
+    #ffd9d4 110deg,
+    #ff2d20 170deg,
+    transparent 220deg,
+    #ff8a7a 290deg,
+    transparent 340deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: bs-spin 3s linear infinite;
+}
+
+/* Hero bunny face — glossy red sphere-like tile. */
+.bs-bunny-face {
+  background: radial-gradient(
+    120% 140% at 30% 20%,
+    #ff9d92 0%,
+    #ff2d20 55%,
+    #c41307 100%
+  );
+  box-shadow:
+    inset 0 2px 6px rgba(255, 255, 255, 0.35),
+    inset 0 -4px 10px rgba(120, 8, 2, 0.45),
+    0 12px 32px -10px rgba(255, 45, 32, 0.65);
 }
 
 /* ── BunnyStudio: red theme (feature: Red Theme, similar to BunnyAI #ff2d20) ─ */
@@ -62,34 +162,151 @@
   box-shadow: 0 0 0 3px rgba(255, 45, 32, 0.15);
 }
 
-/* ── BunnyStudio: initial-chat gradient background (feature: Gradient) ────── */
-@keyframes bs-gradient-shift {
-  0% {
-    background-position: 0% 50%;
+/* ── BunnyStudio: initial-chat beating center gradient (feature: Gradient) ──
+ * No linear gradients. A deep cinematic radial base with a heart-beating red
+ * glow that pulses from the center, plus a slow-turning aurora sweep. */
+
+@keyframes bs-heart-glow {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.55);
+    opacity: 0.55;
+  }
+  14% {
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 0.95;
+  }
+  28% {
+    transform: translate(-50%, -50%) scale(0.72);
+    opacity: 0.7;
+  }
+  42% {
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(0.62);
+    opacity: 0.6;
+  }
+}
+
+@keyframes bs-aurora-turn {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) scale(1);
+  }
+}
+
+@keyframes bs-aurora-breathe {
+  0%,
+  100% {
+    opacity: 0.22;
   }
   50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
+    opacity: 0.4;
   }
 }
+
 .bs-initial-gradient {
-  background: linear-gradient(
-    135deg,
-    #fff7f6,
-    #ffe4e0,
-    #ffc9c2,
-    #ffb4ab,
-    #ffe0dc,
-    #fff1ef
+  background: radial-gradient(
+    140% 140% at 50% 42%,
+    #571010 0%,
+    #2b0606 42%,
+    #0b0101 100%
   );
-  background-size: 300% 300%;
-  animation: bs-gradient-shift 14s ease infinite;
+  box-shadow: inset 0 0 140px 50px rgba(0, 0, 0, 0.55);
   transition: opacity 0.7s ease;
+  overflow: hidden;
 }
+
+/* Heart-beating core glow, centered on the screen. */
+.bs-initial-gradient::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 150vmax;
+  height: 150vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 69, 52, 0.5) 0%,
+    rgba(255, 138, 122, 0.22) 26%,
+    rgba(255, 45, 32, 0.08) 44%,
+    transparent 62%
+  );
+  filter: blur(18px);
+  animation: bs-heart-glow 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Slow-turning aurora sweep — adds fabulosity without any rainbow hue. */
+.bs-initial-gradient::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 220vmax;
+  height: 220vmax;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 45, 32, 0.16) 60deg,
+    rgba(255, 190, 178, 0.14) 140deg,
+    rgba(255, 60, 40, 0.1) 220deg,
+    transparent 300deg,
+    transparent 360deg
+  );
+  filter: blur(60px);
+  animation:
+    bs-aurora-turn 26s linear infinite,
+    bs-aurora-breathe 7s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .bs-gradient-fade {
   opacity: 0;
+}
+
+/* ── BunnyStudio: center title/subtitle text shadow (feature) ─────────── */
+.bs-center-title {
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.55),
+    0 0 18px rgba(255, 45, 32, 0.45),
+    0 0 46px rgba(255, 45, 32, 0.35);
+}
+
+.bs-center-subtitle {
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.6),
+    0 0 12px rgba(255, 120, 104, 0.35);
+}
+
+/* ── BunnyStudio: entrance choreography for the initial hero (feature) ── */
+@keyframes bs-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.bs-rise-in {
+  animation: bs-rise-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bs-rise-in-delay-1 {
+  animation-delay: 0.12s;
+}
+.bs-rise-in-delay-2 {
+  animation-delay: 0.24s;
+}
+.bs-rise-in-delay-3 {
+  animation-delay: 0.36s;
 }
 
 /* ── BunnyStudio: spinning red line around chat input (feature) ───────────── */
@@ -223,4 +440,191 @@
   position: relative;
   z-index: 2;
   border-radius: calc(1.5rem - 3px);
+}
+
+/* ── BunnyStudio: stunning premium sidebar (feature) ─────────────────────
+ * Deep red-glass sidebar that ties into the beating-red chat hero: a radial
+ * maroon base, a breathing red glow, a beating glossy logo, a red-gradient
+ * active pill with a sweeping sheen, and slim themed scrollbars. */
+
+.bs-studio .bs-sidebar {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(
+    130% 85% at 50% -5%,
+    #7a1414 0%,
+    #3a0707 46%,
+    #150202 100%
+  );
+  box-shadow: inset -14px 0 26px -18px rgba(0, 0, 0, 0.85);
+}
+
+/* Breathing red glow near the top — echoes the chat's beating center glow. */
+.bs-studio .bs-sidebar::before {
+  content: "";
+  position: absolute;
+  left: -25%;
+  top: -18%;
+  width: 150%;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 45, 32, 0.4) 0%,
+    rgba(255, 138, 122, 0.16) 40%,
+    transparent 70%
+  );
+  filter: blur(26px);
+  animation: bs-sidebar-breathe 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes bs-sidebar-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
+/* Brand logo — glossy red bunny tile with a heartbeat. */
+.bs-studio .bs-sidebar-logo {
+  background: radial-gradient(
+    120% 140% at 30% 20%,
+    #ff9d92 0%,
+    #ff2d20 55%,
+    #c41307 100%
+  );
+  box-shadow:
+    inset 0 2px 5px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 8px rgba(120, 8, 2, 0.45),
+    0 8px 20px -8px rgba(255, 45, 32, 0.85);
+  animation: bs-sidebar-logo-beat 2.2s ease-in-out infinite;
+}
+
+@keyframes bs-sidebar-logo-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.08);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(1.02);
+  }
+}
+
+/* Active nav pill — red radial gradient + glow + sweeping sheen. */
+.bs-studio .bs-sidebar .bs-sidebar-link-active {
+  background: radial-gradient(
+    120% 150% at 20% 0%,
+    #ff6a5e 0%,
+    #ff2d20 55%,
+    #d81e12 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 22px -8px rgba(255, 45, 32, 0.85);
+}
+
+.bs-studio .bs-sidebar .bs-sidebar-link-active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 75%
+  );
+  transform: translateX(-110%);
+  animation: bs-sidebar-sheen 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes bs-sidebar-sheen {
+  0%,
+  55% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+/* Nav links — gentle lift + icon wiggle on hover. */
+.bs-studio .bs-sidebar nav a svg {
+  transition: transform 0.2s ease;
+}
+.bs-studio .bs-sidebar nav a:hover svg {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+/* Slim themed scrollbar for the nav. */
+.bs-studio .bs-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.bs-studio .bs-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.bs-studio .bs-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+}
+.bs-studio .bs-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 45, 32, 0.6);
+}
+.bs-studio .bs-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── BunnyStudio: theme primary button (feature: settings button theming) ─
+ * Red radial-gradient pill with a glossy top edge + red glow, matching the
+ * sidebar active pill and the beating chat hero. Gear icon spins slightly on
+ * hover to hint "open settings". */
+.bs-studio .bs-theme-button {
+  background: radial-gradient(
+    120% 150% at 20% 0%,
+    #ff6a5e 0%,
+    #ff2d20 55%,
+    #d81e12 100%
+  );
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 6px 16px -8px rgba(255, 45, 32, 0.85);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.bs-studio .bs-theme-button:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 24px -8px rgba(255, 45, 32, 0.95);
+  transform: translateY(-1px);
+}
+.bs-studio .bs-theme-button:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 2px 6px rgba(120, 8, 2, 0.4),
+    0 4px 12px -6px rgba(255, 45, 32, 0.7);
+}
+.bs-studio .bs-theme-button svg {
+  transition: transform 0.2s ease;
+}
+.bs-studio .bs-theme-button:hover svg {
+  transform: rotate(45deg);
 }
