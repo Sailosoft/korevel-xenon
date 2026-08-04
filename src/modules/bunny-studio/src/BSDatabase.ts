@@ -76,11 +76,14 @@ export class BSDatabase extends PhazeDB {
   constructor() {
     super();
 
-    // Delete Chat cascade — when a chat is deleted, also remove its history.
+    // Delete Chat cascade — when a chat is deleted, also remove its history and
+    // any chat favorite referencing it (feature: Delete Chat → delete history).
     // Dexie supports table hooks; the "deleting" hook fires inside the same
-    // transaction as the chat delete (feature: Delete Chat → delete history).
+    // transaction as the chat delete. This guarantees no orphaned favorite can
+    // survive a chat delete, even if a delete path bypasses the UI guard.
     this.chats.hook("deleting", (pk) => {
       void this.conversations.where("chatId").equals(pk).delete();
+      void this.chatFavorites.where("chatId").equals(pk).delete();
     });
   }
 

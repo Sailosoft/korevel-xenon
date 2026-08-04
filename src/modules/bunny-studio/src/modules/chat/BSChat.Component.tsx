@@ -33,7 +33,7 @@ import React, {
 } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
-import { Rabbit, Plus, Trash2, Pencil } from "lucide-react";
+import { Rabbit, Plus, Trash2, Pencil, Star } from "lucide-react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { bsDB } from "../../BSDatabase";
 import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
@@ -125,6 +125,24 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   // Voice context — pushes the per-chat TTS override so speaking uses the
   // chat's voice (feature: per-chat TTS settings).
   const { setOverride } = useBSVoice();
+
+  // Favorite status for the current chat (feature: Chat Favorites) — a live
+  // query on the chatFavorites table so the star reflects add/remove instantly
+  // and stays in sync with Chat History.
+  const chatFavorite = useLiveQuery(
+    () => (chat ? bsDB.chatFavoritesRepo.findByChat(chat.id) : undefined),
+    [chat?.id],
+  );
+  const isFavorite = Boolean(chatFavorite);
+
+  const handleToggleFavorite = useCallback(async () => {
+    if (!chat) return;
+    if (isFavorite) {
+      await bsDB.chatFavoritesRepo.removeForChat(chat.id);
+    } else {
+      await bsDB.chatFavoritesRepo.saveForChat(chat.id, undefined);
+    }
+  }, [chat, isFavorite]);
 
   // Conversation-level override state
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(
@@ -478,6 +496,24 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               onVoiceChange={handleVoiceChange}
               onAutoTTSChange={handleAutoTTSChange}
             />
+            <button
+              onClick={() => void handleToggleFavorite()}
+              title={
+                isFavorite
+                  ? "Remove from favorites"
+                  : "Save this chat to favorites"
+              }
+              aria-pressed={isFavorite}
+              className={`flex items-center justify-center w-8 h-8 rounded-xl transition ${
+                isFavorite
+                  ? "text-amber-500 hover:text-amber-600"
+                  : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
+              }`}
+            >
+              <Star
+                className={`w-4 h-4 ${isFavorite ? "fill-amber-400" : ""}`}
+              />
+            </button>
             <button
               onClick={handleDelete}
               title="Delete chat"
