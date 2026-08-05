@@ -82,8 +82,13 @@ export interface BSVoiceContextValue {
   effectiveVoiceURI: string;
   /** Effective auto-TTS — per-chat override wins over the global setting */
   effectiveAutoTTS: boolean;
-  /** Read a plain-text string aloud, returning false when not supported */
-  speakText: (text: string, onEnd?: () => void) => boolean;
+  /** Read a plain-text string aloud, returning false when not supported.
+   *  `onStart` fires when the utterance truly begins; `onEnd` fires when it
+   *  finishes or is interrupted (including when a newer utterance cancels it). */
+  speakText: (
+    text: string,
+    options?: { onStart?: () => void; onEnd?: () => void },
+  ) => boolean;
   /** Stop any in-progress speech */
   stopSpeaking: () => void;
 }
@@ -107,6 +112,33 @@ function writeStorage(key: string, value: string): void {
     window.localStorage.setItem(key, value);
   } catch {
     /* storage unavailable */
+  }
+}
+
+// ─── Speech engine unlock (fix: TTS aborts on first load) ──────────────────
+//
+// Chrome/Edge require a user gesture on the page before `speechSynthesis` will
+// actually play audio. When auto-TTS calls speak() from a useEffect (no
+// gesture), the first utterance is queued then immediately aborted — the
+// bubble appears to "start speaking" then cuts out with no audio. We prime the
+// engine (resume + a silent utterance) on the first user gesture so later
+// speak() calls — including ones fired from effects — are not silently dropped.
+
+let speechUnlocked = false;
+
+function unlockSpeechSynthesis(): void {
+  if (speechUnlocked || typeof window === "undefined") return;
+  try {
+    const synth = window.speechSynthesis;
+    synth.resume();
+    const priming = new SpeechSynthesisUtterance(" ");
+    priming.volume = 0;
+    priming.rate = 1;
+    priming.pitch = 1;
+    synth.speak(priming);
+    speechUnlocked = true;
+  } catch {
+    /* speech synthesis unavailable */
   }
 }
 
@@ -152,6 +184,22 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
     };
   }, [ttsSupported]);
 
+  // Prime/unlock the speech engine on the first user gesture so auto-TTS and
+  // the first manual read don't get silently aborted on a fresh page load
+  // (fix: TTS aborts on first load).
+  useEffect(() => {
+    if (!ttsSupported) return;
+    const onGesture = () => unlockSpeechSynthesis();
+    window.addEventListener("pointerdown", onGesture);
+    window.addEventListener("keydown", onGesture);
+    window.addEventListener("touchstart", onGesture);
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
+    };
+  }, [ttsSupported]);
+
   const setVoiceURI = useCallback((uri: string) => {
     setVoiceURIState(uri);
     voiceURIRef.current = uri;
@@ -176,33 +224,50 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
   }, [ttsSupported]);
 
   const speakText = useCallback(
-    (text: string, onEnd?: () => void): boolean => {
+    (
+      text: string,
+      options?: { onStart?: () => void; onEnd?: () => void },
+    ): boolean => {
       if (!ttsSupported || !text.trim()) return false;
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(stripMarkdownForSpeech(text));
+      const synth = window.speechSynthesis;
+      // Only cancel when something is actually queued/spoken. Calling cancel()
+      // right before the very first speak() on a freshly loaded engine is a
+      // known trigger for the utterance being dropped immediately (fix: TTS
+      // aborts on first load).
+      if (synth.speaking || synth.pending) synth.cancel();
+      // Defensive: Chrome sometimes keeps the engine paused until a resume().
+      synth.resume();
+      const utterance = new SpeechSynthesisUtterance(
+        stripMarkdownForSpeech(text),
+      );
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       // Prefer the effective voice (per-chat override wins over global);
-      // otherwise fall back to the first voice.
+      // otherwise fall back to a Google US English voice.
       const effectiveURI =
         overrideRef.current?.voiceURI ?? voiceURIRef.current;
-      const selected = voicesRef.current.find(
-        (v) => v.voiceURI === effectiveURI,
-      );
-      utterance.voice =
-        selected ||
+      const selected =
+        voicesRef.current.find((v) => v.voiceURI === effectiveURI) ||
         voicesRef.current.find((v) =>
           v.name.toLowerCase().includes("google us english"),
-        ) ||
-        voicesRef.current[0];
+        );
+      // Only assign a voice when one is actually found. On first load the voice
+      // list is still empty, and assigning `undefined` can trip the engine
+      // before `onvoiceschanged` fires (fix: TTS aborts on first load).
+      if (selected) utterance.voice = selected;
       const finish = () => {
-        activeUtteranceRef.current = null;
-        onEnd?.();
+        // Only clear the ref if this utterance is still the active one, so an
+        // older overlapping utterance ending later can't clear a newer one.
+        if (activeUtteranceRef.current === utterance) {
+          activeUtteranceRef.current = null;
+        }
+        options?.onEnd?.();
       };
+      utterance.onstart = () => options?.onStart?.();
       utterance.onend = finish;
       utterance.onerror = finish;
       activeUtteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
+      synth.speak(utterance);
       return true;
     },
     [ttsSupported],

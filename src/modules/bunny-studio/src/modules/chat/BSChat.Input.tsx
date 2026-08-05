@@ -15,15 +15,18 @@
 
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Send, Square, Sparkles } from "lucide-react";
 import { BSCodeMirrorEditor } from "../../components";
 import type { RenderFormat } from "@/src/modules/render";
 import {
+  MAX_TEXTAREA_HEIGHT,
   useBSChatInput,
   type BSChatInputMode,
   type BSChatInputSendHandler,
 } from "./BSChat.Input.Hooks";
+import { useBSSpeechRecognition } from "./BSChat.Input.STT.Hooks";
+import { BSChatInputSTTButton } from "./BSChat.Input.STTButton";
 import { BSChatInputSkillBubbles } from "./BSChat.Input.SkillBubbles";
 import { BSChatInputInstructionPanel } from "./BSChat.Input.InstructionPanel";
 import { BSChatInputToolbar } from "./BSChat.Input.Toolbar";
@@ -74,6 +77,7 @@ export function BSChatInput({
     setMode,
     text,
     setText,
+    appendText,
     instruction,
     setInstruction,
     textareaRef,
@@ -94,6 +98,29 @@ export function BSChatInput({
     filteredInstructions,
     handleInstructionSelect,
   } = useBSChatInput({ onSend, isStreaming, defaultMode });
+
+  // Builtin Web Speech API speech-to-text — logic lives in a separate hook
+  // (BSChat.Input.STT.Hooks.ts). While speaking, the live draft is shown in
+  // the input; on stop (or silence auto-stop) it is appended to the text.
+  const stt = useBSSpeechRecognition({ onFinalTranscript: appendText });
+
+  // Live draft = committed text + the in-progress speech transcript. The
+  // draft is only displayed (not committed) until the session ends.
+  const liveDraft = stt.listening ? stt.transcript : "";
+  const displayText = liveDraft
+    ? text
+      ? `${text.trimEnd()} ${liveDraft}`
+      : liveDraft
+    : text;
+
+  // Keep the standard textarea growing while a live speech draft is shown
+  // (the base hook only re-grows on `text` changes).
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+  }, [displayText, mode, textareaRef]);
 
   return (
     <div className="w-full max-w-3xl mx-auto">
@@ -134,8 +161,13 @@ export function BSChatInput({
           {mode === "codemirror" ? (
             <div className="px-2 py-2">
               <BSCodeMirrorEditor
-                value={text}
-                onChange={setText}
+                value={displayText}
+                onChange={(value) => {
+                  setText(value);
+                  // Manual typing mid-dictation — stop so the draft is not
+                  // re-committed on top of what the user typed.
+                  if (stt.listening) stt.abort();
+                }}
                 height={140}
                 className="rounded-2xl"
               />
@@ -143,8 +175,13 @@ export function BSChatInput({
           ) : (
             <textarea
               ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={displayText}
+              onChange={(e) => {
+                setText(e.target.value);
+                // Manual typing mid-dictation — stop so the draft is not
+                // re-committed on top of what the user typed.
+                if (stt.listening) stt.abort();
+              }}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={1}
@@ -164,28 +201,46 @@ export function BSChatInput({
               onOpenEditorModal={openEditorModal}
             />
 
-            {isStreaming ? (
-              <button
-                onClick={onStop}
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-4 py-2 text-sm transition animate-pulse shrink-0"
-              >
-                <Square className="w-3.5 h-3.5" />
-                Stop
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!canSend}
-                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm transition shrink-0"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <Send className="w-3.5 h-3.5" />
-                Send
-              </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <BSChatInputSTTButton
+                supported={stt.supported}
+                listening={stt.listening}
+                error={stt.error}
+                disabled={isStreaming}
+                onStart={stt.start}
+                onStop={stt.stop}
+              />
+
+              {isStreaming ? (
+                <button
+                  onClick={onStop}
+                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-4 py-2 text-sm transition animate-pulse shrink-0"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  Stop
+                </button>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={!canSend}
+                  className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm transition shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5" />
+                  Send
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Voice input error hint (e.g. mic permission denied) */}
+      {stt.error && !stt.listening && (
+        <p className="text-[11px] text-red-500 mt-1.5 px-1">
+          Voice input: {stt.error}
+        </p>
+      )}
 
       {/* Code editor modal with cover/window view toggle (feature) */}
       <BSChatInputEditorModal
