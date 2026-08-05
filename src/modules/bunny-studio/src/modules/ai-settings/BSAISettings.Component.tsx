@@ -1,9 +1,11 @@
 /**
  * BSAISettings.Component — UI for configuring the global AI provider + model.
  *
- * Renders a form that lets the user pick a HelixAI provider and a model
- * from that provider's model list. Saved settings persist to IndexedDB
- * and are consumed by chat via the useBSAISettings() hook.
+ * Renders a form that lets the user pick a HelixAI provider and model. Saved
+ * settings persist to IndexedDB and are consumed by chat via the
+ * useBSAISettings() hook. Speech-to-text configuration lives on the
+ * Configurations page. Individual chats and agents can override these global
+ * settings.
  */
 
 "use client";
@@ -11,10 +13,7 @@
 import React, { useState } from "react";
 import { Card, Button } from "@heroui/react";
 import { Save, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import {
-  HELIX_PROVIDER_LABELS,
-  HELIX_AI_MODELS,
-} from "@/src/modules/helix";
+import { HELIX_PROVIDER_LABELS, HELIX_AI_MODELS } from "@/src/modules/helix";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import { useBSAISettings } from "./BSAISettings.Context";
 
@@ -25,16 +24,15 @@ type SaveStatus = "idle" | "saving" | "success" | "error";
 // ─── Component ────────────────────────────────────────────────────────────
 
 export function BSAISettingsComponent() {
-  const { aiConfig, loading, saveSettings } = useBSAISettings();
+  const { aiConfig, loading, saveAISettings } = useBSAISettings();
 
-  const [provider, setProvider] = useState<HelixAIProvider>(
-    aiConfig.provider,
-  );
+  const [provider, setProvider] = useState<HelixAIProvider>(aiConfig.provider);
   const [model, setModel] = useState<string>(aiConfig.model);
+
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
-  // Track the last-seen aiConfig so we can sync local form state when the
-  // context loads/changes, using React's render-time adjustment pattern.
+  // Track the last-seen context value so we can sync local form state when it
+  // loads/changes, using React's render-time adjustment pattern.
   const [prevConfig, setPrevConfig] = useState(aiConfig);
 
   if (aiConfig !== prevConfig) {
@@ -63,7 +61,7 @@ export function BSAISettingsComponent() {
     setErrorMessage("");
 
     try {
-      await saveSettings({ provider, model });
+      await saveAISettings({ provider, model });
       setSaveStatus("success");
       setTimeout(() => setSaveStatus("idle"), 2000);
     } catch (err) {
@@ -74,7 +72,7 @@ export function BSAISettingsComponent() {
     }
   };
 
-  // ── Loading state ──────────────────────────────────────────────────
+  // ── Loading state ───────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -84,7 +82,7 @@ export function BSAISettingsComponent() {
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 p-8">
@@ -92,8 +90,9 @@ export function BSAISettingsComponent() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">AI Settings</h1>
         <p className="text-gray-500 mt-1">
-          Choose the default AI provider and model. Individual chats and
-          agents can override these global settings.
+          Choose the default AI provider and model. Individual chats and agents
+          can override these global settings. Speech-to-text configuration is
+          available under Configurations.
         </p>
       </div>
 

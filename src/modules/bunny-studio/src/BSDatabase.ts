@@ -21,7 +21,7 @@ import type { BSInstructionGroup } from "./modules/instruction-groups/BSInstruct
 import type { BSInstruction } from "./modules/instructions/BSInstruction.Types";
 import type { BSChatCategory } from "./modules/chat-category/BSChatCategory.Types";
 import type { BSChatFavorite } from "./modules/chat-favorite/BSChatFavorite.Types";
-import type { HelixAISettings } from "@/src/modules/helix";
+import type { BSAISettings } from "./modules/ai-settings/BSAISettings.Types";
 import { BSChatRepository } from "./modules/chat/BSChat.Repository";
 import { BSAgentRepository } from "./modules/agents/BSAgent.Repository";
 import { BSAgentPoolRepository } from "./modules/agent-pools/BSAgentPool.Repository";
@@ -50,8 +50,8 @@ export class BSDatabase extends PhazeDB {
   public agentPoolsRepo = new BSAgentPoolRepository(this.agentPools);
 
   // ── AI Settings (singleton, key = "global") ────────────────────────
-  public aiSettings = this.table<HelixAISettings, string>("aiSettings");
-  public aiSettingsRepo = new PhazeRepository<HelixAISettings>(this.aiSettings);
+  public aiSettings = this.table<BSAISettings, string>("aiSettings");
+  public aiSettingsRepo = new PhazeRepository<BSAISettings>(this.aiSettings);
 
   // ── Instruction Groups (feature: Custom Instructions) ──────────────
   public instructionGroups = this.table<BSInstructionGroup, string>(

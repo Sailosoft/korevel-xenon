@@ -8,6 +8,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Maximize2, Minimize2 } from "lucide-react";
 
 // ─── Props ─────────────────────────────────────────────────────────────
@@ -93,10 +94,20 @@ export function BSModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, fullscreen, onClose, setFullscreen]);
 
-  if (!open) return null;
+  // Render into document.body via a portal so `position: fixed` resolves
+  // against the viewport. Inside a transformed / backdrop-blur ancestor
+  // (the bs-rise-in hero or the chat input bar), fixed elements get trapped
+  // in that ancestor's containing block — which breaks fullscreen and
+  // viewport centering. The `bs-studio` class keeps module-scoped styling
+  // (e.g. button cursor) working on the portaled content.
+  if (!open || typeof document === "undefined") return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6">
+  return createPortal(
+    <div
+      className={`bs-studio fixed inset-0 z-50 flex items-center justify-center ${
+        fullscreen ? "p-0" : "p-0 sm:p-6"
+      }`}
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -155,7 +166,8 @@ export function BSModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

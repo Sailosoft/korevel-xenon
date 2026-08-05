@@ -38,6 +38,7 @@ import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { bsDB } from "../../BSDatabase";
 import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 import type { BSAgent } from "../agents/BSAgent.Types";
+import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import { RenderFormats } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
@@ -52,7 +53,7 @@ import { useBSVoice } from "./BSChat.Voice";
 export interface BSChatComponentProps {
   /** Optional initial chat id (from route param) */
   chatId?: string;
-  /** Optional agent pool id to scope available agents */
+  /** Optional default agent pool filter for the chat settings panel */
   agentPoolId?: string;
 }
 
@@ -93,7 +94,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   const { aiConfig: globalAI } = useBSAISettings();
   const router = useRouter();
 
-  // Live agents (filtered by pool when provided)
+  // Live agents across every pool + global — the settings panel filters them
+  // by the selected agent pool.
   const allAgents = useLiveQuery<BSAgent[]>(async () => {
     const list = await bsDB.agentsRepo.query.getAll({
       page: 0,
@@ -102,13 +104,14 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
     return list.data;
   }, []);
 
-  const agents = useMemo<BSAgent[]>(() => {
-    if (!allAgents) return [];
-    if (agentPoolId) {
-      return allAgents.filter((a) => a.agentPoolId === agentPoolId);
-    }
-    return allAgents.filter((a) => !a.agentPoolId || a.agentPoolId === "");
-  }, [allAgents, agentPoolId]);
+  // Live agent pools — drives the chat settings panel's pool selector.
+  const agentPools = useLiveQuery<BSAgentPool[]>(async () => {
+    const list = await bsDB.agentPoolsRepo.query.getAll({
+      page: 0,
+      pageSize: 0,
+    });
+    return list.data;
+  }, []);
 
   const {
     chat,
@@ -167,6 +170,9 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   const [pendingModel, setPendingModel] = useState<string | undefined>(
     undefined,
   );
+  const [pendingAgentPoolId, setPendingAgentPoolId] = useState<
+    string | undefined
+  >(undefined);
 
   // Initial-page (no chat yet) TTS overrides — applied to the created chat
   // and pushed to the voice context (feature: per-chat TTS settings).
@@ -316,6 +322,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
         // TTS settings).
         chatOverrides: {
           agentId: selectedAgentId,
+          agentPoolId: pendingAgentPoolId,
           provider: pendingProvider,
           model: pendingModel,
           voiceURI: pendingVoiceURI,
@@ -338,6 +345,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
       contentType,
       requestRenderType,
       selectedAgentId,
+      pendingAgentPoolId,
       pendingProvider,
       pendingModel,
       pendingVoiceURI,
@@ -353,6 +361,17 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
       void updateChat({ agentId: agentIdValue });
     },
     [updateChat],
+  );
+
+  const handleAgentPoolChange = useCallback(
+    (poolId: string | undefined) => {
+      if (chat) {
+        void updateChat({ agentPoolId: poolId });
+      } else {
+        setPendingAgentPoolId(poolId);
+      }
+    },
+    [chat, updateChat],
   );
 
   const handleProviderModelChange = useCallback(
@@ -489,8 +508,11 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               contentType={contentType}
               voiceURI={chat.voiceURI}
               autoTTS={chat.autoTTS}
-              agents={agents}
+              allAgents={allAgents ?? []}
+              agentPools={agentPools ?? []}
+              agentPoolId={chat.agentPoolId ?? agentPoolId}
               onAgentChange={handleAgentChange}
+              onAgentPoolChange={handleAgentPoolChange}
               onProviderModelChange={handleProviderModelChange}
               onContentTypeChange={setContentType}
               onVoiceChange={handleVoiceChange}
@@ -551,8 +573,11 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   contentType={contentType}
                   voiceURI={pendingVoiceURI}
                   autoTTS={pendingAutoTTS}
-                  agents={agents}
+                  allAgents={allAgents ?? []}
+                  agentPools={agentPools ?? []}
+                  agentPoolId={pendingAgentPoolId ?? agentPoolId}
                   onAgentChange={handleAgentChange}
+                  onAgentPoolChange={handleAgentPoolChange}
                   onProviderModelChange={handleProviderModelChange}
                   onContentTypeChange={setContentType}
                   onVoiceChange={handleVoiceChange}

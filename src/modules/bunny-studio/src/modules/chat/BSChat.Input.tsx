@@ -31,6 +31,7 @@ import { BSChatInputSkillBubbles } from "./BSChat.Input.SkillBubbles";
 import { BSChatInputInstructionPanel } from "./BSChat.Input.InstructionPanel";
 import { BSChatInputToolbar } from "./BSChat.Input.Toolbar";
 import { BSChatInputEditorModal } from "./BSChat.Input.EditorModal";
+import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 
 // ─── Modes ─────────────────────────────────────────────────────────────
 
@@ -99,10 +100,21 @@ export function BSChatInput({
     handleInstructionSelect,
   } = useBSChatInput({ onSend, isStreaming, defaultMode });
 
-  // Builtin Web Speech API speech-to-text — logic lives in a separate hook
-  // (BSChat.Input.STT.Hooks.ts). While speaking, the live draft is shown in
-  // the input; on stop (or silence auto-stop) it is appended to the text.
-  const stt = useBSSpeechRecognition({ onFinalTranscript: appendText });
+  // Speech-to-text settings from the global AI settings (browser vs AI engine,
+  // provider/model/language/endpoint). The recognition logic lives in a
+  // separate hook (BSChat.Input.STT.Hooks.ts); the live draft is shown in the
+  // input and appended to the text on stop (or silence auto-stop).
+  const { speech } = useBSAISettings();
+  const stt = useBSSpeechRecognition({
+    mode: speech.sttMode,
+    ai: {
+      provider: speech.sttProvider,
+      model: speech.sttModel,
+      language: speech.sttLanguage,
+      endpoint: speech.sttEndpoint,
+    },
+    onFinalTranscript: appendText,
+  });
 
   // Live draft = committed text + the in-progress speech transcript. The
   // draft is only displayed (not committed) until the session ends.
