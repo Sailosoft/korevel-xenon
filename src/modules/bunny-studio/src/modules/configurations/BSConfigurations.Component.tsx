@@ -23,12 +23,6 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import {
-  HELIX_PROVIDER_LABELS,
-  HELIX_STT_MODELS,
-  HELIX_STT_PROVIDERS,
-} from "@/src/modules/helix";
-import type { HelixAIProvider } from "@/src/modules/helix";
 import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 import type { BSSttMode } from "../ai-settings/BSAISettings.Types";
 import { useBSVoice } from "../chat/BSChat.Voice";
@@ -45,14 +39,9 @@ export function BSConfigurationsComponent() {
   const { ttsSupported, voices, voiceURI, setVoiceURI, autoTTS, setAutoTTS } =
     useBSVoice();
 
-  // ── Speech-to-text form state ────────────────────────────────────────────
+  // ── Speech-to-text form state (browser vs AI engine toggle only; the AI
+  //     provider/model/language/endpoint setup lives on the AI Settings page) ──
   const [sttMode, setSttMode] = useState<BSSttMode>(speech.sttMode);
-  const [sttProvider, setSttProvider] = useState<HelixAIProvider>(
-    speech.sttProvider,
-  );
-  const [sttModel, setSttModel] = useState<string>(speech.sttModel);
-  const [sttLanguage, setSttLanguage] = useState<string>(speech.sttLanguage);
-  const [sttEndpoint, setSttEndpoint] = useState<string>(speech.sttEndpoint);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -63,24 +52,7 @@ export function BSConfigurationsComponent() {
   if (speech !== prevSpeech) {
     setPrevSpeech(speech);
     setSttMode(speech.sttMode);
-    setSttProvider(speech.sttProvider);
-    setSttModel(speech.sttModel);
-    setSttLanguage(speech.sttLanguage);
-    setSttEndpoint(speech.sttEndpoint);
   }
-
-  // STT providers that expose at least one selectable model
-  const sttProviderKeys = HELIX_STT_PROVIDERS;
-  const sttModels = HELIX_STT_MODELS[sttProvider] ?? [];
-
-  // When the STT provider changes, auto-select the first STT model
-  const handleSttProviderChange = (newProvider: HelixAIProvider) => {
-    setSttProvider(newProvider);
-    const models = HELIX_STT_MODELS[newProvider];
-    if (models && models.length > 0) {
-      setSttModel(models[0]);
-    }
-  };
 
   const handleSaveStt = async () => {
     setSaveStatus("saving");
@@ -88,11 +60,8 @@ export function BSConfigurationsComponent() {
 
     try {
       await saveSpeechSettings({
+        ...speech,
         sttMode,
-        sttProvider,
-        sttModel,
-        sttLanguage: sttLanguage.trim(),
-        sttEndpoint: sttEndpoint.trim(),
       });
       setSaveStatus("success");
       setTimeout(() => setSaveStatus("idle"), 2000);
@@ -299,91 +268,18 @@ export function BSConfigurationsComponent() {
               </p>
             </div>
 
-            {/* AI-specific settings */}
-            {sttMode === "ai" && (
-              <>
-                {/* STT Provider Select */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    STT Provider
-                  </label>
-                  <select
-                    value={sttProvider}
-                    onChange={(e) =>
-                      handleSttProviderChange(e.target.value as HelixAIProvider)
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
-                  >
-                    {sttProviderKeys.map((key) => (
-                      <option key={key} value={key}>
-                        {HELIX_PROVIDER_LABELS[key] ?? key}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    The provider that exposes an OpenAI-compatible transcription
-                    endpoint.
-                  </p>
-                </div>
-
-                {/* STT Model Select */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    STT Model
-                  </label>
-                  <select
-                    value={sttModel}
-                    onChange={(e) => setSttModel(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
-                  >
-                    {sttModels.length === 0 && (
-                      <option value="">No models available</option>
-                    )}
-                    {sttModels.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    The model used to transcribe audio (e.g. whisper-1).
-                  </p>
-                </div>
-
-                {/* STT Language */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Language (optional)
-                  </label>
-                  <input
-                    value={sttLanguage}
-                    onChange={(e) => setSttLanguage(e.target.value)}
-                    placeholder="e.g. en or en-US"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    BCP-47 language hint for better recognition accuracy.
-                  </p>
-                </div>
-
-                {/* STT Endpoint Override */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    STT Endpoint Override (optional)
-                  </label>
-                  <input
-                    value={sttEndpoint}
-                    onChange={(e) => setSttEndpoint(e.target.value)}
-                    placeholder="https://… — leave empty to use the provider default"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Some providers (e.g. Ollama Cloud) serve transcription from
-                    a different endpoint than chat.
-                  </p>
-                </div>
-              </>
-            )}
+            <div className="mt-1">
+              <p className="text-[10px] text-gray-400">
+                Configure the AI STT provider, model, language, and endpoint
+                override under{" "}
+                <Link
+                  href="/modules/bunny-studio/ai-settings"
+                  className="text-red-600 hover:text-red-700 font-medium"
+                >
+                  AI Settings →
+                </Link>
+              </p>
+            </div>
 
             {/* Save */}
             <div className="flex items-center gap-3">

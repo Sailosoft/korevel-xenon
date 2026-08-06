@@ -37,12 +37,26 @@ export function BSStudioShell({ children }: BSStudioShellProps) {
     <div className="bs-studio h-screen flex flex-col bg-gray-50">
       <BSHeader onMenuClick={handleMenuClick} />
       <div className="flex-1 flex overflow-hidden">
-        {/* Desktop sidebar (≥ lg) — collapsible via the header hamburger */}
-        <BSSidebar
-          className={
-            sidebarCollapsed ? "hidden lg:hidden" : "hidden lg:flex"
-          }
-        />
+        {/* Desktop sidebar (≥ lg) — collapsible via the header hamburger.
+            Seamless "push" slide: the wrapper's width collapses so the main
+            content smoothly expands to fill the space, while the fixed-width
+            sidebar panel inside translates left (a true slide-out). No opacity
+            fade — fading would reveal the light content behind and flash
+            white. The inner panel keeps a fixed w-60 so -translate-x-full
+            resolves to a constant 15rem instead of tracking the shrink. */}
+        <div
+          className={`bs-sidebar-collapse hidden lg:block shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+            sidebarCollapsed ? "w-0" : "w-60"
+          }`}
+        >
+          <div
+            className={`h-full w-60 shrink-0 transition-transform duration-300 ease-in-out ${
+              sidebarCollapsed ? "-translate-x-full" : "translate-x-0"
+            }`}
+          >
+            <BSSidebar className="h-full" />
+          </div>
+        </div>
 
         {/* Mobile drawer (hamburger toggles this) */}
         {sidebarOpen && (
