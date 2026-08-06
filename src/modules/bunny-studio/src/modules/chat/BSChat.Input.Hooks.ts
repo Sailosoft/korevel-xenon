@@ -45,6 +45,8 @@ export interface BSChatInputHookReturn {
   // Text + instruction content
   text: string;
   setText: (value: string) => void;
+  /** Append a suffix to the current text (used by speech-to-text input) */
+  appendText: (suffix: string) => void;
   instruction: string;
   setInstruction: (value: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -70,7 +72,7 @@ export interface BSChatInputHookReturn {
   handleInstructionSelect: (id: string) => void;
 }
 
-const MAX_TEXTAREA_HEIGHT = 200; // px
+export const MAX_TEXTAREA_HEIGHT = 200; // px
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
@@ -131,6 +133,17 @@ export function useBSChatInput({
     el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
   }, [text, mode]);
 
+  // Append a transcript (from speech-to-text) to whatever the user already
+  // typed, without clobbering it (feature: STT / builtin web SpeechRecognition).
+  const appendText = (suffix: string) => {
+    const next = suffix.trim();
+    if (!next) return;
+    setText((prev) => {
+      const trimmed = prev.trimEnd();
+      return trimmed ? `${trimmed} ${next}` : next;
+    });
+  };
+
   const toggleSkill = (skill: string) => {
     setSelectedSkills((prev) =>
       prev.includes(skill)
@@ -184,6 +197,7 @@ export function useBSChatInput({
     setMode,
     text,
     setText,
+    appendText,
     instruction,
     setInstruction,
     textareaRef,

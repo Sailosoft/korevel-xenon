@@ -53,6 +53,12 @@ export interface HelixAIProviderConfig {
   model: string;
   /** Custom base URL override (required for ollama-local) */
   endpoint?: string;
+  /**
+   * Optional override base URL used for speech-to-text only. Some providers
+   * (e.g. Ollama Cloud) serve transcription from a different endpoint than
+   * their chat endpoint, so this lets STT be pointed elsewhere.
+   */
+  sttEndpoint?: string;
 }
 
 // ── Top-level config shapes ───────────────────────────────────────────────────
@@ -82,12 +88,16 @@ export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
     apiKey: "ollama",
     model: process.env.OPEN_AI_MODEL || "gemma4:31b",
     endpoint: "http://localhost:11434/v1",
+    // Ollama (local) serves transcription from its OpenAI-compatible /v1 base.
+    sttEndpoint: "http://localhost:11434/v1",
   },
   {
     provider: "ollamaCloud",
     apiKey: process.env.OLLAMA_API_KEY || "",
     model: "gemma4:31b-cloud",
     endpoint: "https://ollama.com/v1",
+    // Ollama Cloud serves transcription from its OpenAI-compatible /v1 base.
+    sttEndpoint: "https://ollama.com/v1",
   },
   {
     provider: "deepseek",
@@ -536,3 +546,31 @@ export const HELIX_AI_MODELS: Record<HelixAIProvider, readonly string[]> = {
   default: UNIQUE_DEFAULT_MODELS,
   ...HELIX_PROVIDER_MODELS,
 };
+
+// ── Speech-to-text (STT) models per provider ───────────────────────────────────
+// Providers that expose an OpenAI-compatible `/v1/audio/transcriptions`
+// endpoint. Providers with no entry are considered unsupported for AI STT.
+// "default" follows the env-configured base URL; Ollama providers require an
+// STT endpoint override to point at an OpenAI-compatible transcription server.
+
+export const HELIX_STT_MODELS: Partial<
+  Record<HelixAIProvider, readonly string[]>
+> = {
+  default: ["whisper-1", "whisper-large-v3-turbo"],
+  openai: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+  groq: [
+    "whisper-large-v3",
+    "whisper-large-v3-turbo",
+    "distil-whisper-large-v3-en",
+  ],
+  deepinfra: ["openai/whisper-large-v3"],
+  siliconFlow: ["FunAudioLLM/SenseVoiceSmall"],
+  fireworks: ["accounts/fireworks/models/whisper-v3"],
+  ollamaLocal: ["whisper"],
+  ollamaCloud: ["whisper"],
+};
+
+/** Providers that expose at least one selectable STT model. */
+export const HELIX_STT_PROVIDERS = (
+  Object.keys(HELIX_STT_MODELS) as HelixAIProvider[]
+).filter((p) => (HELIX_STT_MODELS[p]?.length ?? 0) > 0);

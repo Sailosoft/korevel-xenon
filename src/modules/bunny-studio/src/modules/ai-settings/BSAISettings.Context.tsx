@@ -20,8 +20,10 @@ import type { HelixAIOption } from "@/src/modules/helix";
 import { bsDB } from "../../BSDatabase";
 import {
   BSAISettings,
+  BSSpeechSettings,
   BS_AI_SETTINGS_DEFAULTS,
   BS_AI_SETTINGS_ID,
+  BS_SPEECH_SETTINGS_DEFAULTS,
 } from "./BSAISettings.Types";
 
 // ─── Context type ─────────────────────────────────────────────────────────
@@ -29,10 +31,14 @@ import {
 export interface BSAISettingsContextValue {
   /** The currently active global AI configuration */
   aiConfig: HelixAIOption;
+  /** The currently active speech-to-text settings */
+  speech: BSSpeechSettings;
   /** True while the initial load from IndexedDB is in progress */
   loading: boolean;
-  /** Save updated settings to IndexedDB */
-  saveSettings: (settings: BSAISettings) => Promise<void>;
+  /** Save only the global AI provider + model (speech settings are preserved) */
+  saveAISettings: (ai: HelixAIOption) => Promise<void>;
+  /** Save only the speech-to-text settings (AI provider + model are preserved) */
+  saveSpeechSettings: (speech: BSSpeechSettings) => Promise<void>;
   /** Reload settings from IndexedDB */
   reloadSettings: () => Promise<void>;
 }
@@ -50,6 +56,9 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
     provider: BS_AI_SETTINGS_DEFAULTS.provider,
     model: BS_AI_SETTINGS_DEFAULTS.model,
   });
+  const [speech, setSpeech] = useState<BSSpeechSettings>(
+    BS_SPEECH_SETTINGS_DEFAULTS,
+  );
   const [loading, setLoading] = useState(true);
   // Track whether the initial load has completed to avoid re-running setState
   // synchronously within the effect body.
@@ -63,6 +72,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         setAiConfig({
           provider: settings.provider,
           model: settings.model,
+        });
+        setSpeech({
+          ...BS_SPEECH_SETTINGS_DEFAULTS,
+          ...settings.speech,
         });
       }
     } catch (err) {
@@ -81,26 +94,44 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveSettings = useCallback(async (settings: BSAISettings) => {
+  // Persist a partial update to the single settings record, merging with what is
+  // already stored so saving AI config alone doesn't clobber speech settings
+  // (and vice versa) since they are edited on separate pages.
+  const persistSettings = useCallback(async (patch: Partial<BSAISettings>) => {
     try {
       const existing = await bsDB.aiSettingsRepo.get(BS_AI_SETTINGS_ID);
+      let merged: BSAISettings;
       if (existing.isSuccess) {
-        await bsDB.aiSettingsRepo.update(BS_AI_SETTINGS_ID, settings);
+        merged = { ...existing.value, ...patch };
+        await bsDB.aiSettingsRepo.update(BS_AI_SETTINGS_ID, merged);
       } else {
+        merged = { ...BS_AI_SETTINGS_DEFAULTS, ...patch };
         await bsDB.aiSettingsRepo.create({
           id: BS_AI_SETTINGS_ID,
-          ...settings,
+          ...merged,
         } as BSAISettings & { id: string });
       }
-      setAiConfig({
-        provider: settings.provider,
-        model: settings.model,
-      });
+      setAiConfig({ provider: merged.provider, model: merged.model });
+      setSpeech({ ...BS_SPEECH_SETTINGS_DEFAULTS, ...merged.speech });
     } catch (err) {
       console.error("[BSAISettings] Failed to save settings to IndexedDB:", err);
       throw err;
     }
   }, []);
+
+  const saveAISettings = useCallback(
+    async (ai: HelixAIOption) => {
+      await persistSettings({ provider: ai.provider, model: ai.model });
+    },
+    [persistSettings],
+  );
+
+  const saveSpeechSettings = useCallback(
+    async (speech: BSSpeechSettings) => {
+      await persistSettings({ speech });
+    },
+    [persistSettings],
+  );
 
   const reloadSettings = useCallback(async () => {
     setLoading(true);
@@ -109,7 +140,14 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
 
   return (
     <BSAISettingsContext.Provider
-      value={{ aiConfig, loading, saveSettings, reloadSettings }}
+      value={{
+        aiConfig,
+        speech,
+        loading,
+        saveAISettings,
+        saveSpeechSettings,
+        reloadSettings,
+      }}
     >
       {children}
     </BSAISettingsContext.Provider>

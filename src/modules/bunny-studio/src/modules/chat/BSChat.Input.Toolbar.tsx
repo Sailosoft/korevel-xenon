@@ -58,20 +58,21 @@ export function BSChatInputToolbar({
 }: BSChatInputToolbarProps) {
   return (
     <div className="flex items-center gap-2 min-w-0">
-      {/* Mode selector — Standard / Instruction / Code */}
+      {/* Mode selector — icon-only; label shown as a tooltip */}
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
         {MODE_BUTTONS.map((b) => (
           <button
             key={b.mode}
             onClick={() => onModeChange(b.mode)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition ${
+            title={b.label}
+            aria-label={b.label}
+            className={`flex items-center justify-center p-1.5 rounded-lg transition ${
               mode === b.mode
-                ? "bg-white shadow text-red-600 font-medium"
+                ? "bg-white shadow text-red-600"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
             {MODE_ICONS[b.mode]}
-            {b.label}
           </button>
         ))}
       </div>

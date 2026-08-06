@@ -177,6 +177,7 @@ export const bsAgentModule = BunnyFeature.create<BSAgent, BSAgent>(
           type: "textarea",
           required: true,
           rows: 3,
+          colSpan: 2,
         },
         {
           name: "skills",
@@ -193,7 +194,11 @@ export const bsAgentModule = BunnyFeature.create<BSAgent, BSAgent>(
           colSpan: 2,
         },
       ]);
-      form.setGridCols(1);
+      form.setGridCols(2);
+    });
+
+    feature.configureModal((modal) => {
+      modal.setSize(800);
     });
 
     feature.configureHeader((header) => {

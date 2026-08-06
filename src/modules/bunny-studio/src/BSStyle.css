@@ -459,6 +459,19 @@
   box-shadow: inset -14px 0 26px -18px rgba(0, 0, 0, 0.85);
 }
 
+/* Desktop collapsible wrapper — carries the same deep-red glass as the
+ * sidebar itself so that while the panel slides left and the wrapper's width
+ * animates, the region never exposes the light page background behind it
+ * (which would flash white). */
+.bs-studio .bs-sidebar-collapse {
+  background: radial-gradient(
+    130% 85% at 50% -5%,
+    #7a1414 0%,
+    #3a0707 46%,
+    #150202 100%
+  );
+}
+
 /* Breathing red glow near the top — echoes the chat's beating center glow. */
 .bs-studio .bs-sidebar::before {
   content: "";

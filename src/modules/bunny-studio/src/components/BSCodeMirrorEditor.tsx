@@ -93,6 +93,19 @@ export function BSCodeMirrorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readOnly]);
 
+  // Keep the editor in sync with the `value` prop (controlled behaviour).
+  // Without this, external updates — e.g. a second editor bound to the same
+  // state (the chat input behind the modal) — never reach this editor.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    if (current === value) return;
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: value },
+    });
+  }, [value]);
+
   return (
     <div
       ref={containerRef}

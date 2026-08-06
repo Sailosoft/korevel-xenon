@@ -88,6 +88,14 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   defaultValue?: TForm[keyof TForm];
   required?: boolean;
   disabled?: boolean;
+  /**
+   * Number of columns (out of `gridCols`) this field occupies on the
+   * form's 12-column grid. Omitting it places the field in a single column.
+   *
+   * Examples with `gridCols: 2`:
+   * - `colSpan: 1` (or omitted) → half width (6 / 12)
+   * - `colSpan: 2` → full row width (12 / 12)
+   */
   colSpan?: 1 | 2 | 3 | 4 | 6 | 8 | 12;
   // Number of visible text rows for textarea fields (default: 4)
   rows?: number;
@@ -143,5 +151,10 @@ export interface BunnyValidationRule {
 export interface BunnyFormConfig<TForm> {
   fields: BunnyFormField<TForm>[];
   submitLabel?: string;
+  /**
+   * Columns per row on the form's 12-column grid.
+   * Supported values: `1`, `2`, `3`, `4`, `6`, `12`.
+   * @default 1
+   */
   gridCols?: number;
 }

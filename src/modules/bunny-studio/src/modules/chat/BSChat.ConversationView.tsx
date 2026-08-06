@@ -119,7 +119,12 @@ export function BSChatConversationView({
       setSpeaking(false);
       return;
     }
-    const started = speakText(conversation.content, () => setSpeaking(false));
+    const started = speakText(conversation.content, {
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    });
+    // Optimistic fallback: show the speaking state immediately; onStart keeps it
+    // in sync if the engine starts asynchronously, and onEnd clears it on abort.
     if (started) setSpeaking(true);
   };
 
@@ -140,7 +145,10 @@ export function BSChatConversationView({
     ) {
       // Mark this bubble as speaking so the rainbow ring appears while the
       // message is actually being read aloud (feature: TTS bubble animation).
-      const started = speakText(conversation.content, () => setSpeaking(false));
+      const started = speakText(conversation.content, {
+        onStart: () => setSpeaking(true),
+        onEnd: () => setSpeaking(false),
+      });
       if (started) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSpeaking(true);

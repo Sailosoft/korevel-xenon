@@ -41,7 +41,7 @@ export function BSChatInputEditorModal({
       open={open}
       onClose={onClose}
       title="Code Editor"
-      sizeClassName="max-w-3xl h-[80vh]"
+      sizeClassName="max-w-3xl h-[70vh]"
       fullscreen={coverView}
       onFullscreenChange={onToggleCoverView}
       footer={

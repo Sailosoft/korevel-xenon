@@ -10,6 +10,13 @@ export type {
   BSChatInputHookReturn,
   BSChatInputSendHandler,
 } from "./BSChat.Input.Hooks";
+export { useBSSpeechRecognition } from "./BSChat.Input.STT.Hooks";
+export type {
+  BSSpeechRecognitionOptions,
+  BSSpeechRecognitionResult,
+} from "./BSChat.Input.STT.Hooks";
+export { BSChatInputSTTButton } from "./BSChat.Input.STTButton";
+export type { BSChatInputSTTButtonProps } from "./BSChat.Input.STTButton";
 export { BSChatSettingsPanel } from "./BSChat.SettingsPanel";
 export type { BSChatSettingsPanelProps } from "./BSChat.SettingsPanel";
 export { BSChatList } from "./BSChat.List";

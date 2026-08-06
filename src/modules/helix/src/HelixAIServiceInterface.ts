@@ -92,4 +92,34 @@ export interface HelixAIServiceType {
     maxToken?: number;
     response_format?: { type: "json_object" };
   }): Promise<ChatCompletion>;
+
+  /**
+   * Transcribe an audio file to text using an OpenAI-compatible
+   * `/v1/audio/transcriptions` endpoint, routed through Helix for provider
+   * resolution, API key management, and STT endpoint overrides.
+   *
+   * @example
+   * ```ts
+   * const text = await helix.transcribeAudio({
+   *   file: audioFile,
+   *   model: "whisper-1",
+   *   provider: "openai",
+   *   language: "en",
+   * });
+   * ```
+   */
+  transcribeAudio(option: {
+    /** The audio file/blob to transcribe */
+    file: File | Blob;
+    /** STT model id (e.g. "whisper-1", "gpt-4o-mini-transcribe") */
+    model?: string;
+    /** Provider key override */
+    provider?: string;
+    /** Override the default provider+model with a custom DTO */
+    aiConfig?: HelixAIOption;
+    /** Optional BCP-47 language hint */
+    language?: string;
+    /** Override the STT base URL (e.g. Ollama serves STT from a different endpoint) */
+    endpoint?: string;
+  }): Promise<string>;
 }

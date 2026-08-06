@@ -43,7 +43,13 @@ function assertApiKey(config: { provider: string; apiKey: string }): void {
 function resolveConfig(
   defaults: { provider: string; configs: HelixAIProviderConfig[] },
   override?: HelixAIOption,
-): { provider: string; model: string; apiKey: string; endpoint?: string } {
+): {
+  provider: string;
+  model: string;
+  apiKey: string;
+  endpoint?: string;
+  sttEndpoint?: string;
+} {
   if (!override)
     return defaults.configs.find((p) => p.provider === defaults.provider)!;
 
@@ -70,6 +76,7 @@ function resolveConfig(
       model,
       apiKey: found.apiKey,
       endpoint: found.endpoint,
+      sttEndpoint: found.sttEndpoint,
     };
 }
 
@@ -263,6 +270,38 @@ export default class HelixAIService implements HelixAIServiceType {
       maxTokens,
       option.response_format,
     );
+  }
+
+  /**
+   * Transcribe an audio file to text via an OpenAI-compatible
+   * `/v1/audio/transcriptions` endpoint. Resolves the provider config through
+   * the same `resolveConfig` used by chat, honoring an optional STT endpoint
+   * override (e.g. Ollama Cloud serves transcription from a different URL).
+   */
+  async transcribeAudio(option: {
+    file: File | Blob;
+    model?: string;
+    provider?: string;
+    aiConfig?: HelixAIOption;
+    language?: string;
+    endpoint?: string;
+  }): Promise<string> {
+    const resolved = resolveConfig(
+      { provider: this.provider, configs: this.providerConfigs },
+      option.aiConfig,
+    );
+    const baseURL =
+      option.endpoint || resolved.sttEndpoint || resolved.endpoint;
+    const client = new OpenAI({
+      apiKey: resolved.apiKey,
+      baseURL,
+    });
+    const response = await client.audio.transcriptions.create({
+      file: option.file,
+      model: option.model || resolved.model,
+      ...(option.language ? { language: option.language } : {}),
+    });
+    return typeof response === "string" ? response : response.text;
   }
 
   async doChat(option: {

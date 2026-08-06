@@ -2,6 +2,7 @@
 //
 // Implements the AIChatSettings + AIAgent + RenderingConversation features:
 //  - User can override the global AI provider/model at conversation level.
+//  - User can pick an agent pool and the AI Agent list filters to that pool.
 //  - User can select an AI Agent (persona + optional provider/model).
 //  - User can pick a render type for the conversation output.
 
@@ -9,6 +10,7 @@
 
 import React, { useMemo, useState } from "react";
 import {
+  Layers,
   Rabbit,
   Settings2,
   Eye,
@@ -27,6 +29,7 @@ import type { HelixAIProvider } from "@/src/modules/helix";
 import { RenderFormats } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
 import type { BSAgent } from "../agents/BSAgent.Types";
+import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
 
 // ─── Props ─────────────────────────────────────────────────────────────
 
@@ -43,10 +46,16 @@ export interface BSChatSettingsPanelProps {
   voiceURI?: string;
   /** Chat-level auto-TTS override (undefined = inherit the global setting) */
   autoTTS?: boolean;
-  /** Available agents for selection */
-  agents: BSAgent[];
+  /** Full agent list across every pool + global (panel filters it by pool) */
+  allAgents: BSAgent[];
+  /** Available agent pools for the pool selector */
+  agentPools: BSAgentPool[];
+  /** Chat-level agent pool scope (undefined = all pools) */
+  agentPoolId?: string;
   /** Called with the selected agent (or null) */
   onAgentChange?: (agent: BSAgent | null) => void;
+  /** Called when the chat-level agent pool changes (undefined = all pools) */
+  onAgentPoolChange?: (poolId: string | undefined) => void;
   /** Called with a new provider/model override (or undefined to inherit) */
   onProviderModelChange?: (provider: HelixAIProvider, model: string) => void;
   /** Called when render type changes */
@@ -68,8 +77,11 @@ export function BSChatSettingsPanel({
   contentType,
   voiceURI,
   autoTTS,
-  agents,
+  allAgents,
+  agentPools,
+  agentPoolId,
   onAgentChange,
+  onAgentPoolChange,
   onProviderModelChange,
   onContentTypeChange,
   onVoiceChange,
@@ -104,14 +116,34 @@ export function BSChatSettingsPanel({
     setOverrideModel(model ?? "");
   }
 
+  // Agent pool filter — "" = all pools. Synced with the chat-level
+  // agentPoolId via render-time adjustment when the chat record changes.
+  const [selectedPool, setSelectedPool] = useState<string>(agentPoolId ?? "");
+  const [prevPool, setPrevPool] = useState<string | undefined>(agentPoolId);
+
+  if (agentPoolId !== prevPool) {
+    setPrevPool(agentPoolId);
+    setSelectedPool(agentPoolId ?? "");
+  }
+
   const modelsForOverride = useMemo(() => {
     if (!overrideProvider) return [];
     return HELIX_AI_MODELS[overrideProvider] ?? [];
   }, [overrideProvider]);
 
-  const selectedAgent = agents.find((a) => a.id === agentId) ?? null;
+  const selectedAgent = allAgents.find((a) => a.id === agentId) ?? null;
   const agentProvider = selectedAgent?.provider;
   const agentModel = selectedAgent?.model;
+
+  // Agents shown in the AI Agent dropdown, filtered by the selected pool.
+  const filteredAgents = useMemo<BSAgent[]>(() => {
+    if (!selectedPool) return allAgents;
+    return allAgents.filter((a) => a.agentPoolId === selectedPool);
+  }, [allAgents, selectedPool]);
+
+  const selectedPoolDescription = agentPools.find(
+    (p) => p.id === selectedPool,
+  )?.description;
 
   // Effective display config (global → agent → conversation)
   const effectiveProvider: HelixAIProvider =
@@ -148,6 +180,20 @@ export function BSChatSettingsPanel({
     onAgentChange?.(agent);
   };
 
+  const handlePoolChange = (value: string) => {
+    setSelectedPool(value);
+    onAgentPoolChange?.(value || undefined);
+    // If the currently selected agent no longer belongs to the newly
+    // selected pool, clear the agent selection.
+    if (agentId) {
+      const agent = allAgents.find((a) => a.id === agentId);
+      const belongs = value
+        ? agent?.agentPoolId === value
+        : true; // "All pools" contains every agent
+      if (!belongs) onAgentChange?.(null);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Toggle button */}
@@ -175,7 +221,31 @@ export function BSChatSettingsPanel({
             </button>
           </div>
 
-          {/* Agent selection */}
+          {/* Agent pool selection — filters the AI Agent list below */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+              <Layers className="w-3.5 h-3.5" /> Agent Pool
+            </label>
+            <select
+              value={selectedPool}
+              onChange={(e) => handlePoolChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+            >
+              <option value="">All pools</option>
+              {agentPools.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {selectedPoolDescription && (
+              <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">
+                {selectedPoolDescription}
+              </p>
+            )}
+          </div>
+
+          {/* Agent selection — shows agents from the selected pool */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
               <Rabbit className="w-3.5 h-3.5" /> AI Agent
@@ -184,13 +254,15 @@ export function BSChatSettingsPanel({
               value={selectedAgent?.id ?? ""}
               onChange={(e) =>
                 handleAgentSelect(
-                  e.target.value ? agents.find((a) => a.id === e.target.value) ?? null : null,
+                  e.target.value
+                    ? filteredAgents.find((a) => a.id === e.target.value) ?? null
+                    : null,
                 )
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
             >
               <option value="">No agent (default)</option>
-              {agents.map((a) => (
+              {filteredAgents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
@@ -199,6 +271,21 @@ export function BSChatSettingsPanel({
             {selectedAgent && (
               <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">
                 {selectedAgent.persona}
+                {selectedAgent.agentPoolId &&
+                selectedAgent.agentPoolId !== selectedPool ? (
+                  <span>
+                    {" "}
+                    (Pool:{" "}
+                    {agentPools.find((p) => p.id === selectedAgent.agentPoolId)
+                      ?.name ?? selectedAgent.agentPoolId}
+                    )
+                  </span>
+                ) : null}
+              </p>
+            )}
+            {filteredAgents.length === 0 && (
+              <p className="text-[10px] text-red-400 mt-1">
+                No agents in this pool yet.
               </p>
             )}
           </div>

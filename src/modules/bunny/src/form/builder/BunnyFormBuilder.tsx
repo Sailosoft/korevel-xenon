@@ -7,7 +7,6 @@ import {
   Label,
   TextArea,
   Switch,
-  cn,
 } from "@heroui/react";
 
 import { memo, useCallback, useEffect, useId, useState } from "react";
@@ -51,28 +50,41 @@ export function BunnyFormBuilder<T>({
   // Defensive guard: if config is somehow undefined, render nothing
   if (!config) return null;
 
+  // ── Grid arrangement (12-column system) ──────────────────────────────────
+  // The form is laid out on a 12-column CSS grid so that `colSpan` values
+  // (1,2,3,4,6,8,12) and arbitrary `gridCols` arrangements work consistently:
+  //   - `gridCols` = columns per row (1, 2, 3, 4, 6, or 12)
+  //   - default    = 1 column per field, i.e. a span of 12 / gridCols
+  //   - `colSpan`  = number of columns (of `gridCols`) the field occupies
+  const gridCols =
+    config.gridCols === 2 ||
+    config.gridCols === 3 ||
+    config.gridCols === 4 ||
+    config.gridCols === 6 ||
+    config.gridCols === 12
+      ? config.gridCols
+      : 1;
+  const columnsPerCell = 12 / gridCols;
+
   return (
     <div className="space-y-6 w-full">
-      <div
-        className={cn(
-          "grid gap-6 w-full py-2",
-          config.gridCols === 2 ? "grid-cols-2" : "grid-cols-1",
-        )}
-      >
+      <div className="grid w-full grid-cols-12 gap-x-6 gap-y-4">
         {config.fields.map((field) => {
           const rawValue = (formData as Record<string, unknown>)[field.name];
           const formattedValue = field.format
             ? field.format(rawValue, formData)
             : rawValue;
 
+          // Resolve the field's requested span to a valid 12-column grid class.
+          const span = Math.min(
+            12,
+            Math.max(1, Math.round((field.colSpan ?? 1) * columnsPerCell)),
+          );
+          const spanClass =
+            colSpanMap[span as keyof typeof colSpanMap] ?? "col-span-12";
+
           return (
-            <div
-              key={field.name}
-              className={cn(
-                field.colSpan ? colSpanMap[field.colSpan] : "",
-                "w-full px-1",
-              )}
-            >
+            <div key={field.name} className={spanClass}>
               <FieldRenderer
                 field={field as BunnyFormField<Record<string, unknown>>}
                 value={formattedValue}
@@ -192,6 +204,7 @@ const FieldRenderer = memo(function FieldRenderer({
           <Select
             id={fieldId}
             aria-label={field.label}
+            fullWidth
             value={value != null ? String(value) : null}
             onChange={(val) => handleChange(val)}
             placeholder={isLoadingOptions ? "Loading..." : field.placeholder}
