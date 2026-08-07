@@ -86,6 +86,8 @@ export function BSChatConversationView({
 }: BSChatConversationViewProps) {
   const isUser = conversation.type === "user";
   const isSystem = conversation.type === "system";
+  /** Chat error bubble (e.g. 404 / provider failure) — rendered red, never sent to the AI */
+  const isError = conversation.isError === true;
   const { copied, copy } = useCopy();
   const {
     ttsSupported,
@@ -99,7 +101,7 @@ export function BSChatConversationView({
 
   // Render toggle state only applies to assistant messages
   const [view, setView] = useState<"render" | "raw">("render");
-  const showRenderToggle = !isUser && !isSystem;
+  const showRenderToggle = !isUser && !isSystem && !isError;
 
   // "Open in editor" modal state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -140,6 +142,7 @@ export function BSChatConversationView({
       effectiveAutoTTS &&
       !isUser &&
       !isSystem &&
+      !isError &&
       conversation.content &&
       ttsSupported
     ) {
@@ -154,7 +157,7 @@ export function BSChatConversationView({
         setSpeaking(true);
       }
     }
-  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, conversation.content, ttsSupported, speakText]);
+  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, ttsSupported, speakText]);
 
   // Stop speech when this bubble unmounts.
   useEffect(
@@ -204,11 +207,19 @@ export function BSChatConversationView({
         className={`${
           speaking ? "bs-speak-ring-inner " : ""
         }rounded-3xl px-4 py-3 text-sm shadow-sm ${
-          isUser
-            ? "bg-red-600 text-white rounded-br-lg"
-            : "bg-white border border-gray-200 rounded-bl-lg text-gray-800"
+          isError
+            ? "bg-red-50 border border-red-300 rounded-bl-lg text-red-700"
+            : isUser
+              ? "bg-red-600 text-white rounded-br-lg"
+              : "bg-white border border-gray-200 rounded-bl-lg text-gray-800"
         }`}
       >
+        {isError && (
+          <div className="flex items-center gap-2 text-xs font-semibold text-red-600 mb-1">
+            <span>⚠️ Error</span>
+          </div>
+        )}
+
         {isSystem && (
           <div className="flex items-center gap-2 text-xs text-amber-600 mb-1">
             <span className="font-semibold">System</span>

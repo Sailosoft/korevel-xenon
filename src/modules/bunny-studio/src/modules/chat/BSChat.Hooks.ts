@@ -269,7 +269,7 @@ export function useBSChat({
         });
       }
       const prior = conversations
-        .filter((c) => c.id !== userConvo.id)
+        .filter((c) => c.id !== userConvo.id && !c.isError)
         .map((c) => ({
           role: (c.type === "assistant" ? "assistant" : "user") as
             | "user"
@@ -381,19 +381,22 @@ export function useBSChat({
           }
         } else {
           console.error("[BSChat] Streaming error:", err);
+          const errorContent =
+            accumulatedRef.current ||
+            `⚠️ ${
+              err instanceof Error ? err.message : "Generation failed."
+            }`;
+          // Error bubble — rendered in red and never sent back to the AI.
+          // Persisted so it also shows after a reload (feature: error bubble).
+          const errorConvo: BSConversation = {
+            ...placeholder,
+            content: errorContent,
+            isError: true,
+            responseMs: Date.now() - requestStartTime,
+          };
+          await bsDB.conversationsRepo.create(errorConvo);
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === assistantId
-                ? {
-                    ...c,
-                    content:
-                      c.content ||
-                      `⚠️ ${
-                        err instanceof Error ? err.message : "Generation failed."
-                      }`,
-                  }
-                : c,
-            ),
+            prev.map((c) => (c.id === assistantId ? errorConvo : c)),
           );
         }
       } finally {
