@@ -26,6 +26,8 @@ import {
   Volume2,
   Square,
   Clock,
+  Pencil,
+  Send,
 } from "lucide-react";
 import { RenderView } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
@@ -78,11 +80,20 @@ export interface BSChatConversationViewProps {
   conversation: BSConversation;
   /** If true, this bubble is the currently-streaming assistant message */
   isStreaming?: boolean;
+  /**
+   * Persist an edited user message. The parent updates the conversation row
+   * and (optionally) resends the edited content to the AI.
+   */
+  onEditConversation?: (conversation: BSConversation, newContent: string) => void;
+  /** Resend a user message to the AI (feature: resend chat) */
+  onResendConversation?: (conversation: BSConversation) => void;
 }
 
 export function BSChatConversationView({
   conversation,
   isStreaming = false,
+  onEditConversation,
+  onResendConversation,
 }: BSChatConversationViewProps) {
   const isUser = conversation.type === "user";
   const isSystem = conversation.type === "system";
@@ -113,6 +124,20 @@ export function BSChatConversationView({
   const openEditor = () => {
     setEditorValue(conversation.content);
     setEditorOpen(true);
+  };
+
+  // "Edit user message" modal state (feature: edit own chat content)
+  const [userEditOpen, setUserEditOpen] = useState(false);
+  const [userEditValue, setUserEditValue] = useState(conversation.content);
+
+  const openUserEdit = () => {
+    setUserEditValue(conversation.content);
+    setUserEditOpen(true);
+  };
+
+  const saveUserEdit = () => {
+    onEditConversation?.(conversation, userEditValue);
+    setUserEditOpen(false);
   };
 
   const handleSpeak = () => {
@@ -328,7 +353,41 @@ export function BSChatConversationView({
             </div>
           </div>
         ) : (
-          <div className="whitespace-pre-wrap break-words">{conversation.content}</div>
+          <div>
+            <div className="whitespace-pre-wrap break-words">{conversation.content}</div>
+
+            {/* User actions: copy / edit / resend own content (feature) */}
+            {isUser && (
+              <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-white/20">
+                <button
+                  onClick={() => copy(conversation.content)}
+                  title="Copy"
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-green-300" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  onClick={openUserEdit}
+                  title="Edit"
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onResendConversation?.(conversation)}
+                  title="Resend"
+                  disabled={isStreaming}
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Meta (provider/model) */}
@@ -359,6 +418,39 @@ export function BSChatConversationView({
           <BSCodeMirrorEditor
             value={editorValue}
             onChange={setEditorValue}
+            height="100%"
+            className="rounded-none"
+          />
+        </div>
+      </BSModal>
+
+      {/* Edit user message modal (feature: edit own chat content) */}
+      <BSModal
+        open={userEditOpen}
+        onClose={() => setUserEditOpen(false)}
+        title="Edit message"
+        sizeClassName="max-w-3xl h-[80vh]"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setUserEditOpen(false)}
+              className="px-4 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveUserEdit}
+              className="px-4 py-1.5 rounded-lg text-sm bg-red-600 hover:bg-red-700 text-white font-medium transition"
+            >
+              Save
+            </button>
+          </div>
+        }
+      >
+        <div className="h-full">
+          <BSCodeMirrorEditor
+            value={userEditValue}
+            onChange={setUserEditValue}
             height="100%"
             className="rounded-none"
           />

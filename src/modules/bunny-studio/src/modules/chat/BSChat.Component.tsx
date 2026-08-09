@@ -40,6 +40,7 @@ import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 import type { BSAgent } from "../agents/BSAgent.Types";
 import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
 import type { HelixAIProvider } from "@/src/modules/helix";
+import type { BSConversation } from "./BSChat.Types";
 import { RenderFormats } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
 import { useBSChat } from "./BSChat.Hooks";
@@ -88,6 +89,27 @@ function buildRenderInstruction(format: RenderFormat): string {
   }
 }
 
+// ─── User-content helper (feature: edit / resend own chat content) ─────
+//
+// User messages built with the "instruction + text" input mode are persisted
+// with the custom instruction wrapper. When the user edits or resends a
+// message we strip that wrapper so only the real text (and instruction) are
+// used.
+
+const CUSTOM_INSTRUCTION_RE =
+  /^--- Custom Instruction ---\n([\s\S]*?)\n\n--- Text ---\n([\s\S]*)$/;
+
+function parseStoredUserContent(content: string): {
+  text: string;
+  instruction?: string;
+} {
+  const match = content.match(CUSTOM_INSTRUCTION_RE);
+  if (match) {
+    return { instruction: match[1], text: match[2] };
+  }
+  return { text: content };
+}
+
 // ─── Component ─────────────────────────────────────────────────────────
 
 export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
@@ -122,6 +144,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
     createChat,
     sendMessage,
     updateChat,
+    updateConversation,
     deleteChat,
     abort,
   } = useBSChat({ chatId });
@@ -352,6 +375,27 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
       pendingAutoTTS,
       router,
     ],
+  );
+
+  // Feature: edit own chat content — persist the edited text back to the
+  // conversation (IndexedDB + in-memory list).
+  const handleEditConversation = useCallback(
+    (conversation: BSConversation, newContent: string) => {
+      if (!newContent.trim()) return;
+      void updateConversation(conversation.id, { content: newContent });
+    },
+    [updateConversation],
+  );
+
+  // Feature: resend chat — re-send the user's own message to the AI. The
+  // stored content may carry the "custom instruction" wrapper from the
+  // instruction+text input mode, so we parse it back into text + instruction.
+  const handleResendConversation = useCallback(
+    (conversation: BSConversation) => {
+      const { text, instruction } = parseStoredUserContent(conversation.content);
+      handleSend(text, instruction);
+    },
+    [handleSend],
   );
 
   const handleAgentChange = useCallback(
@@ -629,6 +673,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   <BSChatConversationView
                     conversation={convo}
                     isStreaming={isStreaming && index === streamingIndex}
+                    onEditConversation={handleEditConversation}
+                    onResendConversation={handleResendConversation}
                   />
                 </div>
               )}

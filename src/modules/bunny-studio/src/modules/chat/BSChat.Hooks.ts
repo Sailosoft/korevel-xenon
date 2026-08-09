@@ -74,6 +74,15 @@ export interface BSChatHookReturn {
   sendMessage: (options: BSChatSendOptions) => Promise<void>;
   /** Update the chat meta (title/provider/model/agent) */
   updateChat: (patch: Partial<BSChat>) => Promise<void>;
+  /**
+   * Update a single conversation (e.g. edited user message content).
+   * Persists to IndexedDB and refreshes the in-memory list (feature: edit
+   * own chat content).
+   */
+  updateConversation: (
+    id: string,
+    patch: Partial<BSConversation>,
+  ) => Promise<void>;
   /** Delete a chat and all of its conversations */
   deleteChat: (chatId?: string) => Promise<void>;
   /** Abort an in-progress stream */
@@ -179,6 +188,19 @@ export function useBSChat({
       setConversations([]);
     },
     [chat?.id],
+  );
+
+  const updateConversation = useCallback(
+    async (id: string, patch: Partial<BSConversation>) => {
+      const existing = conversations.find((c) => c.id === id);
+      if (!existing) return;
+      const updated = { ...existing, ...patch };
+      await bsDB.conversationsRepo.update(id, updated);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? updated : c)),
+      );
+    },
+    [conversations],
   );
 
   const abort = useCallback(() => {
@@ -425,6 +447,7 @@ export function useBSChat({
     loadChat,
     sendMessage,
     updateChat,
+    updateConversation,
     deleteChat,
     abort,
   };
