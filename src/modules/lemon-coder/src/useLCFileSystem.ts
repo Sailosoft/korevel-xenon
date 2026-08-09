@@ -245,9 +245,40 @@ async function deleteItemInHandle(
 }
 
 /**
+ * Recursively copy every child (files and sub-directories) from a source
+ * directory handle into a destination directory handle. Used as a fallback
+ * when the native File System Access API `move()` is unavailable, so a renamed
+ * directory keeps all of its children.
+ */
+async function copyDirectoryContents(
+  sourceHandle: FileSystemDirectoryHandle,
+  destHandle: FileSystemDirectoryHandle,
+): Promise<void> {
+  for await (const [name, handle] of (sourceHandle as any).entries()) {
+    if (handle.kind === "directory") {
+      const childDest = await destHandle.getDirectoryHandle(name, {
+        create: true,
+      });
+      await copyDirectoryContents(
+        handle as FileSystemDirectoryHandle,
+        childDest,
+      );
+    } else {
+      const file = await (handle as FileSystemFileHandle).getFile();
+      const newFileHandle = await destHandle.getFileHandle(name, {
+        create: true,
+      });
+      const writable = await newFileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+    }
+  }
+}
+
+/**
  * Rename a file by reading its content, creating a new file, and deleting the old one.
- * For directories, creates a new empty directory and deletes the old one.
- * Note: Directory rename does NOT transfer children — the user should refresh.
+ * For directories, renames the folder AND retains all of its children
+ * (fix: renaming a folder previously dropped every child inside it).
  */
 async function renameItemInHandle(
   rootHandle: FileSystemDirectoryHandle,
@@ -276,9 +307,26 @@ async function renameItemInHandle(
   }
 
   if (isDirectory) {
-    // Create a new empty directory
-    await currentHandle.getDirectoryHandle(newName, { create: true });
-    // Remove the old directory
+    const oldDirHandle = await currentHandle.getDirectoryHandle(oldName);
+
+    // Prefer the native move() API (Chrome 110+) — it renames the folder
+    // atomically and keeps every child in place.
+    const moveFn = (oldDirHandle as any).move;
+    if (typeof moveFn === "function") {
+      try {
+        await moveFn.call(oldDirHandle, currentHandle, newName);
+        return;
+      } catch {
+        // Fall through to the manual copy below.
+      }
+    }
+
+    // Fallback: create the new directory and copy all children over, then
+    // remove the old directory so no child is lost.
+    const newDirHandle = await currentHandle.getDirectoryHandle(newName, {
+      create: true,
+    });
+    await copyDirectoryContents(oldDirHandle, newDirHandle);
     await currentHandle.removeEntry(oldName, { recursive: true });
   } else {
     // For files: read content, create new file, write content, delete old file

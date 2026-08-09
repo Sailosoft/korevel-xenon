@@ -7,7 +7,7 @@
 // Unlike server-action-based AI calls, this endpoint streams tokens to the
 // client as they are generated.
 
-import { streamText, createTextStreamResponse } from "ai";
+import { streamText } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 import type { BSChatStreamRequest, BSChatWireMessage } from "@/src/modules/bunny-studio/src/modules/chat/BSChat.Types";
@@ -102,9 +102,88 @@ export async function POST(req: Request) {
       temperature: body.temperature ?? 0.7,
     });
 
+    // Peek at the first streamed parts before responding. Upstream errors
+    // (e.g. 401 "Invalid API Key") are surfaced as `{ type: "error" }` parts on
+    // `result.stream` — the plain `textStream` swallows them, so it can never
+    // be used to detect a failure. By awaiting the first parts here we can
+    // still return a proper non-200 JSON error response instead of a 200 stream
+    // that dies mid-body. The client then detects the non-OK status and renders
+    // a red error bubble.
+    const streamIterator = result.stream[Symbol.asyncIterator]();
+    type StreamPart = { type: string; text?: string };
+    const buffered: StreamPart[] = [];
+    let firstError: unknown;
+
+    try {
+      while (true) {
+        const { done, value } = await streamIterator.next();
+        if (done) break;
+        if (value.type === "error") {
+          firstError = value.error;
+          break;
+        }
+        buffered.push(value);
+        // Stop peeking once real content has started streaming.
+        if (value.type === "text-delta") break;
+      }
+    } catch (error) {
+      // Network/stopping errors are thrown directly from `stream`.
+      firstError = error;
+    }
+
+    if (firstError !== undefined) {
+      console.error("[BS Chat Stream] Upstream error:", firstError);
+      const upstreamStatus = (firstError as { statusCode?: number })
+        ?.statusCode;
+      const status =
+        typeof upstreamStatus === "number" &&
+        upstreamStatus >= 400 &&
+        upstreamStatus < 600
+          ? upstreamStatus
+          : 500;
+      return new Response(
+        JSON.stringify({
+          error:
+            firstError instanceof Error
+              ? firstError.message
+              : "Streaming failed.",
+        }),
+        { status, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     // Stream text tokens back as a plain text stream (text/plain; charset=utf-8).
-    return createTextStreamResponse({
-      stream: result.textStream,
+    // Replays the already-peeked text deltas, then drains the remainder.
+    const encoder = new TextEncoder();
+    const streamBody = new ReadableStream({
+      async start(controller) {
+        try {
+          for (const part of buffered) {
+            if (part.type === "text-delta" && part.text !== undefined) {
+              controller.enqueue(encoder.encode(part.text));
+            }
+          }
+          while (true) {
+            const { done, value } = await streamIterator.next();
+            if (done) break;
+            if (value.type === "error") {
+              throw value.error;
+            }
+            if (value.type === "text-delta") {
+              controller.enqueue(encoder.encode(value.text));
+            }
+          }
+          controller.close();
+        } catch (error) {
+          console.error("[BS Chat Stream] Mid-stream error:", error);
+          controller.error(error);
+        }
+      },
+    });
+
+    return new Response(streamBody, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (error) {
     console.error("[BS Chat Stream] Error:", error);

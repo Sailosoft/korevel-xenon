@@ -74,6 +74,15 @@ export interface BSChatHookReturn {
   sendMessage: (options: BSChatSendOptions) => Promise<void>;
   /** Update the chat meta (title/provider/model/agent) */
   updateChat: (patch: Partial<BSChat>) => Promise<void>;
+  /**
+   * Update a single conversation (e.g. edited user message content).
+   * Persists to IndexedDB and refreshes the in-memory list (feature: edit
+   * own chat content).
+   */
+  updateConversation: (
+    id: string,
+    patch: Partial<BSConversation>,
+  ) => Promise<void>;
   /** Delete a chat and all of its conversations */
   deleteChat: (chatId?: string) => Promise<void>;
   /** Abort an in-progress stream */
@@ -181,6 +190,19 @@ export function useBSChat({
     [chat?.id],
   );
 
+  const updateConversation = useCallback(
+    async (id: string, patch: Partial<BSConversation>) => {
+      const existing = conversations.find((c) => c.id === id);
+      if (!existing) return;
+      const updated = { ...existing, ...patch };
+      await bsDB.conversationsRepo.update(id, updated);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? updated : c)),
+      );
+    },
+    [conversations],
+  );
+
   const abort = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -269,7 +291,7 @@ export function useBSChat({
         });
       }
       const prior = conversations
-        .filter((c) => c.id !== userConvo.id)
+        .filter((c) => c.id !== userConvo.id && !c.isError)
         .map((c) => ({
           role: (c.type === "assistant" ? "assistant" : "user") as
             | "user"
@@ -381,19 +403,22 @@ export function useBSChat({
           }
         } else {
           console.error("[BSChat] Streaming error:", err);
+          const errorContent =
+            accumulatedRef.current ||
+            `⚠️ ${
+              err instanceof Error ? err.message : "Generation failed."
+            }`;
+          // Error bubble — rendered in red and never sent back to the AI.
+          // Persisted so it also shows after a reload (feature: error bubble).
+          const errorConvo: BSConversation = {
+            ...placeholder,
+            content: errorContent,
+            isError: true,
+            responseMs: Date.now() - requestStartTime,
+          };
+          await bsDB.conversationsRepo.create(errorConvo);
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === assistantId
-                ? {
-                    ...c,
-                    content:
-                      c.content ||
-                      `⚠️ ${
-                        err instanceof Error ? err.message : "Generation failed."
-                      }`,
-                  }
-                : c,
-            ),
+            prev.map((c) => (c.id === assistantId ? errorConvo : c)),
           );
         }
       } finally {
@@ -422,6 +447,7 @@ export function useBSChat({
     loadChat,
     sendMessage,
     updateChat,
+    updateConversation,
     deleteChat,
     abort,
   };

@@ -68,6 +68,12 @@ export interface BSConversation {
    * stream finish. Displayed in the assistant bubble actions (feature).
    */
   responseMs?: number;
+  /**
+   * Transient display flag — this bubble represents a chat error (e.g. 404,
+   * provider failure) rather than an AI response. It is rendered in red and
+   * is NEVER included when the conversation history is sent back to the AI.
+   */
+  isError?: boolean;
 }
 
 // ─── Streaming request payloads ───────────────────────────────────────

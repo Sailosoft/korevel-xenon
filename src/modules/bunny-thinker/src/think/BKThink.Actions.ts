@@ -179,14 +179,21 @@ export async function executeThinkChatAction(
       );
     }
 
-    // 2. Assemble the full messages array in OpenAI's natural conversation format
+    // 2. Assemble the full messages array in OpenAI's natural conversation format.
+    //    The authoritative system message (with persona + association context +
+    //    craft format instruction) is built above, so any system-role messages
+    //    embedded in the passed-in conversation must be filtered out. Leaving them
+    //    in produces a second, craft-less system message that — especially with a
+    //    long persona/description — can override the formatting directive and cause
+    //    the AI to ignore the requested render type.
     const messages: Array<{
       role: "system" | "user" | "assistant";
       content: string;
     }> = [
       { role: "system", content: systemContent },
-      // Include all prior conversation messages with their original roles
-      ...request.messages,
+      // Include all prior conversation messages with their original roles,
+      // but skip any system messages since the authoritative one is built above.
+      ...request.messages.filter((msg) => msg.role !== "system"),
       // Append the current step as the latest user turn
       {
         role: "user",

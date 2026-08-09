@@ -39,6 +39,8 @@ import {
   Settings2,
   Trash2,
   Plus,
+  Brain,
+  Link2,
 } from "lucide-react";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
@@ -100,6 +102,80 @@ const BKCRAFT_TO_RENDER_FORMAT: Partial<Record<BKCraftFormat, RenderFormat>> = {
   mermaid: "mermaid",
   plain: "plain",
 };
+
+/**
+ * Build the thought-pattern + association context string baked into the system prompt.
+ */
+function bakePatternContext(
+  pattern: BKThoughtPattern,
+  slotOverrides?: BKAssociationSlotValue[],
+): string {
+  const lines: string[] = [];
+  lines.push(`Thought Pattern: ${pattern.name}`);
+  if (pattern.description) {
+    lines.push(pattern.description);
+  }
+  lines.push("");
+  lines.push("Slots:");
+  if (pattern.slots.length > 0) {
+    for (const slot of pattern.slots) {
+      const slotValue = slotOverrides?.find((sv) => sv.slotId === slot.id);
+      const resolvedValue = slotValue?.value ?? slot.defaultValue ?? "";
+      const label = slot.label || slot.name;
+      if (resolvedValue) {
+        lines.push(`  - ${label}: ${resolvedValue}`);
+      } else {
+        lines.push(`  - ${label}: [not set]`);
+      }
+    }
+  } else {
+    lines.push("  (no slots defined)");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Resolve the association context used in the system prompt.
+ * Priority: selected association > saved association > thought pattern defaults.
+ */
+async function resolveAssociationContext(
+  selectedAssociation: BKThoughtAssociation | null,
+  savedAssociationId: string | undefined,
+  fallbackPatternId: string | undefined,
+): Promise<string | undefined> {
+  if (selectedAssociation) {
+    const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+      selectedAssociation.patternId,
+    );
+    if (patternResult.isSuccess) {
+      return bakePatternContext(
+        patternResult.value,
+        selectedAssociation.slotValues,
+      );
+    }
+  } else if (savedAssociationId) {
+    const assocResult = await bkThinkerDB.thoughtAssociationsRepo.get(
+      savedAssociationId,
+    );
+    if (assocResult.isSuccess) {
+      const assoc: BKThoughtAssociation = assocResult.value;
+      const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+        assoc.patternId,
+      );
+      if (patternResult.isSuccess) {
+        return bakePatternContext(patternResult.value, assoc.slotValues);
+      }
+    }
+  } else if (fallbackPatternId) {
+    const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+      fallbackPatternId,
+    );
+    if (patternResult.isSuccess) {
+      return bakePatternContext(patternResult.value);
+    }
+  }
+  return undefined;
+}
 
 function renderCraftContent(
   content: string,
@@ -402,6 +478,9 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     null,
   );
   const [confirmNewThinking, setConfirmNewThinking] = useState(false);
+  // ── Download-as-HTML rename dialog state ────────────────────────────
+  const [showDownloadConfirm, setShowDownloadConfirm] = useState(false);
+  const [downloadFileName, setDownloadFileName] = useState("");
 
   // ── Association Select State ──────────────────────────────────────────
   const [associations, setAssociations] = useState<BKThoughtAssociation[]>([]);
@@ -422,6 +501,14 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   // Tracks the actual per-step format used in the last step of bkStartThink,
   // so bkGenerateMemory saves the correct format on the memory entity.
   const lastResolvedFormatRef = useRef<BKCraftFormat>("markdown");
+
+  // ── Ref for pending HTML download payload ─────────────────────────
+  // Holds the prepared neurons/memory while the download rename dialog is open.
+  const pendingDownloadRef = useRef<{
+    neurons: BKMemoryNeuron[];
+    memory: BKMemory;
+    getNeuronFormat: (neuronId: string) => RenderFormat;
+  } | null>(null);
 
   // ── Load Thinkers ───────────────────────────────────────────────────
 
@@ -1021,6 +1108,158 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     ],
   );
 
+  // ── Rethink only missing (empty) steps ─────────────────────────────
+
+  const bkRethinkMissing = async () => {
+    if (!think || !thought) return;
+
+    setIsThinking(true);
+    setError("");
+
+    try {
+      // Start from the current conversation, preserving all completed steps
+      const workingConversation = [...conversation];
+
+      // Resolve association context (priority: selected > saved > pattern defaults)
+      const associationContext = await resolveAssociationContext(
+        selectedAssociation,
+        think.thoughtAssociationId,
+        thought?.patternId,
+      );
+
+      // Load craft configs to resolve per-step craft formats
+      const allCraftConfigs = await bkThinkerDB.craftConfigs
+        .toArray() as BKCraftConfig[];
+      const rethinkCraftConfigMap = new Map(
+        allCraftConfigs.map((c) => [c.id, c]),
+      );
+
+      let executedAny = false;
+
+      // Only run steps that do not yet have an assistant response
+      for (let i = 0; i < trainOfThoughts.length; i++) {
+        const step = trainOfThoughts[i];
+        const assistantIndex = 2 + i * 2;
+        if (workingConversation[assistantIndex]) continue; // already completed
+
+        executedAny = true;
+        setCurrentStepIndex(i);
+        if (!isTabPinnedRef.current) {
+          setActiveStepIndex(i);
+        }
+
+        // Build full conversation messages from current working conversation
+        const conversationMessages: BKThinkMessage[] = workingConversation.map(
+          (msg) => ({
+            role: msg.role === "system" ? "system" : msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+          }),
+        );
+
+        // Resolve per-step craft format and instruction from BKCraftConfig
+        const stepCraftConfig = step.craftId
+          ? rethinkCraftConfigMap.get(step.craftId)
+          : null;
+
+        console.log(
+          `[BKThinkStudio] Rethink-missing sending conversation to Helix (step ${i + 1}/${trainOfThoughts.length}):`,
+          JSON.stringify(conversationMessages, null, 2),
+        );
+        const response = await executeThinkChatAction({
+          thinkId: think.id,
+          thoughtName: thought.name,
+          thoughtContent: thought.thought,
+          thinkerName: thinker?.name,
+          thinkerDescription: thinker?.description,
+          thinkerRole: thinker?.role,
+          messages: conversationMessages,
+          newMessage: {
+            name: step.name,
+            content: step.thought,
+          },
+          craftFormat: stepCraftConfig?.format ?? craftFormat,
+          craftInstruction: stepCraftConfig?.instruction ?? undefined,
+          associationContext,
+          aiConfig,
+        });
+
+        if (!response.success) {
+          setError(`Step "${step.name}" failed: ${response.error}`);
+          break;
+        }
+
+        // Track the resolved format so bkGenerateMemory uses the correct one
+        lastResolvedFormatRef.current = stepCraftConfig?.format ?? craftFormat;
+
+        // Only append the user prompt if this step does not already have one
+        if (!workingConversation[1 + i * 2]) {
+          workingConversation.push({
+            role: "user",
+            content: step.thought,
+            timestamp: Date.now(),
+          });
+        }
+        workingConversation.push({
+          role: "assistant",
+          content: response.output,
+          timestamp: Date.now(),
+        });
+
+        setConversation([...workingConversation]);
+
+        // Persist to the think record
+        if (think) {
+          await bkThinkerDB.thinksRepo.update(think.id, {
+            ...think,
+            thinkConversation: workingConversation,
+            status:
+              i === trainOfThoughts.length - 1 ? "completed" : "thinking",
+            updatedAt: Date.now(),
+          });
+        }
+      }
+
+      if (!executedAny) {
+        toast.success("All steps are already complete.");
+      }
+
+      // Process final output through craft engine
+      if (workingConversation.length > 0) {
+        const lastMessage = workingConversation[workingConversation.length - 1];
+        setRawResult(lastMessage.content);
+        const processed = BKCraftEngine.process(
+          lastMessage.content,
+          lastResolvedFormatRef.current,
+        );
+        setResult(processed.parsed);
+      }
+
+      // ── Refresh run history list after rethinking ───────────
+      if (thought?.id) {
+        const refreshedThinks =
+          await bkThinkerDB.thinksRepo.getByThoughtId(thought.id);
+        setThinksForThought(refreshedThinks);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unknown rethinking error",
+      );
+    } finally {
+      setIsThinking(false);
+      setCurrentStepIndex(-1);
+    }
+  };
+
+  // ── Handle rethink dropdown action ─────────────────────────────────
+
+  const handleRethinkAction = (actionKey: string | number) => {
+    const key = String(actionKey);
+    if (key === "rethink-missing") {
+      bkRethinkMissing();
+    }
+  };
+
   // ── Generate Memory ─────────────────────────────────────────────────
 
   const bkGenerateMemory = useCallback(async () => {
@@ -1162,9 +1401,27 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     if (key === "view") {
       bkViewAsHtml(neurons, memory, getNeuronFormat);
     } else if (key === "download") {
-      bkDownloadHtml(neurons, think.id, memory, getNeuronFormat);
+      // Open a confirm dialog first so the user can rename the file before download
+      pendingDownloadRef.current = { neurons, memory, getNeuronFormat };
+      setDownloadFileName(memory.name || "thoughts");
+      setShowDownloadConfirm(true);
     }
   }, [think, conversation, bkGenerateMemory, trainOfThoughts, craftConfigs]);
+
+  // ── Confirm HTML download with a custom file name ──────────────────
+
+  const bkConfirmDownload = () => {
+    const pending = pendingDownloadRef.current;
+    if (!pending) return;
+
+    const fileName = downloadFileName.trim() || pending.memory.name || "thoughts";
+    bkDownloadHtml(
+      pending.neurons,
+      pending.memory.id,
+      { ...pending.memory, name: fileName },
+      pending.getNeuronFormat,
+    );
+  };
 
   // ── Delete a think with confirmation ──────────────────────────────
 
@@ -1258,11 +1515,9 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 variant="ghost"
                 size="sm"
                 isIconOnly
-                aria-label="Back to Thought"
+                aria-label="Back to Thoughts"
                 className="shrink-0"
-                onPress={() =>
-                  router.push(`/modules/bunny-thinker/thoughts/${thought.id}`)
-                }
+                onPress={() => router.push("/modules/bunny-thinker/thoughts")}
               >
                 <ArrowLeft size={18} />
               </Button>
@@ -1270,9 +1525,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 variant="ghost"
                 size="sm"
                 isIconOnly
-                aria-label="Thought List"
+                aria-label="Step Configuration"
                 className="shrink-0"
-                onPress={() => router.push("/modules/bunny-thinker/thoughts")}
+                onPress={() =>
+                  router.push(`/modules/bunny-thinker/thoughts/${thought.id}`)
+                }
               >
                 <List size={18} />
               </Button>
@@ -1287,33 +1544,91 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
                 Thought: {thought.name}
               </p>
             )}
+            {/* Active thinker + association indicators */}
+            {(thinker || selectedAssociation) && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                {thinker && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                    <Brain size={10} className="shrink-0" />
+                    <span className="truncate max-w-[160px]">
+                      Thinker: {thinker.name}
+                    </span>
+                  </span>
+                )}
+                {selectedAssociation && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    <Link2 size={10} className="shrink-0" />
+                    <span className="truncate max-w-[200px]">
+                      Association: {selectedAssociation.name}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {think && (
-            <Button
-              onPress={bkStartThink}
-              isDisabled={isThinking}
-              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5"
-            >
-              {isThinking ? (
-                <>
-                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden xs:inline">Thinking...</span>
-                  <span className="inline xs:hidden">...</span>
-                </>
-              ) : conversation.length > 0 ? (
-                <>
-                  <RotateCcw size={16} />
-                  <span className="hidden sm:inline">Rethink</span>
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">Start Thinking</span>
-                  <span className="inline sm:hidden">Think</span>
-                </>
+            <div className="flex items-stretch">
+              <Button
+                onPress={bkStartThink}
+                isDisabled={isThinking}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1 sm:gap-1.5 ${
+                  conversation.length > 0 && !isThinking
+                    ? "rounded-l-lg rounded-r-none"
+                    : "rounded-lg"
+                }`}
+              >
+                {isThinking ? (
+                  <>
+                    <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="hidden xs:inline">Thinking...</span>
+                    <span className="inline xs:hidden">...</span>
+                  </>
+                ) : conversation.length > 0 ? (
+                  <>
+                    <RotateCcw size={16} />
+                    <span className="hidden sm:inline">Rethink</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="hidden sm:inline">Start Thinking</span>
+                    <span className="inline sm:hidden">Think</span>
+                  </>
+                )}
+              </Button>
+              {/* Dropdown arrow — shown in rethink state for extra options */}
+              {conversation.length > 0 && !isThinking && (
+                <Dropdown>
+                  <Dropdown.Trigger>
+                    <Button
+                      isIconOnly
+                      aria-label="Rethink options"
+                      className="px-2 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-r-lg rounded-l-none hover:bg-blue-700 transition-colors flex items-center"
+                    >
+                      <ChevronDown size={16} />
+                    </Button>
+                  </Dropdown.Trigger>
+                  <Dropdown.Popover placement="bottom end">
+                    <Dropdown.Menu
+                      aria-label="Rethink options"
+                      onAction={handleRethinkAction}
+                    >
+                      <Dropdown.Item id="rethink-missing">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            Rethink missing steps only
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            Fill in empty run steps without re-running completed ones
+                          </span>
+                        </div>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
               )}
-            </Button>
+            </div>
           )}
           {think && conversation.length > 0 && (
             <Button
@@ -2024,6 +2339,22 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         cancelLabel="Cancel"
         onConfirm={bkCreateNewThink}
         onClose={() => setConfirmNewThinking(false)}
+      />
+      {/* ── Download HTML rename dialog ───────────────────────── */}
+      <BKConfirmDialog
+        isOpen={showDownloadConfirm}
+        title="Download as HTML"
+        message="Choose the file name to save this memory as an HTML document before downloading."
+        confirmLabel="Download"
+        cancelLabel="Cancel"
+        showInput
+        inputLabel="File name"
+        inputPlaceholder="e.g. my-thought-export"
+        inputValue={downloadFileName}
+        onInputChange={setDownloadFileName}
+        confirmDisabled={!downloadFileName.trim()}
+        onConfirm={bkConfirmDownload}
+        onClose={() => setShowDownloadConfirm(false)}
       />
       </div>
     </>
