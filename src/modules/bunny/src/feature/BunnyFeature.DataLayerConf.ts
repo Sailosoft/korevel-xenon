@@ -2,8 +2,11 @@ import { AdminPanelMutation } from "@/src/modules/admin-panel/features/mutation/
 import { AdminPanelQuery } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import { IBUIRepositoryAdminPanel } from "@/src/modules/bunny-ai/src/database/bui.repository.interface";
 import { BunnyConfig } from "../Bunny.Interface";
+import { IBunnyDataLayerConfigurator } from "./BunnyFeature.Interface";
 
-export class BunnyDataLayerConfigurator<TRow, TForm> {
+export class BunnyDataLayerConfigurator<TRow, TForm>
+  implements IBunnyDataLayerConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) {}
 
   public useQuery(query: AdminPanelQuery<TRow, TForm>): this {

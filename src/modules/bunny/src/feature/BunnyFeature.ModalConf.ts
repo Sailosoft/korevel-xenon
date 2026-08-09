@@ -1,10 +1,13 @@
 import { BunnyConfig, BunnyModalSize } from "../Bunny.Interface";
 import { BunnyModalHeaderAction } from "../modal/BunnyModal.Interface";
+import { IBunnyModalConfigurator } from "./BunnyFeature.Interface";
 
 /**
  * Modal configuration
  */
-export class BunnyModalConfigurator<TRow, TForm> {
+export class BunnyModalConfigurator<TRow, TForm>
+  implements IBunnyModalConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) {}
 
   public setSize(size: BunnyModalSize | number): this {

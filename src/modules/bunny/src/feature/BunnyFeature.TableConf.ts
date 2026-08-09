@@ -1,7 +1,10 @@
 import { BunnyConfig } from "../Bunny.Interface";
 import { BunnyColumn } from "../table/BunnyTable.Interface";
+import { IBunnyTableConfigurator } from "./BunnyFeature.Interface";
 
-export class BunnyTableConfigurator<TRow, TForm> {
+export class BunnyTableConfigurator<TRow, TForm>
+  implements IBunnyTableConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) {
     if (!this.config.props) this.config.props = {};
     if (!this.config.props.table) this.config.props.table = {};

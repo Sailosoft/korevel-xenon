@@ -4,8 +4,11 @@ import {
   BunnyHeaderActionType,
   BunnyHeaderConfig,
 } from "../header/BunnyHeader.Interface";
+import { IBunnyHeaderConfigurator } from "./BunnyFeature.Interface";
 
-export class BunnyHeaderConfigurator<TRow, TForm> {
+export class BunnyHeaderConfigurator<TRow, TForm>
+  implements IBunnyHeaderConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) {}
 
   public disableDefaults(): this {
