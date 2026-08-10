@@ -5,6 +5,9 @@
 //  - User can pick an agent pool and the AI Agent list filters to that pool.
 //  - User can select an AI Agent (persona + optional provider/model).
 //  - User can pick a render type for the conversation output.
+//  - Export (AI responses only) — view / download as HTML, or copy the whole
+//    content (HTML or plain text) to the clipboard. Delegated to the
+//    BSChatExportPanel component + useBSChatExport hook + pure template.
 
 "use client";
 
@@ -20,6 +23,7 @@ import {
   AudioLines,
 } from "lucide-react";
 import { useBSVoice } from "./BSChat.Voice";
+import { BSChatExportPanel } from "./BSChat.Export.Panel";
 import {
   HELIX_PROVIDER_LABELS,
   HELIX_AI_MODELS,
@@ -30,6 +34,7 @@ import { RenderFormats } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
 import type { BSAgent } from "../agents/BSAgent.Types";
 import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
+import type { BSConversation } from "./BSChat.Types";
 
 // ─── Props ─────────────────────────────────────────────────────────────
 
@@ -64,6 +69,13 @@ export interface BSChatSettingsPanelProps {
   onVoiceChange?: (uri: string | undefined) => void;
   /** Called when the chat-level auto-TTS changes (undefined = inherit global) */
   onAutoTTSChange?: (value: boolean | undefined) => void;
+  /**
+   * Full conversation list — enables the "Export (AI responses only)" section.
+   * When omitted, the export section is hidden.
+   */
+  conversations?: BSConversation[];
+  /** Chat title used in the exported document. */
+  chatTitle?: string;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -86,6 +98,8 @@ export function BSChatSettingsPanel({
   onContentTypeChange,
   onVoiceChange,
   onAutoTTSChange,
+  conversations,
+  chatTitle,
 }: BSChatSettingsPanelProps) {
   const [open, setOpen] = useState(false);
   const {
@@ -445,6 +459,18 @@ export function BSChatSettingsPanel({
               {effectiveProvider} · {effectiveModel || "(no model)"}
             </div>
           </div>
+
+          {/* Export (AI responses only) — whole-conversation HTML / clipboard
+              export. Only rendered when the caller provides the conversation
+              list (feature: export chat). */}
+          {conversations !== undefined && (
+            <div className="pt-3 border-t border-gray-100">
+              <BSChatExportPanel
+                conversations={conversations}
+                chatTitle={chatTitle}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
