@@ -44,6 +44,14 @@ export async function buiChapterServerContent(
     };
   } catch (error) {
     console.error("AI Chapter Generation failed at server layer:", error);
-    throw new Error("Failed to process chapter execution with AI.");
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+    throw new Error(
+      `Failed to process chapter execution with AI.${detail ? ` ${detail}` : ""}`,
+    );
   }
 }

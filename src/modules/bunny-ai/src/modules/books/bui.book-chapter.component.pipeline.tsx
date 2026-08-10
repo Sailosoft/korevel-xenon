@@ -1,10 +1,10 @@
 // bui.book-chapter.component.pipeline.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Modal } from "@heroui/react";
 import {
-  Wand2,
   LoaderIcon,
   AlertTriangle,
+  CheckCircle2,
   NotebookPenIcon,
 } from "lucide-react";
 import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
@@ -13,9 +13,36 @@ import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 
+type WriteMode = "empty" | "all";
+
 interface BUIBookChapterComponentPipelineProps {
   bookId: number;
   context: BunnyKernel<BUIBookChapterEntity, BUIBookChapterEntity>;
+}
+
+interface FirstChapterState {
+  number: number;
+  title: string;
+  isEmpty: boolean;
+}
+
+/** Normalize any thrown value into a readable user-facing message. */
+function resolveErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error occurred while writing chapter content.";
+  }
 }
 
 export default function BUIBookChapterComponentPipeline({
@@ -35,12 +62,63 @@ export default function BUIBookChapterComponentPipeline({
   >(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
+  // Content writing mode: rewrite all content OR write only empty content
+  const [writeMode, setWriteMode] = useState<WriteMode>("empty");
+  // First chapter overview used to decide whether content writing should start
+  const [firstChapter, setFirstChapter] = useState<FirstChapterState | null>(
+    null,
+  );
+  // AI / pipeline error surfaced through a popup
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Inspect the first chapter whenever the setup panel opens so we can
+  // report whether content writing should start and recommend a mode.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const repo = new BUIBookChapterRepository();
+        const records = await repo.getChaptersByBook(bookId);
+        if (cancelled) return;
+
+        const sorted = [...records].sort((a, b) => a.number - b.number);
+        const first = sorted[0];
+
+        if (first) {
+          const isEmpty =
+            !first.content || first.content.trim().length === 0;
+          setFirstChapter({
+            number: first.number,
+            title: first.title,
+            isEmpty,
+          });
+          // A clean opening chapter means content writing can start from
+          // scratch; existing drafts imply a partial book, so rewriting all
+          // is the more likely intent.
+          setWriteMode(isEmpty ? "empty" : "all");
+        } else {
+          setFirstChapter(null);
+          setWriteMode("empty");
+        }
+      } catch (error) {
+        console.error("Failed to load chapter overview:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, bookId]);
+
   const handleStartPipeline = async () => {
     // 1. Close modal immediately
     setIsOpen(false);
 
     // 2. Set processing state and refresh the target data grid module
     setIsProcessing(true);
+    setErrorMessage(null);
     context.adminPanel?.table?.refresh?.();
     setSelectedSystemPrompt(null);
 
@@ -48,13 +126,25 @@ export default function BUIBookChapterComponentPipeline({
       const repo = new BUIBookChapterRepository();
       const records = await repo.getChaptersByBook(bookId);
 
-      const targetedChapters = records.filter(
-        (record) => record.status !== "done" && record.id,
-      );
+      // Select chapters based on the chosen writing mode
+      const targetedChapters =
+        writeMode === "all"
+          ? records.filter((record) => record.id)
+          : records.filter(
+              (record) =>
+                record.id &&
+                (record.status !== "done" ||
+                  !record.content ||
+                  record.content.trim().length === 0),
+            );
 
       if (targetedChapters.length === 0) {
         setIsProcessing(false);
-        alert("No empty or pending chapters found to process.");
+        setErrorMessage(
+          writeMode === "all"
+            ? "No chapters found to rewrite. This book does not have any chapters yet."
+            : "No empty or pending chapters found to process. Every chapter already has content.",
+        );
         return;
       }
 
@@ -80,6 +170,8 @@ export default function BUIBookChapterComponentPipeline({
       }
     } catch (error) {
       console.error("Batch processing pipeline encountered errors:", error);
+      // Surface AI / pipeline failures (500 or any other issue) via popup
+      setErrorMessage(resolveErrorMessage(error));
     } finally {
       // 4. Complete routine execution loops
       setIsProcessing(false);
@@ -134,6 +226,99 @@ export default function BUIBookChapterComponentPipeline({
                   or
                   <span className="font-semibold text-primary"> Pending</span>.
                 </p>
+
+                {/* First chapter status — decides whether content writing starts */}
+                {firstChapter && (
+                  <div
+                    className={`p-3 rounded-lg border flex items-start gap-2.5 ${
+                      firstChapter.isEmpty
+                        ? "bg-warning-50 border-warning-200"
+                        : "bg-success-50 border-success-200"
+                    }`}
+                  >
+                    {firstChapter.isEmpty ? (
+                      <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                    )}
+                    <div className="flex flex-col gap-0.5">
+                      <span
+                        className={`text-xs font-bold ${
+                          firstChapter.isEmpty
+                            ? "text-warning-800"
+                            : "text-success-800"
+                        }`}
+                      >
+                        {firstChapter.isEmpty
+                          ? "First chapter is empty"
+                          : "First chapter already has content"}
+                      </span>
+                      <span className="text-[11px] text-default-600 leading-relaxed">
+                        Ch.{firstChapter.number} - {firstChapter.title}
+                        {firstChapter.isEmpty
+                          ? " — content writing will start from this chapter."
+                          : " — existing drafts detected. Choose a writing mode below."}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Content writing mode */}
+                <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
+                  <span className="text-xs font-bold uppercase text-default-500">
+                    Content Writing Mode
+                  </span>
+                  <label
+                    className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+                      writeMode === "empty"
+                        ? "border-primary bg-primary-50"
+                        : "border-default-200 bg-transparent hover:border-default-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="writeMode"
+                      value="empty"
+                      checked={writeMode === "empty"}
+                      onChange={() => setWriteMode("empty")}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-default-800">
+                        Write only empty content
+                      </span>
+                      <span className="text-xs text-default-500">
+                        Generate chapters that have no existing content.
+                        Completed chapters are skipped.
+                      </span>
+                    </div>
+                  </label>
+                  <label
+                    className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+                      writeMode === "all"
+                        ? "border-primary bg-primary-50"
+                        : "border-default-200 bg-transparent hover:border-default-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="writeMode"
+                      value="all"
+                      checked={writeMode === "all"}
+                      onChange={() => setWriteMode("all")}
+                      className="mt-0.5 accent-primary"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-default-800">
+                        Rewrite all content
+                      </span>
+                      <span className="text-xs text-default-500">
+                        Regenerate every chapter, overwriting any existing
+                        content.
+                      </span>
+                    </div>
+                  </label>
+                </div>
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold uppercase text-default-500">
@@ -210,6 +395,44 @@ export default function BUIBookChapterComponentPipeline({
                   onClick={handleStartPipeline}
                 >
                   Launch Execution Engine
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+
+      {/* AI / pipeline error popup */}
+      <Modal isOpen={!!errorMessage}>
+        <Modal.Backdrop onClick={() => setErrorMessage(null)}>
+          <Modal.Container>
+            <Modal.Dialog onClick={(e) => e.stopPropagation()}>
+              <Modal.CloseTrigger onClick={() => setErrorMessage(null)} />
+              <Modal.Header>AI Writing Error</Modal.Header>
+              <Modal.Body className="gap-3">
+                <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg flex gap-3 items-start">
+                  <AlertTriangle className="w-5 h-5 text-danger mt-0.5 shrink-0" />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-bold text-danger-800">
+                      The AI encountered an error while writing content
+                    </span>
+                    <p className="text-xs text-danger-700 leading-relaxed break-words">
+                      {errorMessage}
+                    </p>
+                    <p className="text-[11px] text-danger-500 leading-relaxed">
+                      The pipeline stopped. Failed chapters may have been reset
+                      to "empty". Please check your AI configuration and retry.
+                    </p>
+                  </div>
+                </div>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => setErrorMessage(null)}
+                >
+                  Close
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>
