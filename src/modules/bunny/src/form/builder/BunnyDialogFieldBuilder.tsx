@@ -125,6 +125,10 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
               </ListBox>
             </Select.Popover>
           </Select>
+          {/* Hidden input bridges the HeroUI Select value into the native
+              FormData submitted to `onConfirm` (the Select trigger is not a
+              native form field). Mirrors the checkbox / editor cases. */}
+          <input type="hidden" name={field.name} value={selectedKey} />
           {showError && (
             <p className="text-sm text-red-500 mt-1">{errorText}</p>
           )}
