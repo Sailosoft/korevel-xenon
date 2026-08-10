@@ -24,6 +24,18 @@ export interface BKConfirmDialogProps {
   onConfirm: () => void;
   /** Called when dialog is dismissed */
   onClose: () => void;
+  /** Show an optional text input field (e.g. rename before download) */
+  showInput?: boolean;
+  /** Label rendered above the input field */
+  inputLabel?: string;
+  /** Placeholder text for the input field */
+  inputPlaceholder?: string;
+  /** Controlled input value */
+  inputValue?: string;
+  /** Called when the input value changes */
+  onInputChange?: (value: string) => void;
+  /** Disable the confirm button (e.g. while the input is empty) */
+  confirmDisabled?: boolean;
 }
 
 export default function BKConfirmDialog({
@@ -34,6 +46,12 @@ export default function BKConfirmDialog({
   cancelLabel = "Cancel",
   onConfirm,
   onClose,
+  showInput = false,
+  inputLabel = "Name",
+  inputPlaceholder,
+  inputValue = "",
+  onInputChange,
+  confirmDisabled = false,
 }: BKConfirmDialogProps) {
   if (!isOpen) return null;
 
@@ -69,6 +87,22 @@ export default function BKConfirmDialog({
           </p>
         </div>
 
+        {/* Optional input field (e.g. rename before download) */}
+        {showInput && (
+          <div className="px-5 pb-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              {inputLabel}
+            </label>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => onInputChange?.(e.target.value)}
+              placeholder={inputPlaceholder}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 pb-5 pt-2">
           <Button
@@ -81,6 +115,7 @@ export default function BKConfirmDialog({
           </Button>
           <Button
             size="sm"
+            isDisabled={confirmDisabled}
             onPress={() => {
               onConfirm();
               onClose();

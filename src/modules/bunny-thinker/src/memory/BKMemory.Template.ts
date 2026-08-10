@@ -617,8 +617,9 @@ export class BKMemoryTemplate {
         .report-meta .meta-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); opacity: 0.4; }
         .report-meta .item-count { background: var(--bg-accent-soft); color: var(--accent); font-weight: 600; font-size: 0.7rem; padding: 0.15rem 0.55rem; border-radius: var(--radius-badge); letter-spacing: 0.02em; }
 
-        .thought-section { margin-bottom: 1.75rem; padding-bottom: 1.75rem; border-bottom: 1px solid var(--border-subtle); animation: fadeIn 0.4s ease-out both; scroll-margin-top: calc(56px + 1rem); }
-        .thought-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .thought-section { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-section); box-shadow: var(--shadow-card); padding: 1.75rem 1.75rem 1.5rem; margin-bottom: 1.5rem; animation: fadeIn 0.4s ease-out both; scroll-margin-top: calc(56px + 1rem); transition: box-shadow var(--transition-fast); }
+        .thought-section:hover { box-shadow: var(--shadow-card-hover); }
+        .thought-section:last-child { margin-bottom: 0; }
         .thought-header { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.5rem; animation: slideIn 0.35s ease-out both; }
         .thought-format { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; background: var(--accent-gradient); color: #ffffff; padding: 0.2rem 0.6rem; border-radius: var(--radius-badge); letter-spacing: 0.05em; box-shadow: var(--shadow-badge); line-height: 1.4; }
         .association-card { background: linear-gradient(135deg, var(--bg-accent-soft), #ffffff); border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 0.5rem; padding: 0.75rem 1rem; margin: 0 0 0.85rem 0; transition: all 0.2s ease; }
@@ -662,6 +663,9 @@ export class BKMemoryTemplate {
           .toc-card { padding: 1rem !important; }
           .content-area > div { padding-left: 1rem !important; padding-right: 1rem !important; }
           h1.text-5xl { font-size: 2.5rem !important; }
+          .thought-section { padding: 1.1rem 1.1rem 1rem; margin-bottom: 1rem; border-radius: 10px; }
+          .thought-header { margin-bottom: 0.6rem; }
+          .back-to-index { margin-top: 0.75rem; }
         }
     </style>
 </head>

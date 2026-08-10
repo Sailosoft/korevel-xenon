@@ -2,6 +2,26 @@
 
 export { BSChatComponent } from "./BSChat.Component";
 export { BSChatConversationView } from "./BSChat.ConversationView";
+export { BSChatExportPanel } from "./BSChat.Export.Panel";
+export type { BSChatExportPanelProps } from "./BSChat.Export.Panel";
+export { useBSChatExport } from "./BSChat.Export.Hooks";
+export type {
+  BSChatExportOptions,
+  BSChatExportReturn,
+  BSChatExportCopyKind,
+} from "./BSChat.Export.Hooks";
+export {
+  BSChatExportSection,
+  BSChatExportDocument,
+  buildChatExportHtml,
+  assistantOnlyConversations,
+  assistantOnlyText,
+  htmlEscape,
+} from "./BSChat.Export.Template";
+export type {
+  BSChatExportSectionParams,
+  BSChatExportDocumentParams,
+} from "./BSChat.Export.Template";
 export { BSChatInput } from "./BSChat.Input";
 export type { BSChatInputMode, BSChatInputProps } from "./BSChat.Input";
 export { useBSChatInput } from "./BSChat.Input.Hooks";
