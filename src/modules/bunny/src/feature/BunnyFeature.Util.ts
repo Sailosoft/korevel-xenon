@@ -1,4 +1,6 @@
-export default class BunnyFeatureUtil {
+import { IBunnyFeatureUtil } from "./BunnyFeature.Interface";
+
+export default class BunnyFeatureUtil implements IBunnyFeatureUtil {
   public pluralize(word: string): string {
     if (!word || typeof word !== "string") return "";
 

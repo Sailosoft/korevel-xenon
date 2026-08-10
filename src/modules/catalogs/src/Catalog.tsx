@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import pkg from "../../../../package.json";
 import { catalogApps, type CatalogApp } from "./CatalogList";
 import {
   CatalogThemeProvider,
@@ -552,9 +553,22 @@ function CatalogInner() {
         }}
       >
         <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-sm" style={{ color: theme.footerText }}>
+          <p
+            className="text-sm flex items-center gap-2"
+            style={{ color: theme.footerText }}
+          >
             &copy; {new Date().getFullYear()} Korevel Xenon. All rights
             reserved.
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border"
+              style={{
+                color: theme.footerText,
+                borderColor: theme.footerBorder,
+                backgroundColor: theme.cardBadgeBg,
+              }}
+            >
+              v{pkg.version}
+            </span>
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a

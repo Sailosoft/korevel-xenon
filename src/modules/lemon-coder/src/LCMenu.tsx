@@ -14,6 +14,7 @@ import {
   LayoutList,
   Menu,
   Settings,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -40,6 +41,10 @@ export default function LCMenu({
 }: LCMenuProps) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleLogout = () => {
+    router.push("/");
+  };
 
   return (
     <header className="flex flex-wrap items-center justify-between px-2 sm:px-4 h-auto sm:h-12 py-2 sm:py-0 bg-[#1e1e1e] border-b border-[#333333] select-none shrink-0">
@@ -168,13 +173,31 @@ export default function LCMenu({
                 <Plus className="w-3.5 h-3.5 inline mr-2" />
                 New Session
               </Dropdown.Item>
+              <Dropdown.Item
+                key="logout"
+                onAction={handleLogout}
+                className="text-[#e06c75] hover:bg-[#333333] hover:text-[#e06c75]"
+              >
+                <LogOut className="w-3.5 h-3.5 inline mr-2" />
+                Logout
+              </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
       </div>
 
-      {/* Right - spacer (hidden on small screens) */}
-      <div className="hidden sm:block w-[140px]" />
+      {/* Right - Logout (desktop only) */}
+      <div className="hidden sm:block">
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={handleLogout}
+          className="text-[#e06c75] hover:text-[#e06c75] hover:bg-[#333333] text-xs h-8"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Logout
+        </Button>
+      </div>
     </header>
   );
 }

@@ -1,8 +1,11 @@
 import { BunnyConfig } from "../Bunny.Interface";
 import { BunnyRowDefaultActions } from "../rows/BunnyRow.Interface";
 import { BunnyRowAction } from "../table/BunnyTable.Interface";
+import { IBunnyRowConfigurator } from "./BunnyFeature.Interface";
 
-export class BunnyRowConfigurator<TRow, TForm> {
+export class BunnyRowConfigurator<TRow, TForm>
+  implements IBunnyRowConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) { }
 
   public disableDefaults(): this {

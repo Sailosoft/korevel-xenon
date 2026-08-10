@@ -4,8 +4,11 @@ import {
 } from "@/src/modules/admin-panel/features/form/admin-panel-form.interface";
 import { BunnyConfig, BunnyOnSuccessBehavior } from "../Bunny.Interface";
 import { BunnyFormConfig, BunnyFormField } from "../form/BunnyForm.Interface";
+import { IBunnyFormConfigurator } from "./BunnyFeature.Interface";
 
-export class BunnyFormConfigurator<TRow, TForm> {
+export class BunnyFormConfigurator<TRow, TForm>
+  implements IBunnyFormConfigurator<TRow, TForm>
+{
   constructor(private config: BunnyConfig<TRow, TForm>) {
     if (!this.config.props) this.config.props = {};
     if (!this.config.props.form) this.config.props.form = {};

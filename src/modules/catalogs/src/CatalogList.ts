@@ -38,6 +38,17 @@ export const catalogApps: CatalogApp[] = [
   //   gradientTo: "#06b6d4",
   // },
   {
+    id: 11,
+    name: "Bunny Case",
+    url: "/modules/bunny-case",
+    description: "Conversational AI training ecosystem — personas, simulations, roleplay coaching, stress-test gauntlet, and playbook library.",
+    category: "ai",
+    status: "Active",
+    iconColor: "from-emerald-400 to-teal-300",
+    gradientFrom: "#10b981",
+    gradientTo: "#5eead4",
+  },
+  {
     id: 5,
     name: "BunnyAI",
     url: "/modules/bunny-ai",

@@ -561,6 +561,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               onContentTypeChange={setContentType}
               onVoiceChange={handleVoiceChange}
               onAutoTTSChange={handleAutoTTSChange}
+              conversations={conversations}
+              chatTitle={chat.title}
             />
             <button
               onClick={() => void handleToggleFavorite()}
@@ -626,6 +628,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   onContentTypeChange={setContentType}
                   onVoiceChange={handleVoiceChange}
                   onAutoTTSChange={handleAutoTTSChange}
+                  conversations={conversations}
+                  chatTitle="New Chat"
                 />
               </div>
               <div className="h-full flex flex-col items-center justify-center px-6 py-12 sm:px-10">

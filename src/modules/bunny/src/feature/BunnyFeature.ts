@@ -20,6 +20,15 @@ import { BunnyRowAction, BunnyColumn } from "../table/BunnyTable.Interface";
 import { BunnyFormConfig, BunnyFormField } from "../form/BunnyForm.Interface";
 import { BunnyFeatureConstant } from "./BunnyFeature.Constant";
 import BunnyFeatureUtil from "./BunnyFeature.Util";
+import {
+  IBunnyDataLayerConfigurator,
+  IBunnyFeature,
+  IBunnyFormConfigurator,
+  IBunnyHeaderConfigurator,
+  IBunnyModalConfigurator,
+  IBunnyRowConfigurator,
+  IBunnyTableConfigurator,
+} from "./BunnyFeature.Interface";
 import { BunnyModalConfigurator } from "./BunnyFeature.ModalConf";
 import { BunnyHeaderConfigurator } from "./BunnyFeature.HeaderConf";
 import { BunnyRowConfigurator } from "./BunnyFeature.RowConf";
@@ -46,7 +55,7 @@ function deepFreeze<T>(obj: T): T {
   return Object.freeze(obj) as T;
 }
 
-export class BunnyFeature<TRow, TForm> {
+export class BunnyFeature<TRow, TForm> implements IBunnyFeature<TRow, TForm> {
   protected config: BunnyConfig<TRow, TForm>;
   protected util: BunnyFeatureUtil;
 
@@ -191,42 +200,42 @@ export class BunnyFeature<TRow, TForm> {
   }
 
   public configureDataLayer(
-    configure: (configurator: BunnyDataLayerConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyDataLayerConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyDataLayerConfigurator(this.config));
     return this;
   }
 
   public configureForm(
-    configure: (configurator: BunnyFormConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyFormConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyFormConfigurator(this.config));
     return this;
   }
 
   public configureTable(
-    configure: (configurator: BunnyTableConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyTableConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyTableConfigurator(this.config));
     return this;
   }
 
   public configureHeader(
-    configure: (configurator: BunnyHeaderConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyHeaderConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyHeaderConfigurator(this.config));
     return this;
   }
 
   public configureRow(
-    configure: (configurator: BunnyRowConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyRowConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyRowConfigurator(this.config));
     return this;
   }
 
   public configureModal(
-    configure: (configurator: BunnyModalConfigurator<TRow, TForm>) => void,
+    configure: (configurator: IBunnyModalConfigurator<TRow, TForm>) => void,
   ): this {
     configure(new BunnyModalConfigurator(this.config));
     return this;
