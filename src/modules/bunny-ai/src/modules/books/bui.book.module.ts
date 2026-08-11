@@ -1,6 +1,6 @@
 // bui.book.module.ts
 import React from "react";
-import { CircleFadingArrowUp, Download } from "lucide-react";
+import { CircleFadingArrowUp, CopyPlus, Download } from "lucide-react";
 import {
   BunnyConfig,
   BunnyKernel,
@@ -8,6 +8,7 @@ import {
 import { BUIBookEntity } from "./bui.book.entity";
 
 import { BUIBookRepository } from "./bui.book.repository";
+import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
 import { BunnySelectOption } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
@@ -105,6 +106,117 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
         router.push(`/modules/bunny-ai/books/${row.id}`);
       },
     },
+    {
+      id: "clone_book",
+      variant: "ghost",
+      icon: React.createElement(CopyPlus),
+      onClick: async function (
+        row: BUIBookEntity,
+        context: BunnyKernel<BUIBookEntity, unknown>,
+      ) {
+        if (!row.id) return;
+        const sourceBookId = row.id;
+
+        const option: AdminPanelDialogOption = {
+          title: "Clone Book",
+          message: `Create a copy of "${row.title}". You can rename the cloned book and duplicate its chapters.`,
+          actionId: "clone_book",
+          fields: [
+            {
+              name: "title",
+              label: "New Book Title",
+              type: "text",
+              defaultValue: `${row.title} (Copy)`,
+              required: true,
+            },
+            {
+              name: "includeChapters",
+              label: "Duplicate its chapters",
+              type: "checkbox",
+              defaultValue: "true",
+            },
+          ],
+          onConfirm: async ({ form }) => {
+            context.adminPanel.dialog.setLoading(true);
+            const formData = Object.fromEntries(form) as Record<
+              string,
+              string
+            >;
+            const newTitle = formData.title?.trim();
+            const includeChapters = formData.includeChapters !== "false";
+
+            if (!newTitle) {
+              context.adminPanel.dialog.setLoading(false);
+              return {
+                success: false,
+                message: "A title is required to clone the book.",
+              };
+            }
+
+            try {
+              const bookRepo = new BUIBookRepository();
+              const chapterRepo = new BUIBookChapterRepository();
+
+              // Create the cloned book with the (possibly renamed) title
+              const clonedBook = await bookRepo.panelCreate({
+                title: newTitle,
+                description: row.description,
+                category: row.category,
+                authorId: row.authorId,
+              });
+
+              if (
+                clonedBook.status !== "success" ||
+                !clonedBook.data?.id
+              ) {
+                return {
+                  success: false,
+                  message: "Failed to create the cloned book.",
+                };
+              }
+              const newBookId = clonedBook.data.id;
+
+              let duplicatedCount = 0;
+              if (includeChapters) {
+                // Duplicate every chapter from the source book into the clone
+                const sourceChapters =
+                  await chapterRepo.getChaptersByBook(sourceBookId);
+                for (const chapter of sourceChapters ?? []) {
+                  await chapterRepo.panelCreate({
+                    bookId: newBookId,
+                    number: chapter.number,
+                    title: chapter.title,
+                    description: chapter.description,
+                    content: chapter.content,
+                    additionalPrompt: chapter.additionalPrompt,
+                    authorId: chapter.authorId,
+                    wordCount: chapter.wordCount,
+                    status: chapter.status,
+                  });
+                  duplicatedCount += 1;
+                }
+              }
+
+              context.adminPanel.table.refresh?.();
+              return {
+                success: true,
+                message: `Book "${newTitle}" cloned with ${duplicatedCount} duplicated chapter(s).`,
+              };
+            } catch (error) {
+              console.error("Book cloning failed:", error);
+              return {
+                success: false,
+                message: "An error occurred while cloning the book.",
+              };
+            } finally {
+              context.adminPanel.dialog.setLoading(false);
+            }
+          },
+        };
+
+        context.adminPanel.dialog.openDialog(option);
+      },
+    },
     defaultBunnyRowAction.view,
     defaultBunnyRowAction.edit,
     defaultBunnyRowAction.delete,
@@ -124,7 +236,7 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
       },
     },
   ],
-  rowActionsColLength: 170,
+  rowActionsColLength: 200,
   modalHeaderActions: [
     {
       id: "enhanced_book",
