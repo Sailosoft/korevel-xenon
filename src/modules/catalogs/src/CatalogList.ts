@@ -17,7 +17,7 @@ export interface CatalogApp {
 export const catalogApps: CatalogApp[] = [
   {
     id: 10,
-    name: "Bunny AI Studio",
+    name: "Bunny Studio",
     url: "/modules/bunny-studio",
     description: "Multi-modal AI chat with streaming, agent pools, AI settings, and conversation management.",
     category: "chat",
@@ -39,7 +39,7 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 5,
-    name: "Bunny Book Builder",
+    name: "Bunny Book",
     url: "/modules/bunny-ai",
     description: "AI-assisted book creation — build authors, books, and content with guided prompts, structured workflows, and editorial tooling.",
     category: "study",
@@ -50,7 +50,7 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 6,
-    name: "BunnyFlow",
+    name: "Bunny Flow",
     url: "/modules/bunny-flow",
     description: "YAML-driven workflow and pipeline builder (inspired by GitHub Actions) that chains steps and passes AI output between stages.",
     category: "content-writing",
@@ -72,7 +72,7 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 8,
-    name: "BunnyLegacy Book Builder",
+    name: "Bunny(1st): Book Builder",
     url: "/modules/bunny-legacy",
     description: "The original (first) book builder — compose and structure digital books with rich formatting, chapter management, and editing tools.",
     category: "study",

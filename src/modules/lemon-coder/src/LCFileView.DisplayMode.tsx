@@ -15,20 +15,9 @@ import { RenderView, registerBuiltinAdapters } from "@/src/modules/render";
 import type { RenderFormat, RenderTableColors } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
 import type { Components } from "react-markdown";
+import LCCodeMonacoEditor from "./LCCodeMonacoEditor";
 
 // ── Dynamically import editors to avoid SSR issues ─────────────────────────
-
-const MonacoEditor = dynamic(
-  () => import("@monaco-editor/react").then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center h-full text-xs text-[#858585]">
-        Loading Editor...
-      </div>
-    ),
-  },
-);
 
 const CodeMirrorEditor = dynamic(
   () => import("./LCCodeMirrorEditor").then((mod) => mod.default),
@@ -348,46 +337,6 @@ export default function LCFileViewDisplayMode({
   const cmFontSize = fontSizeEntry ? parseInt(fontSizeEntry.value, 10) : 13;
   const cmTabSize = tabSizeEntry ? parseInt(tabSizeEntry.value, 10) : 2;
 
-  // ── Refs to keep Monaco's onMount closures non-stale ──────────────
-  // Monaco's onMount callback fires only once per editor lifetime.
-  // If we reference onSave / onInsertToChatInput / selectedFile directly,
-  // the closure captures their values at mount time — which become stale
-  // after the user types (triggering re-renders that create new callbacks).
-  // By routing through refs that are kept in sync every render, Ctrl+S
-  // and the context-menu action always read the LATEST values.
-  const onSaveRef = useRef(onSave);
-  const onInsertToChatInputRef = useRef(onInsertToChatInput);
-  const selectedFileRef = useRef(selectedFile);
-
-  useEffect(() => {
-    onSaveRef.current = onSave;
-    onInsertToChatInputRef.current = onInsertToChatInput;
-    selectedFileRef.current = selectedFile;
-  });
-
-  // ── Editor ref for uncontrolled Monaco pattern ──────────────────
-  // Instead of passing `value={content}` (which causes cursor jumps on
-  // every keystroke re-render), we use an uncontrolled pattern: set initial
-  // content via `defaultValue`, then sync external changes only when they
-  // actually differ from the editor's current content.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const editorRef = useRef<any>(null);
-
-  // ── Sync external content changes (file reload, file switch) ──
-  // When the user switches files or reloads from disk, the content prop
-  // changes but the key={selectedFile.path} may not trigger a remount
-  // in all cases. This effect compares the editor's current value against
-  // the prop and only calls setValue when they actually differ, preserving
-  // cursor position during normal typing.
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const currentValue = editor.getValue();
-    if (currentValue !== content) {
-      editor.setValue(content);
-    }
-  }, [content]);
-
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {displayMode === "file" && canPreviewFile(selectedFile.name) ? (
@@ -412,66 +361,16 @@ export default function LCFileViewDisplayMode({
         />
       ) : (
         /* ── Monaco Editor (default for source mode or non-previewable files) ── */
-        <MonacoEditor
-          key={selectedFile.path}
-          height="100%"
+        <LCCodeMonacoEditor
+          fileKey={selectedFile.path}
+          content={content}
+          onChange={onContentChange}
           language={getLanguage(selectedFile.name)}
-          defaultValue={content}
-          onChange={(val) => onContentChange(val || "")}
-          onMount={(editor, monaco) => {
-            editorRef.current = editor;
-            // Use refs to always invoke the LATEST callbacks / read the
-            // latest selectedFile — the onMount closure would otherwise
-            // capture stale references that don't reflect subsequent edits.
-            editor.addCommand(
-              monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-              () => onSaveRef.current(),
-            );
-
-            // Add context menu action: "Add Selection as Code Block to Chat"
-            const insertToChat = onInsertToChatInputRef.current;
-            if (insertToChat) {
-              editor.addAction({
-                id: "lc-add-selection-as-code-block",
-                label: "Add Selection as Code Block to Chat",
-                contextMenuGroupId: "modification",
-                contextMenuOrder: 1.5,
-                run: (ed) => {
-                  const selection = ed.getSelection();
-                  if (!selection) return;
-                  const model = ed.getModel();
-                  if (!model) return;
-                  const selectedText = model.getValueInRange(selection);
-                  if (!selectedText) return;
-                  const language = getLanguage(selectedFileRef.current?.name || "");
-                  const codeBlock = `\`\`\`${language}\n${selectedText}\n\`\`\``;
-                  insertToChat(codeBlock);
-                },
-              });
-            }
-          }}
-          theme="vs-dark"
-          beforeMount={(monaco) => {
-            monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-              noSemanticValidation: true,
-              noSyntaxValidation: true,
-            });
-            monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-              noSemanticValidation: true,
-              noSyntaxValidation: true,
-            });
-          }}
-          options={{
-            minimap: { enabled: true },
-            fontSize: 13,
-            lineNumbers: "on",
-            renderWhitespace: "selection",
-            tabSize: 2,
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            padding: { top: 8 },
-            wordWrap: wordWrap ? "on" : "off",
-          }}
+          wordWrap={wordWrap}
+          fontSize={cmFontSize}
+          tabSize={cmTabSize}
+          onSave={onSave}
+          onInsertToChatInput={onInsertToChatInput}
         />
       )}
     </div>
