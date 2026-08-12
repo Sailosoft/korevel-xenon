@@ -98,6 +98,12 @@ export function BSChatInput({
     instructionGroups,
     filteredInstructions,
     handleInstructionSelect,
+    instructionRef,
+    instructionCoverView,
+    instructionModalOpen,
+    openInstructionModal,
+    closeInstructionModal,
+    toggleInstructionCoverView,
   } = useBSChatInput({ onSend, isStreaming, defaultMode });
 
   // Speech-to-text settings from the global AI settings (browser vs AI engine,
@@ -167,6 +173,8 @@ export function BSChatInput({
               instructions={filteredInstructions}
               selectedInstructionId={selectedInstructionId}
               onInstructionSelect={handleInstructionSelect}
+              instructionRef={instructionRef}
+              onExpand={openInstructionModal}
             />
           )}
 
@@ -262,6 +270,18 @@ export function BSChatInput({
         onValueChange={setText}
         onClose={closeEditorModal}
         onToggleCoverView={toggleEditorCoverView}
+      />
+
+      {/* Instruction editor modal with cover/window view toggle
+          (feature: long instruction text) */}
+      <BSChatInputEditorModal
+        open={instructionModalOpen}
+        coverView={instructionCoverView}
+        value={instruction}
+        onValueChange={setInstruction}
+        onClose={closeInstructionModal}
+        onToggleCoverView={toggleInstructionCoverView}
+        title="Instruction Editor"
       />
     </div>
   );

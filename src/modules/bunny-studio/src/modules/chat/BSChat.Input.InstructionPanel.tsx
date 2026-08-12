@@ -7,6 +7,7 @@
 "use client";
 
 import React from "react";
+import { Maximize2 } from "lucide-react";
 import type { BSInstructionGroup } from "../instruction-groups/BSInstructionGroup.Types";
 import type { BSInstruction } from "../instructions/BSInstruction.Types";
 
@@ -29,6 +30,10 @@ export interface BSChatInputInstructionPanelProps {
   selectedInstructionId: string;
   /** Called when a saved instruction is picked (prefills the textarea) */
   onInstructionSelect: (id: string) => void;
+  /** Ref to the instruction textarea (drives auto-grow) */
+  instructionRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** Opens the instruction in a larger editor modal (feature: long instruction text) */
+  onExpand: () => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -42,6 +47,8 @@ export function BSChatInputInstructionPanel({
   instructions,
   selectedInstructionId,
   onInstructionSelect,
+  instructionRef,
+  onExpand,
 }: BSChatInputInstructionPanelProps) {
   return (
     <>
@@ -74,13 +81,25 @@ export function BSChatInputInstructionPanel({
           ))}
         </select>
       </div>
-      <textarea
-        value={instruction}
-        onChange={(e) => onInstructionChange(e.target.value)}
-        placeholder="Custom instruction…"
-        className="w-full px-4 py-2.5 text-sm text-gray-600 border-b border-gray-100 outline-none resize-none placeholder:text-gray-400"
-        rows={2}
-      />
+      <div className="relative">
+        <textarea
+          ref={instructionRef}
+          value={instruction}
+          onChange={(e) => onInstructionChange(e.target.value)}
+          placeholder="Custom instruction…"
+          rows={1}
+          className="w-full px-4 py-2.5 pr-10 text-sm text-gray-600 border-b border-gray-100 outline-none resize-none placeholder:text-gray-400"
+        />
+        <button
+          type="button"
+          onClick={onExpand}
+          title="Open instruction in a larger editor"
+          aria-label="Open instruction in a larger editor"
+          className="absolute right-2 top-2 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </>
   );
 }

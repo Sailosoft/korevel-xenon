@@ -70,9 +70,19 @@ export interface BSChatInputHookReturn {
   instructionGroups: BSInstructionGroup[] | undefined;
   filteredInstructions: BSInstruction[];
   handleInstructionSelect: (id: string) => void;
+  // Instruction editor (feature: long instruction text)
+  instructionRef: RefObject<HTMLTextAreaElement | null>;
+  instructionCoverView: boolean;
+  instructionModalOpen: boolean;
+  openInstructionModal: () => void;
+  closeInstructionModal: () => void;
+  toggleInstructionCoverView: () => void;
 }
 
 export const MAX_TEXTAREA_HEIGHT = 200; // px
+
+/** Auto-grow cap for the custom instruction textarea (feature: long instruction text) */
+export const MAX_INSTRUCTION_HEIGHT = 200; // px
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
@@ -85,6 +95,7 @@ export function useBSChatInput({
   const [text, setText] = useState("");
   const [instruction, setInstruction] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const instructionRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Skill bubbles (feature: Agent skill)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
@@ -92,6 +103,10 @@ export function useBSChatInput({
   // Code editor modal (feature: Code Editor Open Modal)
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [editorCoverView, setEditorCoverView] = useState(false);
+
+  // Instruction editor modal (feature: long instruction text)
+  const [instructionCoverView, setInstructionCoverView] = useState(false);
+  const [instructionModalOpen, setInstructionModalOpen] = useState(false);
 
   // Custom Instructions (feature): group filter + instruction prefill
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -132,6 +147,15 @@ export function useBSChatInput({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
   }, [text, mode]);
+
+  // Auto-grow the instruction textarea so long custom instructions are easy
+  // to see and rewrite (feature: long instruction text).
+  useEffect(() => {
+    const el = instructionRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_INSTRUCTION_HEIGHT)}px`;
+  }, [instruction, mode]);
 
   // Append a transcript (from speech-to-text) to whatever the user already
   // typed, without clobbering it (feature: STT / builtin web SpeechRecognition).
@@ -192,6 +216,16 @@ export function useBSChatInput({
 
   const toggleEditorCoverView = () => setEditorCoverView((v) => !v);
 
+  const openInstructionModal = () => {
+    setInstructionCoverView(false);
+    setInstructionModalOpen(true);
+  };
+
+  const closeInstructionModal = () => setInstructionModalOpen(false);
+
+  const toggleInstructionCoverView = () =>
+    setInstructionCoverView((v) => !v);
+
   return {
     mode,
     setMode,
@@ -217,6 +251,12 @@ export function useBSChatInput({
     instructionGroups,
     filteredInstructions,
     handleInstructionSelect,
+    instructionRef,
+    instructionCoverView,
+    instructionModalOpen,
+    openInstructionModal,
+    closeInstructionModal,
+    toggleInstructionCoverView,
   };
 }
 
