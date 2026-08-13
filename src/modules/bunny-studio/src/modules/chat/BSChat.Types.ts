@@ -35,6 +35,33 @@ export interface BSChat {
   isFavorite?: boolean;
 }
 
+// ─── Attachments (feature: image + text file upload) ──────────────────
+//
+// The chat input can attach:
+//  - Images (uploaded or dragged & dropped) passed along as base64 data URL
+//    (multimodal) and included in the conversation.
+//  - Text files (md, txt, js, ts, css, html, …) whose content is appended to
+//    the prompt.
+
+export interface BSChatImageAttachment {
+  id: string;
+  name: string;
+  /** Base64 data URL of the (resized) image */
+  dataUrl: string;
+}
+
+export interface BSChatFileAttachment {
+  id: string;
+  name: string;
+  /** Full text content of the uploaded file */
+  content: string;
+}
+
+export interface BSChatAttachments {
+  images: BSChatImageAttachment[];
+  files: BSChatFileAttachment[];
+}
+
 // ─── Conversation ─────────────────────────────────────────────────────
 
 export type BSConversationType = "assistant" | "system" | "user";
@@ -74,6 +101,18 @@ export interface BSConversation {
    * is NEVER included when the conversation history is sent back to the AI.
    */
   isError?: boolean;
+  /**
+   * Base64 data URLs of images attached to this (user) message. Rendered as
+   * thumbnails in the bubble and re-sent as multimodal image parts when the
+   * message is the current one (feature: attach image).
+   */
+  imageData?: string[];
+  /**
+   * Names of text files attached to this (user) message. The file content is
+   * already embedded in `content`; the names are kept for display (feature:
+   * text file upload → append to prompt).
+   */
+  fileNames?: string[];
 }
 
 // ─── Streaming request payloads ───────────────────────────────────────
@@ -82,6 +121,12 @@ export interface BSConversation {
 export interface BSChatWireMessage {
   role: "system" | "user" | "assistant";
   content: string;
+  /**
+   * Optional base64 image data URLs attached to this message. Only set for
+   * user messages; the stream route turns them into multimodal image content
+   * parts (feature: attach image).
+   */
+  images?: string[];
 }
 
 /** Request body for the streaming AI endpoint */

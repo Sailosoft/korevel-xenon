@@ -30,6 +30,21 @@ export type {
   BSChatInputHookReturn,
   BSChatInputSendHandler,
 } from "./BSChat.Input.Hooks";
+export {
+  useBSChatInputAttachments,
+  BSChatInputAttachmentChips,
+  BSChatInputAttachmentButtons,
+  isAllowedTextFile,
+  TEXT_FILE_EXTENSIONS,
+} from "./BSChat.Input.Attachment";
+export type {
+  BSChatInputImage,
+  BSChatInputFile,
+  BSChatInputAttachments,
+  BSChatInputAttachmentsReturn,
+  BSChatInputAttachmentChipsProps,
+  BSChatInputAttachmentButtonsProps,
+} from "./BSChat.Input.Attachment";
 export { useBSSpeechRecognition } from "./BSChat.Input.STT.Hooks";
 export type {
   BSSpeechRecognitionOptions,

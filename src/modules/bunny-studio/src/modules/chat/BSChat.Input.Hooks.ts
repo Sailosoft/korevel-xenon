@@ -8,6 +8,11 @@
 //  - Code editor modal open + cover/window view state (feature: Code Editor
 //    Open Modal).
 //  - Custom instruction group filter + prefill (feature: Custom Instructions).
+//
+// Attachment logic (image base64 URL + text file upload) lives separately in
+// BSChat.Input.Attachment.tsx. This hook receives the current attachments via
+// the `getAttachments` / `clearAttachments` options so sending and `canSend`
+// can include them without owning them.
 
 "use client";
 
@@ -17,6 +22,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { bsDB } from "../../BSDatabase";
 import type { BSInstructionGroup } from "../instruction-groups/BSInstructionGroup.Types";
 import type { BSInstruction } from "../instructions/BSInstruction.Types";
+import type { BSChatInputAttachments } from "./BSChat.Input.Attachment";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -27,6 +33,7 @@ export type BSChatInputSendHandler = (
   content: string,
   instruction?: string,
   skills?: string[],
+  attachments?: BSChatInputAttachments,
 ) => void;
 
 export interface BSChatInputHookOptions {
@@ -36,6 +43,14 @@ export interface BSChatInputHookOptions {
   isStreaming?: boolean;
   /** Default input mode (used only as the initial state) */
   defaultMode?: BSChatInputMode;
+  /**
+   * Returns the current attachments (owned by useBSChatInputAttachments) so
+   * the send flow can include them and canSend can enable attachment-only
+   * sends.
+   */
+  getAttachments?: () => BSChatInputAttachments;
+  /** Clears the attachments after a send (owned by useBSChatInputAttachments). */
+  clearAttachments?: () => void;
 }
 
 export interface BSChatInputHookReturn {
@@ -90,6 +105,8 @@ export function useBSChatInput({
   onSend,
   isStreaming = false,
   defaultMode = "standard",
+  getAttachments,
+  clearAttachments,
 }: BSChatInputHookOptions): BSChatInputHookReturn {
   const [mode, setMode] = useState<BSChatInputMode>(defaultMode);
   const [text, setText] = useState("");
@@ -176,17 +193,25 @@ export function useBSChatInput({
     );
   };
 
+  // Current attachments (owned by useBSChatInputAttachments) — used for the
+  // send payload and to allow attachment-only sends.
+  const attachments = getAttachments?.();
+  const hasAttachments =
+    (attachments?.images.length ?? 0) > 0 ||
+    (attachments?.files.length ?? 0) > 0;
+
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed || isStreaming) return;
+    if ((!trimmed && !hasAttachments) || isStreaming) return;
     const instructionValue =
       mode === "instruction" ? instruction.trim() || undefined : undefined;
-    onSend(trimmed, instructionValue, selectedSkills);
+    onSend(trimmed, instructionValue, selectedSkills, attachments);
     setText("");
     setInstruction("");
     setSelectedSkills([]);
     setSelectedGroupId("");
     setSelectedInstructionId("");
+    clearAttachments?.();
   };
 
   const handleKeyDown = (e: ReactKeyboardEvent) => {
@@ -235,7 +260,7 @@ export function useBSChatInput({
     instruction,
     setInstruction,
     textareaRef,
-    canSend: Boolean(text.trim()),
+    canSend: Boolean(text.trim()) || hasAttachments,
     handleSend,
     handleKeyDown,
     selectedSkills,

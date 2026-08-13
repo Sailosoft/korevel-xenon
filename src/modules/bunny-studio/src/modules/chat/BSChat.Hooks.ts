@@ -20,6 +20,7 @@ import {
 import type {
   BSConversation,
   BSChat,
+  BSChatAttachments,
   BSChatWireMessage,
   BSConversationType,
 } from "./BSChat.Types";
@@ -31,6 +32,12 @@ export interface BSChatSendOptions {
   content: string;
   /** Optional custom instruction (from the instruction + text mode) */
   instruction?: string;
+  /**
+   * Attachments from the chat input (feature: image + text file upload):
+   * base64 image URLs (multimodal) and text files whose content is appended
+   * to the prompt.
+   */
+  attachments?: BSChatAttachments;
   /** Optional system/agent persona added to system instructions */
   systemInstruction?: string;
   /** Resolved provider for this request (override chain) */
@@ -221,7 +228,10 @@ export function useBSChat({
   const sendMessage = useCallback(
     async (options: BSChatSendOptions) => {
       const content = options.content.trim();
-      if (!content || isStreaming) return;
+      const hasAttachments =
+        (options.attachments?.images?.length ?? 0) > 0 ||
+        (options.attachments?.files?.length ?? 0) > 0;
+      if ((!content && !hasAttachments) || isStreaming) return;
 
       // Ensure a chat exists (auto-create if none). When the first message is
       // sent from the initial chat page a chat is created here. We defer the
@@ -262,12 +272,22 @@ export function useBSChat({
         setChat((c) => (c ? { ...c, title } : c));
       };
 
-      // Build the user message content (instruction + text)
-      const userContent = options.instruction
+      // Build the user message content (instruction + text + attachments)
+      let userContent = options.instruction
         ? `--- Custom Instruction ---\n${options.instruction}\n\n--- Text ---\n${content}`
         : content;
 
-      // Persist user conversation immediately
+      // Text files — append their content to the prompt (feature: upload)
+      if (options.attachments?.files && options.attachments.files.length > 0) {
+        const blocks = options.attachments.files.map(
+          (f) => `--- Attached File: ${f.name} ---\n${f.content}`,
+        );
+        userContent = userContent
+          ? `${userContent}\n\n${blocks.join("\n\n")}`
+          : blocks.join("\n\n");
+      }
+
+      // Persist user conversation immediately (attachment metadata for display)
       const userConvo = await persistConversation({
         chatId: chatIdValue,
         type: "user" as BSConversationType,
@@ -277,6 +297,16 @@ export function useBSChat({
         model,
         createdDate: new Date().toISOString(),
         gapSeconds,
+        ...(options.attachments?.images?.length
+          ? {
+              imageData: options.attachments.images
+                .map((i) => i.dataUrl)
+                .filter(Boolean),
+            }
+          : {}),
+        ...(options.attachments?.files?.length
+          ? { fileNames: options.attachments.files.map((f) => f.name) }
+          : {}),
       });
 
       // Optimistically append to the UI list
@@ -298,7 +328,20 @@ export function useBSChat({
             | "assistant",
           content: c.content,
         }));
-      wireMessages.push(...prior, { role: "user", content: userContent });
+      // The current user message carries the base64 image URLs as multimodal
+      // image parts (feature: attach image). Prior history stays text-only so
+      // large base64 payloads are not re-sent on every request.
+      const imageDataUrls = (options.attachments?.images ?? [])
+        .map((i) => i.dataUrl)
+        .filter(Boolean);
+      wireMessages.push(
+        ...prior,
+        {
+          role: "user",
+          content: userContent,
+          ...(imageDataUrls.length > 0 ? { images: imageDataUrls } : {}),
+        },
+      );
 
       // Placeholder assistant bubble (streamed into)
       const assistantId = uuidv7();

@@ -7,7 +7,7 @@
 // Unlike server-action-based AI calls, this endpoint streams tokens to the
 // client as they are generated.
 
-import { streamText } from "ai";
+import { streamText, type ModelMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
 import type { BSChatStreamRequest, BSChatWireMessage } from "@/src/modules/bunny-studio/src/modules/chat/BSChat.Types";
@@ -91,10 +91,26 @@ export async function POST(req: Request) {
 
     const result = streamText({
       model: provider(model),
-      messages: chatMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      messages: chatMessages.map((m): ModelMessage => {
+        // Multimodal support (feature: attach image): when the current user
+        // message carries base64 image URLs, send them as image content parts
+        // alongside the text. Plain messages keep the string form. (System
+        // messages were filtered out above, so only user/assistant remain.)
+        const images = m.images?.filter(Boolean) ?? [];
+        if (m.role === "user" && images.length > 0) {
+          return {
+            role: "user",
+            content: [
+              { type: "text", text: m.content },
+              ...images.map((image) => ({ type: "image" as const, image })),
+            ],
+          };
+        }
+        if (m.role === "assistant") {
+          return { role: "assistant", content: m.content };
+        }
+        return { role: "user", content: m.content };
+      }),
       instructions:
         systemMessages.length > 0
           ? systemMessages.map((m) => m.content).join("\n\n")

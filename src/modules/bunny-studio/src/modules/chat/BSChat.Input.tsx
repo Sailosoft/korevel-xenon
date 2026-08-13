@@ -15,8 +15,8 @@
 
 "use client";
 
-import React, { useEffect } from "react";
-import { Send, Square, Sparkles } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Send, Square, Sparkles, ImagePlus } from "lucide-react";
 import { BSCodeMirrorEditor } from "../../components";
 import type { RenderFormat } from "@/src/modules/render";
 import {
@@ -25,6 +25,12 @@ import {
   type BSChatInputMode,
   type BSChatInputSendHandler,
 } from "./BSChat.Input.Hooks";
+import {
+  useBSChatInputAttachments,
+  BSChatInputAttachmentChips,
+  BSChatInputAttachmentButtons,
+  isAllowedTextFile,
+} from "./BSChat.Input.Attachment";
 import { useBSSpeechRecognition } from "./BSChat.Input.STT.Hooks";
 import { BSChatInputSTTButton } from "./BSChat.Input.STTButton";
 import { BSChatInputSkillBubbles } from "./BSChat.Input.SkillBubbles";
@@ -73,6 +79,10 @@ export function BSChatInput({
   initial = false,
   skillSuggestions = [],
 }: BSChatInputProps) {
+  // Attachments (image base64 URL + text file upload) — owned by their own hook
+  // and UI (BSChat.Input.Attachment.tsx).
+  const attachments = useBSChatInputAttachments();
+
   const {
     mode,
     setMode,
@@ -104,7 +114,17 @@ export function BSChatInput({
     openInstructionModal,
     closeInstructionModal,
     toggleInstructionCoverView,
-  } = useBSChatInput({ onSend, isStreaming, defaultMode });
+  } = useBSChatInput({
+    onSend,
+    isStreaming,
+    defaultMode,
+    // Bridge the attachment hook into the send flow (payload + clearing).
+    getAttachments: () => ({
+      images: attachments.images,
+      files: attachments.files,
+    }),
+    clearAttachments: attachments.clearAttachments,
+  });
 
   // Speech-to-text settings from the global AI settings (browser vs AI engine,
   // provider/model/language/endpoint). The recognition logic lives in a
@@ -121,6 +141,21 @@ export function BSChatInput({
     },
     onFinalTranscript: appendText,
   });
+
+  // Drag & drop state (feature: image + text file upload). The upload buttons
+  // and chips live in BSChatInputAttachment (BSChat.Input.Attachment.tsx).
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDropFiles = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const arr = Array.from(fileList);
+    const imageFiles = arr.filter((f) => f.type.startsWith("image/"));
+    const textFiles = arr.filter(
+      (f) => !f.type.startsWith("image/") && isAllowedTextFile(f),
+    );
+    if (imageFiles.length > 0) attachments.addImageFiles(imageFiles);
+    if (textFiles.length > 0) attachments.addTextFiles(textFiles);
+  };
 
   // Live draft = committed text + the in-progress speech transcript. The
   // draft is only displayed (not committed) until the session ends.
@@ -154,14 +189,35 @@ export function BSChatInput({
       {/* Input area (spinning red line around it only on the initial chat) */}
       <div className={initial ? "bs-spin-ring" : ""}>
         <div
-          className={`bs-spin-ring-inner bg-white border rounded-3xl shadow-sm overflow-hidden transition-colors ${
+          className={`bs-spin-ring-inner relative bg-white border rounded-3xl shadow-sm overflow-hidden transition-colors ${
             initial ? "rounded-[calc(1.75rem-2px)]" : ""
           } ${
             isStreaming
               ? "border-red-300 ring-2 ring-red-100"
-              : "border-gray-200 focus-within:border-red-300"
+              : dragActive
+                ? "border-red-400 ring-2 ring-red-100"
+                : "border-gray-200 focus-within:border-red-300"
           }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            handleDropFiles(e.dataTransfer.files);
+          }}
         >
+          {/* Drag & drop hint overlay (feature: image + text file upload) */}
+          {dragActive && (
+            <div className="absolute inset-0 z-20 rounded-3xl border-2 border-dashed border-red-400 bg-red-50/70 flex items-center justify-center pointer-events-none">
+              <span className="flex items-center gap-2 text-sm font-medium text-red-600">
+                <ImagePlus className="w-4 h-4" />
+                Drop to attach images or text files
+              </span>
+            </div>
+          )}
           {/* Instruction group + instruction prefill (feature) */}
           {mode === "instruction" && (
             <BSChatInputInstructionPanel
@@ -209,19 +265,35 @@ export function BSChatInput({
             />
           )}
 
+          {/* Attachment chips (feature: image + text file upload) */}
+          <BSChatInputAttachmentChips
+            images={attachments.images}
+            files={attachments.files}
+            onRemoveImage={attachments.removeImage}
+            onRemoveFile={attachments.removeFile}
+          />
+
           {/* Footer actions */}
           <div className="flex items-center justify-between gap-2 px-3 py-2">
-            <BSChatInputToolbar
-              mode={mode}
-              onModeChange={setMode}
-              renderType={renderType}
-              renderTypes={renderTypes}
-              onRenderTypeChange={onRenderTypeChange}
-              isStreaming={isStreaming}
-              onOpenEditorModal={openEditorModal}
-            />
+            {/* Left group: attachment buttons + toolbar in a single row */}
+            <div className="flex items-center gap-1 min-w-0">
+              <BSChatInputToolbar
+                mode={mode}
+                onModeChange={setMode}
+                renderType={renderType}
+                renderTypes={renderTypes}
+                onRenderTypeChange={onRenderTypeChange}
+                isStreaming={isStreaming}
+                onOpenEditorModal={openEditorModal}
+              />
+            </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <BSChatInputAttachmentButtons
+                disabled={isStreaming}
+                onAddImages={attachments.addImageFiles}
+                onAddTextFiles={attachments.addTextFiles}
+              />
               <BSChatInputSTTButton
                 supported={stt.supported}
                 listening={stt.listening}

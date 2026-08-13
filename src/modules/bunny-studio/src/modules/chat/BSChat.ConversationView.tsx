@@ -28,6 +28,8 @@ import {
   Clock,
   Pencil,
   Send,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { RenderView } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
@@ -74,6 +76,27 @@ function formatDuration(ms?: number): string {
   return `${minutes}m ${rem}s`;
 }
 
+// ─── Attached-content display helper (feature: text file upload) ────────
+//
+// Attached file contents are appended to the persisted message content so
+// they are sent to the AI, but they are rendered as compact chips instead of
+// raw text. This strips those appended blocks for display while leaving the
+// full content intact for copy / edit / resend.
+
+// Strips attached-file blocks and any legacy OCR-text blocks (messages sent
+// before OCR was removed) so neither renders as raw text in the bubble.
+const ATTACHED_BLOCK_START =
+  /^--- (?:Attached File|OCR Text from Image): .+ ---\n/m;
+
+function stripAttachedBlocks(content: string): string {
+  const idx = content.search(ATTACHED_BLOCK_START);
+  if (idx === -1) return content;
+  return content
+    .slice(0, idx)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // ─── Bubble ───────────────────────────────────────────────────────────
 
 export interface BSChatConversationViewProps {
@@ -110,6 +133,13 @@ export function BSChatConversationView({
   const renderFormat: RenderFormat | undefined =
     conversation.contentType || "markdown";
 
+  // Display text for user messages: attached file blocks are appended to the
+  // message for the AI but hidden from the bubble — they show as compact chips
+  // below instead of raw appended text (feature).
+  const displayContent = isUser
+    ? stripAttachedBlocks(conversation.content)
+    : conversation.content;
+
   // Render toggle state only applies to assistant messages
   const [view, setView] = useState<"render" | "raw">("render");
   const showRenderToggle = !isUser && !isSystem && !isError;
@@ -129,6 +159,9 @@ export function BSChatConversationView({
   // "Edit user message" modal state (feature: edit own chat content)
   const [userEditOpen, setUserEditOpen] = useState(false);
   const [userEditValue, setUserEditValue] = useState(conversation.content);
+
+  // Image viewer modal state (feature: attach image — click thumbnail to view)
+  const [imageViewerIndex, setImageViewerIndex] = useState<number | null>(null);
 
   const openUserEdit = () => {
     setUserEditValue(conversation.content);
@@ -354,7 +387,46 @@ export function BSChatConversationView({
           </div>
         ) : (
           <div>
-            <div className="whitespace-pre-wrap break-words">{conversation.content}</div>
+            {/* Attached images — base64 thumbnails (feature: attach image) */}
+            {isUser &&
+              conversation.imageData &&
+              conversation.imageData.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {conversation.imageData.map((src, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={i}
+                      src={src}
+                      alt={`Attached image ${i + 1}`}
+                      onClick={() => setImageViewerIndex(i)}
+                      title="View image"
+                      className="w-24 h-24 object-cover rounded-xl border border-white/20 cursor-pointer hover:ring-2 hover:ring-red-400 transition"
+                    />
+                  ))}
+                </div>
+              )}
+
+            {/* Attached file chips — the full content is sent to the AI but
+                hidden from the bubble (rendered as icon + name, not raw text) */}
+            {isUser &&
+              conversation.fileNames &&
+              conversation.fileNames.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {conversation.fileNames.map((name, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 text-[10px] bg-white/20 text-white rounded-full px-2 py-0.5"
+                    >
+                      <FileCode2 className="w-3 h-3" />
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+            <div className="whitespace-pre-wrap break-words">
+              {displayContent}
+            </div>
 
             {/* User actions: copy / edit / resend own content (feature) */}
             {isUser && (
@@ -454,6 +526,71 @@ export function BSChatConversationView({
             height="100%"
             className="rounded-none"
           />
+        </div>
+      </BSModal>
+
+      {/* Image viewer modal (feature: attach image — simple lightbox) */}
+      <BSModal
+        open={imageViewerIndex !== null}
+        onClose={() => setImageViewerIndex(null)}
+        title={
+          imageViewerIndex !== null &&
+          conversation.imageData &&
+          conversation.imageData.length > 1
+            ? `Image ${imageViewerIndex + 1} of ${conversation.imageData.length}`
+            : "Image"
+        }
+        sizeClassName="max-w-3xl"
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-center bg-gray-900 rounded-xl min-h-[50vh] overflow-hidden">
+            {imageViewerIndex !== null &&
+              conversation.imageData?.[imageViewerIndex] && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={conversation.imageData[imageViewerIndex]}
+                  alt={`Attached image ${imageViewerIndex + 1}`}
+                  className="max-w-full max-h-[65vh] object-contain rounded-lg"
+                />
+              )}
+          </div>
+
+          {conversation.imageData && conversation.imageData.length > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <button
+                onClick={() =>
+                  setImageViewerIndex((prev) =>
+                    prev !== null ? Math.max(0, prev - 1) : prev,
+                  )
+                }
+                disabled={imageViewerIndex === 0}
+                title="Previous image"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <span className="text-xs text-gray-500">
+                {(imageViewerIndex ?? 0) + 1} / {conversation.imageData.length}
+              </span>
+              <button
+                onClick={() =>
+                  setImageViewerIndex((prev) =>
+                    prev !== null
+                      ? Math.min(conversation.imageData!.length - 1, prev + 1)
+                      : prev,
+                  )
+                }
+                disabled={
+                  imageViewerIndex !== null &&
+                  imageViewerIndex >= conversation.imageData.length - 1
+                }
+                title="Next image"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </BSModal>
       </div>
