@@ -227,98 +227,82 @@ export default function BUIBookChapterComponentPipeline({
                   <span className="font-semibold text-primary"> Pending</span>.
                 </p>
 
-                {/* First chapter status — decides whether content writing starts */}
-                {firstChapter && (
-                  <div
-                    className={`p-3 rounded-lg border flex items-start gap-2.5 ${
-                      firstChapter.isEmpty
-                        ? "bg-warning-50 border-warning-200"
-                        : "bg-success-50 border-success-200"
-                    }`}
-                  >
-                    {firstChapter.isEmpty ? (
-                      <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 text-success mt-0.5 shrink-0" />
-                    )}
+                {/* First chapter status — only shown when the first chapter already
+                    has content. Hidden during first writing (empty first chapter). */}
+                {firstChapter && !firstChapter.isEmpty && (
+                  <div className="p-3 rounded-lg border flex items-start gap-2.5 bg-success-50 border-success-200">
+                    <CheckCircle2 className="w-4 h-4 text-success mt-0.5 shrink-0" />
                     <div className="flex flex-col gap-0.5">
-                      <span
-                        className={`text-xs font-bold ${
-                          firstChapter.isEmpty
-                            ? "text-warning-800"
-                            : "text-success-800"
-                        }`}
-                      >
-                        {firstChapter.isEmpty
-                          ? "First chapter is empty"
-                          : "First chapter already has content"}
+                      <span className="text-xs font-bold text-success-800">
+                        Some chapters already have content
                       </span>
                       <span className="text-[11px] text-default-600 leading-relaxed">
-                        Ch.{firstChapter.number} - {firstChapter.title}
-                        {firstChapter.isEmpty
-                          ? " — content writing will start from this chapter."
-                          : " — existing drafts detected. Choose a writing mode below."}
+                        Some existing drafts are detected. Choose a writing mode
+                        below.
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* Content writing mode */}
-                <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
-                  <span className="text-xs font-bold uppercase text-default-500">
-                    Content Writing Mode
-                  </span>
-                  <label
-                    className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
-                      writeMode === "empty"
-                        ? "border-primary bg-primary-50"
-                        : "border-default-200 bg-transparent hover:border-default-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="writeMode"
-                      value="empty"
-                      checked={writeMode === "empty"}
-                      onChange={() => setWriteMode("empty")}
-                      className="mt-0.5 accent-primary"
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-default-800">
-                        Write only empty content
-                      </span>
-                      <span className="text-xs text-default-500">
-                        Generate chapters that have no existing content.
-                        Completed chapters are skipped.
-                      </span>
-                    </div>
-                  </label>
-                  <label
-                    className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
-                      writeMode === "all"
-                        ? "border-primary bg-primary-50"
-                        : "border-default-200 bg-transparent hover:border-default-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="writeMode"
-                      value="all"
-                      checked={writeMode === "all"}
-                      onChange={() => setWriteMode("all")}
-                      className="mt-0.5 accent-primary"
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-default-800">
-                        Rewrite all content
-                      </span>
-                      <span className="text-xs text-default-500">
-                        Regenerate every chapter, overwriting any existing
-                        content.
-                      </span>
-                    </div>
-                  </label>
-                </div>
+                {/* Content writing mode — only shown when the first chapter already
+                    has content. Hidden during first writing (empty first chapter). */}
+                {firstChapter && !firstChapter.isEmpty && (
+                  <div className="flex flex-col gap-2 border-t pt-3 border-default-100">
+                    <span className="text-xs font-bold uppercase text-default-500">
+                      Content Writing Mode
+                    </span>
+                    <label
+                      className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+                        writeMode === "empty"
+                          ? "border-primary bg-primary-50"
+                          : "border-default-200 bg-transparent hover:border-default-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="writeMode"
+                        value="empty"
+                        checked={writeMode === "empty"}
+                        onChange={() => setWriteMode("empty")}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-default-800">
+                          Write only empty content
+                        </span>
+                        <span className="text-xs text-default-500">
+                          Generate chapters that have no existing content.
+                          Completed chapters are skipped.
+                        </span>
+                      </div>
+                    </label>
+                    <label
+                      className={`flex items-start gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${
+                        writeMode === "all"
+                          ? "border-primary bg-primary-50"
+                          : "border-default-200 bg-transparent hover:border-default-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="writeMode"
+                        value="all"
+                        checked={writeMode === "all"}
+                        onChange={() => setWriteMode("all")}
+                        className="mt-0.5 accent-primary"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-default-800">
+                          Rewrite all content
+                        </span>
+                        <span className="text-xs text-default-500">
+                          Regenerate every chapter, overwriting any existing
+                          content.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold uppercase text-default-500">

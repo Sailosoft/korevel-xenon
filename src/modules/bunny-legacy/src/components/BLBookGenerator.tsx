@@ -106,11 +106,14 @@ export const BLBookGenerator: React.FC<IBLBookGeneratorProps> = ({
           />
         </div>
         <Checkbox
+          id="bl-bulk-generate-chapters"
           isSelected={isBulkGenerating}
           onChange={(value) => onBulkGeneratingChange(value)}
-          aria-label="Automatically generate all chapters in sequence"
         >
-          <Checkbox.Content>
+          {/* Checkbox.Content is the clickable RAC label; the visible span
+              below is its single label source. cursor-pointer + no aria-label
+              keeps direct clicks toggling reliably. */}
+          <Checkbox.Content className="cursor-pointer">
             <Checkbox.Control>
               <Checkbox.Indicator />
             </Checkbox.Control>

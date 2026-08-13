@@ -108,6 +108,7 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
     },
     {
       id: "clone_book",
+      label: "Clone Book",
       variant: "ghost",
       icon: React.createElement(CopyPlus),
       onClick: async function (
