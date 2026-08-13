@@ -15,15 +15,18 @@
 
 import React, { useState } from "react";
 import { Card, Button } from "@heroui/react";
-import { Save, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Save, CheckCircle2, AlertCircle, Loader2, ImagePlus } from "lucide-react";
 import {
   HELIX_PROVIDER_LABELS,
   HELIX_AI_MODELS,
   HELIX_STT_MODELS,
   HELIX_STT_PROVIDERS,
+  HELIX_PROVIDER_IMAGE_MODELS,
+  HELIX_IMAGE_MODELS,
 } from "@/src/modules/helix";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import { useBSAISettings } from "./BSAISettings.Context";
+import type { BSAIImageSettings } from "./BSAISettings.Types";
 
 // ─── Save status ──────────────────────────────────────────────────────────
 
@@ -32,8 +35,15 @@ type SaveStatus = "idle" | "saving" | "success" | "error";
 // ─── Component ────────────────────────────────────────────────────────────
 
 export function BSAISettingsComponent() {
-  const { aiConfig, speech, loading, saveAISettings, saveSpeechSettings } =
-    useBSAISettings();
+  const {
+    aiConfig,
+    speech,
+    imageConfig,
+    loading,
+    saveAISettings,
+    saveSpeechSettings,
+    saveImageSettings,
+  } = useBSAISettings();
 
   const [provider, setProvider] = useState<HelixAIProvider>(aiConfig.provider);
   const [model, setModel] = useState<string>(aiConfig.model);
@@ -51,10 +61,19 @@ export function BSAISettingsComponent() {
   const [sttSaveStatus, setSttSaveStatus] = useState<SaveStatus>("idle");
   const [sttErrorMessage, setSttErrorMessage] = useState<string>("");
 
+  // ── Image generation (AI) form state ─────────────────────────────────────
+  const [imageProvider, setImageProvider] = useState<HelixAIProvider>(
+    imageConfig.provider,
+  );
+  const [imageModel, setImageModel] = useState<string>(imageConfig.model);
+  const [imageSaveStatus, setImageSaveStatus] = useState<SaveStatus>("idle");
+  const [imageErrorMessage, setImageErrorMessage] = useState<string>("");
+
   // Track the last-seen context value so we can sync local form state when it
   // loads/changes, using React's render-time adjustment pattern.
   const [prevConfig, setPrevConfig] = useState(aiConfig);
   const [prevSpeech, setPrevSpeech] = useState(speech);
+  const [prevImage, setPrevImage] = useState<BSAIImageSettings>(imageConfig);
 
   if (aiConfig !== prevConfig) {
     setPrevConfig(aiConfig);
@@ -68,6 +87,12 @@ export function BSAISettingsComponent() {
     setSttModel(speech.sttModel);
     setSttLanguage(speech.sttLanguage);
     setSttEndpoint(speech.sttEndpoint);
+  }
+
+  if (imageConfig !== prevImage) {
+    setPrevImage(imageConfig);
+    setImageProvider(imageConfig.provider);
+    setImageModel(imageConfig.model);
   }
 
   // Available models for the currently selected provider
@@ -134,6 +159,39 @@ export function BSAISettingsComponent() {
       setSttSaveStatus("error");
       setSttErrorMessage(
         err instanceof Error ? err.message : "Failed to save STT settings",
+      );
+    }
+  };
+
+  // ── Image generation (AI) handlers ──────────────────────────────────
+
+  // Only providers with a populated image model collection are offered.
+  const imageProviderKeys = (
+    Object.keys(HELIX_PROVIDER_IMAGE_MODELS) as HelixAIProvider[]
+  ).filter((k) => k !== "default");
+  const imageModels = HELIX_IMAGE_MODELS[imageProvider] ?? [];
+
+  // When the image provider changes, auto-select the first available model.
+  const handleImageProviderChange = (newProvider: HelixAIProvider) => {
+    setImageProvider(newProvider);
+    const models = HELIX_IMAGE_MODELS[newProvider];
+    if (models && models.length > 0) {
+      setImageModel(models[0]);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    setImageSaveStatus("saving");
+    setImageErrorMessage("");
+
+    try {
+      await saveImageSettings({ provider: imageProvider, model: imageModel });
+      setImageSaveStatus("success");
+      setTimeout(() => setImageSaveStatus("idle"), 2000);
+    } catch (err) {
+      setImageSaveStatus("error");
+      setImageErrorMessage(
+        err instanceof Error ? err.message : "Failed to save image settings",
       );
     }
   };
@@ -362,6 +420,102 @@ export function BSAISettingsComponent() {
               {sttSaveStatus === "error" && (
                 <span className="flex items-center gap-1 text-sm text-red-600">
                   <AlertCircle className="w-4 h-4" /> {sttErrorMessage}
+                </span>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Image Generation (AI) settings — provider + model used by the
+            Image Generator module (OpenAI-compatible image endpoint). */}
+        <Card className="p-6 border-none shadow-sm">
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <ImagePlus className="w-5 h-5 text-red-600" />
+              <h2 className="text-base font-semibold text-gray-900">
+                Image Generation
+              </h2>
+            </div>
+            <p className="text-xs text-gray-400 -mt-3">
+              The provider + model used by the Image Generator to create AI
+              images via an OpenAI-compatible image endpoint.
+            </p>
+
+            {/* Image Provider Select */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Image AI Provider
+              </label>
+              <select
+                value={imageProvider}
+                onChange={(e) =>
+                  handleImageProviderChange(e.target.value as HelixAIProvider)
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+              >
+                {imageProviderKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {HELIX_PROVIDER_LABELS[key] ?? key}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5">
+                The AI backend used to generate images.
+              </p>
+            </div>
+
+            {/* Image Model Select */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Image Model
+              </label>
+              <select
+                value={imageModel}
+                onChange={(e) => setImageModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+              >
+                {imageModels.length === 0 && (
+                  <option value="">No models available</option>
+                )}
+                {imageModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5">
+                The specific image model to use with the selected provider.
+              </p>
+            </div>
+
+            {/* Save Image Settings */}
+            <div className="flex items-center gap-3">
+              <Button
+                onPress={handleSaveImage}
+                isDisabled={imageSaveStatus === "saving"}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-6"
+              >
+                {imageSaveStatus === "saving" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Image Settings
+                  </>
+                )}
+              </Button>
+
+              {imageSaveStatus === "success" && (
+                <span className="flex items-center gap-1 text-sm text-green-600">
+                  <CheckCircle2 className="w-4 h-4" /> Saved
+                </span>
+              )}
+              {imageSaveStatus === "error" && (
+                <span className="flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" /> {imageErrorMessage}
                 </span>
               )}
             </div>

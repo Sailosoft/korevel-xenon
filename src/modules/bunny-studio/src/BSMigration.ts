@@ -76,4 +76,14 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.index("createdDate");
     });
   });
+
+  // ── Version 3 — Image Library (feature: Image Generator) ─────────────
+  model.schema((config) => {
+    // Generated AI images persisted as base64 data URLs
+    config.create("imageLibrary", (table) => {
+      table.uuid();
+      table.index("createdDate");
+      table.index("provider");
+    });
+  });
 }
