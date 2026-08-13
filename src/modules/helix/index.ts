@@ -25,6 +25,16 @@ export {
   HELIX_STT_PROVIDERS,
 } from "./src/HelixConfig";
 
+// ── Image model library ────────────────────────────────────────────────────────
+// Reuses HelixConfig provider identity/config; only the model collections
+// are defined separately.
+export type { HelixImageProvider } from "./src/HelixConfig.Image";
+export {
+  HELIX_PROVIDER_IMAGE_MODELS,
+  HELIX_IMAGE_MODELS,
+  isHelixImageProvider,
+} from "./src/HelixConfig.Image";
+
 // ── AI Schema types & service ──────────────────────────────────────────────────
 export type {
   HelixStrictPropertyDefinition,
@@ -46,9 +56,27 @@ export type { HelixAISettings } from "./src/HelixAITypes";
 export { HelixAIProviderSelector } from "./src/components/HelixAIProviderSelector";
 export type { HelixAIProviderSelectorProps } from "./src/components/HelixAIProviderSelector";
 
+// ── Image AI Components ────────────────────────────────────────────────────────────
+export { HelixAIImageProviderSelector } from "./src/components/HelixAIImageProviderSelector";
+export type {
+  HelixAIImageProviderSelectorProps,
+} from "./src/components/HelixAIImageProviderSelector";
+export { default as HelixAIImageModal } from "./src/components/HelixAIImageModal";
+export type { HelixAIImageModalProps } from "./src/components/HelixAIImageModal";
+
 // ── Hooks ───────────────────────────────────────────────────────────────────────────────
 export { useHelixAISettings, useHelixAIOption } from "./src/hooks/useHelixAISettings";
 export type {
   UseHelixAISettingsOptions,
   UseHelixAISettingsReturn,
 } from "./src/hooks/useHelixAISettings";
+
+// ── Image AI Hooks ─────────────────────────────────────────────────────────────────────
+export {
+  useHelixAIImageSettings,
+  useHelixAIImageOption,
+} from "./src/hooks/useHelixAIImageSettings";
+export type {
+  UseHelixAIImageSettingsOptions,
+  UseHelixAIImageSettingsReturn,
+} from "./src/hooks/useHelixAIImageSettings";

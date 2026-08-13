@@ -22,6 +22,8 @@ import type { BSInstruction } from "./modules/instructions/BSInstruction.Types";
 import type { BSChatCategory } from "./modules/chat-category/BSChatCategory.Types";
 import type { BSChatFavorite } from "./modules/chat-favorite/BSChatFavorite.Types";
 import type { BSAISettings } from "./modules/ai-settings/BSAISettings.Types";
+import type { BSImageAsset } from "./modules/image-generator/BSImageGenerator.Types";
+import { BSImageRepository } from "./modules/image-generator/BSImageGenerator.Repository";
 import { BSChatRepository } from "./modules/chat/BSChat.Repository";
 import { BSAgentRepository } from "./modules/agents/BSAgent.Repository";
 import { BSAgentPoolRepository } from "./modules/agent-pools/BSAgentPool.Repository";
@@ -72,6 +74,10 @@ export class BSDatabase extends PhazeDB {
   // ── Chat Favorites (feature: Chat Favorites) ───────────────────────
   public chatFavorites = this.table<BSChatFavorite, string>("chatFavorites");
   public chatFavoritesRepo = new BSChatFavoriteRepository(this.chatFavorites);
+
+  // ── Image Library (feature: Image Generator) ───────────────────────
+  public imageLibrary = this.table<BSImageAsset, string>("imageLibrary");
+  public imageLibraryRepo = new BSImageRepository(this.imageLibrary);
 
   constructor() {
     super();

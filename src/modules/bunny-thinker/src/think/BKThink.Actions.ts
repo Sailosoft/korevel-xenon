@@ -17,6 +17,11 @@ import type { HelixAIOption } from "@/src/modules/helix";
 import { BKPromptBuildThoughtSystem } from "../thoughts/BKThoughts.Prompt";
 import { BKPromptThinkerSwarm } from "../thinker/BKThinker.Prompt";
 import { BKPromptGenerateThought } from "../thoughts/BKThoughts.Prompt";
+import { BKPromptGenerateSteps } from "../thoughts/BKThoughts.Prompt";
+import type {
+  BKStepGenerationMode,
+  BKStepGenerationStrategy,
+} from "../thoughts/BKThoughtGeneration.Config";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
 import { BKPromptCraftSystemSuffix } from "../craft/BKCraft.Prompt";
 import { bkThinkConstant } from "./BKThink.Constant";
@@ -106,6 +111,40 @@ export interface BKGenerateThoughtResponse {
     thought: string;
     order: number;
   }>;
+  error?: string;
+}
+
+export interface BKGenerateStepsRequest {
+  /** Production mode that shapes the generated steps (Analytic, Plan, SDLC, ...) */
+  mode: BKStepGenerationMode;
+  /** How generated steps merge with any existing steps (append vs override) */
+  strategy: BKStepGenerationStrategy;
+  /** Free-form user direction for the generated steps */
+  request: string;
+  /** The thought being built (used as generation context) */
+  thoughtName: string;
+  thoughtDescription?: string;
+  thoughtContent: string;
+  /** Existing steps when strategy is "append" — passed so the AI stays coherent */
+  existingSteps?: Array<{ name: string; thought: string }>;
+  /**
+   * When true, the thought description is treated as the primary direction
+   * for the generated steps (merged with any manual request).
+   */
+  useDescriptionAsDirection?: boolean;
+  /** AI config override */
+  aiConfig?: HelixAIOption;
+}
+
+export interface BKGeneratedStep {
+  name: string;
+  thought: string;
+  order: number;
+}
+
+export interface BKGenerateStepsResponse {
+  success: boolean;
+  steps: BKGeneratedStep[];
   error?: string;
 }
 
@@ -327,6 +366,76 @@ export async function generateThoughtAction(
     console.error("[BKThink.Actions] generateThoughtAction failed:", message);
     return {
       success: false,
+      error: message,
+    };
+  }
+}
+
+// ─── Generate Steps Action ────────────────────────────────────────────────
+
+/**
+ * Generate a sequence of train-of-thought steps using AI.
+ *
+ * Uses the selected production mode (Analytic, Plan, SDLC, ContentWriting,
+ * Guide, Architecture) and merge strategy (append vs override) to shape the
+ * generated steps. Employs a typed schema + structured fallback so the AI
+ * returns a clean, parseable "steps" array.
+ */
+export async function generateStepsAction(
+  request: BKGenerateStepsRequest,
+): Promise<BKGenerateStepsResponse> {
+  try {
+    if (
+      !request.thoughtContent?.trim() &&
+      !request.request?.trim()
+    ) {
+      return {
+        success: false,
+        steps: [],
+        error: "Provide a generation request or a thought to derive steps from",
+      };
+    }
+
+    const helix = createHelixService(request.aiConfig);
+
+    const prompt = BKPromptGenerateSteps({
+      mode: request.mode,
+      strategy: request.strategy,
+      request: request.request,
+      thoughtName: request.thoughtName,
+      thoughtDescription: request.thoughtDescription,
+      thoughtContent: request.thoughtContent,
+      existingSteps: request.existingSteps,
+      useDescriptionAsDirection: request.useDescriptionAsDirection,
+    });
+
+    const result = await helix.doChatStructuredFallback({
+      system: bkThinkConstant.SYSTEM_JSON_ONLY_OBJECT,
+      user: prompt,
+      temperature: bkThinkConstant.DEFAULT_JSON_TEMPERATURE,
+      maxToken: bkThinkConstant.DEFAULT_THOUGHT_MAX_TOKENS,
+      schema: bkThinkConstant.STEP_GENERATION_SCHEMA,
+    });
+
+    const rawSteps = Array.isArray(result.steps) ? result.steps : [];
+
+    return {
+      success: true,
+      steps: rawSteps
+        .filter((s) => s && typeof s.name === "string" && s.name.trim())
+        .map((s, i) => ({
+          name: s.name,
+          thought: typeof s.thought === "string" ? s.thought : "",
+          order: i,
+        })),
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown generation error";
+    console.error("[BKThink.Actions] generateStepsAction failed:", message);
+    return {
+      success: false,
+      steps: [],
       error: message,
     };
   }

@@ -12,6 +12,8 @@ import { BSCodeMirrorEditor, BSModal } from "../../components";
 // ─── Props ─────────────────────────────────────────────────────────────
 
 export interface BSChatInputEditorModalProps {
+  /** Modal title */
+  title?: string;
   /** Whether the modal is visible */
   open: boolean;
   /** Cover view (true) vs window view (false) */
@@ -35,12 +37,13 @@ export function BSChatInputEditorModal({
   onValueChange,
   onClose,
   onToggleCoverView,
+  title = "Code Editor",
 }: BSChatInputEditorModalProps) {
   return (
     <BSModal
       open={open}
       onClose={onClose}
-      title="Code Editor"
+      title={title}
       sizeClassName="max-w-3xl h-[70vh]"
       fullscreen={coverView}
       onFullscreenChange={onToggleCoverView}

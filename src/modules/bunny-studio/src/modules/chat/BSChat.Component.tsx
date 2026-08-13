@@ -46,6 +46,7 @@ import type { RenderFormat } from "@/src/modules/render";
 import { useBSChat } from "./BSChat.Hooks";
 import { BSChatConversationView } from "./BSChat.ConversationView";
 import { BSChatInput } from "./BSChat.Input";
+import type { BSChatInputAttachments } from "./BSChat.Input.Attachment";
 import { BSChatSettingsPanel } from "./BSChat.SettingsPanel";
 import { useBSVoice } from "./BSChat.Voice";
 
@@ -316,7 +317,12 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   }, [createChat, router]);
 
   const handleSend = useCallback(
-    (content: string, instruction?: string, skills?: string[]) => {
+    (
+      content: string,
+      instruction?: string,
+      skills?: string[],
+      attachments?: BSChatInputAttachments,
+    ) => {
       const effectiveContentType = requestRenderType ?? contentType;
       // Append selected skill bubbles to the message (feature: Agent skill)
       const contentWithSkills =
@@ -335,6 +341,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
       void sendMessage({
         content: contentWithSkills,
         instruction,
+        // Attachments: base64 image URLs (multimodal) + text file contents
+        attachments,
         systemInstruction: systemParts.join("\n\n"),
         provider: effectiveProvider,
         model: effectiveModel,

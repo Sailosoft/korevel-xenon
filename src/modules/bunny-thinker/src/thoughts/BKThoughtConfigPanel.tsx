@@ -57,6 +57,7 @@ export default function BKThoughtConfigPanel({
   onRemoveStep,
   onUpdateStep,
   renderStepActions,
+  renderStepsHeaderActions,
   renderStepsFooter,
   hideThoughtDefinition,
 }: BKThoughtConfigPanelProps) {
@@ -127,14 +128,18 @@ export default function BKThoughtConfigPanel({
               Train of Thoughts (Steps)
             </h3>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={onAddStep}
-            className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1 text-xs"
-          >
-            <Plus size={14} /> Add Step
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Optional header actions (e.g. Generative AI step producer) */}
+            {renderStepsHeaderActions}
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={onAddStep}
+              className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors flex items-center gap-1 text-xs"
+            >
+              <Plus size={14} /> Add Step
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-3">

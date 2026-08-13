@@ -8,6 +8,10 @@
 // builtin browser Web Speech API or an AI-based (OpenAI-compatible) transcriber.
 
 import type { HelixAIProvider } from "@/src/modules/helix";
+import {
+  HELIX_PROVIDER_IMAGE_MODELS,
+  HELIX_IMAGE_MODELS,
+} from "@/src/modules/helix";
 
 /** Fixed ID for the singleton global AI settings record. */
 export const BS_AI_SETTINGS_ID = "global";
@@ -29,6 +33,14 @@ export interface BSSpeechSettings {
   sttEndpoint: string;
 }
 
+/** Image-generation AI settings (provider + model used by the Image Generator). */
+export interface BSAIImageSettings {
+  /** The selected image AI provider key (e.g. "siliconFlow") */
+  provider: HelixAIProvider;
+  /** The selected image model identifier for that provider */
+  model: string;
+}
+
 /** The settings shape persisted in the aiSettings Dexie table. */
 export interface BSAISettings {
   /** The selected AI provider key */
@@ -37,12 +49,24 @@ export interface BSAISettings {
   model: string;
   /** Speech-to-text settings (optional for backward compatibility) */
   speech?: BSSpeechSettings;
+  /** Image-generation AI settings (optional for backward compatibility) */
+  image?: BSAIImageSettings;
 }
 
 /** Default AI settings — used when nothing has been saved yet. */
 export const BS_AI_SETTINGS_DEFAULTS: BSAISettings = {
   provider: "default",
   model: "gemma4:31b-cloud",
+};
+
+// Default image settings — first image-capable provider with its first model.
+const DEFAULT_IMAGE_PROVIDER = (
+  Object.keys(HELIX_PROVIDER_IMAGE_MODELS) as HelixAIProvider[]
+).find((p) => p !== "default") ?? "siliconFlow";
+
+export const BS_AI_IMAGE_SETTINGS_DEFAULTS: BSAIImageSettings = {
+  provider: DEFAULT_IMAGE_PROVIDER,
+  model: HELIX_IMAGE_MODELS[DEFAULT_IMAGE_PROVIDER]?.[0] ?? "",
 };
 
 /** Default speech-to-text settings — browser STT out of the box. */

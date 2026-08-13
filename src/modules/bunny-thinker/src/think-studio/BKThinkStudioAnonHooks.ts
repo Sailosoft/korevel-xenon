@@ -115,6 +115,10 @@ export interface UseAnonymousModeReturn {
   moveStepDown: (index: number) => void;
   removeStep: (index: number) => void;
   updateStep: (index: number, field: "name" | "thought" | "craftId", value: string) => void;
+  /** Append AI-generated steps to the current step list */
+  appendSteps: (steps: Array<{ name: string; thought: string; craftId?: string }>) => void;
+  /** Replace the current step list with AI-generated steps */
+  replaceAllSteps: (steps: Array<{ name: string; thought: string; craftId?: string }>) => void;
   startThinking: (aiConfig: HelixAIOption) => Promise<void>;
   rethinkFromStep: (
     stepIndex: number,
@@ -531,6 +535,38 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       ].map((s, i) => ({ ...s, order: i }));
     });
   }, []);
+
+  // ── Bulk step setters (used by Generative AI step producer) ──────
+  const appendSteps = useCallback(
+    (newSteps: Array<{ name: string; thought: string; craftId?: string }>) => {
+      setSteps((prev) => [
+        ...prev,
+        ...newSteps.map((s, i) => ({
+          id: uuidv7(),
+          name: s.name,
+          thought: s.thought,
+          order: prev.length + i,
+          craftId: s.craftId,
+        })),
+      ]);
+    },
+    [],
+  );
+
+  const replaceAllSteps = useCallback(
+    (newSteps: Array<{ name: string; thought: string; craftId?: string }>) => {
+      setSteps(
+        newSteps.map((s, i) => ({
+          id: uuidv7(),
+          name: s.name,
+          thought: s.thought,
+          order: i,
+          craftId: s.craftId,
+        })),
+      );
+    },
+    [],
+  );
 
   // ── Resolve association context ───────────────────────────────────
   const resolveAssociationContext = useCallback(async (): Promise<
@@ -1001,6 +1037,8 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     moveStepDown,
     removeStep,
     updateStep,
+    appendSteps,
+    replaceAllSteps,
     startThinking,
     rethinkFromStep,
     exportAsJson,

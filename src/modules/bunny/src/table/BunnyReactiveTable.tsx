@@ -71,6 +71,61 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+interface RowActionTooltipProps<TRow> {
+  action: BunnyRowAction<TRow>;
+  row: TRow;
+  callAction: (action: BunnyRowAction<BunnyHasId>, row: BunnyHasId) => void;
+  children: React.ReactNode;
+}
+
+/**
+ * Renders a single row-action button wrapped in a HeroUI Tooltip.
+ *
+ * The open state is fully controlled here rather than relying on react-aria's
+ * `TooltipTrigger` hover handlers, which gate opening on the interaction
+ * modality being `"pointer"`. After a programmatic focus (common inside the
+ * virtualized table) the modality is `"virtual"`, so the first hover is
+ * silently dropped and the tooltip only appears after hovering another icon.
+ * `trigger="focus"` disables that hover path; explicit `onMouseEnter` /
+ * `onMouseLeave` handlers drive `isOpen` deterministically, and `delay={0}` /
+ * `closeDelay={0}` skip the global warm-up/cooldown timers.
+ */
+function RowActionTooltip<TRow>({
+  action,
+  row,
+  callAction,
+  children,
+}: RowActionTooltipProps<TRow>) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Tooltip
+      trigger="focus"
+      delay={0}
+      closeDelay={0}
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+    >
+      <Button
+        isIconOnly
+        size="sm"
+        variant={action.variant}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        onClick={() =>
+          callAction(
+            action as unknown as BunnyRowAction<BunnyHasId>,
+            row as unknown as BunnyHasId,
+          )
+        }
+      >
+        {children}
+      </Button>
+      <Tooltip.Content>{action.label}</Tooltip.Content>
+    </Tooltip>
+  );
+}
+
 interface RowUiProps<TRow> {
   row: TRow;
   columns: BunnyColumn<TRow>[];
@@ -127,23 +182,15 @@ function MobileCardCell<TRow>({
           {actions && (
             <div className="flex items-center gap-1 flex-shrink-0 self-center ml-auto">
               {actions.map((action, idx) =>
-                action.icon && action.label ? (
-                  <Tooltip key={idx}>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant={action.variant}
-                      onClick={() =>
-                        callAction(
-                          action as unknown as BunnyRowAction<BunnyHasId>,
-                          row as unknown as BunnyHasId,
-                        )
-                      }
-                    >
-                      {action.icon}
-                    </Button>
-                    <Tooltip.Content>{action.label}</Tooltip.Content>
-                  </Tooltip>
+                action.label ? (
+                  <RowActionTooltip
+                    key={idx}
+                    action={action}
+                    row={row}
+                    callAction={callAction}
+                  >
+                    {action.icon}
+                  </RowActionTooltip>
                 ) : (
                   <Button
                     key={idx}
@@ -231,23 +278,15 @@ function DesktopRowCells<TRow>({
         <Table.Cell>
           <div className="flex items-center justify-end gap-1">
             {actions.map((action, idx) =>
-              action.icon && action.label ? (
-                <Tooltip key={idx}>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant={action.variant}
-                    onClick={() =>
-                      callAction(
-                        action as unknown as BunnyRowAction<BunnyHasId>,
-                        row as unknown as BunnyHasId,
-                      )
-                    }
-                  >
-                    {action.icon}
-                  </Button>
-                  <Tooltip.Content>{action.label}</Tooltip.Content>
-                </Tooltip>
+              action.label ? (
+                <RowActionTooltip
+                  key={idx}
+                  action={action}
+                  row={row}
+                  callAction={callAction}
+                >
+                  {action.icon}
+                </RowActionTooltip>
               ) : (
                 <Button
                   key={idx}

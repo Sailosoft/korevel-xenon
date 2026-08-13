@@ -20,8 +20,10 @@ import type { HelixAIOption } from "@/src/modules/helix";
 import { bsDB } from "../../BSDatabase";
 import {
   BSAISettings,
+  BSAIImageSettings,
   BSSpeechSettings,
   BS_AI_SETTINGS_DEFAULTS,
+  BS_AI_IMAGE_SETTINGS_DEFAULTS,
   BS_AI_SETTINGS_ID,
   BS_SPEECH_SETTINGS_DEFAULTS,
 } from "./BSAISettings.Types";
@@ -33,12 +35,16 @@ export interface BSAISettingsContextValue {
   aiConfig: HelixAIOption;
   /** The currently active speech-to-text settings */
   speech: BSSpeechSettings;
+  /** The currently active image-generation AI settings */
+  imageConfig: BSAIImageSettings;
   /** True while the initial load from IndexedDB is in progress */
   loading: boolean;
   /** Save only the global AI provider + model (speech settings are preserved) */
   saveAISettings: (ai: HelixAIOption) => Promise<void>;
   /** Save only the speech-to-text settings (AI provider + model are preserved) */
   saveSpeechSettings: (speech: BSSpeechSettings) => Promise<void>;
+  /** Save only the image-generation settings (AI + STT settings are preserved) */
+  saveImageSettings: (image: BSAIImageSettings) => Promise<void>;
   /** Reload settings from IndexedDB */
   reloadSettings: () => Promise<void>;
 }
@@ -59,6 +65,9 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
   const [speech, setSpeech] = useState<BSSpeechSettings>(
     BS_SPEECH_SETTINGS_DEFAULTS,
   );
+  const [imageConfig, setImageConfig] = useState<BSAIImageSettings>(
+    BS_AI_IMAGE_SETTINGS_DEFAULTS,
+  );
   const [loading, setLoading] = useState(true);
   // Track whether the initial load has completed to avoid re-running setState
   // synchronously within the effect body.
@@ -76,6 +85,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         setSpeech({
           ...BS_SPEECH_SETTINGS_DEFAULTS,
           ...settings.speech,
+        });
+        setImageConfig({
+          ...BS_AI_IMAGE_SETTINGS_DEFAULTS,
+          ...settings.image,
         });
       }
     } catch (err) {
@@ -113,6 +126,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
       }
       setAiConfig({ provider: merged.provider, model: merged.model });
       setSpeech({ ...BS_SPEECH_SETTINGS_DEFAULTS, ...merged.speech });
+      setImageConfig({
+        ...BS_AI_IMAGE_SETTINGS_DEFAULTS,
+        ...merged.image,
+      });
     } catch (err) {
       console.error("[BSAISettings] Failed to save settings to IndexedDB:", err);
       throw err;
@@ -133,6 +150,13 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
     [persistSettings],
   );
 
+  const saveImageSettings = useCallback(
+    async (image: BSAIImageSettings) => {
+      await persistSettings({ image });
+    },
+    [persistSettings],
+  );
+
   const reloadSettings = useCallback(async () => {
     setLoading(true);
     await loadFromDB();
@@ -143,9 +167,11 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
       value={{
         aiConfig,
         speech,
+        imageConfig,
         loading,
         saveAISettings,
         saveSpeechSettings,
+        saveImageSettings,
         reloadSettings,
       }}
     >

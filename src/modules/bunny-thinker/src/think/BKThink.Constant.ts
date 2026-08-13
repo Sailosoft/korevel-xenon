@@ -68,4 +68,34 @@ export const bkThinkConstant = {
       },
     },
   } satisfies HelixAISchemaOptions,
+
+  /**
+   * Schema for structured step-generation output.
+   * Ensures the AI returns a properly typed array of train-of-thought steps.
+   */
+  STEP_GENERATION_SCHEMA: {
+    name: "step_generation",
+    description: "Generated ordered train-of-thought steps for a thought",
+    properties: {
+      steps: {
+        type: "array" as const,
+        description: "Ordered list of generated reasoning steps",
+        items: {
+          type: "object" as const,
+          description: "A single train-of-thought step",
+          properties: {
+            name: { type: "string" as const, description: "Step name / label" },
+            thought: {
+              type: "string" as const,
+              description: "Step content / reasoning",
+            },
+            order: {
+              type: "number" as const,
+              description: "Step sequence position",
+            },
+          },
+        },
+      },
+    },
+  } satisfies HelixAISchemaOptions,
 };

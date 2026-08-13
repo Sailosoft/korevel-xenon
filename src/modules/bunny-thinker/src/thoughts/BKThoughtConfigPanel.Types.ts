@@ -46,6 +46,12 @@ export interface BKThoughtConfigPanelProps {
     index: number,
   ) => React.ReactNode;
 
+  /**
+   * Render extra actions in the "Train of Thoughts" header, beside the
+   * "Add Step" button (e.g. a Generative AI step producer button).
+   */
+  renderStepsHeaderActions?: React.ReactNode;
+
   /** Render extra content below the entire steps section (e.g. save button) */
   renderStepsFooter?: React.ReactNode;
 

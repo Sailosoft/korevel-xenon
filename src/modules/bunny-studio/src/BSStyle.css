@@ -641,3 +641,274 @@
 .bs-studio .bs-theme-button:hover svg {
   transform: rotate(45deg);
 }
+
+/* ── BunnyStudio: Image Generator cinematic "painting" stage (feature) ──
+ * A deep red-gradient canvas with a beating core glow, a spinning conic ring
+ * around the bunny, floating ember particles, a shimmering status line and an
+ * indeterminate progress bar — shown while an image is being generated. */
+@keyframes bs-img-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulsing core glow behind the ring (red heartbeat). */
+@keyframes bs-img-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+/* Slow breathing aurora behind the whole stage. */
+@keyframes bs-img-aurora {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) rotate(180deg) scale(1.15);
+  }
+}
+
+.bs-img-gen-stage {
+  position: relative;
+  min-height: 300px;
+  background: radial-gradient(
+    140% 140% at 50% 42%,
+    #5a0f0f 0%,
+    #2b0606 42%,
+    #0b0101 100%
+  );
+  box-shadow: inset 0 0 120px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Breathing core glow, centered. */
+.bs-img-gen-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 60vmin;
+  height: 60vmin;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 69, 52, 0.55) 0%,
+    rgba(255, 138, 122, 0.22) 26%,
+    rgba(255, 45, 32, 0.08) 44%,
+    transparent 62%
+  );
+  filter: blur(18px);
+  animation: bs-img-glow 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Slow-turning aurora sweep. */
+.bs-img-gen-stage::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 80vmin;
+  height: 80vmin;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 45, 32, 0.16) 60deg,
+    rgba(255, 190, 178, 0.14) 140deg,
+    rgba(255, 60, 40, 0.1) 220deg,
+    transparent 300deg,
+    transparent 360deg
+  );
+  filter: blur(60px);
+  animation: bs-img-aurora 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Spinning red ring wrapping the bunny core. */
+.bs-img-gen-ring {
+  position: absolute;
+  z-index: 2;
+  width: 150px;
+  height: 150px;
+  border-radius: 9999px;
+  padding: 3px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #ff2d20 70deg,
+    #ffd9d4 140deg,
+    #ff2d20 210deg,
+    transparent 300deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: bs-img-spin 3s linear infinite;
+}
+
+.bs-img-gen-core {
+  position: absolute;
+  inset: 8px;
+  border-radius: 9999px;
+  animation: none;
+}
+
+/* Floating ember particles. */
+.bs-img-gen-orb {
+  position: absolute;
+  z-index: 1;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 180, 168, 0.9) 0%,
+    rgba(255, 45, 32, 0.4) 60%,
+    transparent 70%
+  );
+  filter: blur(1px);
+  pointer-events: none;
+  opacity: 0;
+}
+@keyframes bs-img-float-1 {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(120px, -140px) scale(1.2);
+    opacity: 0;
+  }
+}
+@keyframes bs-img-float-2 {
+  0% {
+    transform: translate(0, 0) scale(0.7);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-140px, -120px) scale(1.1);
+    opacity: 0;
+  }
+}
+@keyframes bs-img-float-3 {
+  0% {
+    transform: translate(0, 0) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  75% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(60px, 160px) scale(1.3);
+    opacity: 0;
+  }
+}
+.bs-img-gen-orb-1 {
+  width: 12px;
+  height: 12px;
+  left: 22%;
+  bottom: 18%;
+  animation: bs-img-float-1 4s ease-in-out infinite;
+}
+.bs-img-gen-orb-2 {
+  width: 9px;
+  height: 9px;
+  right: 24%;
+  bottom: 30%;
+  animation: bs-img-float-2 5s ease-in-out 0.8s infinite;
+}
+.bs-img-gen-orb-3 {
+  width: 7px;
+  height: 7px;
+  left: 40%;
+  top: 14%;
+  animation: bs-img-float-3 4.5s ease-in-out 1.6s infinite;
+}
+
+/* Shimmering status text. */
+@keyframes bs-img-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.bs-img-gen-shimmer {
+  background: linear-gradient(
+    100deg,
+    #ffd9d4 0%,
+    #ffffff 40%,
+    #ffb4aa 60%,
+    #ffd9d4 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: bs-img-shimmer 2.4s linear infinite;
+}
+
+/* Indeterminate progress bar. */
+@keyframes bs-img-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+.bs-img-gen-progress-bar {
+  animation: bs-img-progress 1.6s ease-in-out infinite;
+}
+
+/* Generated image reveal (subtle pop-in). */
+@keyframes bs-img-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* `backwards` (not `both`) so the final `transform: scale(1)` is NOT retained
+   after the animation — a lingering transform on an ancestor turns it into the
+   containing block for `position: fixed` descendants, which would trap the
+   full-screen preview modal inside the grid cell instead of the viewport. */
+.bs-img-reveal {
+  animation: bs-img-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}

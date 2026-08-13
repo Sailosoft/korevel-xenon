@@ -5,7 +5,7 @@ export interface CatalogApp {
   name: string;
   url: string;
   description: string;
-  category: "productivity" | "analytics" | "design" | "security" | "ai" | "frontend" | "backend";
+  category: "code-editor" | "content-writing" | "training" | "study" | "chat";
   status: "Active" | "Maintenance" | "Inactive";
   iconColor: string; // tailwind gradient classes
   gradientFrom: string;
@@ -17,32 +17,21 @@ export interface CatalogApp {
 export const catalogApps: CatalogApp[] = [
   {
     id: 10,
-    name: "Bunny AI Studio",
+    name: "Bunny Studio",
     url: "/modules/bunny-studio",
     description: "Multi-modal AI chat with streaming, agent pools, AI settings, and conversation management.",
-    category: "ai",
+    category: "chat",
     status: "Active",
     iconColor: "from-violet-400 to-purple-300",
     gradientFrom: "#8b5cf6",
     gradientTo: "#c4b5fd",
   },
-  // {
-  //   id: 1,
-  //   name: "Book Builder",
-  //   url: "/modules/book-builder",
-  //   description: "Compose and structure digital books with rich formatting, chapter management, and collaborative editing tools.",
-  //   category: "productivity",
-  //   status: "Active",
-  //   iconColor: "from-blue-400 to-cyan-300",
-  //   gradientFrom: "#3b82f6",
-  //   gradientTo: "#06b6d4",
-  // },
   {
     id: 11,
     name: "Bunny Case",
     url: "/modules/bunny-case",
     description: "Conversational AI training ecosystem — personas, simulations, roleplay coaching, stress-test gauntlet, and playbook library.",
-    category: "ai",
+    category: "training",
     status: "Active",
     iconColor: "from-emerald-400 to-teal-300",
     gradientFrom: "#10b981",
@@ -50,10 +39,10 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 5,
-    name: "BunnyAI",
+    name: "Bunny Book",
     url: "/modules/bunny-ai",
-    description: "AI-powered assistant platform with intelligent search, content generation, and workflow automation.",
-    category: "ai",
+    description: "AI-assisted book creation — build authors, books, and content with guided prompts, structured workflows, and editorial tooling.",
+    category: "study",
     status: "Active",
     iconColor: "from-orange-400 to-amber-300",
     gradientFrom: "#fb923c",
@@ -61,10 +50,10 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 6,
-    name: "BunnyFlow",
+    name: "Bunny Flow",
     url: "/modules/bunny-flow",
-    description: "Visual workflow builder with drag-and-drop pipeline creation, triggers, and real-time execution monitoring.",
-    category: "ai",
+    description: "YAML-driven workflow and pipeline builder (inspired by GitHub Actions) that chains steps and passes AI output between stages.",
+    category: "content-writing",
     status: "Active",
     iconColor: "from-cyan-400 to-sky-300",
     gradientFrom: "#22d3ee",
@@ -72,10 +61,10 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 7,
-    name: "BunnyAI Thinker",
+    name: "Bunny Thinker",
     url: "/modules/bunny-thinker",
-    description: "Deep reasoning engine for complex problem-solving with chain-of-thought processing and multi-step analysis.",
-    category: "ai",
+    description: "Chain-of-thought stepper and pre-prompt composer for structured reasoning, guided thinking steps, and reusable thought patterns.",
+    category: "content-writing",
     status: "Active",
     iconColor: "from-fuchsia-400 to-pink-300",
     gradientFrom: "#d946ef",
@@ -83,10 +72,10 @@ export const catalogApps: CatalogApp[] = [
   },
   {
     id: 8,
-    name: "BunnyLegacy",
+    name: "Bunny(1st): Book Builder",
     url: "/modules/bunny-legacy",
-    description: "Legacy system integration bridge — connect and modernize existing infrastructure with new microservices.",
-    category: "backend",
+    description: "The original (first) book builder — compose and structure digital books with rich formatting, chapter management, and editing tools.",
+    category: "study",
     status: "Active",
     iconColor: "from-slate-400 to-slate-300",
     gradientFrom: "#94a3b8",
@@ -96,8 +85,8 @@ export const catalogApps: CatalogApp[] = [
     id: 9,
     name: "Lemon Coder",
     url: "/modules/lemon-coder",
-    description: "AI-assisted code editor and project scaffold with contextual suggestions and automated refactoring.",
-    category: "productivity",
+    description: "AI-assisted code editor with Ask, Code, and Plan modes for contextual suggestions, code generation, and project planning.",
+    category: "code-editor",
     status: "Active",
     iconColor: "from-yellow-400 to-lime-300",
     gradientFrom: "#facc15",

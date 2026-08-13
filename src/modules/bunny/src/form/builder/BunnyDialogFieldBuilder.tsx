@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Input, Select, ListBox, Label, TextArea, Switch } from "@heroui/react";
+import { Input, Select, ListBox, Label, TextArea, Checkbox } from "@heroui/react";
 import {
   MDXEditor,
   headingsPlugin,
@@ -63,7 +63,7 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
   const [editorValue, setEditorValue] = useState<string>(
     typeof fallbackValue === "string" ? fallbackValue : "",
   );
-  const [switchSelected, setSwitchSelected] = useState<boolean>(
+  const [checkboxSelected, setCheckboxSelected] = useState<boolean>(
     Boolean(fallbackValue),
   );
   const [selectedKey, setSelectedKey] = useState<string>(
@@ -71,6 +71,19 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
   );
 
   const editorRef = useRef<MDXEditorMethods>(null);
+
+  // Track the previous fallback value and re-sync controlled state during
+  // render (not in an effect) when it changes — avoids cascading setState
+  // calls flagged by `react-hooks/set-state-in-effect`.
+  const [prevFallbackValue, setPrevFallbackValue] = useState(fallbackValue);
+  if (fallbackValue !== prevFallbackValue) {
+    setPrevFallbackValue(fallbackValue);
+    if (field.type === "checkbox") {
+      setCheckboxSelected(Boolean(fallbackValue));
+    } else if (field.type === "select") {
+      setSelectedKey(fallbackValue ? String(fallbackValue) : "");
+    }
+  }
 
   // Synchronize incoming resets or revalidation states across hook cycles
   useEffect(() => {
@@ -81,10 +94,6 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
         editorRef.current?.setMarkdown(nextValue);
         setEditorValue(nextValue);
       }
-    } else if (field.type === "checkbox") {
-      setSwitchSelected(Boolean(fallbackValue));
-    } else if (field.type === "select") {
-      setSelectedKey(fallbackValue ? String(fallbackValue) : "");
     }
   }, [fallbackValue, field.type]);
 
@@ -162,23 +171,30 @@ function FieldRenderer({ field, formState }: FieldRendererProps) {
     case "checkbox":
       return (
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-3">
-            <Switch
-              id={fieldId}
-              isSelected={switchSelected}
-              // onValueChange={setSwitchSelected}
-              aria-labelledby={labelId}
-            />
-            <Label id={labelId} htmlFor={fieldId} className="cursor-pointer">
-              {field.label}
-              {isRequired && <span className="text-red-500 ml-1">*</span>}
-            </Label>
-          </div>
-          {/* Hidden element acts as an index placeholder bridging Switch boolean value into your FormAction context */}
+          <Checkbox
+            isSelected={checkboxSelected}
+            onChange={setCheckboxSelected}
+            aria-labelledby={labelId}
+          >
+            {/* Checkbox.Content is the clickable RAC label that wraps the
+                control + indicator; without it the field is not interactive. */}
+            <Checkbox.Content className="cursor-pointer">
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <span id={labelId} className="text-sm">
+                {field.label}
+                {isRequired && <span className="text-red-500 ml-1">*</span>}
+              </span>
+            </Checkbox.Content>
+          </Checkbox>
+          {/* Hidden input bridges the Checkbox boolean value into the
+              FormAction context (the RAC CheckboxField isn't a native
+              field submitted with the form). */}
           <input
             type="hidden"
             name={field.name}
-            value={switchSelected ? "true" : "false"}
+            value={checkboxSelected ? "true" : "false"}
           />
           {showError && <p className="text-sm text-red-500">{errorText}</p>}
         </div>
