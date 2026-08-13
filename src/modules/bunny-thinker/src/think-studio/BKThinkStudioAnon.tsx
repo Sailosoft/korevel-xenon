@@ -38,7 +38,10 @@ import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
 import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThoughtConfigPanel from "../thoughts/BKThoughtConfigPanel";
+import BKGenerateStepsModal from "../thoughts/BKGenerateStepsModal";
 import BKStepActions from "../steps/BKStepActions";
+import type { BKGeneratedStep } from "../think/BKThink.Actions";
+import type { BKStepGenerationStrategy } from "../thoughts/BKThoughtGeneration.Config";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -393,6 +396,8 @@ export default function BKThinkStudioAnon({
     moveStepDown,
     removeStep,
     updateStep,
+    appendSteps,
+    replaceAllSteps,
     startThinking,
     rethinkFromStep,
     exportAsJson,
@@ -403,6 +408,39 @@ export default function BKThinkStudioAnon({
   // ── Modal state ────────────────────────────────────────────────────
   const [showSettings, setShowSettings] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
+  const [showGenerateSteps, setShowGenerateSteps] = React.useState(false);
+
+  // ── Apply generated (AI) steps to the anonymous editor ─────────────
+  const anonHandleGeneratedSteps = useCallback(
+    (steps: BKGeneratedStep[], strategy: BKStepGenerationStrategy) => {
+      const mapped = steps.map((s) => ({
+        name: s.name,
+        thought: s.thought,
+      }));
+      if (strategy === "override") {
+        replaceAllSteps(mapped);
+      } else {
+        appendSteps(mapped);
+      }
+      setShowGenerateSteps(false);
+    },
+    [appendSteps, replaceAllSteps],
+  );
+
+  // Reusable header action rendered beside "Add Step" in the steps editor
+  const renderGenerateStepsButton = useCallback(
+    () => (
+      <Button
+        variant="ghost"
+        size="sm"
+        onPress={() => setShowGenerateSteps(true)}
+        className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
+      >
+        <Sparkles size={14} /> Generate
+      </Button>
+    ),
+    [],
+  );
   const [isSaving, setIsSaving] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<"view" | "raw">("view");
@@ -733,6 +771,7 @@ export default function BKThinkStudioAnon({
               onAddAfter={addStepAfter}
             />
           )}
+          renderStepsHeaderActions={renderGenerateStepsButton()}
         />
 
         {/* ── Thinker Selector ────────────────────────────────────── */}
@@ -846,6 +885,20 @@ export default function BKThinkStudioAnon({
             {error}
           </div>
         )}
+
+        {/* ── Generative AI Step Producer ─────────────────────────── */}
+        <BKGenerateStepsModal
+          isOpen={showGenerateSteps}
+          onClose={() => setShowGenerateSteps(false)}
+          thoughtName={thoughtName}
+          thoughtDescription={thoughtDescription}
+          thoughtContent={thoughtContent}
+          existingSteps={steps
+            .filter((s) => s.name.trim() || s.thought.trim())
+            .map((s) => ({ name: s.name, thought: s.thought }))}
+          aiConfig={aiConfig}
+          onGenerated={anonHandleGeneratedSteps}
+        />
       </div>
     );
   }
@@ -1016,6 +1069,7 @@ export default function BKThinkStudioAnon({
                 onAddAfter={addStepAfter}
               />
             )}
+            renderStepsHeaderActions={renderGenerateStepsButton()}
           />
 
           <p className="text-xs text-purple-500 italic">
@@ -1484,6 +1538,20 @@ export default function BKThinkStudioAnon({
           </div>
         </div>
       )}
+
+      {/* ── Generative AI Step Producer ───────────────────────────── */}
+      <BKGenerateStepsModal
+        isOpen={showGenerateSteps}
+        onClose={() => setShowGenerateSteps(false)}
+        thoughtName={thoughtName}
+        thoughtDescription={thoughtDescription}
+        thoughtContent={thoughtContent}
+        existingSteps={steps
+          .filter((s) => s.name.trim() || s.thought.trim())
+          .map((s) => ({ name: s.name, thought: s.thought }))}
+        aiConfig={aiConfig}
+        onGenerated={anonHandleGeneratedSteps}
+      />
 
       {/* ── Settings Modal ────────────────────────────────────────── */}
       {showSettings && (

@@ -20,17 +20,22 @@ import {
   Workflow,
   Lightbulb,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import BKStepActions from "../steps/BKStepActions";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
+import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThoughtConfigPanel from "./BKThoughtConfigPanel";
+import BKGenerateStepsModal from "./BKGenerateStepsModal";
 import BKConfirmDialog from "../components/BKConfirmDialog";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
 import type { BKCraftConfig, BKCraftFormat } from "../craft/BKCraft.Types";
 import type { BKThink } from "../think/BKThink.Types";
+import type { BKGeneratedStep } from "../think/BKThink.Actions";
+import type { BKStepGenerationStrategy } from "./BKThoughtGeneration.Config";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -139,6 +144,8 @@ export default function BKThoughtDetailPage({
   thoughtId,
 }: BKThoughtDetailPageProps) {
   const router = useRouter();
+  const { aiConfig } = useAISettings();
+  const [showGenerateSteps, setShowGenerateSteps] = useState(false);
   const [thought, setThought] = useState<BKThought | null>(null);
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
     [],
@@ -319,6 +326,35 @@ export default function BKThoughtDetailPage({
       return { ...prev, [stepId]: updated };
     });
   }, []);
+
+  // ── Apply generated (AI) steps to the editor ────────────────────────
+  const bkHandleGeneratedSteps = useCallback(
+    (steps: BKGeneratedStep[], strategy: BKStepGenerationStrategy) => {
+      const newSteps = steps.map((s, i) => ({
+        id: uuidv7(),
+        name: s.name,
+        thought: s.thought,
+        order: i,
+        craftFormat: undefined,
+      }));
+
+      if (strategy === "override") {
+        setEditedSteps(newSteps);
+        setStepIdeaMap(
+          Object.fromEntries(newSteps.map((s) => [s.id, []])),
+        );
+      } else {
+        setEditedSteps((prev) => [...prev, ...newSteps]);
+        setStepIdeaMap((prev) => ({
+          ...prev,
+          ...Object.fromEntries(newSteps.map((s) => [s.id, []])),
+        }));
+      }
+
+      setShowGenerateSteps(false);
+    },
+    [],
+  );
 
   const bkSaveTrainOfThoughts = async () => {
     if (!thought) return;
@@ -552,6 +588,16 @@ export default function BKThoughtDetailPage({
           onUpdateStep={bkUpdateStep}
           hideThoughtDefinition
           renderStepActions={renderStepActions}
+          renderStepsHeaderActions={
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => setShowGenerateSteps(true)}
+              className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
+            >
+              <Sparkles size={14} /> Generate
+            </Button>
+          }
           renderStepsFooter={
             <div className="flex justify-end pt-2">
               <Button
@@ -678,6 +724,20 @@ export default function BKThoughtDetailPage({
           cancelLabel="Cancel"
           onConfirm={bkDeleteThink}
           onClose={() => setConfirmDeleteThink(null)}
+        />
+
+        {/* ── Generative AI Step Producer ─────────────────────── */}
+        <BKGenerateStepsModal
+          isOpen={showGenerateSteps}
+          onClose={() => setShowGenerateSteps(false)}
+          thoughtName={thought.name}
+          thoughtDescription={thought.description || ""}
+          thoughtContent={thought.thought}
+          existingSteps={editedSteps
+            .filter((s) => s.name.trim() || s.thought.trim())
+            .map((s) => ({ name: s.name, thought: s.thought }))}
+          aiConfig={aiConfig}
+          onGenerated={bkHandleGeneratedSteps}
         />
       </div>
     </>
