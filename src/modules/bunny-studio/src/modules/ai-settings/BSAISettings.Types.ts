@@ -12,6 +12,10 @@ import {
   HELIX_PROVIDER_IMAGE_MODELS,
   HELIX_IMAGE_MODELS,
 } from "@/src/modules/helix";
+import {
+  HELIX_PROVIDER_VIDEO_MODELS,
+  HELIX_VIDEO_MODELS,
+} from "@/src/modules/helix";
 
 /** Fixed ID for the singleton global AI settings record. */
 export const BS_AI_SETTINGS_ID = "global";
@@ -41,6 +45,14 @@ export interface BSAIImageSettings {
   model: string;
 }
 
+/** Video-generation AI settings (provider + model used by the Video Generator). */
+export interface BSVideoSettings {
+  /** The selected video AI provider key (e.g. "siliconFlow") */
+  provider: HelixAIProvider;
+  /** The selected video model identifier for that provider */
+  model: string;
+}
+
 /** The settings shape persisted in the aiSettings Dexie table. */
 export interface BSAISettings {
   /** The selected AI provider key */
@@ -51,6 +63,8 @@ export interface BSAISettings {
   speech?: BSSpeechSettings;
   /** Image-generation AI settings (optional for backward compatibility) */
   image?: BSAIImageSettings;
+  /** Video-generation AI settings (optional for backward compatibility) */
+  video?: BSVideoSettings;
 }
 
 /** Default AI settings — used when nothing has been saved yet. */
@@ -67,6 +81,16 @@ const DEFAULT_IMAGE_PROVIDER = (
 export const BS_AI_IMAGE_SETTINGS_DEFAULTS: BSAIImageSettings = {
   provider: DEFAULT_IMAGE_PROVIDER,
   model: HELIX_IMAGE_MODELS[DEFAULT_IMAGE_PROVIDER]?.[0] ?? "",
+};
+
+// Default video settings — first video-capable provider with its first model.
+const DEFAULT_VIDEO_PROVIDER = (
+  Object.keys(HELIX_PROVIDER_VIDEO_MODELS) as HelixAIProvider[]
+).find((p) => p !== "default") ?? "siliconFlow";
+
+export const BS_AI_VIDEO_SETTINGS_DEFAULTS: BSVideoSettings = {
+  provider: DEFAULT_VIDEO_PROVIDER,
+  model: HELIX_VIDEO_MODELS[DEFAULT_VIDEO_PROVIDER]?.[0] ?? "",
 };
 
 /** Default speech-to-text settings — browser STT out of the box. */

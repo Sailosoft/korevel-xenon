@@ -86,4 +86,14 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.index("provider");
     });
   });
+
+  // ── Version 4 — Video Library (feature: Video Generator) ─────────────
+  model.schema((config) => {
+    // Generated AI videos persisted as base64 data URLs
+    config.create("videoLibrary", (table) => {
+      table.uuid();
+      table.index("createdDate");
+      table.index("provider");
+    });
+  });
 }

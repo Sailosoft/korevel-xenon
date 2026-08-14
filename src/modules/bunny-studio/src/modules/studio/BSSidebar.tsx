@@ -39,6 +39,8 @@ import {
   Tags,
   ImagePlus,
   Images,
+  Clapperboard,
+  Film,
   ChevronRight,
 } from "lucide-react";
 
@@ -83,6 +85,23 @@ const SECTIONS: BSSidebarSection[] = [
         href: "/modules/bunny-studio/image-library",
         label: "Image Library",
         icon: <Images className="w-4 h-4" />,
+        matchPrefix: true,
+      },
+    ],
+  },
+  {
+    title: "Video",
+    items: [
+      {
+        href: "/modules/bunny-studio/video-generator",
+        label: "Video Generator",
+        icon: <Clapperboard className="w-4 h-4" />,
+        matchPrefix: true,
+      },
+      {
+        href: "/modules/bunny-studio/video-library",
+        label: "Video Library",
+        icon: <Film className="w-4 h-4" />,
         matchPrefix: true,
       },
     ],
@@ -192,6 +211,7 @@ export function BSSidebar({ className = "", onNavigate }: BSSidebarProps) {
 
   // Load persisted section disclosure state only after mount (client-only).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(loadCollapsed());
     setHydrated(true);
   }, []);

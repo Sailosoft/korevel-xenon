@@ -24,6 +24,8 @@ import type { BSChatFavorite } from "./modules/chat-favorite/BSChatFavorite.Type
 import type { BSAISettings } from "./modules/ai-settings/BSAISettings.Types";
 import type { BSImageAsset } from "./modules/image-generator/BSImageGenerator.Types";
 import { BSImageRepository } from "./modules/image-generator/BSImageGenerator.Repository";
+import type { BSVideoAsset } from "./modules/video-generator/BSVideoGenerator.Types";
+import { BSVideoRepository } from "./modules/video-generator/BSVideoGenerator.Repository";
 import { BSChatRepository } from "./modules/chat/BSChat.Repository";
 import { BSAgentRepository } from "./modules/agents/BSAgent.Repository";
 import { BSAgentPoolRepository } from "./modules/agent-pools/BSAgentPool.Repository";
@@ -78,6 +80,10 @@ export class BSDatabase extends PhazeDB {
   // ── Image Library (feature: Image Generator) ───────────────────────
   public imageLibrary = this.table<BSImageAsset, string>("imageLibrary");
   public imageLibraryRepo = new BSImageRepository(this.imageLibrary);
+
+  // ── Video Library (feature: Video Generator) ───────────────────────
+  public videoLibrary = this.table<BSVideoAsset, string>("videoLibrary");
+  public videoLibraryRepo = new BSVideoRepository(this.videoLibrary);
 
   constructor() {
     super();

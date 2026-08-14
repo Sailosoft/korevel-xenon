@@ -22,8 +22,10 @@ import {
   BSAISettings,
   BSAIImageSettings,
   BSSpeechSettings,
+  BSVideoSettings,
   BS_AI_SETTINGS_DEFAULTS,
   BS_AI_IMAGE_SETTINGS_DEFAULTS,
+  BS_AI_VIDEO_SETTINGS_DEFAULTS,
   BS_AI_SETTINGS_ID,
   BS_SPEECH_SETTINGS_DEFAULTS,
 } from "./BSAISettings.Types";
@@ -37,6 +39,8 @@ export interface BSAISettingsContextValue {
   speech: BSSpeechSettings;
   /** The currently active image-generation AI settings */
   imageConfig: BSAIImageSettings;
+  /** The currently active video-generation AI settings */
+  videoConfig: BSVideoSettings;
   /** True while the initial load from IndexedDB is in progress */
   loading: boolean;
   /** Save only the global AI provider + model (speech settings are preserved) */
@@ -45,6 +49,8 @@ export interface BSAISettingsContextValue {
   saveSpeechSettings: (speech: BSSpeechSettings) => Promise<void>;
   /** Save only the image-generation settings (AI + STT settings are preserved) */
   saveImageSettings: (image: BSAIImageSettings) => Promise<void>;
+  /** Save only the video-generation settings (AI + image + STT are preserved) */
+  saveVideoSettings: (video: BSVideoSettings) => Promise<void>;
   /** Reload settings from IndexedDB */
   reloadSettings: () => Promise<void>;
 }
@@ -68,6 +74,9 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
   const [imageConfig, setImageConfig] = useState<BSAIImageSettings>(
     BS_AI_IMAGE_SETTINGS_DEFAULTS,
   );
+  const [videoConfig, setVideoConfig] = useState<BSVideoSettings>(
+    BS_AI_VIDEO_SETTINGS_DEFAULTS,
+  );
   const [loading, setLoading] = useState(true);
   // Track whether the initial load has completed to avoid re-running setState
   // synchronously within the effect body.
@@ -89,6 +98,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         setImageConfig({
           ...BS_AI_IMAGE_SETTINGS_DEFAULTS,
           ...settings.image,
+        });
+        setVideoConfig({
+          ...BS_AI_VIDEO_SETTINGS_DEFAULTS,
+          ...settings.video,
         });
       }
     } catch (err) {
@@ -130,6 +143,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         ...BS_AI_IMAGE_SETTINGS_DEFAULTS,
         ...merged.image,
       });
+      setVideoConfig({
+        ...BS_AI_VIDEO_SETTINGS_DEFAULTS,
+        ...merged.video,
+      });
     } catch (err) {
       console.error("[BSAISettings] Failed to save settings to IndexedDB:", err);
       throw err;
@@ -157,6 +174,13 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
     [persistSettings],
   );
 
+  const saveVideoSettings = useCallback(
+    async (video: BSVideoSettings) => {
+      await persistSettings({ video });
+    },
+    [persistSettings],
+  );
+
   const reloadSettings = useCallback(async () => {
     setLoading(true);
     await loadFromDB();
@@ -168,10 +192,12 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         aiConfig,
         speech,
         imageConfig,
+        videoConfig,
         loading,
         saveAISettings,
         saveSpeechSettings,
         saveImageSettings,
+        saveVideoSettings,
         reloadSettings,
       }}
     >

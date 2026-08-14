@@ -15,7 +15,14 @@
 
 import React, { useState } from "react";
 import { Card, Button } from "@heroui/react";
-import { Save, CheckCircle2, AlertCircle, Loader2, ImagePlus } from "lucide-react";
+import {
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ImagePlus,
+  Clapperboard,
+} from "lucide-react";
 import {
   HELIX_PROVIDER_LABELS,
   HELIX_AI_MODELS,
@@ -23,10 +30,15 @@ import {
   HELIX_STT_PROVIDERS,
   HELIX_PROVIDER_IMAGE_MODELS,
   HELIX_IMAGE_MODELS,
+  HELIX_PROVIDER_VIDEO_MODELS,
+  HELIX_VIDEO_MODELS,
 } from "@/src/modules/helix";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import { useBSAISettings } from "./BSAISettings.Context";
-import type { BSAIImageSettings } from "./BSAISettings.Types";
+import type {
+  BSAIImageSettings,
+  BSVideoSettings,
+} from "./BSAISettings.Types";
 
 // ─── Save status ──────────────────────────────────────────────────────────
 
@@ -39,10 +51,12 @@ export function BSAISettingsComponent() {
     aiConfig,
     speech,
     imageConfig,
+    videoConfig,
     loading,
     saveAISettings,
     saveSpeechSettings,
     saveImageSettings,
+    saveVideoSettings,
   } = useBSAISettings();
 
   const [provider, setProvider] = useState<HelixAIProvider>(aiConfig.provider);
@@ -69,11 +83,20 @@ export function BSAISettingsComponent() {
   const [imageSaveStatus, setImageSaveStatus] = useState<SaveStatus>("idle");
   const [imageErrorMessage, setImageErrorMessage] = useState<string>("");
 
+  // ── Video generation (AI) form state ─────────────────────────────────────
+  const [videoProvider, setVideoProvider] = useState<HelixAIProvider>(
+    videoConfig.provider,
+  );
+  const [videoModel, setVideoModel] = useState<string>(videoConfig.model);
+  const [videoSaveStatus, setVideoSaveStatus] = useState<SaveStatus>("idle");
+  const [videoErrorMessage, setVideoErrorMessage] = useState<string>("");
+
   // Track the last-seen context value so we can sync local form state when it
   // loads/changes, using React's render-time adjustment pattern.
   const [prevConfig, setPrevConfig] = useState(aiConfig);
   const [prevSpeech, setPrevSpeech] = useState(speech);
   const [prevImage, setPrevImage] = useState<BSAIImageSettings>(imageConfig);
+  const [prevVideo, setPrevVideo] = useState<BSVideoSettings>(videoConfig);
 
   if (aiConfig !== prevConfig) {
     setPrevConfig(aiConfig);
@@ -93,6 +116,12 @@ export function BSAISettingsComponent() {
     setPrevImage(imageConfig);
     setImageProvider(imageConfig.provider);
     setImageModel(imageConfig.model);
+  }
+
+  if (videoConfig !== prevVideo) {
+    setPrevVideo(videoConfig);
+    setVideoProvider(videoConfig.provider);
+    setVideoModel(videoConfig.model);
   }
 
   // Available models for the currently selected provider
@@ -192,6 +221,39 @@ export function BSAISettingsComponent() {
       setImageSaveStatus("error");
       setImageErrorMessage(
         err instanceof Error ? err.message : "Failed to save image settings",
+      );
+    }
+  };
+
+  // ── Video generation (AI) handlers ────────────────────────────────
+
+  // Only providers with a populated video model collection are offered.
+  const videoProviderKeys = (
+    Object.keys(HELIX_PROVIDER_VIDEO_MODELS) as HelixAIProvider[]
+  ).filter((k) => k !== "default");
+  const videoModels = HELIX_VIDEO_MODELS[videoProvider] ?? [];
+
+  // When the video provider changes, auto-select the first available model.
+  const handleVideoProviderChange = (newProvider: HelixAIProvider) => {
+    setVideoProvider(newProvider);
+    const models = HELIX_VIDEO_MODELS[newProvider];
+    if (models && models.length > 0) {
+      setVideoModel(models[0]);
+    }
+  };
+
+  const handleSaveVideo = async () => {
+    setVideoSaveStatus("saving");
+    setVideoErrorMessage("");
+
+    try {
+      await saveVideoSettings({ provider: videoProvider, model: videoModel });
+      setVideoSaveStatus("success");
+      setTimeout(() => setVideoSaveStatus("idle"), 2000);
+    } catch (err) {
+      setVideoSaveStatus("error");
+      setVideoErrorMessage(
+        err instanceof Error ? err.message : "Failed to save video settings",
       );
     }
   };
@@ -516,6 +578,103 @@ export function BSAISettingsComponent() {
               {imageSaveStatus === "error" && (
                 <span className="flex items-center gap-1 text-sm text-red-600">
                   <AlertCircle className="w-4 h-4" /> {imageErrorMessage}
+                </span>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Video Generation (AI) settings — provider + model used by the
+            Video Generator module (submit → poll → download video endpoint). */}
+        <Card className="p-6 border-none shadow-sm">
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <Clapperboard className="w-5 h-5 text-red-600" />
+              <h2 className="text-base font-semibold text-gray-900">
+                Video Generation
+              </h2>
+            </div>
+            <p className="text-xs text-gray-400 -mt-3">
+              The provider + model used by the Video Generator to create AI
+              videos via the SiliconFlow async submit → poll → download
+              endpoint.
+            </p>
+
+            {/* Video Provider Select */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Video AI Provider
+              </label>
+              <select
+                value={videoProvider}
+                onChange={(e) =>
+                  handleVideoProviderChange(e.target.value as HelixAIProvider)
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+              >
+                {videoProviderKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {HELIX_PROVIDER_LABELS[key] ?? key}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5">
+                The AI backend used to generate videos.
+              </p>
+            </div>
+
+            {/* Video Model Select */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Video Model
+              </label>
+              <select
+                value={videoModel}
+                onChange={(e) => setVideoModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+              >
+                {videoModels.length === 0 && (
+                  <option value="">No models available</option>
+                )}
+                {videoModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1.5">
+                The specific video model to use with the selected provider.
+              </p>
+            </div>
+
+            {/* Save Video Settings */}
+            <div className="flex items-center gap-3">
+              <Button
+                onPress={handleSaveVideo}
+                isDisabled={videoSaveStatus === "saving"}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-6"
+              >
+                {videoSaveStatus === "saving" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Video Settings
+                  </>
+                )}
+              </Button>
+
+              {videoSaveStatus === "success" && (
+                <span className="flex items-center gap-1 text-sm text-green-600">
+                  <CheckCircle2 className="w-4 h-4" /> Saved
+                </span>
+              )}
+              {videoSaveStatus === "error" && (
+                <span className="flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" /> {videoErrorMessage}
                 </span>
               )}
             </div>

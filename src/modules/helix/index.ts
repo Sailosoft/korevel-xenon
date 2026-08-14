@@ -35,6 +35,32 @@ export {
   isHelixImageProvider,
 } from "./src/HelixConfig.Image";
 
+// ── Video model library ────────────────────────────────────────────────────────
+// Reuses HelixConfig provider identity/config; only the video model collections
+// and size presets are defined separately.
+export type { HelixVideoProvider } from "./src/HelixConfig.Video";
+export {
+  HELIX_PROVIDER_VIDEO_MODELS,
+  HELIX_VIDEO_MODELS,
+  HELIX_VIDEO_SIZES,
+  isHelixVideoProvider,
+} from "./src/HelixConfig.Video";
+export type { HelixVideoSize } from "./src/HelixConfig.Video";
+
+// ── Video adapters ─────────────────────────────────────────────────────────────
+// Provider-specific video adapters (submit → poll → download blob).
+export { HelixSiliconFlowVideoAdapter } from "./src/adapters/HelixSiliconFlowAdapter";
+export type {
+  HelixVideoAdapter,
+  HelixSiliconFlowAdapterOptions,
+  HelixVideoSubmitOptions,
+  HelixVideoSubmission,
+  HelixVideoResult,
+  HelixVideoStatusResponse,
+  HelixVideoTaskStatus,
+  HelixVideoGenerateOptions,
+} from "./src/adapters/HelixSiliconFlowAdapter";
+
 // ── AI Schema types & service ──────────────────────────────────────────────────
 export type {
   HelixStrictPropertyDefinition,
