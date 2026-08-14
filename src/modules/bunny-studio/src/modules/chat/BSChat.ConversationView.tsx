@@ -198,6 +198,7 @@ export function BSChatConversationView({
     autoTTSSpeechRef.current = false;
     const started = speakText(conversation.content, {
       key: conversation.id,
+      chatId: conversation.chatId,
       onStart: () => setSpeaking(true),
       onEnd: () => setSpeaking(false),
     });
@@ -227,6 +228,7 @@ export function BSChatConversationView({
       autoTTSSpeechRef.current = true;
       const started = speakText(conversation.content, {
         key: conversation.id,
+        chatId: conversation.chatId,
         onStart: () => setSpeaking(true),
         onEnd: () => setSpeaking(false),
       });
@@ -235,7 +237,7 @@ export function BSChatConversationView({
         setSpeaking(true);
       }
     }
-  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, conversation.id, ttsSupported, speakText]);
+  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, conversation.id, conversation.chatId, ttsSupported, speakText]);
 
   // Stop speech when this bubble unmounts — but only for manual read-aloud.
   // Auto-TTS speech is left running so the first-message navigation (which
