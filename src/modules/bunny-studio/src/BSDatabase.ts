@@ -26,6 +26,10 @@ import type { BSImageAsset } from "./modules/image-generator/BSImageGenerator.Ty
 import { BSImageRepository } from "./modules/image-generator/BSImageGenerator.Repository";
 import type { BSVideoAsset } from "./modules/video-generator/BSVideoGenerator.Types";
 import { BSVideoRepository } from "./modules/video-generator/BSVideoGenerator.Repository";
+import type { BSSpeechAsset } from "./modules/speech-generator/BSSpeechGenerator.Types";
+import { BSSpeechRepository } from "./modules/speech-generator/BSSpeechGenerator.Repository";
+import type { BSTranscriptionAsset } from "./modules/transcription/BSTranscription.Types";
+import { BSTranscriptionRepository } from "./modules/transcription/BSTranscription.Repository";
 import { BSChatRepository } from "./modules/chat/BSChat.Repository";
 import { BSAgentRepository } from "./modules/agents/BSAgent.Repository";
 import { BSAgentPoolRepository } from "./modules/agent-pools/BSAgentPool.Repository";
@@ -84,6 +88,18 @@ export class BSDatabase extends PhazeDB {
   // ── Video Library (feature: Video Generator) ───────────────────────
   public videoLibrary = this.table<BSVideoAsset, string>("videoLibrary");
   public videoLibraryRepo = new BSVideoRepository(this.videoLibrary);
+
+  // ── Speech Library (feature: Speech Generator) ─────────────────────
+  public speechLibrary = this.table<BSSpeechAsset, string>("speechLibrary");
+  public speechLibraryRepo = new BSSpeechRepository(this.speechLibrary);
+
+  // ── Transcription Library (feature: Transcription) ─────────────────
+  public transcriptionLibrary = this.table<BSTranscriptionAsset, string>(
+    "transcriptionLibrary",
+  );
+  public transcriptionLibraryRepo = new BSTranscriptionRepository(
+    this.transcriptionLibrary,
+  );
 
   constructor() {
     super();

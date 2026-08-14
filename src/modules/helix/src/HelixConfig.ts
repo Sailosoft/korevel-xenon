@@ -564,7 +564,12 @@ export const HELIX_STT_MODELS: Partial<
     "distil-whisper-large-v3-en",
   ],
   deepinfra: ["openai/whisper-large-v3"],
-  siliconFlow: ["FunAudioLLM/SenseVoiceSmall"],
+  // SiliconFlow rotated its standalone ASR models offline; speech processing now
+  // routes through the Omni multimodal models via /chat/completions (audio input).
+  siliconFlow: [
+    "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+    "Qwen/Qwen3-Omni-30B-A3B-Thinking",
+  ],
   fireworks: ["accounts/fireworks/models/whisper-v3"],
   ollamaLocal: ["whisper"],
   ollamaCloud: ["whisper"],

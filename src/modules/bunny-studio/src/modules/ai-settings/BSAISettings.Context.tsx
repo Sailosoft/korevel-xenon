@@ -22,10 +22,12 @@ import {
   BSAISettings,
   BSAIImageSettings,
   BSSpeechSettings,
+  BSTTSSettings,
   BSVideoSettings,
   BS_AI_SETTINGS_DEFAULTS,
   BS_AI_IMAGE_SETTINGS_DEFAULTS,
   BS_AI_VIDEO_SETTINGS_DEFAULTS,
+  BS_AI_TTS_SETTINGS_DEFAULTS,
   BS_AI_SETTINGS_ID,
   BS_SPEECH_SETTINGS_DEFAULTS,
 } from "./BSAISettings.Types";
@@ -41,6 +43,8 @@ export interface BSAISettingsContextValue {
   imageConfig: BSAIImageSettings;
   /** The currently active video-generation AI settings */
   videoConfig: BSVideoSettings;
+  /** The currently active speech-generation (TTS) AI settings */
+  ttsConfig: BSTTSSettings;
   /** True while the initial load from IndexedDB is in progress */
   loading: boolean;
   /** Save only the global AI provider + model (speech settings are preserved) */
@@ -51,6 +55,8 @@ export interface BSAISettingsContextValue {
   saveImageSettings: (image: BSAIImageSettings) => Promise<void>;
   /** Save only the video-generation settings (AI + image + STT are preserved) */
   saveVideoSettings: (video: BSVideoSettings) => Promise<void>;
+  /** Save only the speech-generation (TTS) settings (AI + image + video + STT are preserved) */
+  saveTTSSettings: (tts: BSTTSSettings) => Promise<void>;
   /** Reload settings from IndexedDB */
   reloadSettings: () => Promise<void>;
 }
@@ -77,6 +83,9 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
   const [videoConfig, setVideoConfig] = useState<BSVideoSettings>(
     BS_AI_VIDEO_SETTINGS_DEFAULTS,
   );
+  const [ttsConfig, setTTSConfig] = useState<BSTTSSettings>(
+    BS_AI_TTS_SETTINGS_DEFAULTS,
+  );
   const [loading, setLoading] = useState(true);
   // Track whether the initial load has completed to avoid re-running setState
   // synchronously within the effect body.
@@ -102,6 +111,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         setVideoConfig({
           ...BS_AI_VIDEO_SETTINGS_DEFAULTS,
           ...settings.video,
+        });
+        setTTSConfig({
+          ...BS_AI_TTS_SETTINGS_DEFAULTS,
+          ...settings.tts,
         });
       }
     } catch (err) {
@@ -147,6 +160,10 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         ...BS_AI_VIDEO_SETTINGS_DEFAULTS,
         ...merged.video,
       });
+      setTTSConfig({
+        ...BS_AI_TTS_SETTINGS_DEFAULTS,
+        ...merged.tts,
+      });
     } catch (err) {
       console.error("[BSAISettings] Failed to save settings to IndexedDB:", err);
       throw err;
@@ -181,6 +198,13 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
     [persistSettings],
   );
 
+  const saveTTSSettings = useCallback(
+    async (tts: BSTTSSettings) => {
+      await persistSettings({ tts });
+    },
+    [persistSettings],
+  );
+
   const reloadSettings = useCallback(async () => {
     setLoading(true);
     await loadFromDB();
@@ -193,11 +217,13 @@ export function BSAISettingsProvider({ children }: { children: ReactNode }) {
         speech,
         imageConfig,
         videoConfig,
+        ttsConfig,
         loading,
         saveAISettings,
         saveSpeechSettings,
         saveImageSettings,
         saveVideoSettings,
+        saveTTSSettings,
         reloadSettings,
       }}
     >

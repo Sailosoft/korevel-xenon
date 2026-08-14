@@ -12,6 +12,7 @@
 
 import OpenAI from "openai";
 import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
+import { HelixSiliconFlowSpeechAdapter } from "@/src/modules/helix";
 import {
   BS_API_TOKEN_HEADER,
   BS_API_TOKEN_ENV,
@@ -64,6 +65,22 @@ export async function POST(req: Request) {
     const config = HELIX_AI_PROVIDERS.find(
       (p) => p.provider === providerKey,
     );
+
+    // SiliconFlow no longer exposes a standalone ASR endpoint — speech
+    // processing now routes through Omni multimodal models via the Helix speech
+    // adapter (chat-completions audio input). Route it through the adapter; all
+    // other providers keep the OpenAI-compatible SDK path below.
+    if (providerKey === "siliconFlow") {
+      const adapter = new HelixSiliconFlowSpeechAdapter({
+        apiKey: byok?.trim() || undefined,
+      });
+      const text = await adapter.transcribeAudio({
+        file,
+        model,
+        ...(language ? { language } : {}),
+      });
+      return jsonResponse({ text });
+    }
 
     // STT endpoint priority: request override → provider sttEndpoint → chat endpoint.
     const baseURL =

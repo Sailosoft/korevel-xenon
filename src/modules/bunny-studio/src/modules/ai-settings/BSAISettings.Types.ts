@@ -8,6 +8,7 @@
 // builtin browser Web Speech API or an AI-based (OpenAI-compatible) transcriber.
 
 import type { HelixAIProvider } from "@/src/modules/helix";
+import type { HelixSpeechResponseFormat } from "@/src/modules/helix";
 import {
   HELIX_PROVIDER_IMAGE_MODELS,
   HELIX_IMAGE_MODELS,
@@ -15,6 +16,11 @@ import {
 import {
   HELIX_PROVIDER_VIDEO_MODELS,
   HELIX_VIDEO_MODELS,
+} from "@/src/modules/helix";
+import {
+  HELIX_PROVIDER_SPEECH_MODELS,
+  HELIX_SPEECH_MODELS,
+  getHelixSpeechVoices,
 } from "@/src/modules/helix";
 
 /** Fixed ID for the singleton global AI settings record. */
@@ -53,6 +59,21 @@ export interface BSVideoSettings {
   model: string;
 }
 
+/** Speech-generation (TTS) AI settings (provider + model + voice + format used
+ *  by the Speech Generator module). */
+export interface BSTTSSettings {
+  /** The selected speech AI provider key (e.g. "siliconFlow") */
+  provider: HelixAIProvider;
+  /** The selected speech model identifier for that provider */
+  model: string;
+  /** The selected voice — built-in name or custom "speech:..." URI */
+  voice: string;
+  /** Audio output format (e.g. "mp3") */
+  format: HelixSpeechResponseFormat;
+  /** Output sample rate (0 = model default) */
+  sampleRate: number;
+}
+
 /** The settings shape persisted in the aiSettings Dexie table. */
 export interface BSAISettings {
   /** The selected AI provider key */
@@ -65,6 +86,8 @@ export interface BSAISettings {
   image?: BSAIImageSettings;
   /** Video-generation AI settings (optional for backward compatibility) */
   video?: BSVideoSettings;
+  /** Speech-generation (TTS) AI settings (optional for backward compatibility) */
+  tts?: BSTTSSettings;
 }
 
 /** Default AI settings — used when nothing has been saved yet. */
@@ -91,6 +114,22 @@ const DEFAULT_VIDEO_PROVIDER = (
 export const BS_AI_VIDEO_SETTINGS_DEFAULTS: BSVideoSettings = {
   provider: DEFAULT_VIDEO_PROVIDER,
   model: HELIX_VIDEO_MODELS[DEFAULT_VIDEO_PROVIDER]?.[0] ?? "",
+};
+
+// Default speech (TTS) settings — first speech-capable provider, its first
+// model, that model's first built-in voice, mp3 output at the model default
+// sample rate.
+const DEFAULT_TTS_PROVIDER = (
+  Object.keys(HELIX_PROVIDER_SPEECH_MODELS) as HelixAIProvider[]
+).find((p) => p !== "default") ?? "siliconFlow";
+const DEFAULT_TTS_MODEL = HELIX_SPEECH_MODELS[DEFAULT_TTS_PROVIDER]?.[0] ?? "";
+
+export const BS_AI_TTS_SETTINGS_DEFAULTS: BSTTSSettings = {
+  provider: DEFAULT_TTS_PROVIDER,
+  model: DEFAULT_TTS_MODEL,
+  voice: getHelixSpeechVoices(DEFAULT_TTS_MODEL)[0] ?? "",
+  format: "mp3",
+  sampleRate: 0,
 };
 
 /** Default speech-to-text settings — browser STT out of the box. */

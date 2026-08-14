@@ -96,4 +96,25 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.index("provider");
     });
   });
+
+  // ── Version 5 — Speech Library (feature: Speech Generator) ────────────
+  model.schema((config) => {
+    // Generated AI speech audios persisted as base64 data URLs
+    config.create("speechLibrary", (table) => {
+      table.uuid();
+      table.index("createdDate");
+      table.index("provider");
+    });
+  });
+
+  // ── Version 6 — Transcription Library (feature: Transcription) ────────
+  model.schema((config) => {
+    // Transcribed audio → text results persisted locally (with optional source
+    // audio data URL for re-listening)
+    config.create("transcriptionLibrary", (table) => {
+      table.uuid();
+      table.index("createdDate");
+      table.index("provider");
+    });
+  });
 }
