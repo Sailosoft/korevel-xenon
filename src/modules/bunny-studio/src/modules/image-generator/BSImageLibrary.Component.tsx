@@ -29,6 +29,8 @@ export interface BSImageLibraryProps {
   showHeader?: boolean;
   /** Bump this number to force a reload (e.g. after generating a new image). */
   refreshKey?: number;
+  /** Only render the newest N images. Used by the generator's compact preview. */
+  limit?: number;
 }
 
 export function BSImageLibrary({
@@ -36,6 +38,7 @@ export function BSImageLibrary({
   title = "Image Library",
   showHeader = true,
   refreshKey = 0,
+  limit,
 }: BSImageLibraryProps) {
   const [images, setImages] = useState<BSImageAsset[] | null>(null);
   const [error, setError] = useState("");
@@ -70,6 +73,10 @@ export function BSImageLibrary({
   }, [load]);
 
   const loading = images === null;
+  // Newest-first already sorted in `load`; slice the last `limit` for the
+  // generator's compact preview. The header count still reflects the full
+  // library size.
+  const visibleImages = limit ? images?.slice(0, limit) : images;
 
   return (
     <section className={className}>
@@ -110,7 +117,7 @@ export function BSImageLibrary({
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {images.map((asset) => (
+          {visibleImages?.map((asset) => (
             <BSImageCard
               key={asset.id}
               asset={asset}

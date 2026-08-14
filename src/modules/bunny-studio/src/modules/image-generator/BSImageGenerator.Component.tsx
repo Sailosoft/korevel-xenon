@@ -312,8 +312,8 @@ export function BSImageGeneratorComponent() {
           </div>
         </div>
 
-        {/* Library */}
-        <BSImageLibrary refreshKey={libraryRefreshKey} />
+        {/* Library — compact preview of the newest 4 images on the generator */}
+        <BSImageLibrary refreshKey={libraryRefreshKey} limit={4} />
       </div>
     </div>
   );
