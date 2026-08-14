@@ -128,6 +128,7 @@ export function BSChatConversationView({
     speakText,
     stopSpeaking,
     effectiveAutoTTS,
+    speakingKey,
   } = useBSVoice();
 
   const renderFormat: RenderFormat | undefined =
@@ -150,6 +151,19 @@ export function BSChatConversationView({
 
   // Local "is speaking" for the manual read-aloud toggle
   const [speaking, setSpeaking] = useState(false);
+
+  // Whether the active utterance was started by AUTO-TTS (vs. the manual
+  // read-aloud button). Auto-TTS speech is allowed to survive the bubble
+  // unmounting — e.g. the first-message navigation from the initial chat page
+  // to the chat URL remounts the component tree, and cancelling there would cut
+  // the auto-read off a few seconds in (fix: auto TTS stops on first message).
+  const autoTTSSpeechRef = useRef(false);
+
+  // Effective "this bubble is being spoken" flag. The local `speaking` state
+  // covers the current mount, while `speakingKey` (held on the voice provider,
+  // which survives the chat-URL remount) keeps the ring + stop button active for
+  // as long as the audio is actually playing (fix: animation removed early).
+  const isThisSpeaking = speaking || speakingKey === conversation.id;
 
   const openEditor = () => {
     setEditorValue(conversation.content);
@@ -174,12 +188,17 @@ export function BSChatConversationView({
   };
 
   const handleSpeak = () => {
-    if (speaking) {
+    if (isThisSpeaking) {
       stopSpeaking();
       setSpeaking(false);
       return;
     }
+    // Manual read-aloud — keep the existing unmount behaviour (stop speech when
+    // this bubble unmounts, e.g. scrolled out of the virtualized list).
+    autoTTSSpeechRef.current = false;
     const started = speakText(conversation.content, {
+      key: conversation.id,
+      chatId: conversation.chatId,
       onStart: () => setSpeaking(true),
       onEnd: () => setSpeaking(false),
     });
@@ -206,7 +225,10 @@ export function BSChatConversationView({
     ) {
       // Mark this bubble as speaking so the rainbow ring appears while the
       // message is actually being read aloud (feature: TTS bubble animation).
+      autoTTSSpeechRef.current = true;
       const started = speakText(conversation.content, {
+        key: conversation.id,
+        chatId: conversation.chatId,
         onStart: () => setSpeaking(true),
         onEnd: () => setSpeaking(false),
       });
@@ -215,12 +237,15 @@ export function BSChatConversationView({
         setSpeaking(true);
       }
     }
-  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, ttsSupported, speakText]);
+  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, conversation.id, conversation.chatId, ttsSupported, speakText]);
 
-  // Stop speech when this bubble unmounts.
+  // Stop speech when this bubble unmounts — but only for manual read-aloud.
+  // Auto-TTS speech is left running so the first-message navigation (which
+  // remounts the conversation view via the chat URL) does not cut the auto-read
+  // off after a few seconds (fix: auto TTS stops on the first conversation).
   useEffect(
     () => () => {
-      if (speaking) stopSpeaking();
+      if (speaking && !autoTTSSpeechRef.current) stopSpeaking();
     },
     [speaking, stopSpeaking],
   );
@@ -258,12 +283,12 @@ export function BSChatConversationView({
       {/* Bubble — wrapped so a rainbow ring can surround it while speaking */}
       <div
         className={
-          speaking ? "bs-speak-ring max-w-[85%]" : "max-w-[85%]"
+          isThisSpeaking ? "bs-speak-ring max-w-[85%]" : "max-w-[85%]"
         }
       >
       <div
         className={`${
-          speaking ? "bs-speak-ring-inner " : ""
+          isThisSpeaking ? "bs-speak-ring-inner " : ""
         }rounded-3xl px-4 py-3 text-sm shadow-sm ${
           isError
             ? "bg-red-50 border border-red-300 rounded-bl-lg text-red-700"
@@ -349,14 +374,14 @@ export function BSChatConversationView({
               {ttsSupported && conversation.content && (
                 <button
                   onClick={handleSpeak}
-                  title={speaking ? "Stop reading" : "Read aloud"}
+                  title={isThisSpeaking ? "Stop reading" : "Read aloud"}
                   className={`flex items-center justify-center w-6 h-6 rounded-md transition ${
-                    speaking
+                    isThisSpeaking
                       ? "text-red-600 bg-red-50"
                       : "text-gray-400 hover:text-red-600 hover:bg-red-50"
                   }`}
                 >
-                  {speaking ? (
+                  {isThisSpeaking ? (
                     <Square className="w-3.5 h-3.5" />
                   ) : (
                     <Volume2 className="w-3.5 h-3.5" />

@@ -35,6 +35,69 @@ export {
   isHelixImageProvider,
 } from "./src/HelixConfig.Image";
 
+// ── Video model library ────────────────────────────────────────────────────────
+// Reuses HelixConfig provider identity/config; only the video model collections
+// and size presets are defined separately.
+export type { HelixVideoProvider } from "./src/HelixConfig.Video";
+export {
+  HELIX_PROVIDER_VIDEO_MODELS,
+  HELIX_VIDEO_MODELS,
+  HELIX_VIDEO_SIZES,
+  isHelixVideoProvider,
+} from "./src/HelixConfig.Video";
+export type { HelixVideoSize } from "./src/HelixConfig.Video";
+
+// ── Speech (TTS) & Transcription (STT) model library ───────────────────────────
+// Reuses HelixConfig provider identity/config; only the speech/transcription
+// model collections, voice lists, and output format/rate presets are defined
+// separately. `HELIX_STT_MODELS` (chat mic / transcribe route) is kept in sync
+// from `HELIX_PROVIDER_TRANSCRIPTION_MODELS`.
+export type {
+  HelixSpeechProvider,
+  HelixSpeechResponseFormat,
+  HelixSpeechSampleRate,
+} from "./src/HelixConfig.Speech";
+export {
+  HELIX_PROVIDER_SPEECH_MODELS,
+  HELIX_SPEECH_MODELS,
+  HELIX_PROVIDER_SPEECH_VOICES,
+  HELIX_SPEECH_VOICES,
+  getHelixSpeechVoices,
+  HELIX_SPEECH_RESPONSE_FORMATS,
+  HELIX_SPEECH_SAMPLE_RATES,
+  HELIX_PROVIDER_TRANSCRIPTION_MODELS,
+  HELIX_TRANSCRIPTION_MODELS,
+  HELIX_OMNI_TRANSCRIPTION_MODELS,
+  isOmniTranscriptionModel,
+  isHelixSpeechProvider,
+} from "./src/HelixConfig.Speech";
+
+// ── Speech adapters ─────────────────────────────────────────────────────────────
+// Provider-specific speech adapters (text-to-speech blob + custom voice list).
+// `HelixSpeechAdapter` is the provider-agnostic contract consumers depend on.
+export { HelixSiliconFlowSpeechAdapter } from "./src/adapters/HelixSiliconFlowSpeechAdapter";
+export type {
+  HelixSpeechAdapter,
+  HelixSiliconFlowSpeechAdapterOptions,
+  HelixSpeechGenerateOptions,
+  HelixSpeechVoice,
+  HelixSpeechReference,
+} from "./src/adapters/HelixSiliconFlowSpeechAdapter";
+
+// ── Video adapters ─────────────────────────────────────────────────────────────
+// Provider-specific video adapters (submit → poll → download blob).
+export { HelixSiliconFlowVideoAdapter } from "./src/adapters/HelixSiliconFlowAdapter";
+export type {
+  HelixVideoAdapter,
+  HelixSiliconFlowAdapterOptions,
+  HelixVideoSubmitOptions,
+  HelixVideoSubmission,
+  HelixVideoResult,
+  HelixVideoStatusResponse,
+  HelixVideoTaskStatus,
+  HelixVideoGenerateOptions,
+} from "./src/adapters/HelixSiliconFlowAdapter";
+
 // ── AI Schema types & service ──────────────────────────────────────────────────
 export type {
   HelixStrictPropertyDefinition,

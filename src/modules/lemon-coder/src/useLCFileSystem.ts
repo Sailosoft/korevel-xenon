@@ -410,6 +410,11 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
   // without causing dependency changes on setupFileObserver / loadDirectory.
   const selectedFileRef = useRef(selectedFile);
   selectedFileRef.current = selectedFile;
+  // Monotonic guard that discards stale async file reads. When the user rapidly
+  // clicks file A then file B, A's read may resolve AFTER B's. The guard ensures
+  // only the LATEST selection's read is applied, so the editor never ends up
+  // showing a previous file's content under a new file's header.
+  const selectSeqRef = useRef(0);
 
   // ────────────────────────────────────────────────────────────────────────────
   // File watching setup / teardown
@@ -601,30 +606,43 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
 
   const selectFile = useCallback(
     async (item: LCFileTreeItem) => {
-      if (!item.isDirectory) {
-        // Spread into a new object so React detects change even when re-selecting
-        // the same file (same id, same reference would be skipped by Object.is).
-        setSelectedFile({ ...item });
-        setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
+      if (item.isDirectory) return;
 
-        try {
-          if (!dirHandleRef.current) {
-            throw new Error("No directory handle available");
-          }
-          const { content, lastModified } = await readFileContentFromHandle(
-            dirHandleRef.current,
-            item.path,
-          );
-          // Store the known last-modified timestamp for external-change detection
-          lastModifiedMapRef.current.set(item.path, lastModified);
-          setSelectedFileContent(content);
-          setOriginalFileContent(content);
-        } catch (error) {
-          console.error("Failed to read file content:", error);
-          setSelectedFileContent(
-            `// Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
+      // Tag this read so a stale result (from an earlier rapid selection that
+      // resolves late) can never overwrite a newer selection's content.
+      const seq = ++selectSeqRef.current;
+      try {
+        if (!dirHandleRef.current) {
+          throw new Error("No directory handle available");
         }
+        const { content, lastModified } = await readFileContentFromHandle(
+          dirHandleRef.current,
+          item.path,
+        );
+        // A newer file was selected while this read was in flight — discard.
+        if (seq !== selectSeqRef.current) return;
+
+        // Store the known last-modified timestamp for external-change detection
+        lastModifiedMapRef.current.set(item.path, lastModified);
+        // Set the file AND its content together. React 18 batches these into a
+        // single render, so the editor (keyed by selectedFile.path) remounts with
+        // the correct defaultValue. Previously the file was set immediately while
+        // its content arrived asynchronously, so the editor for the new file was
+        // initialized with the OLD file's content — e.g. a brand-new file showing
+        // the previously open file's content, or a switched-to file rendering the
+        // previous file.
+        setSelectedFile({ ...item });
+        setSelectedFileContent(content);
+        setOriginalFileContent(content);
+        setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
+      } catch (error) {
+        if (seq !== selectSeqRef.current) return;
+        console.error("Failed to read file content:", error);
+        const errContent = `// Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`;
+        setSelectedFile({ ...item });
+        setSelectedFileContent(errContent);
+        setOriginalFileContent(errContent);
+        setExternalChangeStatus({ hasExternalChange: false, diskLastModified: null });
       }
     },
     [],

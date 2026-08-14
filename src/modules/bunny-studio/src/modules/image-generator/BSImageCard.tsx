@@ -19,6 +19,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { bsDB } from "../../BSDatabase";
+import { BSModal } from "../../components";
 import { BSImagePreviewModal } from "./BSImagePreviewModal";
 import type { BSImageAsset } from "./BSImageGenerator.Types";
 
@@ -67,6 +68,8 @@ export function BSImageCard({
   const [deleting, setDeleting] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const handleDownload = () => {
     downloadDataUrl(asset.url, `bunny-ai-${asset.id.slice(0, 8)}.png`);
@@ -74,12 +77,25 @@ export function BSImageCard({
     setTimeout(() => setDownloaded(false), 1500);
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Delete this image from the library?")) return;
+  /** Open the BSModal delete confirmation (replaces the old window.confirm). */
+  const handleDeleteRequest = () => {
+    setDeleteError("");
+    setConfirmOpen(true);
+  };
+
+  /** Actually remove the asset once the user confirms inside the modal. */
+  const confirmDelete = async () => {
     setDeleting(true);
+    setDeleteError("");
     try {
       await bsDB.imageLibraryRepo.delete(asset.id);
+      setConfirmOpen(false);
       onDeleted?.();
+    } catch (err) {
+      console.error("[BSImageCard] Failed to delete image:", err);
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete the image.",
+      );
     } finally {
       setDeleting(false);
     }
@@ -142,7 +158,7 @@ export function BSImageCard({
             {onDeleted && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteRequest}
                 disabled={deleting}
                 title="Delete from library"
                 className="flex items-center gap-1 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-medium px-2.5 py-1.5 transition-colors disabled:opacity-60"
@@ -179,8 +195,58 @@ export function BSImageCard({
           key={asset.id}
           asset={asset}
           onClose={() => setPreviewOpen(false)}
+          onDeleteRequest={() => {
+            setPreviewOpen(false);
+            handleDeleteRequest();
+          }}
         />
       )}
+
+      {/* Delete confirmation — BSModal replaces the old window.confirm */}
+      <BSModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Delete image"
+        sizeClassName="max-w-sm"
+        disableFullscreen
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleting}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-3 py-1.5 transition-colors disabled:opacity-60"
+            >
+              {deleting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              Delete
+            </button>
+          </div>
+        }
+      >
+        <div className="p-5">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete this image from the library? This
+            action cannot be undone.
+          </p>
+          {deleteError && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+              {deleteError}
+            </p>
+          )}
+        </div>
+      </BSModal>
     </>
   );
 }

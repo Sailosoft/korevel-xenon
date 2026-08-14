@@ -5,7 +5,8 @@
 //  - Zoom in / zoom out / reset controls (buttons, mouse wheel at the cursor,
 //    double-click to toggle 1x / 2x).
 //  - Drag-to-pan while zoomed in.
-//  - Download shortcut and close (X button or Escape).
+//  - Download shortcut, optional Delete (via `onDeleteRequest`), and close
+//    (X button or Escape).
 //
 // Used by the shared BSImageCard, so both the generator results and the Image
 // Library get the same preview experience.
@@ -21,6 +22,7 @@ import {
   Maximize2,
   Download,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import type { BSImageAsset } from "./BSImageGenerator.Types";
 import { downloadDataUrl } from "./BSImageCard";
@@ -40,11 +42,14 @@ interface DragState {
 export interface BSImagePreviewModalProps {
   asset: BSImageAsset;
   onClose: () => void;
+  /** When provided, a Delete button is shown in the header bar. */
+  onDeleteRequest?: () => void;
 }
 
 export function BSImagePreviewModal({
   asset,
   onClose,
+  onDeleteRequest,
 }: BSImagePreviewModalProps) {
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
@@ -172,6 +177,17 @@ export function BSImagePreviewModal({
             <Download className="w-4 h-4" />
             Download
           </button>
+          {onDeleteRequest && (
+            <button
+              type="button"
+              onClick={onDeleteRequest}
+              title="Delete image"
+              className="flex items-center gap-1.5 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-medium px-3 py-1.5 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

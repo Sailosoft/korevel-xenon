@@ -19,6 +19,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -84,13 +85,29 @@ export interface BSVoiceContextValue {
   effectiveAutoTTS: boolean;
   /** Read a plain-text string aloud, returning false when not supported.
    *  `onStart` fires when the utterance truly begins; `onEnd` fires when it
-   *  finishes or is interrupted (including when a newer utterance cancels it). */
+   *  finishes or is interrupted (including when a newer utterance cancels it).
+   *  Pass `key` (e.g. the conversation id) so `speakingKey` reports which
+   *  bubble is being read aloud (fix: TTS ring animation survives remount).
+   *  Pass `chatId` so the provider can stop the speech when the user leaves
+   *  that chat (fix: closing the chat kept the TTS running). */
   speakText: (
     text: string,
-    options?: { onStart?: () => void; onEnd?: () => void },
+    options?: {
+      key?: string;
+      chatId?: string;
+      onStart?: () => void;
+      onEnd?: () => void;
+    },
   ) => boolean;
   /** Stop any in-progress speech */
   stopSpeaking: () => void;
+  /**
+   * Conversation (bubble) id currently being spoken aloud, or null when idle.
+   * Kept on the provider so it survives the conversation-view remount that
+   * happens when the first message navigates to the chat URL (fix: the auto-TTS
+   * ring animation was removed early even though the audio kept playing).
+   */
+  speakingKey: string | null;
 }
 
 // ─── Context ───────────────────────────────────────────────────────────────
@@ -162,6 +179,17 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
   const autoTTSRef = useRef<boolean>(autoTTS);
   const overrideRef = useRef<BSVoiceOverride | null>(override);
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Conversation (bubble) id of the utterance currently being spoken. Lives on
+  // the provider (not the bubble) so the speaking animation survives the
+  // conversation-view remount after the first-message chat navigation (fix).
+  const [speakingKey, setSpeakingKey] = useState<string | null>(null);
+  // Chat id the utterance currently being spoken belongs to. Used to stop the
+  // speech when the user navigates away from that chat (fix: closing the chat
+  // kept the TTS running).
+  const [speakingChatId, setSpeakingChatId] = useState<string | null>(null);
+  // Pathname of the chat page we were on, so we can detect "leaving the chat".
+  const pathname = usePathname();
+  const prevPathChatIdRef = useRef<string | null>(null);
 
   // Effective values — per-chat override wins over the global setting.
   const effectiveVoiceURI = override?.voiceURI ?? voiceURI;
@@ -221,12 +249,19 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
     if (!ttsSupported) return;
     window.speechSynthesis.cancel();
     activeUtteranceRef.current = null;
+    setSpeakingKey(null);
+    setSpeakingChatId(null);
   }, [ttsSupported]);
 
   const speakText = useCallback(
     (
       text: string,
-      options?: { onStart?: () => void; onEnd?: () => void },
+      options?: {
+        key?: string;
+        chatId?: string;
+        onStart?: () => void;
+        onEnd?: () => void;
+      },
     ): boolean => {
       if (!ttsSupported || !text.trim()) return false;
       const synth = window.speechSynthesis;
@@ -260,18 +295,59 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
         // older overlapping utterance ending later can't clear a newer one.
         if (activeUtteranceRef.current === utterance) {
           activeUtteranceRef.current = null;
+          // Clear the speaking animation only when this utterance is the one
+          // still active (a newer utterance that cancelled it keeps its key).
+          setSpeakingKey((prev) =>
+            prev === options?.key ? null : prev,
+          );
+          setSpeakingChatId((prev) =>
+            prev === options?.chatId ? null : prev,
+          );
         }
         options?.onEnd?.();
       };
-      utterance.onstart = () => options?.onStart?.();
+      utterance.onstart = () => {
+        setSpeakingKey(options?.key ?? null);
+        setSpeakingChatId(options?.chatId ?? null);
+        options?.onStart?.();
+      };
       utterance.onend = finish;
       utterance.onerror = finish;
       activeUtteranceRef.current = utterance;
+      // Optimistically mark the key as speaking so the ring shows immediately,
+      // even before onstart fires (which can lag on some engines).
+      setSpeakingKey(options?.key ?? null);
+      setSpeakingChatId(options?.chatId ?? null);
       synth.speak(utterance);
       return true;
     },
     [ttsSupported],
   );
+
+  // Stop the TTS when the user navigates away from the chat that is being
+  // spoken (closing the chat / switching chats / leaving to another page).
+  // Auto-TTS speech survives the bubble unmount so the first-message navigation
+  // to the chat URL doesn't cut it off — but it must NOT keep running after the
+  // user actually leaves the chat (fix: closing the chat kept the TTS running).
+  // Rule: only stop when we were previously ON the speaking chat's page and now
+  // we are somewhere else. The first-message navigation goes FROM a non-chat
+  // page TO the newly-created chat URL, so it never triggers this stop.
+  useEffect(() => {
+    if (!ttsSupported) return;
+    const chatMatch = pathname?.match(
+      /\/modules\/bunny-studio\/chat\/([^/]+)/,
+    );
+    const currentChatId = chatMatch ? chatMatch[1] : null;
+    const prevChatId = prevPathChatIdRef.current;
+    prevPathChatIdRef.current = currentChatId;
+    if (
+      speakingChatId &&
+      prevChatId === speakingChatId &&
+      currentChatId !== speakingChatId
+    ) {
+      stopSpeaking();
+    }
+  }, [pathname, speakingChatId, stopSpeaking, ttsSupported]);
 
   // Cancel any speech when the provider unmounts.
   useEffect(
@@ -296,6 +372,7 @@ export function BSVoiceProvider({ children }: { children: ReactNode }) {
         effectiveAutoTTS,
         speakText,
         stopSpeaking,
+        speakingKey,
       }}
     >
       {children}
