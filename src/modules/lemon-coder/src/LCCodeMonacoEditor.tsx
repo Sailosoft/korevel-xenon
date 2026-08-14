@@ -83,6 +83,25 @@ export default function LCCodeMonacoEditor({
     languageRef.current = language;
   });
 
+  /**
+   * Reset per-file editor tracking when the user switches files.
+   * The inner MonacoEditor remounts (key={fileKey}) but THIS component — and
+   * its refs — do NOT, so a stale `lastReportedContentRef` (echo of the
+   * previous file) or a pending external sync could otherwise mask a genuine
+   * content update for the newly opened file.
+   */
+  const previousFileKeyRef = useRef(fileKey);
+  useEffect(() => {
+    if (externalSyncTimerRef.current) {
+      clearTimeout(externalSyncTimerRef.current);
+      externalSyncTimerRef.current = null;
+    }
+    if (previousFileKeyRef.current !== fileKey) {
+      lastReportedContentRef.current = null;
+      previousFileKeyRef.current = fileKey;
+    }
+  }, [fileKey]);
+
   // ── Sync genuine external content changes WITHOUT clobbering the cursor ───
   // The editor is uncontrolled (defaultValue), so content is re-applied only
   // here. Writing the parent's content back to the editor is safe ONLY for a
@@ -112,9 +131,18 @@ export default function LCCodeMonacoEditor({
     if (currentValue === content) return;
 
     // Editor is strictly ahead of the incoming content (content is a prefix of
-    // what's already typed): the newest keystrokes haven't reached the parent
-    // yet. Writing it back would delete the trailing keys — skip.
-    if (currentValue.length > content.length && currentValue.startsWith(content)) {
+    // the editor's text). This only means "the newest keystrokes haven't reached
+    // the parent yet" when the editor itself pushed this exact text upward
+    // (lastReportedContentRef === currentValue). Otherwise it is a genuine
+    // external update (file switch / reload / new file) that MUST be applied —
+    // e.g. opening a new empty file while a longer file is open would otherwise
+    // keep showing the previous file's content forever.
+    const editorPushedThisText = lastReportedContentRef.current === currentValue;
+    if (
+      editorPushedThisText &&
+      currentValue.length > content.length &&
+      currentValue.startsWith(content)
+    ) {
       return;
     }
 
