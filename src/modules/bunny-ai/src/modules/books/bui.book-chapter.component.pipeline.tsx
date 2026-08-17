@@ -12,6 +12,7 @@ import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
+import BUIAuthorSkillPicker from "../author-skills/bui.author-skills.picker.component";
 
 type WriteMode = "empty" | "all";
 
@@ -56,6 +57,7 @@ export default function BUIBookChapterComponentPipeline({
   const [promptType, setPromptType] = useState<string>("default");
   const [useAuthorProfile, setUseAuthorProfile] = useState(true);
   const [useAuthorSkills, setUseAuthorSkills] = useState(false);
+  const [selectedSkillNames, setSelectedSkillNames] = useState<string[]>([]);
   const [currentChapterTitle, setCurrentChapterTitle] = useState("");
   const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<
     string | null
@@ -163,6 +165,7 @@ export default function BUIBookChapterComponentPipeline({
           undefined,
           useAuthorSkills,
           useAuthorProfile,
+          selectedSkillNames,
         );
 
         // Mid-execution interface stream sync update
@@ -361,6 +364,16 @@ export default function BUIBookChapterComponentPipeline({
                     />
                     Include Author Skills in chapter content
                   </label>
+
+                  {/* Pop-up skill picker — shown only when skills are enabled */}
+                  {useAuthorSkills && (
+                    <div className="pl-6">
+                      <BUIAuthorSkillPicker
+                        selectedNames={selectedSkillNames}
+                        onChange={setSelectedSkillNames}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-3 bg-default-50 border border-default-200 rounded-lg flex gap-2.5 items-start">
@@ -405,7 +418,7 @@ export default function BUIBookChapterComponentPipeline({
                     </p>
                     <p className="text-[11px] text-danger-500 leading-relaxed">
                       The pipeline stopped. Failed chapters may have been reset
-                      to "empty". Please check your AI configuration and retry.
+                      to empty. Please check your AI configuration and retry.
                     </p>
                   </div>
                 </div>

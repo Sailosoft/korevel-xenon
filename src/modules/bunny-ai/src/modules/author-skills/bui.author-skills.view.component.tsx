@@ -6,7 +6,7 @@ import BUIAuthorSkillAttach, {
   BUISkillSelectorDialogContent,
 } from "./bui.author-skills.attach.component";
 import BUIAuthorSkillRelationRepository from "./bui.author-skills.relation.repository";
-import { buiDatabase } from "../../database/bui.database";
+import { buiAuthorSkillGetAll } from "./bui.author-skills.util";
 
 export default function BUIAuthorViewSkills() {
   const admin = useAdminPanelContext();
@@ -25,8 +25,8 @@ export default function BUIAuthorViewSkills() {
       // Store refresh callback for use after save
       refreshCallbackRef.current = refresh || null;
 
-      // Load all skills once
-      const allSkills = await buiDatabase.authorSkills.toArray();
+      // Load all skills once (database + built-in default constant skills)
+      const allSkills = await buiAuthorSkillGetAll();
 
       admin.dialog.openDialog({
         title: "Select Skills to Attach",

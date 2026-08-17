@@ -7,8 +7,9 @@ import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import { BUIBookEntity } from "./bui.book.entity";
-import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
+import { buiAuthorSkillResolveForGeneration } from "../author-skills/bui.author-skills.util";
+import BUIAuthorSkillPicker from "../author-skills/bui.author-skills.picker.component";
 
 type ConflictMode = "overwrite" | "skip" | "extend";
 
@@ -27,6 +28,7 @@ export default function BUIBookChapterComponentGenerate({
   const [isGenerating, setIsGenerating] = useState(false);
   const [existingChaptersCount, setExistingChaptersCount] = useState(0);
   const [conflictMode, setConflictMode] = useState<ConflictMode>("overwrite");
+  const [selectedSkillNames, setSelectedSkillNames] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadContext() {
@@ -68,11 +70,14 @@ export default function BUIBookChapterComponentGenerate({
         }
       }
 
-      // Fetch author skills if requested
+      // Resolve skills if requested — either the explicitly selected skills
+      // or the skills attached to the book's author.
       let skills: BUIAuthorSkill[] | undefined;
-      if (useAuthorSkills && bookData.authorId) {
-        const skillRelationRepo = new BUIAuthorSkillRelationRepository();
-        skills = await skillRelationRepo.getSkillsByAuthor(bookData.authorId);
+      if (useAuthorSkills) {
+        skills = await buiAuthorSkillResolveForGeneration(
+          selectedSkillNames,
+          bookData.authorId,
+        );
       }
 
       const response = await buiChapterServerGenerate(
@@ -124,6 +129,7 @@ export default function BUIBookChapterComponentGenerate({
     bookData,
     useAuthorProfile,
     useAuthorSkills,
+    selectedSkillNames,
     templateType,
     conflictMode,
   ]);
@@ -249,6 +255,19 @@ export default function BUIBookChapterComponentGenerate({
                   Include Author Skills in chapter generation
                 </label>
               </div>
+
+              {/* Conditional skills selection — shown only when the checkbox is checked */}
+              {useAuthorSkills && (
+                <div className="flex flex-col gap-1 mt-2">
+                  <label className="text-xs font-semibold uppercase text-default-400">
+                    Select Skills to Include
+                  </label>
+                  <BUIAuthorSkillPicker
+                    selectedNames={selectedSkillNames}
+                    onChange={setSelectedSkillNames}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col gap-1 mt-2">
                 <label className="text-xs font-semibold uppercase text-default-400">

@@ -1,5 +1,5 @@
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
-import { BUIAuthor } from "./bui.author.entity";
+import { BUIAuthor, BUIAuthorFormData } from "./bui.author.entity";
 import {
   AdminPanelQueryOptions,
   GetAllResponse,
@@ -17,6 +17,8 @@ import { buiAuthorServerEnhanceWithParams } from "./bui.author.server.enhance";
 import { buiContainer } from "../../container/bui.container";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import BUISettingsRepository from "../settings/bui.settings.repository";
+import BUIAuthorSkillAttachField from "../author-skills/bui.author-skills.attach-field.component";
+import { buiAuthorSkillAttachSelectedToAuthor } from "../author-skills/bui.author-skills.util";
 
 export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
   title: "Author",
@@ -60,6 +62,17 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
             message: "Description is required",
           },
         ],
+      },
+      {
+        // Available while creating, updating, or viewing an author. Opens a
+        // pop-up to select skills (database + default constants) and shows the
+        // chosen skills as bubbles.
+        name: "skillNames",
+        label: "Preselect Skills",
+        type: "custom",
+        component: BUIAuthorSkillAttachField,
+        modes: ["create", "update", "view"],
+        colSpan: 12,
       },
     ],
   },
@@ -169,7 +182,18 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
     create: async function (
       data: BUIAuthor,
     ): Promise<AdminPanelResult<BUIAuthor, unknown>> {
-      const id = await buiDatabase.authors.add(data);
+      // `skillNames` is a transient form selection (not persisted on the row).
+      const { skillNames, ...authorData } = data as BUIAuthorFormData;
+      const id = await buiDatabase.authors.add(authorData);
+
+      // Attach only the explicitly chosen skills — nothing is preselected.
+      if (Array.isArray(skillNames) && skillNames.length > 0) {
+        try {
+          await buiAuthorSkillAttachSelectedToAuthor(id, skillNames);
+        } catch (error) {
+          console.error("Failed to attach skills for author:", error);
+        }
+      }
 
       return adminPanelResultSuccess<BUIAuthor>(
         (await buiDatabase.authors.get(id)) as BUIAuthor,
@@ -183,7 +207,18 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
         throw new Error("Invalid ID type. Expected a number.");
       }
 
-      await buiDatabase.authors.update(id, data);
+      // `skillNames` is a transient form selection (not persisted on the row).
+      const { skillNames, ...authorData } = data as BUIAuthorFormData;
+      await buiDatabase.authors.update(id, authorData);
+
+      // When the user confirmed a skill selection, sync the author's relations.
+      if (Array.isArray(skillNames)) {
+        try {
+          await buiAuthorSkillAttachSelectedToAuthor(id, skillNames);
+        } catch (error) {
+          console.error("Failed to update author skills:", error);
+        }
+      }
 
       return adminPanelResultSuccess<BUIAuthor>(
         (await buiDatabase.authors.get(id)) as BUIAuthor,

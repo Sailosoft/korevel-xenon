@@ -1,5 +1,8 @@
 export type BunnyDisplayFieldMode = "card" | "badge" | "text" | "custom";
 
+/** Form modes a field can be restricted to. */
+export type BunnyFormMode = "create" | "update" | "view" | "plain";
+
 export interface BunnyDisplayFieldConfig<TForm = Record<string, unknown>> {
   /**
    * Visual display mode:
@@ -80,8 +83,14 @@ export interface BunnyFormField<TForm = Record<string, unknown>> {
   label: string;
   placeholder?: string;
   type: BunnyFieldType;
+  /**
+   * Restricts the field to only be displayed/available in the given form modes
+   * (e.g. `["create"]` shows it only when creating, `["update", "view"]` for
+   * edit/read). When omitted, the field is always rendered.
+   */
+  modes?: BunnyFormMode[];
   /** Custom formatter function to format the value for display/rendering */
-  format?: (value: any, formData: TForm) => any;
+  format?: (value: unknown, formData: TForm) => unknown;
   options?:
     | BunnySelectOption[]
     | (() => BunnySelectOption[] | Promise<BunnySelectOption[]>);

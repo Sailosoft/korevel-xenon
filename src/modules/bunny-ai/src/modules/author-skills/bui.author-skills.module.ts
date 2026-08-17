@@ -15,6 +15,7 @@ import {
 } from "@/src/modules/admin-panel/shared/admin-panel-result";
 import { buiDatabase } from "../../database/bui.database";
 import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/query/admin-panel-query.util";
+import { buiAuthorSkillGetAll } from "./bui.author-skills.util";
 import React from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import { buiAuthorSkillServerEnhanceWithParams } from "./bui.author-skills.server.enhance";
@@ -151,8 +152,10 @@ export const buiAuthorSkillModule: BunnyConfig<BUIAuthorSkill, BUIAuthorSkill> =
         _options: AdminPanelQueryOptions,
         _overrideOptions?: AdminPanelQueryOptions,
       ): Promise<GetAllResponse<BUIAuthorSkill>> {
+        // Combine database-persisted skills with the built-in default
+        // constant-object skills so they all appear in the selection source.
         return adminPanelQueryResponseAll({
-          data: await buiDatabase.authorSkills.toArray(),
+          data: await buiAuthorSkillGetAll(),
         });
       },
       getOne: async function (
