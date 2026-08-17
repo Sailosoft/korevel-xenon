@@ -1,70 +1,68 @@
-// BSKnowledgeBase.Embedding — Client embedding service for the Knowledge Base.
+// BSKnowledgeBase.Embedding — Knowledge Base embedding helpers (compat shim).
 //
-// Routes embedding generation through the server (`/api/bunny-studio/knowledge/embed`)
-// so the provider API key (SiliconFlow) never leaves the server. The default
-// model is SiliconFlow's Qwen3-Embedding-0.6B (feature: BSEmbeddings).
+// The embedding configuration and models now live in Helix
+// (HelixConfig.Embedding.ts) and the generic embedding utilities live in
+// HelixEmbedding.ts. This file only remains as a thin compatibility layer that
+// injects the Bunny Studio frontend API token into client-side embedding calls
+// (the provider API key itself never leaves the server).
 
 "use client";
 
+import {
+  embedTexts as helixEmbedTexts,
+  embedText as helixEmbedText,
+} from "@/src/modules/helix/src/HelixEmbedding";
 import {
   BS_API_TOKEN_HEADER,
   getBSApiToken,
 } from "../../BSApiSecurity";
 
-/** Default embedding model — Qwen3-Embedding-0.6B (cheapest / fastest). */
-export const DEFAULT_EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B";
+// ── Config & models — now sourced from Helix ───────────────────────────────
 
-/** Available embedding models (feature: BSEmbeddings / BSKnowledgeBase). */
-export const EMBEDDING_MODELS = [
-  "Qwen/Qwen3-Embedding-0.6B",
-  "Qwen/Qwen3-Embedding-4B",
-  "Qwen/Qwen3-Embedding-8B",
-] as const;
+export {
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_PROVIDER,
+  DEFAULT_EMBEDDING_DIMENSIONS,
+  EMBEDDING_MODELS,
+  HELIX_EMBEDDING_MODELS,
+  HELIX_PROVIDER_EMBEDDING_MODELS,
+  HELIX_PROVIDER_EMBEDDING_ENDPOINTS,
+  HELIX_PROVIDER_EMBEDDING_API_KEY_ENV,
+  HELIX_EMBEDDING_MODEL_DIMENSIONS,
+  isHelixEmbeddingProvider,
+  getEmbeddingModelProvider,
+  getProviderDefaultEmbeddingModel,
+} from "@/src/modules/helix/src/HelixConfig.Embedding";
+export type { HelixEmbeddingProvider } from "@/src/modules/helix/src/HelixConfig.Embedding";
+export type {
+  HelixEmbedResponse,
+  HelixEmbeddingOption,
+  HelixGenerateEmbeddingsOption,
+} from "@/src/modules/helix/src/HelixEmbedding";
 
-export interface BSEmbedResponse {
-  embeddings: number[][];
-  model: string;
-  dimensions: number;
-}
+// ── Client helpers — inject the Bunny Studio API token ─────────────────────
+
+/** Attach the frontend-only API token header to knowledge-base API calls. */
+const tokenHeaders = (): Record<string, string> => ({
+  [BS_API_TOKEN_HEADER]: getBSApiToken() ?? "",
+});
 
 /**
  * Generate vector embeddings for one or more text inputs via the server route.
- * Batches are kept under the provider's per-request limit (max 32 items).
+ * The provider is inferred from the model (default: siliconFlow). Keeps the
+ * old `(inputs, model)` signature for the Knowledge Base RAG pipeline.
  */
 export async function embedTexts(
   inputs: string[],
-  model: string = DEFAULT_EMBEDDING_MODEL,
+  model?: string,
 ): Promise<number[][]> {
-  if (inputs.length === 0) return [];
-  const batchSize = 16;
-  const all: number[][] = [];
-
-  for (let i = 0; i < inputs.length; i += batchSize) {
-    const batch = inputs.slice(i, i + batchSize);
-    const res = await fetch("/api/bunny-studio/knowledge/embed", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        [BS_API_TOKEN_HEADER]: getBSApiToken() ?? "",
-      },
-      body: JSON.stringify({ inputs: batch, model }),
-    });
-    const data = (await res.json()) as Partial<BSEmbedResponse> & {
-      error?: string;
-    };
-    if (!res.ok || !data.embeddings) {
-      throw new Error(data.error ?? "Embedding request failed.");
-    }
-    all.push(...data.embeddings);
-  }
-  return all;
+  return helixEmbedTexts(inputs, { model, headers: tokenHeaders() });
 }
 
 /** Convenience wrapper for a single text input (used by RAG query retrieval). */
 export async function embedText(
   input: string,
-  model: string = DEFAULT_EMBEDDING_MODEL,
+  model?: string,
 ): Promise<number[]> {
-  const vectors = await embedTexts([input], model);
-  return vectors[0] ?? [];
+  return helixEmbedText(input, { model, headers: tokenHeaders() });
 }

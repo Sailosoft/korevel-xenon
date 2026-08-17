@@ -10,7 +10,7 @@
 
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import Link from "next/link";
 import {
@@ -31,6 +31,7 @@ import {
 import { bsDB } from "../../BSDatabase";
 import type { BSKnowledgeGroup } from "./BSKnowledge.Types";
 import type { BSKnowledge } from "./BSKnowledge.Types";
+import type { BSKnowledgeIndexSnapshot } from "./BSKnowledge.Types";
 import {
   isAllowedResourceFile,
   readFileAsText,
@@ -38,12 +39,34 @@ import {
   useBSKnowledgeIngest,
   type BSScanResult,
 } from "./BSKnowledge.Hooks";
-import { EMBEDDING_MODELS } from "./BSKnowledgeBase.Embedding";
+import {
+  EMBEDDING_MODELS,
+  HELIX_PROVIDER_EMBEDDING_MODELS,
+} from "./BSKnowledgeBase.Embedding";
+import {
+  HELIX_PROVIDER_LABELS,
+  type HelixAIProvider,
+} from "@/src/modules/helix";
 
 const SELECT_STYLE =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white";
 const INPUT_STYLE =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white";
+
+/** Number of knowledge rows rendered per page in the list. */
+const PAGE_SIZE = 8;
+
+/** Format a byte count into a compact, human-readable string (e.g. "1.2 MB"). */
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+  );
+  const value = bytes / 1024 ** i;
+  return `${value.toFixed(i === 0 || value >= 10 ? 0 : 1)} ${units[i]}`;
+}
 
 export function BSKnowledgeComponent() {
   const groups = useLiveQuery<BSKnowledgeGroup[]>(
@@ -52,6 +75,10 @@ export function BSKnowledgeComponent() {
   );
   const knowledges = useLiveQuery<BSKnowledge[]>(
     () => bsDB.knowledgesRepo.listAllNewestFirst(),
+    [],
+  );
+  const ragIndexes = useLiveQuery<BSKnowledgeIndexSnapshot[]>(
+    () => bsDB.knowledgeIndexes.toArray(),
     [],
   );
 
@@ -75,14 +102,10 @@ export function BSKnowledgeComponent() {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState("");
 
-  const selectedGroup = groups?.find((g) => g.id === groupId) ?? null;
+  // Knowledge list pagination
+  const [page, setPage] = useState(1);
 
-  // Keep the model selector in sync with the selected group's configured
-  // model (a group must stay on one model so its vectors share a space).
-  useEffect(() => {
-    setEmbeddingModel(selectedGroup?.embeddingModel || EMBEDDING_MODELS[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup?.id]);
+  const selectedGroup = groups?.find((g) => g.id === groupId) ?? null;
 
   // Persist the group's embedding model when the user changes it.
   const handleEmbeddingModelChange = (value: string) => {
@@ -101,6 +124,36 @@ export function BSKnowledgeComponent() {
       chunks: list.reduce((sum, k) => sum + (k.chunkCount ?? 0), 0),
     };
   }, [groupId, knowledges]);
+
+  // Whole-database RAG stats: sources, indexed chunks, and the serialized byte
+  // size of the local Orama vector indexes (the "RAG database size").
+  const ragStats = useMemo(() => {
+    const list = knowledges ?? [];
+    const chunks = list.reduce((sum, k) => sum + (k.chunkCount ?? 0), 0);
+    const bytes = (ragIndexes ?? []).reduce(
+      (sum, idx) => sum + new TextEncoder().encode(idx.data).length,
+      0,
+    );
+    return { sources: list.length, chunks, bytes };
+  }, [knowledges, ragIndexes]);
+
+  // ── Knowledge list pagination ─────────────────────────────────────────
+  const filteredKnowledges = useMemo(() => {
+    const list = knowledges ?? [];
+    return groupId
+      ? list.filter((k) => k.knowledgeGroupId === groupId)
+      : list;
+  }, [groupId, knowledges]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredKnowledges.length / PAGE_SIZE),
+  );
+  const currentPage = Math.min(page, totalPages);
+  const pagedKnowledges = filteredKnowledges.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
 
   // ── Website tab handlers ─────────────────────────────────────────────
   const handleScan = async () => {
@@ -190,6 +243,23 @@ export function BSKnowledgeComponent() {
               Add knowledge by scanning a website or uploading a file, then
               pick the group in Chat Settings to answer from it.
             </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium px-2.5 py-1">
+                <Database className="w-3 h-3 text-red-400" />
+                {ragStats.sources} source(s)
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium px-2.5 py-1">
+                <Sparkles className="w-3 h-3 text-red-400" />
+                {ragStats.chunks} chunk(s)
+              </span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-600 text-[11px] font-medium px-2.5 py-1"
+                title="Total serialized size of the local RAG vector database"
+              >
+                <Database className="w-3 h-3" />
+                RAG DB {formatBytes(ragStats.bytes)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -223,7 +293,20 @@ export function BSKnowledgeComponent() {
                   </label>
                   <select
                     value={groupId}
-                    onChange={(e) => setGroupId(e.target.value)}
+                    onChange={(e) => {
+                      const nextGroupId = e.target.value;
+                      setGroupId(nextGroupId);
+                      setPage(1);
+                      // Keep the model selector in sync with the selected
+                      // group's configured model (a group must stay on one
+                      // model so its vectors share a space).
+                      const nextGroup = groups?.find(
+                        (g) => g.id === nextGroupId,
+                      );
+                      setEmbeddingModel(
+                        nextGroup?.embeddingModel || EMBEDDING_MODELS[0],
+                      );
+                    }}
                     className={SELECT_STYLE}
                   >
                     <option value="">Select a group…</option>
@@ -250,10 +333,21 @@ export function BSKnowledgeComponent() {
                     onChange={(e) => handleEmbeddingModelChange(e.target.value)}
                     className={SELECT_STYLE}
                   >
-                    {EMBEDDING_MODELS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
+                    {(
+                      Object.entries(
+                        HELIX_PROVIDER_EMBEDDING_MODELS,
+                      ) as [HelixAIProvider, readonly string[] | undefined][]
+                    ).map(([provider, models]) => (
+                      <optgroup
+                        key={provider}
+                        label={HELIX_PROVIDER_LABELS[provider] ?? provider}
+                      >
+                        {(models ?? []).map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   <p className="text-[10px] text-gray-400 mt-1">
@@ -471,13 +565,11 @@ export function BSKnowledgeComponent() {
                   {groupId ? "Knowledges in this group" : "All Knowledges"}
                 </h2>
                 <span className="text-[11px] text-gray-400">
-                  {(knowledges ?? []).length} total
+                  {filteredKnowledges.length} total
                 </span>
               </div>
               <div className="divide-y divide-gray-100">
-                {(knowledges ?? [])
-                  .filter((k) => (groupId ? k.knowledgeGroupId === groupId : true))
-                  .map((k) => {
+                {pagedKnowledges.map((k) => {
                     const group = groups?.find((g) => g.id === k.knowledgeGroupId);
                     return (
                       <div
@@ -518,12 +610,60 @@ export function BSKnowledgeComponent() {
                       </div>
                     );
                   })}
-                {(knowledges ?? []).length === 0 && (
+                {filteredKnowledges.length === 0 && (
                   <div className="px-5 py-10 text-center">
                     <Database className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-sm text-gray-500">
                       No knowledges yet. Add one using the tabs above.
                     </p>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                    <span className="text-[11px] text-gray-400">
+                      {pagedKnowledges.length === 0
+                        ? "0 results"
+                        : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(
+                            currentPage * PAGE_SIZE,
+                            filteredKnowledges.length,
+                          )} of ${filteredKnowledges.length}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage(currentPage - 1)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >
+                        Prev
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPage(p)}
+                            className={`w-7 h-7 rounded-lg text-xs font-medium transition ${
+                              p === currentPage
+                                ? "bg-red-600 text-white"
+                                : "text-gray-500 hover:bg-gray-100"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ),
+                      )}
+                      <button
+                        type="button"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setPage(currentPage + 1)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

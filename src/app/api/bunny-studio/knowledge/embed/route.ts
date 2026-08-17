@@ -1,22 +1,20 @@
 // route.ts — Bunny AI Studio Knowledge Base embedding endpoint
 //
-// Generates vector embeddings for the Knowledge Base RAG pipeline using the
-// SiliconFlow OpenAI-compatible `/v1/embeddings` endpoint (feature:
-// BSEmbeddings). The provider API key stays server-side; the client only ever
-// sees the resulting vectors.
-//
-// Default model: Qwen/Qwen3-Embedding-0.6B (feature: BSKnowledgeBase).
+// Generates vector embeddings for the Knowledge Base RAG pipeline. The actual
+// provider call (SiliconFlow by default, DeepInfra also supported) now lives in
+// Helix (HelixEmbedding.generateEmbeddings); this route is a thin handler that
+// validates the frontend-only token and the request payload, then delegates.
+// The provider API key stays server-side; the client only ever sees the
+// resulting vectors (feature: BSEmbeddings / BSKnowledgeBase).
 
+import { generateEmbeddings } from "@/src/modules/helix";
+import type {
+  HelixEmbeddingProvider,
+} from "@/src/modules/helix";
 import {
   BS_API_TOKEN_HEADER,
   BS_API_TOKEN_ENV,
 } from "@/src/modules/bunny-studio/src/BSApiSecurity";
-
-/** Default embedding model — cheapest / fastest SiliconFlow Qwen3 embedding. */
-const DEFAULT_EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B";
-/** Output dimension requested — matches the default for the 0.6B model. */
-const EMBEDDING_DIMENSIONS = 1024;
-const SILICON_FLOW_EMBEDDINGS_ENDPOINT = "https://api.siliconflow.com/v1/embeddings";
 
 // ─── Frontend-only access guard (same as the chat stream route) ─────────
 
@@ -33,10 +31,6 @@ function assertFrontendOnly(req: Request): Response | null {
   return null;
 }
 
-interface EmbeddingsResponse {
-  data: Array<{ embedding: number[] }>;
-}
-
 export async function POST(req: Request) {
   const denied = assertFrontendOnly(req);
   if (denied) return denied;
@@ -45,6 +39,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       inputs?: unknown;
       model?: string;
+      provider?: string;
     };
 
     const inputs = Array.isArray(body.inputs) ? body.inputs : [];
@@ -63,51 +58,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const apiKey = process.env.SILICON_FLOW_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({
-          error: "SILICON_FLOW_API_KEY is not configured on the server.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    const model = typeof body.model === "string" && body.model ? body.model : DEFAULT_EMBEDDING_MODEL;
-
-    const upstream = await fetch(SILICON_FLOW_EMBEDDINGS_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        input: inputs,
-        encoding_format: "float",
-        dimensions: EMBEDDING_DIMENSIONS,
-      }),
+    const data = await generateEmbeddings({
+      inputs: inputs as string[],
+      model: typeof body.model === "string" && body.model ? body.model : undefined,
+      provider: (body.provider as HelixEmbeddingProvider | undefined) ?? undefined,
     });
-
-    if (!upstream.ok) {
-      const raw = await upstream.text();
-      console.error("[BS Knowledge Embed] Upstream error:", upstream.status, raw);
-      return new Response(
-        JSON.stringify({
-          error: `Embedding provider error (${upstream.status}).`,
-        }),
-        { status: upstream.status, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    const data = (await upstream.json()) as EmbeddingsResponse;
-    const embeddings = (data.data ?? []).map((d) => d.embedding);
 
     return new Response(
       JSON.stringify({
-        embeddings,
-        model,
-        dimensions: EMBEDDING_DIMENSIONS,
+        embeddings: data.embeddings,
+        model: data.model,
+        dimensions: data.dimensions,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
