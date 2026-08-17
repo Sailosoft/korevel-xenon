@@ -74,6 +74,17 @@ function createGroupDb(): AnyOrama {
 }
 
 /**
+ * In-memory cache of restored group databases (key: groupId). The Orama DB is
+ * an in-memory structure that is re-hydrated from its serialized IndexedDB
+ * snapshot on every load; for large knowledge bases that JSON restore is slow.
+ * Because each group's index is only mutated by `indexKnowledge` /
+ * `removeKnowledgeFromIndex` (which reuse the same DB object), keeping the
+ * loaded DB around for the session makes chat retrieval near-instant after the
+ * first lookup (fix: slow knowledge-base responses).
+ */
+const groupDbCache = new Map<string, AnyOrama>();
+
+/**
  * Resolve the embedding model configured for a group (falls back to the
  * default 0.6B model). Indexing and retrieval must share the same model so
  * their vectors live in the same space.
@@ -92,18 +103,29 @@ async function getGroupEmbeddingModel(groupId: string): Promise<string> {
  * IndexedDB when available (otherwise a fresh empty index).
  */
 async function loadOrCreateDb(groupId: string): Promise<AnyOrama> {
+  const cached = groupDbCache.get(groupId);
+  if (cached) return cached;
+
   const snapshot = await bsDB.knowledgeIndexes.get(groupId);
+  let db: AnyOrama;
   if (snapshot?.data) {
     try {
-      return (await restore(snapshot.format as "json", snapshot.data)) as unknown as AnyOrama;
+      db = (await restore(
+        snapshot.format as "json",
+        snapshot.data,
+      )) as unknown as AnyOrama;
     } catch (err) {
       console.error(
         "[KnowledgeBase] Failed to restore Orama index; rebuilding:",
         err,
       );
+      db = createGroupDb();
     }
+  } else {
+    db = createGroupDb();
   }
-  return createGroupDb();
+  groupDbCache.set(groupId, db);
+  return db;
 }
 
 /** Serialize + persist a group's Orama database to IndexedDB. */
@@ -242,5 +264,6 @@ export async function retrieveKnowledgeContext(
 
 /** Delete a group's persisted index entirely (used when a group is removed). */
 export async function deleteGroupIndex(groupId: string): Promise<void> {
+  groupDbCache.delete(groupId);
   await bsDB.knowledgeIndexes.delete(groupId);
 }

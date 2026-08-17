@@ -152,6 +152,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
     conversations,
     isLoading,
     isStreaming,
+    isRetrievingKnowledge,
     streamingAssistantId,
     createChat,
     sendMessage,
@@ -735,6 +736,10 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   <BSChatConversationView
                     conversation={convo}
                     isStreaming={isStreaming && index === streamingIndex}
+                    isRetrievingKnowledge={
+                      isRetrievingKnowledge && index === streamingIndex
+                    }
+                    knowledgeGroupName={activeKnowledgeGroup?.name}
                     onEditConversation={handleEditConversation}
                     onResendConversation={handleResendConversation}
                   />

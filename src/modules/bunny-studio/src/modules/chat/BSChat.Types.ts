@@ -6,6 +6,7 @@
 
 import type { HelixAIProvider } from "@/src/modules/helix";
 import type { RenderFormat } from "@/src/modules/render";
+import type { BSKnowledgeSearchHit } from "../knowledge-base/BSKnowledgeBase.Orama";
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 
@@ -119,6 +120,13 @@ export interface BSConversation {
    * text file upload → append to prompt).
    */
   fileNames?: string[];
+  /**
+   * Orama retrieval hits (with similarity scores) that grounded this assistant
+   * response (feature: collapsible knowledge base scoring). Populated when the
+   * chat has an active knowledge group and persisted with the message so the
+   * score panel survives a reload.
+   */
+  knowledgeHits?: BSKnowledgeSearchHit[];
 }
 
 // ─── Streaming request payloads ───────────────────────────────────────
