@@ -34,13 +34,13 @@ export const bsKnowledgeGroupModule = BunnyFeature.create<
         header: "Description",
         sortable: false,
         render: (row) => row.description || "—",
-      },
-      {
-        field: "createdDate",
-        header: "Created",
-        sortable: true,
-        render: (row) => new Date(row.createdDate).toLocaleDateString(),
-      },
+      }
+      // {
+      //   field: "createdDate",
+      //   header: "Created",
+      //   sortable: true,
+      //   render: (row) => new Date(row.createdDate).toLocaleDateString(),
+      // },
     ]);
   });
 

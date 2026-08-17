@@ -21,6 +21,7 @@ export {
   retrieveKnowledgeContext,
   getGroupIndexCount,
   deleteGroupIndex,
+  clearAllGroupIndexes,
   KNOWLEDGE_VECTOR_DIMENSION,
 } from "./BSKnowledgeBase.Orama";
 export {

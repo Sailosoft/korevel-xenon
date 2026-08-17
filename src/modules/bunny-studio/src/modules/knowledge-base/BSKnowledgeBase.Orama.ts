@@ -267,3 +267,13 @@ export async function deleteGroupIndex(groupId: string): Promise<void> {
   groupDbCache.delete(groupId);
   await bsDB.knowledgeIndexes.delete(groupId);
 }
+
+/**
+ * Clear every group's RAG vector index — all persisted snapshots and all
+ * in-memory caches. Knowledge source records are kept; they only need to be
+ * re-indexed (chunk + embed again) to restore retrieval.
+ */
+export async function clearAllGroupIndexes(): Promise<void> {
+  groupDbCache.clear();
+  await bsDB.knowledgeIndexes.clear();
+}

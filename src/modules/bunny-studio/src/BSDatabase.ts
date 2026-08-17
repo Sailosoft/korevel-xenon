@@ -46,6 +46,7 @@ import {
   BSKnowledgeGroupRepository,
   BSKnowledgeRepository,
 } from "./modules/knowledge-base/BSKnowledge.Repository";
+import { deleteGroupIndex } from "./modules/knowledge-base/BSKnowledgeBase.Orama";
 
 export class BSDatabase extends PhazeDB {
   // ── Chats ──────────────────────────────────────────────────────────
@@ -138,6 +139,15 @@ export class BSDatabase extends PhazeDB {
     this.chats.hook("deleting", (pk) => {
       void this.conversations.where("chatId").equals(pk).delete();
       void this.chatFavorites.where("chatId").equals(pk).delete();
+    });
+
+    // Delete Knowledge Group cascade — when a group is deleted, also remove all
+    // of its knowledges and its persisted RAG vector index (Orama snapshot +
+    // in-memory cache). Same Dexie "deleting" hook mechanism as the chats
+    // cascade, so no orphaned knowledges / stale vectors survive a group delete.
+    this.knowledgeGroups.hook("deleting", (pk) => {
+      void this.knowledges.where("knowledgeGroupId").equals(pk).delete();
+      void deleteGroupIndex(pk);
     });
   }
 

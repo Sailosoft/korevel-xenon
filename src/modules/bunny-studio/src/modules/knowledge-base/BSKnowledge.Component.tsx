@@ -47,6 +47,10 @@ import {
   HELIX_PROVIDER_LABELS,
   type HelixAIProvider,
 } from "@/src/modules/helix";
+import {
+  clearAllGroupIndexes,
+  deleteGroupIndex,
+} from "./BSKnowledgeBase.Orama";
 
 const SELECT_STYLE =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white";
@@ -104,6 +108,14 @@ export function BSKnowledgeComponent() {
 
   // Knowledge list pagination
   const [page, setPage] = useState(1);
+
+  // RAG index clearing
+  const [clearingRag, setClearingRag] = useState(false);
+  const [clearingGroup, setClearingGroup] = useState(false);
+  const [ragMessage, setRagMessage] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const selectedGroup = groups?.find((g) => g.id === groupId) ?? null;
 
@@ -222,6 +234,47 @@ export function BSKnowledgeComponent() {
     await removeKnowledge(knowledge);
   };
 
+  // ── Clear RAG indexes ────────────────────────────────────────────────
+  /** Wipe every group's RAG vector index (all embeddings), keeping sources. */
+  const handleClearRagIndexes = async () => {
+    if (clearingRag) return;
+    const confirmed = window.confirm(
+      "Clear all RAG vector indexes? Every embedding across all knowledge groups will be removed. Knowledge sources stay, but must be re-indexed to answer from them again.",
+    );
+    if (!confirmed) return;
+    setClearingRag(true);
+    setRagMessage(null);
+    try {
+      await clearAllGroupIndexes();
+      setRagMessage({ ok: true, text: "All RAG indexes cleared." });
+    } catch (err) {
+      setRagMessage({
+        ok: false,
+        text:
+          err instanceof Error ? err.message : "Failed to clear RAG indexes.",
+      });
+    } finally {
+      setClearingRag(false);
+    }
+  };
+
+  /** Wipe the selected group's RAG vector index, keeping its sources. */
+  const handleClearGroupIndex = async () => {
+    if (!groupId || clearingGroup) return;
+    const confirmed = window.confirm(
+      "Clear this group's RAG vector index? Its sources stay, but must be re-indexed to answer from them again.",
+    );
+    if (!confirmed) return;
+    setClearingGroup(true);
+    try {
+      await deleteGroupIndex(groupId);
+    } catch (err) {
+      console.error("[BSKnowledge] Failed to clear group index:", err);
+    } finally {
+      setClearingGroup(false);
+    }
+  };
+
   const ingesting = state.status === "ingesting";
 
   return (
@@ -259,6 +312,31 @@ export function BSKnowledgeComponent() {
                 <Database className="w-3 h-3" />
                 RAG DB {formatBytes(ragStats.bytes)}
               </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => void handleClearRagIndexes()}
+                disabled={clearingRag || ragStats.bytes === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-red-600 hover:border-red-300 text-[11px] font-medium px-2.5 py-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Remove every vector embedding. Sources stay but must be re-indexed."
+              >
+                {clearingRag ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
+                Clear RAG indexes
+              </button>
+              {ragMessage && (
+                <span
+                  className={`text-[11px] font-medium ${
+                    ragMessage.ok ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {ragMessage.text}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -318,10 +396,26 @@ export function BSKnowledgeComponent() {
                     ))}
                   </select>
                   {selectedGroup && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      {groupStats.count} knowledge source(s) ·{" "}
-                      {groupStats.chunks} indexed chunk(s)
-                    </p>
+                    <>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {groupStats.count} knowledge source(s) ·{" "}
+                        {groupStats.chunks} indexed chunk(s)
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleClearGroupIndex()}
+                        disabled={clearingGroup}
+                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Remove this group's vector embeddings. Sources stay but must be re-indexed."
+                      >
+                        {clearingGroup ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                        Clear group index
+                      </button>
+                    </>
                   )}
                 </div>
                 <div>
