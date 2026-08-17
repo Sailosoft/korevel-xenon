@@ -21,6 +21,7 @@ import {
   X,
   Volume2,
   AudioLines,
+  Database,
 } from "lucide-react";
 import { useBSVoice } from "./BSChat.Voice";
 import { BSChatExportPanel } from "./BSChat.Export.Panel";
@@ -35,6 +36,7 @@ import type { RenderFormat } from "@/src/modules/render";
 import type { BSAgent } from "../agents/BSAgent.Types";
 import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
 import type { BSConversation } from "./BSChat.Types";
+import type { BSKnowledgeGroup } from "../knowledge-base/BSKnowledge.Types";
 
 // ─── Props ─────────────────────────────────────────────────────────────
 
@@ -57,6 +59,12 @@ export interface BSChatSettingsPanelProps {
   agentPools: BSAgentPool[];
   /** Chat-level agent pool scope (undefined = all pools) */
   agentPoolId?: string;
+  /** Chat-level Knowledge Base group (undefined = no knowledge base) */
+  knowledgeGroupId?: string;
+  /** Available knowledge groups for the knowledge-base picker */
+  knowledgeGroups: BSKnowledgeGroup[];
+  /** Called when the chat-level knowledge group changes (undefined = none) */
+  onKnowledgeGroupChange?: (groupId: string | undefined) => void;
   /** Called with the selected agent (or null) */
   onAgentChange?: (agent: BSAgent | null) => void;
   /** Called when the chat-level agent pool changes (undefined = all pools) */
@@ -92,6 +100,9 @@ export function BSChatSettingsPanel({
   allAgents,
   agentPools,
   agentPoolId,
+  knowledgeGroupId,
+  knowledgeGroups,
+  onKnowledgeGroupChange,
   onAgentChange,
   onAgentPoolChange,
   onProviderModelChange,
@@ -368,6 +379,32 @@ export function BSChatSettingsPanel({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Knowledge Base (feature: knowledge base tool) — select the RAG
+              group this conversation should answer from. */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+              <Database className="w-3.5 h-3.5" /> Knowledge Base
+            </label>
+            <select
+              value={knowledgeGroupId ?? ""}
+              onChange={(e) =>
+                onKnowledgeGroupChange?.(e.target.value || undefined)
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white"
+            >
+              <option value="">No knowledge base</option>
+              {knowledgeGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                  {g.category ? ` (${g.category})` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Answers will be grounded in this group's indexed knowledge.
+            </p>
           </div>
 
           {/* Voice Settings (feature) — per-chat override, falls back to the

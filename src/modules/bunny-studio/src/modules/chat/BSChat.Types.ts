@@ -29,6 +29,12 @@ export interface BSChat {
   /** optional per-chat auto text-to-speech override */
   autoTTS?: boolean;
   /**
+   * Optional Knowledge Base group id (feature: knowledge base tool). When set,
+   * each message in this chat is answered using RAG retrieval from the group's
+   * indexed knowledges.
+   */
+  knowledgeGroupId?: string;
+  /**
    * Transient display flag — whether this chat is saved in Chat Favorites.
    * Annotated by the Chat History data layer; never persisted to IndexedDB.
    */

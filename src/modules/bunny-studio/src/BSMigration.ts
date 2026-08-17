@@ -117,4 +117,30 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.index("provider");
     });
   });
+
+  // ── Version 7 — Knowledge Base (feature: Knowledge Groups + Knowledges) ─
+  model.schema((config) => {
+    // Knowledge Groups — selectable in chat as the RAG "tool"; knowledges
+    // are added to a group (optionally tagged with a category).
+    config.create("knowledgeGroups", (table) => {
+      table.uuid();
+      table.index("name");
+      table.index("category");
+    });
+
+    // Knowledges — individual sources (scanned website OR uploaded resource)
+    // belonging to a knowledge group.
+    config.create("knowledges", (table) => {
+      table.uuid();
+      table.index("knowledgeGroupId");
+      table.index("createdDate");
+    });
+
+    // Orama vector index snapshots — one per knowledge group (keyed by the
+    // group id), serialized so the in-memory index survives browser reloads.
+    config.create("knowledgeIndexes", (table) => {
+      table.uuid();
+      table.index("updatedDate");
+    });
+  });
 }

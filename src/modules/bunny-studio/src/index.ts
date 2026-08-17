@@ -20,3 +20,4 @@ export * from "./modules/chat-favorite";
 export * from "./modules/chat-category";
 export * from "./modules/image-generator";
 export * from "./modules/transcription";
+export * from "./modules/knowledge-base";

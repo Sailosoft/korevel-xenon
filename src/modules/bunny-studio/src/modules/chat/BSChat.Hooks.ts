@@ -17,6 +17,7 @@ import {
   BS_API_TOKEN_HEADER,
   getBSApiToken,
 } from "../../BSApiSecurity";
+import { retrieveKnowledgeContext } from "../knowledge-base/BSKnowledgeBase.Orama";
 import type {
   BSConversation,
   BSChat,
@@ -48,6 +49,11 @@ export interface BSChatSendOptions {
   contentType?: RenderFormat;
   /** BYO API key (optional) */
   apiKey?: string;
+  /**
+   * Knowledge Base group id for this request (feature: knowledge base tool).
+   * Falls back to the chat's persisted `knowledgeGroupId` when omitted.
+   */
+  knowledgeGroupId?: string;
   /**
    * Settings applied to the chat when it is auto-created from the initial
    * chat page (agent / provider / model picked before the first message).
@@ -312,12 +318,42 @@ export function useBSChat({
       // Optimistically append to the UI list
       setConversations((prev) => [...prev, userConvo]);
 
+      // Knowledge Base RAG (feature: knowledge base tool) — when the chat has
+      // a selected knowledge group, retrieve the top relevant chunks from the
+      // group's Orama index and inject them into the system instruction so the
+      // assistant answers grounded in the user's own knowledge sources.
+      let effectiveSystemInstruction = options.systemInstruction;
+      const knowledgeGroupId =
+        options.knowledgeGroupId || currentChat.knowledgeGroupId;
+      if (knowledgeGroupId) {
+        try {
+          const context = await retrieveKnowledgeContext(
+            knowledgeGroupId,
+            content,
+          );
+          if (context) {
+            const kbBlock =
+              "Answer the user's question using ONLY the provided Knowledge Base context. " +
+              "If the context does not contain the answer, politely say that you do not know.\n\n" +
+              `Knowledge Base Context:\n${context}`;
+            effectiveSystemInstruction = effectiveSystemInstruction
+              ? `${effectiveSystemInstruction}\n\n${kbBlock}`
+              : kbBlock;
+          }
+        } catch (err) {
+          console.warn(
+            "[BSChat] Knowledge Base retrieval failed (continuing without context):",
+            err,
+          );
+        }
+      }
+
       // Build the wire messages (system + history + user)
       const wireMessages: BSChatWireMessage[] = [];
-      if (options.systemInstruction) {
+      if (effectiveSystemInstruction) {
         wireMessages.push({
           role: "system",
-          content: options.systemInstruction,
+          content: effectiveSystemInstruction,
         });
       }
       const prior = conversations

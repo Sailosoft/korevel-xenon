@@ -44,6 +44,8 @@ import {
   AudioLines,
   Library,
   FileText,
+  Database,
+  FolderTree,
   ChevronRight,
 } from "lucide-react";
 
@@ -161,6 +163,22 @@ const SECTIONS: BSSidebarSection[] = [
         href: "/modules/bunny-studio/instruction-groups",
         label: "Instruction Groups",
         icon: <FolderOpen className="w-4 h-4" />,
+      },
+    ],
+  },
+  {
+    title: "Knowledge",
+    items: [
+      {
+        href: "/modules/bunny-studio/knowledge-groups",
+        label: "Knowledge Groups",
+        icon: <FolderTree className="w-4 h-4" />,
+      },
+      {
+        href: "/modules/bunny-studio/knowledges",
+        label: "Knowledges",
+        icon: <Database className="w-4 h-4" />,
+        matchPrefix: true,
       },
     ],
   },

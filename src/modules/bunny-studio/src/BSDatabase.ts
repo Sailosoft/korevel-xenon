@@ -37,6 +37,15 @@ import { BSInstructionGroupRepository } from "./modules/instruction-groups/BSIns
 import { BSInstructionRepository } from "./modules/instructions/BSInstruction.Repository";
 import { BSChatCategoryRepository } from "./modules/chat-category/BSChatCategory.Repository";
 import { BSChatFavoriteRepository } from "./modules/chat-favorite/BSChatFavorite.Repository";
+import type {
+  BSKnowledge,
+  BSKnowledgeGroup,
+  BSKnowledgeIndexSnapshot,
+} from "./modules/knowledge-base/BSKnowledge.Types";
+import {
+  BSKnowledgeGroupRepository,
+  BSKnowledgeRepository,
+} from "./modules/knowledge-base/BSKnowledge.Repository";
 
 export class BSDatabase extends PhazeDB {
   // ── Chats ──────────────────────────────────────────────────────────
@@ -99,6 +108,23 @@ export class BSDatabase extends PhazeDB {
   );
   public transcriptionLibraryRepo = new BSTranscriptionRepository(
     this.transcriptionLibrary,
+  );
+
+  // ── Knowledge Base (feature: Knowledge Groups) ─────────────────────
+  public knowledgeGroups = this.table<BSKnowledgeGroup, string>(
+    "knowledgeGroups",
+  );
+  public knowledgeGroupsRepo = new BSKnowledgeGroupRepository(
+    this.knowledgeGroups,
+  );
+
+  // ── Knowledge Base (feature: Knowledges) ───────────────────────────
+  public knowledges = this.table<BSKnowledge, string>("knowledges");
+  public knowledgesRepo = new BSKnowledgeRepository(this.knowledges);
+
+  // ── Knowledge Base Orama index snapshots (persisted vector indexes) ─
+  public knowledgeIndexes = this.table<BSKnowledgeIndexSnapshot, string>(
+    "knowledgeIndexes",
   );
 
   constructor() {

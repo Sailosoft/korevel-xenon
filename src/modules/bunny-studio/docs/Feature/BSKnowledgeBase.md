@@ -16,3 +16,18 @@ await persist(db, 'binary', 'my-search-index');
 
 // Restore the index on page reload instantly
 const restoredDb = await restore('binary', 'my-search-index');
+
+
+Also Reference
+Helix Config for image, audio, videogenerator
+Add Helix Config for embeddings
+OpenAI Compatible Embegings
+
+For now support siliconflow but add support on deepinfra for providers
+Models
+Qwen/Qwen3-Embedding-0.6B
+Qwen/Qwen3-Embedding-4B
+Qwen/Qwen3-Embedding-8B
+
+but use the 0.6b as default
+
