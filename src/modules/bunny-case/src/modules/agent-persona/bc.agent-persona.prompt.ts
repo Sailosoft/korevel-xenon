@@ -28,7 +28,7 @@ export const bcAgentPersonaPrompt = {
       Agent persona name: ${name || "(unnamed)"}
       Agent traits: ${traits.length ? traits.join(", ") : "(none)"}
       Agent description: ${description || "(none)"}
-      Training role for this persona: ${roles?.participantLabel || "support agent"}
+      Training role for this persona: ${roles?.participantLabel || "agent"}
       Person they interact with: ${roles?.counterpartLabel || "customer"}
     `,
   },

@@ -174,6 +174,7 @@ export const BC_SHELL_CONFIG: BCDocumentShellConfig = {
   title: "Bunny Case",
   brand: "Bunny Case",
   navItems: BC_SHELF_NAV_ITEMS,
+  logoutHref: "/",
   profile: {
     initials: "BC",
     name: "Bunny Case",

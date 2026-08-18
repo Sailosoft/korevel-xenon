@@ -24,7 +24,7 @@ export interface BCGenAIOption {
   label: string;
   /** Short description shown in selectors. */
   description: string;
-  /** What the trainee is called ("support agent", "job candidate"). */
+  /** What the trainee is called ("agent", "candidate"). */
   participantLabel: string;
   /** What the persona / interlocutor is called ("customer", "interviewer"). */
   counterpartLabel: string;
@@ -54,7 +54,7 @@ export const BC_GEN_AI_OPTIONS: Record<BCGenAIOptionId, BCGenAIOption> = {
     label: "Issue Handling",
     description:
       "Resolve a customer's issue as a support agent (default behaviour).",
-    participantLabel: "support agent",
+    participantLabel: "agent",
     counterpartLabel: "customer",
     systemDirectives: "",
     userDirectives: "",
@@ -64,7 +64,7 @@ export const BC_GEN_AI_OPTIONS: Record<BCGenAIOptionId, BCGenAIOption> = {
     label: "Job Interview",
     description:
       "Practice a job interview as a candidate being interviewed by a hiring manager.",
-    participantLabel: "job candidate",
+    participantLabel: "candidate",
     counterpartLabel: "interviewer",
     systemDirectives: `
       TRAINING MODE: JOB INTERVIEW.
@@ -120,4 +120,46 @@ export function bcGenAIOptionList(): BCGenAIOption[] {
     BC_GEN_AI_OPTIONS["issue-handling"],
     BC_GEN_AI_OPTIONS["job-interview"],
   ];
+}
+
+/** Capitalize the first letter of a string. */
+function bcCapitalize(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/** Derive a 2-character avatar initial from a label ("customer" → "CU"). */
+function bcInitials(value: string): string {
+  const compact = value.replace(/\s+/g, "").toUpperCase();
+  return compact.slice(0, 2) || "?";
+}
+
+/**
+ * Display labels used by the chat bubbles in the Simulator, Trainer and
+ * Gauntlet. They are derived from the selected training mode so the bubbles
+ * read "Customer / Agent" for issue handling and "Interviewer / Candidate"
+ * for job interviews.
+ */
+export interface BCGenAIBubbleLabels {
+  /** Display name for the persona / counterpart bubble ("Customer", "Interviewer"). */
+  counterpartLabel: string;
+  /** Display name for the participant / trainee bubble ("Agent", "Candidate"). */
+  participantLabel: string;
+  /** Avatar initials for the counterpart ("CU", "IN"). */
+  counterpartInitials: string;
+  /** Avatar initials for the participant ("AG", "CA"). */
+  participantInitials: string;
+}
+
+/** Resolve chat-bubble display labels from the selected training mode. */
+export function bcGenAIBubbleLabels(
+  options?: BCGenAIOptions,
+): BCGenAIBubbleLabels {
+  const option = bcResolveGenAIOption(options);
+  return {
+    counterpartLabel: bcCapitalize(option.counterpartLabel),
+    participantLabel: bcCapitalize(option.participantLabel),
+    counterpartInitials: bcInitials(option.counterpartLabel),
+    participantInitials: bcInitials(option.participantLabel),
+  };
 }
