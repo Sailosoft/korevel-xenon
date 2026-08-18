@@ -17,6 +17,10 @@ import {
   BS_API_TOKEN_HEADER,
   getBSApiToken,
 } from "../../BSApiSecurity";
+import {
+  buildKnowledgeInstruction,
+  retrieveKnowledgeForChat,
+} from "./BSChat.KnowledgeBase";
 import type {
   BSConversation,
   BSChat,
@@ -24,6 +28,7 @@ import type {
   BSChatWireMessage,
   BSConversationType,
 } from "./BSChat.Types";
+import type { BSKnowledgeSearchHit } from "../knowledge-base/BSKnowledgeBase.Orama";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -49,6 +54,11 @@ export interface BSChatSendOptions {
   /** BYO API key (optional) */
   apiKey?: string;
   /**
+   * Knowledge Base group id for this request (feature: knowledge base tool).
+   * Falls back to the chat's persisted `knowledgeGroupId` when omitted.
+   */
+  knowledgeGroupId?: string;
+  /**
    * Settings applied to the chat when it is auto-created from the initial
    * chat page (agent / provider / model picked before the first message).
    */
@@ -71,6 +81,11 @@ export interface BSChatHookReturn {
   conversations: BSConversation[];
   isLoading: boolean;
   isStreaming: boolean;
+  /**
+   * True while the knowledge base RAG search is running (before streaming
+   * starts). Drives the "Retrieving from Knowledge" loading indicator.
+   */
+  isRetrievingKnowledge: boolean;
   /** Id of the assistant message currently being streamed (for scroll anchoring) */
   streamingAssistantId: string | null;
   /** Create a new chat (title defaults to datetime) */
@@ -130,6 +145,12 @@ export function useBSChat({
   const [conversations, setConversations] = useState<BSConversation[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  /**
+   * True while the knowledge base RAG search runs before streaming (drives the
+   * "Retrieving from Knowledge" loading indicator).
+   */
+  const [isRetrievingKnowledge, setIsRetrievingKnowledge] =
+    useState<boolean>(false);
   /** Id of the assistant bubble currently being streamed (scroll anchoring) */
   const [streamingAssistantId, setStreamingAssistantId] = useState<
     string | null
@@ -312,12 +333,77 @@ export function useBSChat({
       // Optimistically append to the UI list
       setConversations((prev) => [...prev, userConvo]);
 
+      // Resolve the knowledge group for this request (feature: knowledge base
+      // tool). When no group is selected the RAG search below is skipped
+      // entirely, so an inactive knowledge base adds zero overhead to a normal
+      // message.
+      const knowledgeGroupId =
+        options.knowledgeGroupId || currentChat.knowledgeGroupId;
+
+      // Placeholder assistant bubble (streamed into). Created BEFORE the RAG
+      // retrieval so the loading indicator can render during the search and the
+      // user gets immediate feedback instead of a silent gap (fix: slow-feeling
+      // KB responses).
+      const assistantId = uuidv7();
+      const placeholder: BSConversation = {
+        id: assistantId,
+        chatId: chatIdValue,
+        type: "assistant",
+        content: "",
+        provider,
+        model,
+        contentType: options.contentType,
+        createdDate: new Date().toISOString(),
+        gapSeconds,
+      };
+      setConversations((prev) => [...prev, placeholder]);
+      setStreamingAssistantId(assistantId);
+
+      // Knowledge Base RAG — when the chat has a selected knowledge group,
+      // retrieve the top relevant chunks from the group's Orama index and inject
+      // them into the system instruction so the assistant answers grounded in
+      // the user's own knowledge sources. The raw hits (with Orama scores) are
+      // attached to the assistant bubble for the collapsible score panel.
+      let effectiveSystemInstruction = options.systemInstruction;
+      let knowledgeHits: BSKnowledgeSearchHit[] = [];
+
+      if (knowledgeGroupId) {
+        setIsRetrievingKnowledge(true);
+        try {
+          const { context, hits } = await retrieveKnowledgeForChat(
+            knowledgeGroupId,
+            content,
+          );
+          knowledgeHits = hits;
+          if (context) {
+            const kbBlock = buildKnowledgeInstruction(context);
+            effectiveSystemInstruction = effectiveSystemInstruction
+              ? `${effectiveSystemInstruction}\n\n${kbBlock}`
+              : kbBlock;
+          }
+          if (knowledgeHits.length > 0) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === assistantId ? { ...c, knowledgeHits } : c,
+              ),
+            );
+          }
+        } catch (err) {
+          console.warn(
+            "[BSChat] Knowledge Base retrieval failed (continuing without context):",
+            err,
+          );
+        } finally {
+          setIsRetrievingKnowledge(false);
+        }
+      }
+
       // Build the wire messages (system + history + user)
       const wireMessages: BSChatWireMessage[] = [];
-      if (options.systemInstruction) {
+      if (effectiveSystemInstruction) {
         wireMessages.push({
           role: "system",
-          content: options.systemInstruction,
+          content: effectiveSystemInstruction,
         });
       }
       const prior = conversations
@@ -343,22 +429,6 @@ export function useBSChat({
         },
       );
 
-      // Placeholder assistant bubble (streamed into)
-      const assistantId = uuidv7();
-      const placeholder: BSConversation = {
-        id: assistantId,
-        chatId: chatIdValue,
-        type: "assistant",
-        content: "",
-        provider,
-        model,
-        contentType: options.contentType,
-        createdDate: new Date().toISOString(),
-        gapSeconds,
-      };
-      setConversations((prev) => [...prev, placeholder]);
-
-      setStreamingAssistantId(assistantId);
       setIsStreaming(true);
       abortRef.current = new AbortController();
       // AI response duration (feature: show how long the AI took to respond).
@@ -420,6 +490,7 @@ export function useBSChat({
           ...placeholder,
           content: accumulatedRef.current,
           responseMs: Date.now() - requestStartTime,
+          ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
         };
         await bsDB.conversationsRepo.create(finalAssistant);
         setConversations((prev) =>
@@ -441,6 +512,7 @@ export function useBSChat({
               createdDate: new Date().toISOString(),
               gapSeconds,
               responseMs: Date.now() - requestStartTime,
+              ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
             });
             void updateTitleFromResponse(accumulatedRef.current);
           }
@@ -458,6 +530,7 @@ export function useBSChat({
             content: errorContent,
             isError: true,
             responseMs: Date.now() - requestStartTime,
+            ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
           };
           await bsDB.conversationsRepo.create(errorConvo);
           setConversations((prev) =>
@@ -467,6 +540,7 @@ export function useBSChat({
       } finally {
         setIsStreaming(false);
         setStreamingAssistantId(null);
+        setIsRetrievingKnowledge(false);
         abortRef.current = null;
         // Notify the caller (e.g. to push the chat id onto the URL) only after
         // the first stream has finished and its data has been persisted. This
@@ -485,6 +559,7 @@ export function useBSChat({
     conversations,
     isLoading,
     isStreaming,
+    isRetrievingKnowledge,
     streamingAssistantId,
     createChat,
     loadChat,

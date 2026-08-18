@@ -39,6 +39,7 @@ import { bsDB } from "../../BSDatabase";
 import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 import type { BSAgent } from "../agents/BSAgent.Types";
 import type { BSAgentPool } from "../agent-pools/BSAgentPool.Types";
+import type { BSKnowledgeGroup } from "../knowledge-base/BSKnowledge.Types";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import type { BSConversation } from "./BSChat.Types";
 import { RenderFormats } from "@/src/modules/render";
@@ -136,11 +137,22 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
     return list.data;
   }, []);
 
+  // Live knowledge groups (feature: knowledge base tool) — drives the chat
+  // settings panel's Knowledge Base picker.
+  const knowledgeGroups = useLiveQuery<BSKnowledgeGroup[]>(async () => {
+    const list = await bsDB.knowledgeGroupsRepo.query.getAll({
+      page: 0,
+      pageSize: 0,
+    });
+    return list.data;
+  }, []);
+
   const {
     chat,
     conversations,
     isLoading,
     isStreaming,
+    isRetrievingKnowledge,
     streamingAssistantId,
     createChat,
     sendMessage,
@@ -206,6 +218,11 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   const [pendingAutoTTS, setPendingAutoTTS] = useState<boolean | undefined>(
     undefined,
   );
+  // Initial-page (no chat yet) knowledge base group — applied to the created
+  // chat (feature: knowledge base tool).
+  const [pendingKnowledgeGroupId, setPendingKnowledgeGroupId] = useState<
+    string | undefined
+  >(undefined);
 
   // Title rename state (feature: ChatTitle)
   const [isRenaming, setIsRenaming] = useState(false);
@@ -243,6 +260,12 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
   // Effective provider/model: Conversation → Pending (initial) → Agent → Global
   const effectiveProvider = chat?.provider ?? pendingProvider ?? selectedAgent?.provider ?? globalAI.provider;
   const effectiveModel = chat?.model ?? pendingModel ?? selectedAgent?.model ?? globalAI.model;
+
+  // Active Knowledge Base group (feature: knowledge base tool) — used for the
+  // header chip and the settings panel's select value.
+  const activeKnowledgeGroup = knowledgeGroups?.find(
+    (g) => g.id === (chat?.knowledgeGroupId ?? pendingKnowledgeGroupId),
+  );
 
   // Skill bubbles for the initial input (feature: Agent skill)
   const agentSkills = useMemo<string[]>(() => {
@@ -348,6 +371,9 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
         model: effectiveModel,
         contentType: effectiveContentType,
         apiKey: undefined,
+        // Knowledge Base RAG (feature: knowledge base tool) — the group's
+        // index is queried before streaming so the answer is grounded in it.
+        knowledgeGroupId: chat?.knowledgeGroupId ?? pendingKnowledgeGroupId,
         // Apply initial-page settings to the auto-created chat
         // (feature: Missing Chat Settings on the initial chat page + per-chat
         // TTS settings).
@@ -358,6 +384,7 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
           model: pendingModel,
           voiceURI: pendingVoiceURI,
           autoTTS: pendingAutoTTS,
+          knowledgeGroupId: pendingKnowledgeGroupId,
         },
         onChatCreated: (chat) => {
           // Chat id on URL — replace so the URL reflects the created chat.
@@ -381,6 +408,8 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
       pendingModel,
       pendingVoiceURI,
       pendingAutoTTS,
+      pendingKnowledgeGroupId,
+      chat?.knowledgeGroupId,
       router,
     ],
   );
@@ -421,6 +450,19 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
         void updateChat({ agentPoolId: poolId });
       } else {
         setPendingAgentPoolId(poolId);
+      }
+    },
+    [chat, updateChat],
+  );
+
+  // Knowledge Base group (feature: knowledge base tool) — persist on the chat
+  // record, or remember the pending choice for the initial chat page.
+  const handleKnowledgeGroupChange = useCallback(
+    (groupId: string | undefined) => {
+      if (chat) {
+        void updateChat({ knowledgeGroupId: groupId });
+      } else {
+        setPendingKnowledgeGroupId(groupId);
       }
     },
     [chat, updateChat],
@@ -546,6 +588,9 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               <div className="text-[11px] text-gray-400 truncate">
                 {effectiveProvider} · {effectiveModel || "(no model)"}
                 {selectedAgent ? ` · ${selectedAgent.name}` : ""}
+                {activeKnowledgeGroup
+                  ? ` · KB: ${activeKnowledgeGroup.name}`
+                  : ""}
               </div>
             </div>
           </div>
@@ -563,6 +608,9 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
               allAgents={allAgents ?? []}
               agentPools={agentPools ?? []}
               agentPoolId={chat.agentPoolId ?? agentPoolId}
+              knowledgeGroupId={chat.knowledgeGroupId}
+              knowledgeGroups={knowledgeGroups ?? []}
+              onKnowledgeGroupChange={handleKnowledgeGroupChange}
               onAgentChange={handleAgentChange}
               onAgentPoolChange={handleAgentPoolChange}
               onProviderModelChange={handleProviderModelChange}
@@ -630,6 +678,9 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   allAgents={allAgents ?? []}
                   agentPools={agentPools ?? []}
                   agentPoolId={pendingAgentPoolId ?? agentPoolId}
+                  knowledgeGroupId={pendingKnowledgeGroupId}
+                  knowledgeGroups={knowledgeGroups ?? []}
+                  onKnowledgeGroupChange={handleKnowledgeGroupChange}
                   onAgentChange={handleAgentChange}
                   onAgentPoolChange={handleAgentPoolChange}
                   onProviderModelChange={handleProviderModelChange}
@@ -685,6 +736,10 @@ export function BSChatComponent({ chatId, agentPoolId }: BSChatComponentProps) {
                   <BSChatConversationView
                     conversation={convo}
                     isStreaming={isStreaming && index === streamingIndex}
+                    isRetrievingKnowledge={
+                      isRetrievingKnowledge && index === streamingIndex
+                    }
+                    knowledgeGroupName={activeKnowledgeGroup?.name}
                     onEditConversation={handleEditConversation}
                     onResendConversation={handleResendConversation}
                   />

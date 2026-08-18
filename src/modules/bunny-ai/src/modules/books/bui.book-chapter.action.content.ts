@@ -6,8 +6,8 @@ import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { BUIBookChapterParams } from "./bui.book.entity";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
 import type { HelixAIOption } from "@/src/modules/helix";
-import BUIAuthorSkillRelationRepository from "../author-skills/bui.author-skills.relation.repository";
 import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
+import { buiAuthorSkillResolveForGeneration } from "../author-skills/bui.author-skills.util";
 
 /**
  * Reusable client/shared operational script to gather context,
@@ -19,11 +19,11 @@ export async function generateChapterContentAction(
   aiConfig?: HelixAIOption,
   useAuthorSkills: boolean = false,
   useAuthorProfile: boolean = true,
+  selectedSkillNames: string[] = [],
 ) {
   const chapterRepo = new BUIBookChapterRepository();
   const bookRepo = new BUIBookRepository();
   const authorRepo = new BUIAuthorRepository();
-  const skillRelationRepo = new BUIAuthorSkillRelationRepository();
 
   // 1. Fetch current chapter details
   const chapter = await chapterRepo.panelGetOne(chapterId);
@@ -64,10 +64,14 @@ export async function generateChapterContentAction(
       }
     }
 
-    // 4a. Fetch author skills if requested
+    // 4a. Resolve skills if requested — either the explicitly selected skills
+    // (from the dialog dropdown) or the skills attached to the author.
     let skills: BUIAuthorSkill[] = [];
-    if (useAuthorSkills && authorId) {
-      skills = await skillRelationRepo.getSkillsByAuthor(authorId);
+    if (useAuthorSkills) {
+      skills = await buiAuthorSkillResolveForGeneration(
+        selectedSkillNames,
+        authorId,
+      );
     }
 
     // 4b. Transform into prompt-ready properties

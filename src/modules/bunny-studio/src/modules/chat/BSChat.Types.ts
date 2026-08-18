@@ -6,6 +6,7 @@
 
 import type { HelixAIProvider } from "@/src/modules/helix";
 import type { RenderFormat } from "@/src/modules/render";
+import type { BSKnowledgeSearchHit } from "../knowledge-base/BSKnowledgeBase.Orama";
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 
@@ -28,6 +29,12 @@ export interface BSChat {
   voiceURI?: string;
   /** optional per-chat auto text-to-speech override */
   autoTTS?: boolean;
+  /**
+   * Optional Knowledge Base group id (feature: knowledge base tool). When set,
+   * each message in this chat is answered using RAG retrieval from the group's
+   * indexed knowledges.
+   */
+  knowledgeGroupId?: string;
   /**
    * Transient display flag — whether this chat is saved in Chat Favorites.
    * Annotated by the Chat History data layer; never persisted to IndexedDB.
@@ -113,6 +120,13 @@ export interface BSConversation {
    * text file upload → append to prompt).
    */
   fileNames?: string[];
+  /**
+   * Orama retrieval hits (with similarity scores) that grounded this assistant
+   * response (feature: collapsible knowledge base scoring). Populated when the
+   * chat has an active knowledge group and persisted with the message so the
+   * score panel survives a reload.
+   */
+  knowledgeHits?: BSKnowledgeSearchHit[];
 }
 
 // ─── Streaming request payloads ───────────────────────────────────────

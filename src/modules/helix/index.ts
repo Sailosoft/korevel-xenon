@@ -47,6 +47,39 @@ export {
 } from "./src/HelixConfig.Video";
 export type { HelixVideoSize } from "./src/HelixConfig.Video";
 
+// ── Embedding model library ────────────────────────────────────────────────────
+// Reuses HelixConfig provider identity/config; only the embedding model
+// collections, defaults, endpoints, and API-key env names are defined separately.
+export type { HelixEmbeddingProvider } from "./src/HelixConfig.Embedding";
+export {
+  HELIX_PROVIDER_EMBEDDING_MODELS,
+  HELIX_EMBEDDING_MODELS,
+  EMBEDDING_MODELS,
+  DEFAULT_EMBEDDING_PROVIDER,
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_DIMENSIONS,
+  HELIX_PROVIDER_EMBEDDING_ENDPOINTS,
+  HELIX_PROVIDER_EMBEDDING_API_KEY_ENV,
+  HELIX_EMBEDDING_MODEL_DIMENSIONS,
+  isHelixEmbeddingProvider,
+  getEmbeddingModelProvider,
+  getProviderDefaultEmbeddingModel,
+} from "./src/HelixConfig.Embedding";
+
+// ── Embedding service ───────────────────────────────────────────────────────────
+// Server-side provider calls (generateEmbeddings) + client-side helpers
+// (embedTexts / embedText) used by RAG pipelines.
+export {
+  generateEmbeddings,
+  embedTexts,
+  embedText,
+} from "./src/HelixEmbedding";
+export type {
+  HelixEmbedResponse,
+  HelixEmbeddingOption,
+  HelixGenerateEmbeddingsOption,
+} from "./src/HelixEmbedding";
+
 // ── Speech (TTS) & Transcription (STT) model library ───────────────────────────
 // Reuses HelixConfig provider identity/config; only the speech/transcription
 // model collections, voice lists, and output format/rate presets are defined

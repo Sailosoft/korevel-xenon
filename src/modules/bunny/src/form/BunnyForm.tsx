@@ -4,7 +4,7 @@ import { BunnyFormBuilder } from "./builder/BunnyFormBuilder";
 
 export default function BunnyForm<TRow, TForm>() {
   const config = useBunnyConfig<TRow, TForm>();
-  const { form } = useAdminPanelContext<TRow, TForm>();
+  const { form, modal } = useAdminPanelContext<TRow, TForm>();
 
   const resolvedConfig = !config.formConfig
     ? undefined
@@ -23,6 +23,7 @@ export default function BunnyForm<TRow, TForm>() {
       formData={form.formData}
       onChange={form.handleChange}
       errors={form.formError || {}}
+      mode={modal.mode}
     />
   );
 }

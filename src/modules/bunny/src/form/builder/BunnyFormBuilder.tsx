@@ -13,6 +13,7 @@ import { memo, useCallback, useEffect, useId, useState } from "react";
 import {
   BunnyFormConfig,
   BunnyFormField,
+  BunnyFormMode,
   BunnySelectOption,
 } from "../BunnyForm.Interface";
 import BunnyMDXEditor from "./BunnyMDXEditor";
@@ -36,6 +37,8 @@ interface BunnyFormBuilderProps<T> {
   formData: T;
   onChange: (name: string, value: unknown) => void;
   errors?: Record<string, string>;
+  /** Current form mode (create/update/view/plain) used to gate `modes`-restricted fields. */
+  mode?: BunnyFormMode;
 }
 
 export function BunnyFormBuilder<T>({
@@ -43,6 +46,7 @@ export function BunnyFormBuilder<T>({
   formData,
   onChange,
   errors = {},
+  mode,
 }: BunnyFormBuilderProps<T>) {
   // Unique instance ID to prevent field id collisions when multiple forms exist on the same page
   const instanceId = useId();
@@ -66,10 +70,17 @@ export function BunnyFormBuilder<T>({
       : 1;
   const columnsPerCell = 12 / gridCols;
 
+  // Fields restricted by `modes` are only rendered while the form is in one of
+  // the listed modes. Unrestricted fields always render.
+  const visibleFields = config.fields.filter((field) => {
+    if (!field.modes || field.modes.length === 0) return true;
+    return !!mode && field.modes.includes(mode);
+  });
+
   return (
     <div className="space-y-6 w-full">
       <div className="grid w-full grid-cols-12 gap-x-6 gap-y-4">
-        {config.fields.map((field) => {
+        {visibleFields.map((field) => {
           const rawValue = (formData as Record<string, unknown>)[field.name];
           const formattedValue = field.format
             ? field.format(rawValue, formData)

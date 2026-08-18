@@ -37,6 +37,16 @@ import { BSInstructionGroupRepository } from "./modules/instruction-groups/BSIns
 import { BSInstructionRepository } from "./modules/instructions/BSInstruction.Repository";
 import { BSChatCategoryRepository } from "./modules/chat-category/BSChatCategory.Repository";
 import { BSChatFavoriteRepository } from "./modules/chat-favorite/BSChatFavorite.Repository";
+import type {
+  BSKnowledge,
+  BSKnowledgeGroup,
+  BSKnowledgeIndexSnapshot,
+} from "./modules/knowledge-base/BSKnowledge.Types";
+import {
+  BSKnowledgeGroupRepository,
+  BSKnowledgeRepository,
+} from "./modules/knowledge-base/BSKnowledge.Repository";
+import { deleteGroupIndex } from "./modules/knowledge-base/BSKnowledgeBase.Orama";
 
 export class BSDatabase extends PhazeDB {
   // ── Chats ──────────────────────────────────────────────────────────
@@ -101,6 +111,23 @@ export class BSDatabase extends PhazeDB {
     this.transcriptionLibrary,
   );
 
+  // ── Knowledge Base (feature: Knowledge Groups) ─────────────────────
+  public knowledgeGroups = this.table<BSKnowledgeGroup, string>(
+    "knowledgeGroups",
+  );
+  public knowledgeGroupsRepo = new BSKnowledgeGroupRepository(
+    this.knowledgeGroups,
+  );
+
+  // ── Knowledge Base (feature: Knowledges) ───────────────────────────
+  public knowledges = this.table<BSKnowledge, string>("knowledges");
+  public knowledgesRepo = new BSKnowledgeRepository(this.knowledges);
+
+  // ── Knowledge Base Orama index snapshots (persisted vector indexes) ─
+  public knowledgeIndexes = this.table<BSKnowledgeIndexSnapshot, string>(
+    "knowledgeIndexes",
+  );
+
   constructor() {
     super();
 
@@ -112,6 +139,15 @@ export class BSDatabase extends PhazeDB {
     this.chats.hook("deleting", (pk) => {
       void this.conversations.where("chatId").equals(pk).delete();
       void this.chatFavorites.where("chatId").equals(pk).delete();
+    });
+
+    // Delete Knowledge Group cascade — when a group is deleted, also remove all
+    // of its knowledges and its persisted RAG vector index (Orama snapshot +
+    // in-memory cache). Same Dexie "deleting" hook mechanism as the chats
+    // cascade, so no orphaned knowledges / stale vectors survive a group delete.
+    this.knowledgeGroups.hook("deleting", (pk) => {
+      void this.knowledges.where("knowledgeGroupId").equals(pk).delete();
+      void deleteGroupIndex(pk);
     });
   }
 

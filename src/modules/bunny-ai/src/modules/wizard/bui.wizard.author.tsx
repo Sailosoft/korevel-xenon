@@ -11,6 +11,11 @@ import { BunnyHeadless } from "@/src/modules/bunny";
 import { buiAuthorModule } from "../authors/bui.author.module";
 import { buiDatabase } from "../../database/bui.database";
 import type { BUIAuthor } from "../authors/bui.author.entity";
+import type { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
+import {
+  buiAuthorSkillAttachSelectedToAuthor,
+  buiAuthorSkillGetAll,
+} from "../author-skills/bui.author-skills.util";
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -25,10 +30,18 @@ function BUIWizardAuthorStepContent({ onComplete }: BUIWizardAuthorStepProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [allSkills, setAllSkills] = useState<BUIAuthorSkill[]>([]);
+  // No skills are preselected by default when creating a new author
+  const [selectedSkillNames, setSelectedSkillNames] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
 
-  // Load existing authors
+  // Load existing authors + the full skills selection source
   useEffect(() => {
     buiDatabase.authors.toArray().then(setAuthors);
+    buiAuthorSkillGetAll()
+      .then(setAllSkills)
+      .catch((error) => console.error("Failed to load skills:", error));
   }, []);
 
   const canCreate = name.trim().length > 0;
@@ -50,6 +63,17 @@ function BUIWizardAuthorStepContent({ onComplete }: BUIWizardAuthorStepProps) {
       name: name.trim(),
       description: description.trim() || undefined,
     });
+
+    // Preselect (attach) the checked skills for the newly created author
+    try {
+      await buiAuthorSkillAttachSelectedToAuthor(
+        id,
+        Array.from(selectedSkillNames),
+      );
+    } catch (error) {
+      console.error("Failed to preselect skills for new author:", error);
+    }
+
     const author: BUIAuthor = {
       id,
       name: name.trim(),
@@ -57,7 +81,7 @@ function BUIWizardAuthorStepContent({ onComplete }: BUIWizardAuthorStepProps) {
     };
     setSelectedId(id);
     onComplete(author);
-  }, [canCreate, name, description, onComplete]);
+  }, [canCreate, name, description, selectedSkillNames, onComplete]);
 
   return (
     <div className="space-y-6">
@@ -130,6 +154,51 @@ function BUIWizardAuthorStepContent({ onComplete }: BUIWizardAuthorStepProps) {
             rows={3}
             className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ff2d20]/20 focus:border-[#ff2d20] transition-all resize-none"
           />
+        </div>
+
+        {/* Skills to attach to the new author (optional) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-slate-600">
+            Select Skills{" "}
+            <span className="text-slate-400">(optional)</span>
+          </label>
+          {allSkills.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">
+              Loading skills...
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {allSkills.map((skill) => {
+                const skillKey = (skill.name ?? "").trim().toLowerCase();
+                const checked = selectedSkillNames.has(skillKey);
+                return (
+                  <label
+                    key={skillKey}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
+                      checked
+                        ? "bg-[#ff2d20]/10 border-[#ff2d20]/40 text-[#ff2d20]"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setSelectedSkillNames((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(skillKey)) next.delete(skillKey);
+                          else next.add(skillKey);
+                          return next;
+                        });
+                      }}
+                      className="rounded accent-[#ff2d20]"
+                    />
+                    <span className="text-xs font-medium">{skill.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <button

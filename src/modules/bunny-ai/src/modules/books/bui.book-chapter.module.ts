@@ -1,15 +1,23 @@
 // bui.book-chapter.module.ts
 import React from "react";
-import { Wand2, BookOpenCheck, BookOpenText } from "lucide-react";
+import { Wand2, BookOpenCheck, BookOpenText, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
   BunnyConfig,
   BunnyKernel,
 } from "@/src/modules/bunny/src/Bunny.Interface";
-import { BUIBookChapterEntity } from "./bui.book.entity";
+import {
+  BUIBookChapterEntity,
+  BUIBookChapterParams,
+} from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
 import { BUIBookRepository } from "./bui.book.repository";
 import BUIAuthorRepository from "../authors/bui.author.repository";
+import { BUIAuthorSkill } from "../author-skills/bui.author-skills.entity";
+import {
+  buiAuthorSkillGetAll,
+  buiAuthorSkillResolveForGeneration,
+} from "../author-skills/bui.author-skills.util";
 
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import BUIBookChapterComponentMobileView from "./bui.book-chapter.component.mobile-view";
@@ -109,6 +117,52 @@ export const buiBookChapterModule = (
         React.createElement(BUIBookComponentExportPreview, { bookId }),
     },
     {
+      id: "delete_chapter_contents",
+      label: "Delete Chapter Contents",
+      icon: React.createElement(Trash2),
+      variant: "danger",
+      displayMode: "collapse",
+      onClick: async (context) => {
+        const option: AdminPanelDialogOption = {
+          title: "Confirm Delete Chapter Contents",
+          message:
+            "This will clear the written content from every chapter of this book while retaining its metadata (number, title, description, status, and AI instructions). This action cannot be undone.",
+          actionId: "delete_contents",
+          onConfirm: async () => {
+            try {
+              const repo = new BUIBookChapterRepository();
+              const records = await repo.getChaptersByBook(bookId);
+
+              if (records && records.length > 0) {
+                const updatePromises = records
+                  .filter((record) => record.id)
+                  .map((record) =>
+                    repo.panelUpdate(record.id!, {
+                      ...record,
+                      content: "",
+                      wordCount: 0,
+                      status: "empty" as const,
+                    }),
+                  );
+                await Promise.all(updatePromises);
+              }
+              return {
+                success: true,
+                message: "Chapter contents cleared. Metadata retained.",
+              };
+            } catch (error) {
+              console.error(error);
+              return {
+                success: false,
+                message: "Failed to clear chapter contents.",
+              };
+            }
+          },
+        };
+        context?.adminPanel.dialog.openDialog(option);
+      },
+    },
+    {
       id: "delete_all",
       label: "Delete All Chapters",
       icon: React.createElement(BookOpenCheck),
@@ -156,6 +210,10 @@ export const buiBookChapterModule = (
         row: BUIBookChapterEntity,
         context: BunnyKernel<BUIBookChapterEntity, unknown>,
       ) {
+        // Load the full skills selection source (database + default constant
+        // skills) so the conditional "Select Skills" dropdown can offer them.
+        const skillOptions = await buiAuthorSkillGetAll();
+
         const option: AdminPanelDialogOption = {
           title: `Generate Chapter ${row.number}`,
           message: `Are you sure you want to run live prompt content writing for "${row.title}"?`,
@@ -183,6 +241,18 @@ export const buiBookChapterModule = (
               type: "checkbox",
               defaultValue: "false",
             },
+            {
+              name: "skillNames",
+              label: "Select Skills to Include",
+              type: "select",
+              multiple: true,
+              placeholder: "Choose one or more skills to apply...",
+              options: skillOptions.map((skill) => ({
+                label: skill.name,
+                value: skill.name,
+              })),
+              showIf: { field: "useAuthorSkills" },
+            },
           ],
           onConfirm: async ({ form }) => {
             const formData = Object.fromEntries(form) as Record<
@@ -192,6 +262,10 @@ export const buiBookChapterModule = (
             const promptType = formData.promptType;
             const useAuthorProfile = formData.useAuthorProfile === "true";
             const useAuthorSkills = formData.useAuthorSkills === "true";
+            const selectedSkillNames = (formData.skillNames || "")
+              .split(",")
+              .map((name) => name.trim())
+              .filter(Boolean);
             context.adminPanel.dialog.setLoading(true);
             try {
               const settingsRepo = new BUISettingsRepository();
@@ -202,6 +276,7 @@ export const buiBookChapterModule = (
                 aiConfig,
                 useAuthorSkills,
                 useAuthorProfile,
+                selectedSkillNames,
               );
               context.adminPanel.table.refresh?.();
               return {
@@ -242,7 +317,7 @@ export const buiBookChapterModule = (
               className:
                 "text-sm text-slate-800 leading-relaxed space-y-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-600 [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-100 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-[#ff2d20] [&_a]:underline [&_img]:rounded-lg [&_img]:max-w-full [&_hr]:my-6 [&_hr]:border-slate-200",
             },
-            React.createElement(ReactMarkdown, { children: content }),
+            React.createElement(ReactMarkdown, undefined, content),
           ),
           onConfirm: async () => ({ success: true }),
         };
@@ -258,77 +333,165 @@ export const buiBookChapterModule = (
       hide: ["view"],
       onClick: async (context) => {
         const { adminPanel } = context!;
-        adminPanel.dialog.setLoading(true);
-        const data = adminPanel.form.formData;
-
-        try {
-          const bookRepo = new BUIBookRepository();
-          const chapterRepo = new BUIBookChapterRepository();
-          const authorRepo = new BUIAuthorRepository();
-
-          const [book, allChapters] = await Promise.all([
-            bookRepo.panelGetOne(bookId),
-            chapterRepo.getChaptersByBook(bookId),
-          ]);
-
-          let authorName = "Expert Professional";
-          let authorDesc = "Experienced writer.";
-
-          if (book?.authorId) {
-            const authorResult = await authorRepo.getList({});
-            if (authorResult.isSuccess) {
-              const matchingAuthor = authorResult.value.find(
-                (a) => a.id === book.authorId,
-              );
-              if (matchingAuthor) {
-                authorName = matchingAuthor.name;
-                authorDesc = matchingAuthor.description || "";
-              }
-            }
-          }
-
-          const params = {
-            author: { name: authorName, description: authorDesc },
-            book: {
-              title: book?.title || "Untitled Book",
-              chapters: allChapters.map((c) => ({
-                number: c.number,
-                title: c.title,
-                description: c.description || "",
+        // Load the full skills selection source (database + default constant
+        // skills) so the conditional "Select Skills" dropdown can offer them.
+        const skillOptions = await buiAuthorSkillGetAll();
+        const option: AdminPanelDialogOption = {
+          title: "Write Chapter with AI",
+          message:
+            "Configure how AI should write this chapter's content. The generated result is written into the content editor.",
+          actionId: "ai_write_configure",
+          fields: [
+            {
+              name: "promptType",
+              label: "Persona Framing",
+              type: "select",
+              defaultValue: "default",
+              options: buiChapterPromptContent.prompt.map((entry) => ({
+                label: entry.label,
+                value: entry.key,
               })),
             },
-            currentChapter: {
-              number: Number(data.number || 0),
-              title: data.title || "",
-              description: data.description || "",
-              additionalPrompt: data.additionalPrompt || "",
+            {
+              name: "useAuthorProfile",
+              label: "Align writing with Author Profile",
+              type: "checkbox",
+              defaultValue: "true",
             },
-          };
+            {
+              name: "useAuthorSkills",
+              label: "Include Author Skills in chapter content",
+              type: "checkbox",
+              defaultValue: "false",
+            },
+            {
+              name: "skillNames",
+              label: "Select Skills to Include",
+              type: "select",
+              multiple: true,
+              placeholder: "Choose one or more skills to apply...",
+              options: skillOptions.map((skill) => ({
+                label: skill.name,
+                value: skill.name,
+              })),
+              showIf: { field: "useAuthorSkills" },
+            },
+          ],
+          onConfirm: async ({ form }) => {
+            const formData = Object.fromEntries(form) as Record<
+              string,
+              string
+            >;
+            const promptType = formData.promptType || "default";
+            const useAuthorProfile = formData.useAuthorProfile === "true";
+            const useAuthorSkills = formData.useAuthorSkills === "true";
+            const selectedSkillNames = (formData.skillNames || "")
+              .split(",")
+              .map((name) => name.trim())
+              .filter(Boolean);
 
-          const settingsRepo = new BUISettingsRepository();
-          const aiConfig = await settingsRepo.getActiveAIConfig();
-          const result = await buiChapterServerContent(
-            params,
-            "default",
-            aiConfig,
-          );
+            adminPanel.dialog.setLoading(true);
+            try {
+              const data = adminPanel.form.formData;
 
-          if (result && result.success) {
-            const words = result.content
-              ? result.content.split(/\s+/).filter(Boolean).length
-              : 0;
-            adminPanel.form.setFormData({
-              ...data,
-              content: result.content,
-              wordCount: words,
-              status: "done",
-            });
-          }
-        } catch (err) {
-          console.error("Modal compilation failed:", err);
-        } finally {
-          adminPanel.dialog.setLoading(false);
-        }
+              const bookRepo = new BUIBookRepository();
+              const chapterRepo = new BUIBookChapterRepository();
+              const authorRepo = new BUIAuthorRepository();
+
+              const [book, allChapters] = await Promise.all([
+                bookRepo.panelGetOne(bookId),
+                chapterRepo.getChaptersByBook(bookId),
+              ]);
+
+              let authorName = "Expert Professional";
+              let authorDesc = "Experienced writer.";
+              let authorId: number | undefined;
+
+              if (book?.authorId) {
+                const authorResult = await authorRepo.getList({});
+                if (authorResult.isSuccess) {
+                  const matchingAuthor = authorResult.value.find(
+                    (a) => a.id === book.authorId,
+                  );
+                  if (matchingAuthor) {
+                    authorName = matchingAuthor.name;
+                    authorDesc = matchingAuthor.description || "";
+                    authorId = matchingAuthor.id;
+                  }
+                }
+              }
+
+              // Resolve skills if requested — either the explicitly selected
+              // skills or the author's attached skills.
+              let skills: BUIAuthorSkill[] = [];
+              if (useAuthorSkills) {
+                skills = await buiAuthorSkillResolveForGeneration(
+                  selectedSkillNames,
+                  authorId,
+                );
+              }
+
+              const params: BUIBookChapterParams = {
+                author: useAuthorProfile
+                  ? { name: authorName, description: authorDesc }
+                  : { name: "", description: "" },
+                book: {
+                  title: book?.title || "Untitled Book",
+                  chapters: allChapters.map((c) => ({
+                    number: c.number,
+                    title: c.title,
+                    description: c.description || "",
+                  })),
+                },
+                currentChapter: {
+                  number: Number(data.number || 0),
+                  title: data.title || "",
+                  description: data.description || "",
+                  additionalPrompt: data.additionalPrompt || "",
+                },
+                skills: skills.length > 0 ? skills : undefined,
+              };
+
+              const settingsRepo = new BUISettingsRepository();
+              const aiConfig = await settingsRepo.getActiveAIConfig();
+              const result = await buiChapterServerContent(
+                params,
+                promptType,
+                aiConfig,
+              );
+
+              if (result && result.success) {
+                const words = result.content
+                  ? result.content.split(/\s+/).filter(Boolean).length
+                  : 0;
+                adminPanel.form.setFormData({
+                  ...data,
+                  content: result.content,
+                  wordCount: words,
+                  status: "done",
+                });
+                return {
+                  success: true,
+                  message:
+                    "Chapter content generated and written into the editor.",
+                };
+              }
+              return {
+                success: false,
+                message: "AI returned no content for this chapter.",
+              };
+            } catch (err) {
+              console.error("Modal compilation failed:", err);
+              return {
+                success: false,
+                message: "Failed to generate chapter content via AI.",
+              };
+            } finally {
+              adminPanel.dialog.setLoading(false);
+            }
+          },
+        };
+        adminPanel.dialog.openDialog(option);
       },
     },
   ],

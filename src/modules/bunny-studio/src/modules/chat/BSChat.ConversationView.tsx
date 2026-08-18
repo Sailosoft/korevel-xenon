@@ -36,6 +36,10 @@ import type { RenderFormat } from "@/src/modules/render";
 import { BSModal, BSCodeMirrorEditor } from "../../components";
 import type { BSConversation } from "./BSChat.Types";
 import { useBSVoice } from "./BSChat.Voice";
+import {
+  BSChatKnowledgeBaseIndicator,
+  BSChatKnowledgeBaseScores,
+} from "./BSChat.KnowledgeBase";
 
 // ─── Copy hook helper ─────────────────────────────────────────────────
 
@@ -104,6 +108,13 @@ export interface BSChatConversationViewProps {
   /** If true, this bubble is the currently-streaming assistant message */
   isStreaming?: boolean;
   /**
+   * True while the knowledge base RAG search is running before streaming. Shows
+   * the "Retrieving from Knowledge" label over the loading dots (feature).
+   */
+  isRetrievingKnowledge?: boolean;
+  /** Optional active knowledge group name — shown in the score panel header. */
+  knowledgeGroupName?: string;
+  /**
    * Persist an edited user message. The parent updates the conversation row
    * and (optionally) resends the edited content to the AI.
    */
@@ -115,6 +126,8 @@ export interface BSChatConversationViewProps {
 export function BSChatConversationView({
   conversation,
   isStreaming = false,
+  isRetrievingKnowledge = false,
+  knowledgeGroupName,
   onEditConversation,
   onResendConversation,
 }: BSChatConversationViewProps) {
@@ -316,15 +329,10 @@ export function BSChatConversationView({
               conversation.content ? (
                 <RenderView format={renderFormat} content={conversation.content} />
               ) : (
-                <div className="flex items-center gap-2 text-gray-400 min-h-6">
-                  {isStreaming && (
-                    <>
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce" />
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce [animation-delay:0.15s]" />
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce [animation-delay:0.3s]" />
-                    </>
-                  )}
-                </div>
+                <BSChatKnowledgeBaseIndicator
+                  retrieving={isRetrievingKnowledge}
+                  streaming={isStreaming}
+                />
               )
             ) : (
               <pre className="whitespace-pre-wrap font-mono text-xs text-gray-600 bg-gray-50 rounded-xl p-3 max-h-96 overflow-auto">
@@ -409,6 +417,16 @@ export function BSChatConversationView({
                 )}
               </button>
             </div>
+
+            {/* Collapsible Knowledge Base scoring panel (feature) — shows the
+                Orama hits + similarity scores that grounded this response. */}
+            {conversation.knowledgeHits &&
+              conversation.knowledgeHits.length > 0 && (
+                <BSChatKnowledgeBaseScores
+                  hits={conversation.knowledgeHits}
+                  groupName={knowledgeGroupName}
+                />
+              )}
           </div>
         ) : (
           <div>
