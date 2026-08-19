@@ -641,6 +641,17 @@ export function BSChatExportDocument(
         /* ── Rendered content ─────────────────────────────────── */
         .bs-section img { max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 6px 18px -10px rgba(26,10,12,0.25); }
         .bs-section pre { overflow-x: auto; border-radius: 12px; }
+        /* Code inside a block <pre> must inherit the dark block styling instead
+           of the light inline-code chip (bg-slate-100). Otherwise the light text
+           (slate-100) sits on a white block inside the dark code block. */
+        .bs-section pre code {
+          background: transparent !important;
+          padding: 0 !important;
+          border-radius: 0 !important;
+          font-size: inherit !important;
+          font-weight: inherit !important;
+          color: inherit !important;
+        }
         .bs-section table { border-collapse: separate; border-spacing: 0; width: 100%; margin: 0.75rem 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle); }
         .bs-section a { color: var(--accent); text-decoration: none; }
         .bs-section a:hover { text-decoration: underline; }

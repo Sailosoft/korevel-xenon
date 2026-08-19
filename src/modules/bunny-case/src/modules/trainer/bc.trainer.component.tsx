@@ -38,6 +38,10 @@ import { BCVoiceProvider, useBCVoice } from "./bc.trainer.voice";
 import { useBCSpeechRecognition } from "./bc.trainer.input.stt.hooks";
 import type { BCCaseMessage } from "./bc.trainer.entity";
 import { BCGenAIOptionSelector } from "../generative-ai/bc.generative-ai.selector";
+import {
+  bcGenAIBubbleLabels,
+  type BCGenAIBubbleLabels,
+} from "../generative-ai/bc.generative-ai.entity";
 
 function SpeakButton({
   role,
@@ -143,6 +147,8 @@ function TrainerContent() {
   } = useBCTrainer();
 
   const { ttsSupported, autoTTS, setAutoTTS, speakRoleText } = useBCVoice();
+
+  const bubbleLabels = bcGenAIBubbleLabels(aiOption);
 
   const stt = useBCSpeechRecognition({
     onFinalTranscript: (text) => {
@@ -436,7 +442,7 @@ function TrainerContent() {
               </div>
             )}
             {messages.map((msg, idx) => (
-              <MessageBubble key={idx} message={msg} />
+              <MessageBubble key={idx} message={msg} labels={bubbleLabels} />
             ))}
             {messages.length === 0 && !busy && (
               <p className="text-center text-sm text-slate-400 py-10">
@@ -852,17 +858,23 @@ function TrainerContent() {
   );
 }
 
-function MessageBubble({ message }: { message: BCCaseMessage }) {
+function MessageBubble({
+  message,
+  labels,
+}: {
+  message: BCCaseMessage;
+  labels: BCGenAIBubbleLabels;
+}) {
   const { speakRoleText } = useBCVoice();
   if (message.role === "persona") {
     return (
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold">
-            CU
+            {labels.counterpartInitials}
           </span>
           <span className="text-xs font-semibold text-slate-600">
-            Customer
+            {labels.counterpartLabel}
           </span>
           <SpeakButton role="customer" text={message.external} />
         </div>
@@ -886,7 +898,7 @@ function MessageBubble({ message }: { message: BCCaseMessage }) {
             <Brain className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold not-italic">
-                Customer thinking:
+                {labels.counterpartLabel} thinking:
               </span>{" "}
               {message.internal}
             </span>
@@ -899,7 +911,9 @@ function MessageBubble({ message }: { message: BCCaseMessage }) {
   return (
     <div className="space-y-1.5 flex flex-col items-end">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">You</span>
+        <span className="text-xs font-semibold text-slate-500">
+          {labels.participantLabel}
+        </span>
         <SpeakButton role="agent" text={message.external} />
       </div>
       <p className="text-sm text-slate-800 bg-emerald-600 text-white rounded-xl rounded-tr-sm p-3 max-w-[85%]">

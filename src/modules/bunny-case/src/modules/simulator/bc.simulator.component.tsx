@@ -42,6 +42,10 @@ import type { BCSimulatorTurn } from "./bc.simulator.entity";
 import { BCVoiceProvider, useBCVoice } from "../trainer/bc.trainer.voice";
 import { BCGenAIOptionSelector } from "../generative-ai/bc.generative-ai.selector";
 import {
+  bcGenAIBubbleLabels,
+  type BCGenAIBubbleLabels,
+} from "../generative-ai/bc.generative-ai.entity";
+import {
   BC_PLAY_DELAY_DEFAULT,
   BC_PLAY_DELAY_STORAGE_KEY,
 } from "../settings/bc.settings.constants";
@@ -96,7 +100,15 @@ function SpeakButton({
   );
 }
 
-function TurnBubble({ turn, index }: { turn: BCSimulatorTurn; index: number }) {
+function TurnBubble({
+  turn,
+  index,
+  labels,
+}: {
+  turn: BCSimulatorTurn;
+  index: number;
+  labels: BCGenAIBubbleLabels;
+}) {
   const isPersona = turn.speaker === "persona";
   const { speakRoleText } = useBCVoice();
   return (
@@ -111,11 +123,11 @@ function TurnBubble({ turn, index }: { turn: BCSimulatorTurn; index: number }) {
             isPersona ? "bg-rose-500" : "bg-emerald-500"
           }`}
         >
-          {isPersona ? "CU" : "AG"}
+          {isPersona ? labels.counterpartInitials : labels.participantInitials}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-500">
-            {isPersona ? "Customer" : "Ideal Agent"}
+            {isPersona ? labels.counterpartLabel : labels.participantLabel}
           </span>
           <span className="text-[10px] text-slate-400">Turn {index + 1}</span>
           <SentimentBadge sentiment={turn.sentiment} />
@@ -167,7 +179,10 @@ function TurnBubble({ turn, index }: { turn: BCSimulatorTurn; index: number }) {
           <Brain className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>
             <span className="font-semibold not-italic">
-              {isPersona ? "Customer thinking" : "Agent reasoning"}:
+              {isPersona
+                ? `${labels.counterpartLabel} thinking`
+                : `${labels.participantLabel} reasoning`}
+              :
             </span>{" "}
             {turn.internal}
           </span>
@@ -297,6 +312,7 @@ function SimulatorContent() {
   }, []);
 
   const resolved = result?.outcome !== "unresolved";
+  const bubbleLabels = bcGenAIBubbleLabels(aiOption);
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 md:px-6 space-y-6">
@@ -671,7 +687,7 @@ function SimulatorContent() {
               Simulated conversation · {result.turns.length} turns
             </div>
             {result.turns.map((turn, idx) => (
-              <TurnBubble key={idx} turn={turn} index={idx} />
+              <TurnBubble key={idx} turn={turn} index={idx} labels={bubbleLabels} />
             ))}
           </div>
 

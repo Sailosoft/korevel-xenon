@@ -26,6 +26,10 @@ import { useBCGauntlet } from "./bc.gauntlet.hooks";
 import { BCVoiceProvider, useBCVoice } from "../trainer/bc.trainer.voice";
 import type { BCCaseMessage } from "../trainer/bc.trainer.entity";
 import { BCGenAIOptionSelector } from "../generative-ai/bc.generative-ai.selector";
+import {
+  bcGenAIBubbleLabels,
+  type BCGenAIBubbleLabels,
+} from "../generative-ai/bc.generative-ai.entity";
 
 function SpeakButton({
   role,
@@ -54,15 +58,23 @@ function SpeakButton({
   );
 }
 
-function MessageBubble({ message }: { message: BCCaseMessage }) {
+function MessageBubble({
+  message,
+  labels,
+}: {
+  message: BCCaseMessage;
+  labels: BCGenAIBubbleLabels;
+}) {
   if (message.role === "persona") {
     return (
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold">
-            CU
+            {labels.counterpartInitials}
           </span>
-          <span className="text-xs font-semibold text-slate-600">Customer</span>
+          <span className="text-xs font-semibold text-slate-600">
+            {labels.counterpartLabel}
+          </span>
           <SpeakButton role="customer" text={message.external} />
           {message.curveball && (
             <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
@@ -78,7 +90,7 @@ function MessageBubble({ message }: { message: BCCaseMessage }) {
             <Brain className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>
               <span className="font-semibold not-italic">
-                Customer thinking:
+                {labels.counterpartLabel} thinking:
               </span>{" "}
               {message.internal}
             </span>
@@ -91,7 +103,9 @@ function MessageBubble({ message }: { message: BCCaseMessage }) {
   return (
     <div className="space-y-1.5 flex flex-col items-end">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">You</span>
+        <span className="text-xs font-semibold text-slate-500">
+          {labels.participantLabel}
+        </span>
         <SpeakButton role="agent" text={message.external} />
       </div>
       <p className="text-sm text-slate-800 bg-slate-700 text-white rounded-xl rounded-tr-sm p-3 max-w-[85%]">
@@ -127,6 +141,7 @@ function GauntletContent() {
   } = useBCGauntlet();
 
   const started = sessionId != null;
+  const bubbleLabels = bcGenAIBubbleLabels(aiOption);
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 md:px-6 space-y-6">
@@ -239,7 +254,7 @@ function GauntletContent() {
               </div>
             )}
             {messages.map((msg, idx) => (
-              <MessageBubble key={idx} message={msg} />
+              <MessageBubble key={idx} message={msg} labels={bubbleLabels} />
             ))}
           </div>
 

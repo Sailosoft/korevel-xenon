@@ -8,12 +8,14 @@ export type {
   BCGenAIOptionId,
   BCGenAIOption,
   BCGenAIOptions,
+  BCGenAIBubbleLabels,
 } from "./bc.generative-ai.entity";
 export {
   BC_GEN_AI_DEFAULT_OPTION_ID,
   BC_GEN_AI_OPTIONS,
   bcResolveGenAIOption,
   bcGenAIOptionList,
+  bcGenAIBubbleLabels,
 } from "./bc.generative-ai.entity";
 export {
   bcGenAISystemDirectives,
