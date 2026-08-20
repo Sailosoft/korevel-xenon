@@ -291,6 +291,8 @@ export default function BFlowWorkflowStudio({
   const [sessionStatus, setSessionStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  /** Run id of the most recent run registered as a session (for de-dup). */
+  const [savedRunId, setSavedRunId] = useState<string | null>(null);
 
   // ── Parse YAML and extract jobs, variables + reports ──────────────
   const parseAndSetJobs = useCallback((yaml: string) => {
@@ -604,11 +606,31 @@ export default function BFlowWorkflowStudio({
     testError,
     rerunningSteps,
     startTestRun,
+    saveTestRunAsSession,
     rerunStep,
     clearTestRun,
   } = useBFlowTestRun(pipelineEntity, workflow, currentJobs, resolvedVariables);
 
   const hasTestRunResult = testRun !== undefined;
+  /** True when the current in-memory results have NOT been registered yet. */
+  const canSaveTestRunAsSession =
+    hasTestRunResult && testRun?.id !== savedRunId && !isTestRunning;
+
+  // ── Ephemeral run (in-memory only, no DB write) ──────────────────
+  // Supersedes the old "Test Workflow" button — run the workflow and
+  // keep results in browser memory so the user can inspect them, then
+  // optionally "Save as Run" to register them as a session.
+  const handleEphemeralRun = useCallback(async () => {
+    if (!interactiveMode) {
+      const validationError = validateWorkflowYaml(yamlContent);
+      if (validationError) {
+        setYamlError(validationError);
+        return;
+      }
+    }
+    setYamlError(null);
+    await startTestRun();
+  }, [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode]);
 
   // ── Run then register the run as a session ───────────────────────
   // Runs the workflow (like a test run) and persists the completed
@@ -624,7 +646,8 @@ export default function BFlowWorkflowStudio({
     setYamlError(null);
     setSessionStatus("saving");
     try {
-      await startTestRun({ persistAsSession: true });
+      const runId = await startTestRun({ persistAsSession: true });
+      if (runId) setSavedRunId(runId);
       setSessionStatus("saved");
       setTimeout(() => setSessionStatus("idle"), 2500);
     } catch {
@@ -649,7 +672,11 @@ export default function BFlowWorkflowStudio({
       setYamlError(null);
       setSessionStatus("saving");
       try {
-        await startTestRun({ persistAsSession: true, variables: overrides });
+        const runId = await startTestRun({
+          persistAsSession: true,
+          variables: overrides,
+        });
+        if (runId) setSavedRunId(runId);
         setSessionStatus("saved");
         setTimeout(() => setSessionStatus("idle"), 2500);
       } catch {
@@ -659,6 +686,22 @@ export default function BFlowWorkflowStudio({
     },
     [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode],
   );
+
+  // ── Save current ephemeral test run results as a session run ────
+  // Registers the in-memory results (testRun/testJobRuns/testStepRuns)
+  // to IndexedDB without re-running the workflow.
+  const handleSaveTestRunAsSession = useCallback(async () => {
+    setSessionStatus("saving");
+    const ok = await saveTestRunAsSession();
+    if (ok) {
+      setSavedRunId(testRun?.id ?? null);
+      setSessionStatus("saved");
+      setTimeout(() => setSessionStatus("idle"), 2500);
+    } else {
+      setSessionStatus("error");
+      setTimeout(() => setSessionStatus("idle"), 3000);
+    }
+  }, [saveTestRunAsSession, testRun?.id]);
 
   // ── Effective run data (prefers test run) ─────────────────────────
   const currentJobRunEffective = useMemo<BFlowJobRun | undefined>(() => {
@@ -903,13 +946,13 @@ export default function BFlowWorkflowStudio({
                 Guide
               </Button>
 
-              {/* ── Run as Session split button ─────────────────────── */}
+              {/* ── Run split button ────────────────────────────────── */}
               <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-emerald-300 shadow-sm">
                 <button
-                  onClick={handleRunAsSession}
+                  onClick={handleEphemeralRun}
                   disabled={isTestRunning || !!yamlError}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title="Run then register the run as a session"
+                  title="Run the workflow in-memory (ephemeral). Save it as a run afterwards."
                 >
                   {isTestRunning ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -948,6 +991,20 @@ export default function BFlowWorkflowStudio({
                   </Dropdown.Popover>
                 </Dropdown>
               </div>
+
+              {/* ── Save current ephemeral test run as a run ────────── */}
+              {canSaveTestRunAsSession && (
+                <Button
+                  onPress={handleSaveTestRunAsSession}
+                  isDisabled={isTestRunning}
+                  variant="ghost"
+                  size="sm"
+                  className="font-medium border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
+                >
+                  <Save className="w-4 h-4" />
+                  Save as Run
+                </Button>
+              )}
 
               {/* Session registration status indicator */}
               {sessionStatus === "saved" && (

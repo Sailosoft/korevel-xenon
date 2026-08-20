@@ -62,6 +62,20 @@ function resolvePromptBuilder(
   return new BFlowRunPromptBuilder();
 }
 
+/**
+ * Ensure a BFlowPipelineEntity record exists for the given pipeline so the
+ * run detail page can load it. Studio-synthesized pipelines are not persisted
+ * otherwise, so session runs registered from the studio need this to exist.
+ */
+async function ensurePipelineRecord(
+  pipeline: BFlowPipelineEntity,
+): Promise<void> {
+  const existing = await bflowDB.pipelines.get(pipeline.id);
+  if (!existing) {
+    await bflowDB.pipelines.put({ ...pipeline, status: "completed" });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // useBFlowTestRun — in-memory pipeline test execution
 // ═══════════════════════════════════════════════════════════════════
@@ -99,7 +113,13 @@ export interface BFlowTestRunState {
   /** Set of step IDs currently being re-run */
   rerunningSteps: Set<string>;
   /** Kick off a new test run — executes the pipeline in-memory only */
-  startTestRun: (options?: BFlowTestRunOptions) => Promise<void>;
+  startTestRun: (options?: BFlowTestRunOptions) => Promise<string | undefined>;
+  /**
+   * Persist the current in-memory test run results (pipeline + job + step
+   * runs) to IndexedDB as a session run, without re-executing.
+   * @returns true when the run was registered successfully.
+   */
+  saveTestRunAsSession: () => Promise<boolean>;
   /**
    * Re-run a single step with the current (updated) prompt from the editor.
    * This reads the fresh prompt from the jobs/steps array rather than using
@@ -731,6 +751,7 @@ export function useBFlowTestRun(
         // step runs to IndexedDB using the same shape as a normal pipeline run.
         if (options?.persistAsSession) {
           try {
+            await ensurePipelineRecord(pipeline);
             const snapshot: BFlowRunSnapshot = {
               pipelineName: pipeline.name,
               pipelineSlug: pipeline.slug,
@@ -756,6 +777,8 @@ export function useBFlowTestRun(
           }
         }
       }
+
+      return runId;
     } catch (err) {
       if (!cancelledRef.current) {
         const failedRun: BFlowPipelineRunEntity = {
@@ -794,6 +817,42 @@ export function useBFlowTestRun(
     ],
   );
 
+  // ── Save current test run results as a session run ──────────────
+  // Persists the in-memory testRun/testJobRuns/testStepRuns to IndexedDB
+  // using the same repositories/shape as a normal pipeline run — without
+  // re-executing the workflow.
+  const saveTestRunAsSession = useCallback(async (): Promise<boolean> => {
+    if (!pipeline || !template || !testRun) return false;
+
+    try {
+      await ensurePipelineRecord(pipeline);
+      const snapshot: BFlowRunSnapshot = {
+        pipelineName: pipeline.name,
+        pipelineSlug: pipeline.slug,
+        description: template?.description,
+        jobs,
+        reports: template?.template?.reports ?? [],
+        templateName: template?.name,
+        templateYaml: template?.templateYaml,
+      };
+      await bflowDB.pipelineRunsRepo.create({ ...testRun, snapshot });
+      for (const jr of testJobRuns) {
+        await bflowDB.jobRunsRepo.create(jr);
+      }
+      for (const sr of testStepRuns) {
+        await bflowDB.stepRunsRepo.create(sr);
+      }
+      return true;
+    } catch (err) {
+      setTestError(
+        err instanceof Error
+          ? err.message
+          : "Failed to register run as session",
+      );
+      return false;
+    }
+  }, [pipeline, template, testRun, testJobRuns, testStepRuns, jobs]);
+
   return {
     testRun,
     testJobRuns,
@@ -802,6 +861,7 @@ export function useBFlowTestRun(
     testError,
     rerunningSteps,
     startTestRun,
+    saveTestRunAsSession,
     rerunStep,
     clearTestRun,
   };

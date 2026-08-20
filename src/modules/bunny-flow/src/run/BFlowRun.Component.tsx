@@ -679,7 +679,7 @@ export default function BFlowRunComponent() {
                 variant="ghost"
                 size="sm"
                 className="border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 data-[hover=true]:bg-violet-100"
-                onPress={startTestRun}
+                onPress={() => startTestRun()}
                 isDisabled={isTestRunning || isRunning}
               >
                 {isTestRunning ? (

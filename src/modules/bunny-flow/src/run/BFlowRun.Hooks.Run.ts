@@ -11,7 +11,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBFlowRunDataLoad } from "./BFlowRun.Hooks.DataLoad";
 import { useBFlowRunPolling } from "./BFlowRun.Hooks.Polling";
 import { useBFlowRunSubmit } from "./BFlowRun.Hooks.Submit";
-import { useBFlowTestRun } from "./BFlowRun.Hooks.TestRun";
+import {
+  useBFlowTestRun,
+  type BFlowTestRunOptions,
+} from "./BFlowRun.Hooks.TestRun";
 import type {
   BFlowPipelineEntity,
   BFlowPipelineVariable,
@@ -100,7 +103,7 @@ export interface BFlowRunState {
   /** Error message from the last test run */
   testError: string | null;
   /** Start an in-memory test run (no DB writes) */
-  startTestRun: () => Promise<void>;
+  startTestRun: (options?: BFlowTestRunOptions) => Promise<string | undefined>;
   /** Clear all test run state */
   clearTestRun: () => void;
 
