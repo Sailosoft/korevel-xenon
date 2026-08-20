@@ -108,6 +108,24 @@ export interface UseAnonymousModeReturn {
   selectPattern: (patternId: string) => Promise<void>;
   selectThinker: (thinkerId: string) => Promise<void>;
   selectAssociation: (associationId: string) => Promise<void>;
+
+  // Custom association override (form) state + actions
+  associationOverrideEnabled: boolean;
+  onAssociationOverrideEnabledChange: (enabled: boolean) => void;
+  associationOverridePersistence: "session" | "persistent";
+  onAssociationOverridePersistenceChange: (
+    mode: "session" | "persistent",
+  ) => void;
+  associationOverrideSlotValues: BKAssociationSlotValue[];
+  onAssociationOverrideSlotValuesChange: (
+    values: BKAssociationSlotValue[],
+  ) => void;
+  savePersistentAssociation: (
+    name: string,
+    slotValues: BKAssociationSlotValue[],
+  ) => Promise<void>;
+  associationSaving: boolean;
+
   addStep: () => void;
   addStepBefore: (index: number) => void;
   addStepAfter: (index: number) => void;
@@ -203,6 +221,15 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const [selectedAssociationId, setSelectedAssociationId] = useState<
     string | undefined
   >();
+
+  // ── Custom Association Override (form) state ────────────────────────
+  const [associationOverrideEnabled, setAssociationOverrideEnabled] =
+    useState(false);
+  const [associationOverridePersistence, setAssociationOverridePersistence] =
+    useState<"session" | "persistent">("session");
+  const [associationOverrideSlotValues, setAssociationOverrideSlotValues] =
+    useState<BKAssociationSlotValue[]>([]);
+  const [associationSaving, setAssociationSaving] = useState(false);
 
   // ── Thinking state ────────────────────────────────────────────────
   const [conversation, setConversation] = useState<BKConversationMessage[]>([]);
@@ -463,6 +490,42 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     }
   }, []);
 
+  // ── Save custom override as a persistent think pattern ───────────
+  const savePersistentAssociation = useCallback(
+    async (name: string, slotValues: BKAssociationSlotValue[]) => {
+      const patternId =
+        selectedThought?.patternId ?? selectedPattern?.id ?? undefined;
+      if (!name || !patternId) return;
+      setAssociationSaving(true);
+      try {
+        const result = await bkThinkerDB.thoughtAssociationsRepo.create({
+          name,
+          patternId,
+          slotValues,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        } as BKThoughtAssociation);
+        if (result.isSuccess) {
+          const saved = result.value;
+          setSelectedAssociationId(saved.id);
+          setSelectedAssociation(saved);
+          // Refresh the association list
+          const items =
+            await bkThinkerDB.thoughtAssociationsRepo.getByPatternId(patternId);
+          setAssociations(items);
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudioAnon] Failed to save persistent association:",
+          err,
+        );
+      } finally {
+        setAssociationSaving(false);
+      }
+    },
+    [selectedThought?.patternId, selectedPattern?.id],
+  );
+
   // ── Step CRUD ─────────────────────────────────────────────────────
   const addStep = useCallback(() => {
     setSteps((prev) => [
@@ -572,6 +635,22 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   const resolveAssociationContext = useCallback(async (): Promise<
     string | undefined
   > => {
+    const patternId =
+      selectedThought?.patternId ?? selectedPattern?.id ?? undefined;
+    if (
+      associationOverrideEnabled &&
+      patternId &&
+      associationOverrideSlotValues.length > 0
+    ) {
+      // Custom override form values — highest priority
+      const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(patternId);
+      if (patternResult.isSuccess) {
+        return bakePatternContext(
+          patternResult.value,
+          associationOverrideSlotValues,
+        );
+      }
+    }
     if (selectedAssociation) {
       const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
         selectedAssociation.patternId,
@@ -591,7 +670,13 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       }
     }
     return undefined;
-  }, [selectedAssociation, selectedThought]);
+  }, [
+    selectedAssociation,
+    selectedThought,
+    selectedPattern,
+    associationOverrideEnabled,
+    associationOverrideSlotValues,
+  ]);
 
   // ── Start thinking ────────────────────────────────────────────────
   const startThinking = useCallback(
@@ -972,6 +1057,9 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     setSelectedThinker(null);
     setSelectedAssociation(null);
     setSelectedAssociationId(undefined);
+    setAssociationOverrideEnabled(false);
+    setAssociationOverridePersistence("session");
+    setAssociationOverrideSlotValues([]);
     setConversation([]);
     setIsThinking(false);
     setCurrentStepIndex(-1);
@@ -1030,6 +1118,15 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     selectPattern,
     selectThinker,
     selectAssociation,
+    associationOverrideEnabled,
+    onAssociationOverrideEnabledChange: setAssociationOverrideEnabled,
+    associationOverridePersistence,
+    onAssociationOverridePersistenceChange:
+      setAssociationOverridePersistence,
+    associationOverrideSlotValues,
+    onAssociationOverrideSlotValuesChange: setAssociationOverrideSlotValues,
+    savePersistentAssociation,
+    associationSaving,
     addStep,
     addStepBefore,
     addStepAfter,

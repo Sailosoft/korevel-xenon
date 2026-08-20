@@ -384,6 +384,16 @@ export default function BKThinkStudioAnon({
     setActiveStepIndex,
     setShowProcessedOutput,
 
+    // Custom association override state
+    associationOverrideEnabled,
+    onAssociationOverrideEnabledChange,
+    associationOverridePersistence,
+    onAssociationOverridePersistenceChange,
+    associationOverrideSlotValues,
+    onAssociationOverrideSlotValuesChange,
+    savePersistentAssociation,
+    associationSaving,
+
     // Actions
     loadExistingThought,
     selectPattern,
@@ -1558,7 +1568,9 @@ export default function BKThinkStudioAnon({
         <BKThinkStudioSettingsModal
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
-          thoughtPatternId={selectedThought?.patternId}
+          thoughtPatternId={
+            selectedThought?.patternId ?? selectedPattern?.id
+          }
           associations={associations}
           selectedAssociationId={selectedAssociationId}
           selectedAssociation={selectedAssociation}
@@ -1567,6 +1579,20 @@ export default function BKThinkStudioAnon({
             const id = String(val);
             selectAssociation(id);
           }}
+          associationOverrideEnabled={associationOverrideEnabled}
+          onAssociationOverrideEnabledChange={
+            onAssociationOverrideEnabledChange
+          }
+          associationOverridePersistence={associationOverridePersistence}
+          onAssociationOverridePersistenceChange={
+            onAssociationOverridePersistenceChange
+          }
+          associationOverrideSlotValues={associationOverrideSlotValues}
+          onAssociationOverrideSlotValuesChange={
+            onAssociationOverrideSlotValuesChange
+          }
+          onSavePersistentAssociation={savePersistentAssociation}
+          associationSaving={associationSaving}
           thinkers={thinkers}
           thinkersLoading={thinkersLoading}
           selectedThinkerId={selectedThinker?.id}
