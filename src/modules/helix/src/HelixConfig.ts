@@ -546,6 +546,9 @@ const HELIX_PROVIDER_MODELS: Record<
     "openai/gpt-oss-20b",
   ] as const,
   fireworks: [
+    // new
+    "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+    // previous
     "accounts/fireworks/models/muse-glimmer-30b",
     "accounts/fireworks/models/glm-5p2",
     "accounts/fireworks/models/kimi-k2p7-code",
@@ -554,10 +557,8 @@ const HELIX_PROVIDER_MODELS: Record<
     "accounts/fireworks/models/deepseek-v4-pro",
     "accounts/fireworks/models/deepseek-v4-pro-0813",
     "accounts/fireworks/models/kimi-k2p6",
-    "accounts/fireworks/models/minimax-m2p7",
     "accounts/fireworks/models/glm-5p1",
     "accounts/fireworks/models/gpt-oss-120b",
-    "accounts/fireworks/models/gpt-oss-20b",
     "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
     "accounts/fireworks/models/deepseek-v4-flash",
     "accounts/fireworks/models/deepseek-v4-flash-0731",
