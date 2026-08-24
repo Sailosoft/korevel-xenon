@@ -136,13 +136,30 @@ function bakePatternContext(
 
 /**
  * Resolve the association context used in the system prompt.
- * Priority: selected association > saved association > thought pattern defaults.
+ * Priority: custom override (form) > selected association > saved association > thought pattern defaults.
  */
 async function resolveAssociationContext(
   selectedAssociation: BKThoughtAssociation | null,
   savedAssociationId: string | undefined,
   fallbackPatternId: string | undefined,
+  customOverrideSlotValues?: BKAssociationSlotValue[],
 ): Promise<string | undefined> {
+  if (
+    customOverrideSlotValues &&
+    customOverrideSlotValues.length > 0 &&
+    fallbackPatternId
+  ) {
+    // Custom override form values — highest priority, applied to the thought's own pattern
+    const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+      fallbackPatternId,
+    );
+    if (patternResult.isSuccess) {
+      return bakePatternContext(
+        patternResult.value,
+        customOverrideSlotValues,
+      );
+    }
+  }
   if (selectedAssociation) {
     const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
       selectedAssociation.patternId,
@@ -492,6 +509,15 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
   const [associationSelectLoading, setAssociationSelectLoading] =
     useState(false);
 
+  // ── Custom Association Override (form) State ─────────────────────────
+  const [associationOverrideEnabled, setAssociationOverrideEnabled] =
+    useState(false);
+  const [associationOverridePersistence, setAssociationOverridePersistence] =
+    useState<"session" | "persistent">("session");
+  const [associationOverrideSlotValues, setAssociationOverrideSlotValues] =
+    useState<BKAssociationSlotValue[]>([]);
+  const [associationSaving, setAssociationSaving] = useState(false);
+
   // Ref to track manual tab pinning — when the user clicks a tab during thinking,
   // auto-switch to the current processing step is suppressed so they can read
   // another completed train of thought while generation continues.
@@ -662,6 +688,44 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
     }
   }, []);
 
+  // ── Save custom override as a persistent think pattern ─────────────
+
+  const handleSavePersistentAssociation = useCallback(
+    async (name: string, slotValues: BKAssociationSlotValue[]) => {
+      if (!name || !thought?.patternId) return;
+      setAssociationSaving(true);
+      try {
+        const result = await bkThinkerDB.thoughtAssociationsRepo.create({
+          name,
+          patternId: thought.patternId,
+          slotValues,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        } as BKThoughtAssociation);
+        if (result.isSuccess) {
+          const saved = result.value;
+          // Select the newly saved pattern so it takes effect immediately
+          setSelectedAssociationId(saved.id);
+          setSelectedAssociation(saved);
+          // Refresh the association list
+          await loadAssociations(thought.patternId);
+          toast.success(`Think pattern "${name}" saved`);
+        } else {
+          toast.danger("Failed to save think pattern");
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudio] Failed to save persistent association:",
+          err,
+        );
+        toast.danger("Failed to save think pattern");
+      } finally {
+        setAssociationSaving(false);
+      }
+    },
+    [thought?.patternId, loadAssociations],
+  );
+
   // ── Run the thinking process ─────────────────────────────────────────
 
   const bkStartThink = useCallback(async () => {
@@ -724,8 +788,23 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
         return lines.join("\n");
       };
 
-      // Resolve association context — priority: selected association > saved association > pattern defaults
-      if (selectedAssociation) {
+      // Resolve association context — priority: custom override (form) > selected association > saved association > pattern defaults
+      if (
+        associationOverrideEnabled &&
+        thought?.patternId &&
+        associationOverrideSlotValues.length > 0
+      ) {
+        // Custom override form values applied to the thought's own pattern
+        const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+          thought.patternId,
+        );
+        if (patternResult.isSuccess) {
+          associationContext = bakePatternContext(
+            patternResult.value,
+            associationOverrideSlotValues,
+          );
+        }
+      } else if (selectedAssociation) {
         // User-selected association from dropdown — slot values override pattern defaults
         const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
           selectedAssociation.patternId,
@@ -910,7 +989,15 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       setIsThinking(false);
       setCurrentStepIndex(-1);
     }
-  }, [think, thought, thinker, craftFormat, selectedAssociation]);
+  }, [
+    think,
+    thought,
+    thinker,
+    craftFormat,
+    selectedAssociation,
+    associationOverrideEnabled,
+    associationOverrideSlotValues,
+  ]);
 
   // ── Rethink from a specific step ─────────────────────────────────────
 
@@ -960,8 +1047,23 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           return lines.join("\n");
         };
 
-        // Resolve association context — priority: selected association > saved association > pattern defaults
-        if (selectedAssociation) {
+        // Resolve association context — priority: custom override (form) > selected association > saved association > pattern defaults
+        if (
+          associationOverrideEnabled &&
+          thought?.patternId &&
+          associationOverrideSlotValues.length > 0
+        ) {
+          // Custom override form values applied to the thought's own pattern
+          const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
+            thought.patternId,
+          );
+          if (patternResult.isSuccess) {
+            associationContext = bakePatternContext(
+              patternResult.value,
+              associationOverrideSlotValues,
+            );
+          }
+        } else if (selectedAssociation) {
           // User-selected association from dropdown — slot values override pattern defaults
           const patternResult = await bkThinkerDB.thoughtPatternsRepo.get(
             selectedAssociation.patternId,
@@ -1105,6 +1207,8 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       trainOfThoughts,
       craftFormat,
       selectedAssociation,
+      associationOverrideEnabled,
+      associationOverrideSlotValues,
     ],
   );
 
@@ -1120,11 +1224,14 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
       // Start from the current conversation, preserving all completed steps
       const workingConversation = [...conversation];
 
-      // Resolve association context (priority: selected > saved > pattern defaults)
+      // Resolve association context (priority: custom override > selected > saved > pattern defaults)
       const associationContext = await resolveAssociationContext(
         selectedAssociation,
         think.thoughtAssociationId,
         thought?.patternId,
+        associationOverrideEnabled
+          ? associationOverrideSlotValues
+          : undefined,
       );
 
       // Load craft configs to resolve per-step craft formats
@@ -2288,6 +2395,18 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
           selectedAssociation={selectedAssociation}
           associationSelectLoading={associationSelectLoading}
           onAssociationChange={handleAssociationChange}
+          associationOverrideEnabled={associationOverrideEnabled}
+          onAssociationOverrideEnabledChange={setAssociationOverrideEnabled}
+          associationOverridePersistence={associationOverridePersistence}
+          onAssociationOverridePersistenceChange={
+            setAssociationOverridePersistence
+          }
+          associationOverrideSlotValues={associationOverrideSlotValues}
+          onAssociationOverrideSlotValuesChange={
+            setAssociationOverrideSlotValues
+          }
+          onSavePersistentAssociation={handleSavePersistentAssociation}
+          associationSaving={associationSaving}
           thinkers={thinkers}
           thinkersLoading={thinkersLoading}
           selectedThinkerId={thinker?.id}

@@ -2,18 +2,36 @@
  * BKThinkStudioSettingsModal — Modal for configuring Think Studio settings.
  *
  * Provides:
- *  - Association Select: choose a thought association to override pattern
- *    memory slot values during the thinking process.
+ *  - Association Override: choose a saved thought association (pattern) to
+ *    override pattern memory slot values, OR toggle ON a custom form to fill
+ *    the pattern's slot fields manually. Custom overrides can be persisted
+ *    as a new think pattern (association) or kept session-only.
  *  - Thinker Select: choose a thinker persona to apply during thinking.
  */
 
 "use client";
 
-import React from "react";
-import { X, Link2, Settings2, Brain, RotateCcw } from "lucide-react";
-import { Select, ListBox } from "@heroui/react";
-import type { BKThoughtAssociation } from "../thought-association/BKThoughtAssociation.Types";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  X,
+  Link2,
+  Settings2,
+  Brain,
+  RotateCcw,
+  Save,
+  Database,
+  Clock,
+} from "lucide-react";
+import { Select, ListBox, Switch, Input, TextArea } from "@heroui/react";
+import type {
+  BKThoughtAssociation,
+  BKAssociationSlotValue,
+} from "../thought-association/BKThoughtAssociation.Types";
+import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 import type { BKThinker } from "../thinker/BKThinker.Types";
+import { bkThinkerDB } from "../database/BKThinkerDatabase";
+import BunnyCodeEditor from "@/src/modules/bunny/src/form/builder/BunnyCodeEditor";
+import BunnyMDXEditor from "@/src/modules/bunny/src/form/builder/BunnyMDXEditor";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -38,6 +56,26 @@ export interface BKThinkStudioSettingsModalProps {
 
   // Last thought
   onClearLastThought?: () => void;
+
+  // ── Custom override (form) state ────────────────────────────────────
+  /** When true, the custom slot-value form is used instead of the select. */
+  associationOverrideEnabled: boolean;
+  onAssociationOverrideEnabledChange: (enabled: boolean) => void;
+  /** "session" = current session only; "persistent" = save as think pattern. */
+  associationOverridePersistence: "session" | "persistent";
+  onAssociationOverridePersistenceChange: (
+    mode: "session" | "persistent",
+  ) => void;
+  associationOverrideSlotValues: BKAssociationSlotValue[];
+  onAssociationOverrideSlotValuesChange: (
+    values: BKAssociationSlotValue[],
+  ) => void;
+  /** Persist the current custom slot values as a new think pattern. */
+  onSavePersistentAssociation: (
+    name: string,
+    values: BKAssociationSlotValue[],
+  ) => Promise<void>;
+  associationSaving: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -57,8 +95,90 @@ export default function BKThinkStudioSettingsModal({
   selectedThinker,
   onThinkerChange,
   onClearLastThought,
+  associationOverrideEnabled,
+  onAssociationOverrideEnabledChange,
+  associationOverridePersistence,
+  onAssociationOverridePersistenceChange,
+  associationOverrideSlotValues,
+  onAssociationOverrideSlotValuesChange,
+  onSavePersistentAssociation,
+  associationSaving,
 }: BKThinkStudioSettingsModalProps) {
+  // ── Local state ─────────────────────────────────────────────────────
+  const [pattern, setPattern] = useState<BKThoughtPattern | null>(null);
+  const [patternLoading, setPatternLoading] = useState(false);
+  const [persistName, setPersistName] = useState("");
+
+  // Keep the latest slot values available to the pattern loader without
+  // recreating the callback on every keystroke.
+  const slotValuesRef = useRef(associationOverrideSlotValues);
+  useEffect(() => {
+    slotValuesRef.current = associationOverrideSlotValues;
+  }, [associationOverrideSlotValues]);
+
+  // Load the pattern for the linked thought so the custom form can render slots.
+  // Seeds the override values from pattern defaults when there are no values
+  // already matching the current pattern (e.g. switching patterns).
+  const loadPattern = useCallback(
+    async (patternId: string) => {
+      setPatternLoading(true);
+      try {
+        const result = await bkThinkerDB.thoughtPatternsRepo.get(patternId);
+        if (result.isSuccess) {
+          setPattern(result.value);
+          const hasMatching = slotValuesRef.current.some((sv) =>
+            result.value.slots.some((s) => s.id === sv.slotId),
+          );
+          if (!hasMatching) {
+            onAssociationOverrideSlotValuesChange(
+              result.value.slots.map((slot) => ({
+                slotId: slot.id,
+                value: slot.defaultValue ?? "",
+              })),
+            );
+          }
+        } else {
+          setPattern(null);
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudioSettingsModal] Failed to load pattern:",
+          err,
+        );
+        setPattern(null);
+      } finally {
+        setPatternLoading(false);
+      }
+    },
+    [onAssociationOverrideSlotValuesChange],
+  );
+
+  useEffect(() => {
+    if (!thoughtPatternId) return;
+    loadPattern(thoughtPatternId);
+  }, [thoughtPatternId, loadPattern]);
+
   if (!isOpen) return null;
+
+  const updateSlotValue = (slotId: string, value: string) => {
+    const existing = associationOverrideSlotValues.findIndex(
+      (sv) => sv.slotId === slotId,
+    );
+    if (existing >= 0) {
+      const updated = [...associationOverrideSlotValues];
+      updated[existing] = { ...updated[existing], value };
+      onAssociationOverrideSlotValuesChange(updated);
+    } else {
+      onAssociationOverrideSlotValuesChange([
+        ...associationOverrideSlotValues,
+        { slotId, value },
+      ]);
+    }
+  };
+
+  const filledCount = associationOverrideSlotValues.filter(
+    (sv) => sv.value && sv.value.trim().length > 0,
+  ).length;
 
   return (
     <div
@@ -104,8 +224,8 @@ export default function BKThinkStudioSettingsModal({
             <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 space-y-3">
               <p className="text-xs text-purple-700 leading-relaxed">
                 Select a thinker persona to apply during the thinking process.
-                The thinker's name, role, and description will be injected into
-                the AI system prompt to shape its perspective.
+                The thinker&rsquo;s name, role, and description will be injected
+                into the AI system prompt to shape its perspective.
               </p>
 
               <div className="space-y-2">
@@ -221,7 +341,6 @@ export default function BKThinkStudioSettingsModal({
           </section>
 
           {/* ─── Section: Association Override ──────────────────── */}
-          {/* ─── Section: Association Override ──────────────────── */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <Link2 size={18} className="text-blue-600" />
@@ -231,112 +350,332 @@ export default function BKThinkStudioSettingsModal({
             </div>
 
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 space-y-3">
-              <p className="text-xs text-blue-700 leading-relaxed">
-                Select a thought association to override the pattern's
-                default memory slot values. The association's slot values
-                will be baked into the system context when running the thinking
-                process.
-              </p>
+              {/* Toggle: select a pattern OR fill fields manually */}
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 border border-blue-100 p-3">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-blue-800">
+                    Custom override form
+                  </p>
+                  <p className="text-xs text-blue-600 leading-relaxed">
+                    Toggle ON to fill the pattern&rsquo;s memory slot fields
+                    manually instead of picking a saved association. Think Studio
+                    will use these values when the toggle is on.
+                  </p>
+                </div>
+                <Switch
+                  id="association-override-toggle"
+                  isSelected={associationOverrideEnabled}
+                  onChange={(v) =>
+                    onAssociationOverrideEnabledChange(Boolean(v))
+                  }
+                >
+                  <Switch.Content>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Content>
+                </Switch>
+              </div>
 
-              {thoughtPatternId ? (
-                <div className="space-y-2">
-                  <label className="text-xs text-blue-600 font-medium uppercase tracking-wider">
-                    Association
-                  </label>
-                  <Select
-                    aria-label="Select association"
-                    value={selectedAssociationId ?? ""}
-                    onChange={onAssociationChange}
-                    placeholder={
-                      associationSelectLoading
-                        ? "Loading..."
-                        : associations.length === 0
-                          ? "No associations"
-                          : "Pattern defaults"
-                    }
-                    isDisabled={associationSelectLoading}
-                    className="w-full"
-                  >
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      {associationSelectLoading ? (
-                        <ListBox key="loading">
-                          <ListBox.Item
-                            key="loading-item"
-                            id="loading"
-                            textValue="Loading associations..."
-                            className="text-default-400 italic"
-                          >
-                            Loading associations...
-                          </ListBox.Item>
-                        </ListBox>
-                      ) : associations.length === 0 ? (
-                        <ListBox key="empty">
-                          <ListBox.Item
-                            key="empty-item"
-                            id="empty"
-                            textValue="No associations found"
-                            className="text-default-400 italic"
-                          >
-                            No associations for this pattern
-                          </ListBox.Item>
-                        </ListBox>
-                      ) : (
-                        <ListBox key="ready">
-                          {/* Option to clear selection (use pattern defaults) */}
-                          <ListBox.Item
-                            key=""
-                            id=""
-                            textValue="Pattern defaults (no override)"
-                          >
-                            <span className="text-gray-400">
-                              Pattern defaults
-                            </span>
-                          </ListBox.Item>
-                          {associations.map((assoc) => (
-                            <ListBox.Item
-                              key={assoc.id}
-                              id={assoc.id}
-                              textValue={assoc.name}
-                            >
-                              <div className="flex flex-col">
-                                <span className="text-sm">{assoc.name}</span>
-                                {assoc.description && (
-                                  <span className="text-xs text-gray-400 truncate max-w-[240px]">
-                                    {assoc.description}
-                                  </span>
-                                )}
-                              </div>
-                            </ListBox.Item>
-                          ))}
-                        </ListBox>
-                      )}
-                    </Select.Popover>
-                  </Select>
+              {associationOverrideEnabled ? (
+                /* ── Form mode ─────────────────────────────────── */
+                <div className="space-y-4">
+                  {/* Persistence selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-blue-600 font-medium uppercase tracking-wider">
+                      Persistence
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onAssociationOverridePersistenceChange("session")
+                        }
+                        className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                          associationOverridePersistence === "session"
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-blue-700 border-blue-200 hover:border-blue-400"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 text-xs font-semibold">
+                          <Clock size={13} />
+                          Session only
+                        </span>
+                        <span
+                          className={`text-[10px] leading-relaxed ${
+                            associationOverridePersistence === "session"
+                              ? "text-blue-100"
+                              : "text-blue-500"
+                          }`}
+                        >
+                          Non-persistent. Fields are available only during the
+                          current session.
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onAssociationOverridePersistenceChange("persistent")
+                        }
+                        className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
+                          associationOverridePersistence === "persistent"
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-blue-700 border-blue-200 hover:border-blue-400"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 text-xs font-semibold">
+                          <Database size={13} />
+                          Persistent
+                        </span>
+                        <span
+                          className={`text-[10px] leading-relaxed ${
+                            associationOverridePersistence === "persistent"
+                              ? "text-blue-100"
+                              : "text-blue-500"
+                          }`}
+                        >
+                          Available in this session and saved as a think pattern.
+                        </span>
+                      </button>
+                    </div>
+                  </div>
 
-                  {/* Active override badge */}
-                  {selectedAssociation && (
-                    <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-100/60 px-2.5 py-1.5 rounded-md">
-                      <Link2 size={12} className="shrink-0" />
-                      <span>
-                        <strong>{selectedAssociation.name}</strong> —{" "}
-                        {selectedAssociation.slotValues.length} slot value
-                        {selectedAssociation.slotValues.length !== 1
-                          ? "s"
-                          : ""}{" "}
-                        will override the pattern defaults
-                      </span>
+                  {/* Slot fields */}
+                  {!thoughtPatternId ? (
+                    <p className="text-xs text-blue-400 italic">
+                      No thought pattern is linked to the current thought. Load a
+                      thought with a pattern to fill its memory slot fields.
+                    </p>
+                  ) : patternLoading ? (
+                    <p className="text-xs text-blue-400 italic">
+                      Loading pattern slots...
+                    </p>
+                  ) : !pattern ? (
+                    <p className="text-xs text-blue-400 italic">
+                      Pattern could not be loaded.
+                    </p>
+                  ) : pattern.slots.length === 0 ? (
+                    <p className="text-xs text-blue-400 italic">
+                      This pattern defines no memory slots.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-blue-600 leading-relaxed">
+                        Fill values for each slot defined by the
+                        &ldquo;{pattern.name}&rdquo; pattern. These will be used
+                        by Think Studio while the override is active.
+                      </p>
+                      {pattern.slots.map((slot) => {
+                        const slotVal = associationOverrideSlotValues.find(
+                          (sv) => sv.slotId === slot.id,
+                        );
+                        const value = slotVal?.value ?? "";
+                        return (
+                          <div key={slot.id} className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-700">
+                              {slot.label || slot.name}
+                              {slot.required && (
+                                <span className="text-red-500 ml-0.5">*</span>
+                              )}
+                              <span className="text-xs text-gray-400 ml-2">
+                                ({slot.type})
+                              </span>
+                            </label>
+                            {slot.type === "text" ? (
+                              <Input
+                                placeholder={`Enter ${slot.name}`}
+                                value={value}
+                                onChange={(e) =>
+                                  updateSlotValue(slot.id, e.target.value)
+                                }
+                                className="w-full bg-white"
+                              />
+                            ) : slot.type === "textarea" ? (
+                              <TextArea
+                                placeholder={`Enter ${slot.name}`}
+                                value={value}
+                                onChange={(e) =>
+                                  updateSlotValue(slot.id, e.target.value)
+                                }
+                                className="w-full min-h-[80px] bg-white"
+                              />
+                            ) : slot.type === "code-editor" ? (
+                              <BunnyCodeEditor
+                                id={`slot-value-${slot.id}`}
+                                value={value}
+                                onChange={(val) =>
+                                  updateSlotValue(slot.id, val)
+                                }
+                                placeholder={`Enter ${slot.name}`}
+                                language="typescript"
+                                minHeight={80}
+                              />
+                            ) : (
+                              <BunnyMDXEditor
+                                id={`slot-value-${slot.id}`}
+                                value={value}
+                                onChange={(val) =>
+                                  updateSlotValue(slot.id, val)
+                                }
+                                placeholder={`Enter ${slot.name}`}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* Active override badge */}
+                  <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-100/60 px-2.5 py-1.5 rounded-md">
+                    <Link2 size={12} className="shrink-0" />
+                    <span>
+                      <strong>{filledCount}</strong> field
+                      {filledCount !== 1 ? "s" : ""} filled — will override the
+                      pattern defaults
+                      {associationOverridePersistence === "persistent"
+                        ? " and save as a think pattern"
+                        : " for this session only"}
+                    </span>
+                  </div>
+
+                  {/* Persistent save */}
+                  {associationOverridePersistence === "persistent" &&
+                    thoughtPatternId &&
+                    pattern &&
+                    pattern.slots.length > 0 && (
+                      <div className="space-y-2 border-t border-blue-200 pt-3">
+                        <label className="text-xs text-blue-600 font-medium uppercase tracking-wider">
+                          Save as Think Pattern
+                        </label>
+                        <Input
+                          placeholder="Pattern name (e.g. Marketing Strategy)"
+                          value={persistName}
+                          onChange={(e) => setPersistName(e.target.value)}
+                          className="w-full bg-white"
+                        />
+                        <button
+                          onClick={() =>
+                            onSavePersistentAssociation(
+                              persistName.trim(),
+                              associationOverrideSlotValues,
+                            )
+                          }
+                          disabled={
+                            !persistName.trim() || associationSaving
+                          }
+                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-sm font-medium"
+                        >
+                          <Save size={14} />
+                          {associationSaving
+                            ? "Saving..."
+                            : "Save Think Pattern"}
+                        </button>
+                      </div>
+                    )}
                 </div>
               ) : (
-                <p className="text-xs text-blue-400 italic">
-                  No thought pattern is linked to the current thought. Load a
-                  thought with a pattern to configure association overrides.
-                </p>
+                /* ── Select mode (default) ─────────────────────── */
+                thoughtPatternId ? (
+                  <div className="space-y-2">
+                    <label className="text-xs text-blue-600 font-medium uppercase tracking-wider">
+                      Association
+                    </label>
+                    <Select
+                      aria-label="Select association"
+                      value={selectedAssociationId ?? ""}
+                      onChange={onAssociationChange}
+                      placeholder={
+                        associationSelectLoading
+                          ? "Loading..."
+                          : associations.length === 0
+                            ? "No associations"
+                            : "Pattern defaults"
+                      }
+                      isDisabled={associationSelectLoading}
+                      className="w-full"
+                    >
+                      <Select.Trigger>
+                        <Select.Value />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        {associationSelectLoading ? (
+                          <ListBox key="loading">
+                            <ListBox.Item
+                              key="loading-item"
+                              id="loading"
+                              textValue="Loading associations..."
+                              className="text-default-400 italic"
+                            >
+                              Loading associations...
+                            </ListBox.Item>
+                          </ListBox>
+                        ) : associations.length === 0 ? (
+                          <ListBox key="empty">
+                            <ListBox.Item
+                              key="empty-item"
+                              id="empty"
+                              textValue="No associations found"
+                              className="text-default-400 italic"
+                            >
+                              No associations for this pattern
+                            </ListBox.Item>
+                          </ListBox>
+                        ) : (
+                          <ListBox key="ready">
+                            {/* Option to clear selection (use pattern defaults) */}
+                            <ListBox.Item
+                              key=""
+                              id=""
+                              textValue="Pattern defaults (no override)"
+                            >
+                              <span className="text-gray-400">
+                                Pattern defaults
+                              </span>
+                            </ListBox.Item>
+                            {associations.map((assoc) => (
+                              <ListBox.Item
+                                key={assoc.id}
+                                id={assoc.id}
+                                textValue={assoc.name}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{assoc.name}</span>
+                                  {assoc.description && (
+                                    <span className="text-xs text-gray-400 truncate max-w-[240px]">
+                                      {assoc.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        )}
+                      </Select.Popover>
+                    </Select>
+
+                    {/* Active override badge */}
+                    {selectedAssociation && (
+                      <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-100/60 px-2.5 py-1.5 rounded-md">
+                        <Link2 size={12} className="shrink-0" />
+                        <span>
+                          <strong>{selectedAssociation.name}</strong> —{" "}
+                          {selectedAssociation.slotValues.length} slot value
+                          {selectedAssociation.slotValues.length !== 1
+                            ? "s"
+                            : ""}{" "}
+                          will override the pattern defaults
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-blue-400 italic">
+                    No thought pattern is linked to the current thought. Load a
+                    thought with a pattern to configure association overrides.
+                  </p>
+                )
               )}
             </div>
           </section>

@@ -24,7 +24,8 @@
  *
  * ─── Actions ──────────────────────────────────────────────────────────
  *   • Save              — Persists the edited YAML to the workflow template.
- *   • Test Workflow     — Runs the pipeline in-memory via useBFlowTestRun.
+ *   • Run               — Runs the pipeline and registers it as a session
+ *                         (optional variable overrides via the dropdown).
  *   • Back to Workflow  — Navigates back to the workflow list.
  *   • Generative Menu   — AI-powered generation of agents, jobs, or steps
  *                         via HeroUI Select with modal dialogs.
@@ -33,7 +34,14 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Modal, Select, ListBox } from "@heroui/react";
+import {
+  Button,
+  Dropdown,
+  Label,
+  Modal,
+  Select,
+  ListBox,
+} from "@heroui/react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -53,6 +61,9 @@ import {
   Sparkles,
   Layers,
   ListTree,
+  Play,
+  ChevronDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
@@ -65,6 +76,7 @@ import { BFlowStepDetailsModal } from "../run/BFlowStepDetailsModal";
 import { BFlowOutputModal } from "../run/BFlowOutputModal";
 import { BFlowComputedInputsModal } from "../run/BFlowComputedInputsModal";
 import { BFlowReportViewModal } from "../run/BFlowReportViewModal";
+import { BFlowRunVariablesModal } from "../run/BFlowRunVariablesModal";
 import { BFlowRunInputResolver } from "../run/BFlowRun.InputResolver";
 import { BFlowRunPromptBuilder } from "../run/BFlowRun.SectionBuilder";
 import { BFlowPromptBuilderKind } from "../run/BFlowRun.Prompt.Types";
@@ -273,6 +285,14 @@ export default function BFlowWorkflowStudio({
   // ── Generative Menu state ──────────────────────────────────────────
   const [generativeMenuOption, setGenerativeMenuOption] =
     useState<GenerativeMenuOption>(null);
+
+  // ── Run-as-session state ──────────────────────────────────────────
+  const [variablesModalOpen, setVariablesModalOpen] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  /** Run id of the most recent run registered as a session (for de-dup). */
+  const [savedRunId, setSavedRunId] = useState<string | null>(null);
 
   // ── Parse YAML and extract jobs, variables + reports ──────────────
   const parseAndSetJobs = useCallback((yaml: string) => {
@@ -586,28 +606,102 @@ export default function BFlowWorkflowStudio({
     testError,
     rerunningSteps,
     startTestRun,
+    saveTestRunAsSession,
     rerunStep,
     clearTestRun,
   } = useBFlowTestRun(pipelineEntity, workflow, currentJobs, resolvedVariables);
 
   const hasTestRunResult = testRun !== undefined;
+  /** True when the current in-memory results have NOT been registered yet. */
+  const canSaveTestRunAsSession =
+    hasTestRunResult && testRun?.id !== savedRunId && !isTestRunning;
 
-  // ── Test Run with pre-validation ─────────────────────────────────
-  const handleTestRun = useCallback(async () => {
-    // In interactive mode, skip YAML validation — the form
-    // serializes to valid YAML automatically
+  // ── Ephemeral run (in-memory only, no DB write) ──────────────────
+  // Supersedes the old "Test Workflow" button — run the workflow and
+  // keep results in browser memory so the user can inspect them, then
+  // optionally "Save as Run" to register them as a session.
+  const handleEphemeralRun = useCallback(async () => {
     if (!interactiveMode) {
-      // Validate YAML against Zod schema before running
       const validationError = validateWorkflowYaml(yamlContent);
       if (validationError) {
         setYamlError(validationError);
         return;
       }
     }
-    // Clear previous validation error and run
     setYamlError(null);
     await startTestRun();
   }, [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode]);
+
+  // ── Run then register the run as a session ───────────────────────
+  // Runs the workflow (like a test run) and persists the completed
+  // pipeline/job/step runs to IndexedDB so it shows up in the runs list.
+  const handleRunAsSession = useCallback(async () => {
+    if (!interactiveMode) {
+      const validationError = validateWorkflowYaml(yamlContent);
+      if (validationError) {
+        setYamlError(validationError);
+        return;
+      }
+    }
+    setYamlError(null);
+    setSessionStatus("saving");
+    try {
+      const runId = await startTestRun({ persistAsSession: true });
+      if (runId) setSavedRunId(runId);
+      setSessionStatus("saved");
+      setTimeout(() => setSessionStatus("idle"), 2500);
+    } catch {
+      setSessionStatus("error");
+      setTimeout(() => setSessionStatus("idle"), 3000);
+    }
+  }, [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode]);
+
+  // ── Run with variable overrides (modal form) ─────────────────────
+  // Opens the variable-override modal, then runs with the overridden
+  // variables and registers the result as a session run.
+  const handleRunWithOverrides = useCallback(
+    async (overrides: BFlowPipelineVariable[]) => {
+      setVariablesModalOpen(false);
+      if (!interactiveMode) {
+        const validationError = validateWorkflowYaml(yamlContent);
+        if (validationError) {
+          setYamlError(validationError);
+          return;
+        }
+      }
+      setYamlError(null);
+      setSessionStatus("saving");
+      try {
+        const runId = await startTestRun({
+          persistAsSession: true,
+          variables: overrides,
+        });
+        if (runId) setSavedRunId(runId);
+        setSessionStatus("saved");
+        setTimeout(() => setSessionStatus("idle"), 2500);
+      } catch {
+        setSessionStatus("error");
+        setTimeout(() => setSessionStatus("idle"), 3000);
+      }
+    },
+    [yamlContent, validateWorkflowYaml, startTestRun, interactiveMode],
+  );
+
+  // ── Save current ephemeral test run results as a session run ────
+  // Registers the in-memory results (testRun/testJobRuns/testStepRuns)
+  // to IndexedDB without re-running the workflow.
+  const handleSaveTestRunAsSession = useCallback(async () => {
+    setSessionStatus("saving");
+    const ok = await saveTestRunAsSession();
+    if (ok) {
+      setSavedRunId(testRun?.id ?? null);
+      setSessionStatus("saved");
+      setTimeout(() => setSessionStatus("idle"), 2500);
+    } else {
+      setSessionStatus("error");
+      setTimeout(() => setSessionStatus("idle"), 3000);
+    }
+  }, [saveTestRunAsSession, testRun?.id]);
 
   // ── Effective run data (prefers test run) ─────────────────────────
   const currentJobRunEffective = useMemo<BFlowJobRun | undefined>(() => {
@@ -852,21 +946,79 @@ export default function BFlowWorkflowStudio({
                 Guide
               </Button>
 
-              {/* Test Run Button — validates YAML against Zod schema before running */}
-              <Button
-                onPress={handleTestRun}
-                isDisabled={isTestRunning || !!yamlError}
-                variant="ghost"
-                size="sm"
-                className="font-medium border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 data-[hover=true]:bg-violet-100"
-              >
-                {isTestRunning ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Beaker className="w-4 h-4" />
-                )}
-                {isTestRunning ? "Testing..." : "Test Workflow"}
-              </Button>
+              {/* ── Run split button ────────────────────────────────── */}
+              <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-emerald-300 shadow-sm">
+                <button
+                  onClick={handleEphemeralRun}
+                  disabled={isTestRunning || !!yamlError}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Run the workflow in-memory (ephemeral). Save it as a run afterwards."
+                >
+                  {isTestRunning ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5" />
+                  )}
+                  Run
+                </button>
+                <Dropdown>
+                  <Dropdown.Trigger>
+                    <button
+                      disabled={isTestRunning || !!yamlError}
+                      className="inline-flex items-center justify-center w-7 px-0.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border-l border-emerald-200"
+                      title="Run options"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </Dropdown.Trigger>
+                  <Dropdown.Popover>
+                    <Dropdown.Menu aria-label="Run options">
+                      <Dropdown.Item
+                        key="run-session"
+                        onPress={handleRunAsSession}
+                      >
+                        <Save className="w-4 h-4" />
+                        <Label>Run then register the run as session</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="run-variables"
+                        onPress={() => setVariablesModalOpen(true)}
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        <Label>Run with variable overrides</Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              </div>
+
+              {/* ── Save current ephemeral test run as a run ────────── */}
+              {canSaveTestRunAsSession && (
+                <Button
+                  onPress={handleSaveTestRunAsSession}
+                  isDisabled={isTestRunning}
+                  variant="ghost"
+                  size="sm"
+                  className="font-medium border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 data-[hover=true]:bg-emerald-100"
+                >
+                  <Save className="w-4 h-4" />
+                  Save as Run
+                </Button>
+              )}
+
+              {/* Session registration status indicator */}
+              {sessionStatus === "saved" && (
+                <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Registered
+                </span>
+              )}
+              {sessionStatus === "error" && (
+                <span className="flex items-center gap-1 text-xs text-danger font-medium">
+                  <XCircle className="w-3.5 h-3.5" />
+                  Registration Failed
+                </span>
+              )}
 
               {/* Save Button */}
               <Button
@@ -1133,8 +1285,8 @@ export default function BFlowWorkflowStudio({
                         <div className="text-center py-8">
                           <Beaker className="w-10 h-10 text-default-200 mx-auto mb-3" />
                           <p className="text-default-400 text-xs">
-                            Click &ldquo;Test Workflow&rdquo; to execute
-                            in-memory
+                            Click &ldquo;Run&rdquo; to execute and register a
+                            session
                           </p>
                         </div>
                       )}
@@ -1329,6 +1481,19 @@ export default function BFlowWorkflowStudio({
         onYamlUpdate={handleGenerativeYamlUpdate}
         onClose={() => setGenerativeMenuOption(null)}
       />
+
+      {/* ═══════════════════════════════════════════════════════════════
+           RUN WITH VARIABLE OVERRIDES MODAL — variable override form
+           (mounted only while open so the form re-initialises each time)
+           ═══════════════════════════════════════════════════════════════ */}
+      {variablesModalOpen && (
+        <BFlowRunVariablesModal
+          variables={resolvedVariables}
+          isRunning={isTestRunning}
+          onClose={() => setVariablesModalOpen(false)}
+          onConfirm={handleRunWithOverrides}
+        />
+      )}
     </div>
   );
 }

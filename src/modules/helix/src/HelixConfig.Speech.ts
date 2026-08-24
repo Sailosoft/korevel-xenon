@@ -11,8 +11,8 @@
  * Provider identity, API keys, and endpoints are reused from HelixConfig.ts
  * (HelixAIProvider / HELIX_AI_PROVIDERS) — no duplicated config.
  *
- * For now only SiliconFlow is supported for speech generation; more providers
- * can be added here as they gain speech endpoints. Reference:
+ * For now SiliconFlow and DeepInfra are supported for speech generation; more
+ * providers can be added here as they gain speech endpoints. Reference:
  * src/modules/bunny-studio/docs/Feature/AudioSubmit.md
  */
 
@@ -20,15 +20,20 @@ import type { HelixAIProvider } from "./HelixConfig";
 
 // ── Provider identity ─────────────────────────────────────────────────────────
 // Reuses the shared HelixAIProvider union. Speech generation currently supports
-// only "siliconFlow" — the type narrows the union to speech-capable providers.
+// "siliconFlow" and "deepinfra" — the type narrows the union to speech-capable
+// providers.
 
 /** Providers that currently support speech (TTS) generation via Helix. */
-export type HelixSpeechProvider = Extract<HelixAIProvider, "siliconFlow">;
+export type HelixSpeechProvider = Extract<
+  HelixAIProvider,
+  "siliconFlow" | "deepinfra"
+>;
 
 // ── Provider-specific speech (TTS) model lists ────────────────────────────────
 // Add or remove speech models here per provider. The "default" key is
 // auto-computed by merging all other providers — no manual duplication needed.
-// For now only SiliconFlow is populated; other providers remain unsupported.
+// For now SiliconFlow and DeepInfra are populated; other providers remain
+// unsupported.
 
 export const HELIX_PROVIDER_SPEECH_MODELS: Partial<
   Record<Exclude<HelixAIProvider, "default">, readonly string[]>
@@ -40,6 +45,12 @@ export const HELIX_PROVIDER_SPEECH_MODELS: Partial<
     "fishaudio/fish-speech-1.5",
     // FunAudioLLM — voice / reference-based TTS
     "FunAudioLLM/CosyVoice2-0.5B",
+  ] as const,
+
+  // DeepInfra — OpenAI-compatible TTS endpoint
+  deepinfra: [
+    // Audio8 — lightweight preview TTS
+    "Audio8/Audio8-TTS-Preview-0.6b",
   ] as const,
 };
 
