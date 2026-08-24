@@ -6,23 +6,28 @@
  * provider. Provider identity, API keys, and endpoints are reused from
  * HelixConfig.ts (HelixAIProvider / HELIX_AI_PROVIDERS) — no duplicated config.
  *
- * For now only SiliconFlow is supported for image generation; more providers
- * can be added here as they gain image endpoints.
+ * For now SiliconFlow, DeepInfra, and Google AI Studio are supported for image
+ * generation; more providers can be added here as they gain image endpoints.
  */
 
 import type { HelixAIProvider } from "./HelixConfig";
 
 // ── Provider identity ─────────────────────────────────────────────────────────
 // Reuses the shared HelixAIProvider union. Image generation currently supports
-// only "siliconFlow" — the type narrows the union to image-capable providers.
+// "siliconFlow", "deepinfra", and "googleAIStudio" — the type narrows the union
+// to image-capable providers.
 
 /** Providers that currently support image generation via Helix. */
-export type HelixImageProvider = Extract<HelixAIProvider, "siliconFlow">;
+export type HelixImageProvider = Extract<
+  HelixAIProvider,
+  "siliconFlow" | "deepinfra" | "googleAIStudio"
+>;
 
 // ── Provider-specific image model lists ───────────────────────────────────────
 // Add or remove image models here per provider. The "default" key is
 // auto-computed by merging all other providers — no manual duplication needed.
-// For now only SiliconFlow is populated; other providers remain unsupported.
+// For now SiliconFlow, DeepInfra, and Google AI Studio are populated; other
+// providers remain unsupported.
 
 export const HELIX_PROVIDER_IMAGE_MODELS: Partial<
   Record<Exclude<HelixAIProvider, "default">, readonly string[]>
@@ -34,6 +39,31 @@ export const HELIX_PROVIDER_IMAGE_MODELS: Partial<
     // Black Forest Labs — FLUX.2 generation
     "black-forest-labs/FLUX.2-flex",
     "black-forest-labs/FLUX.2-pro",
+  ] as const,
+
+  // DeepInfra — OpenAI-compatible image endpoints
+  deepinfra: [
+    // Black Forest Labs — FLUX.2 klein (compact) text-to-image
+    "black-forest-labs/FLUX-2-klein-4b",
+    "black-forest-labs/FLUX-2-klein-9b",
+    // Black Forest Labs — FLUX.2 dev (open weights)
+    "black-forest-labs/FLUX-2-dev",
+    // Bria — image generation
+    "Bria/Bria-3.2",
+    "Bria/Bria-3.2-vector",
+    // ByteDance — Seedream text-to-image
+    "ByteDance/Seedream-4",
+    "ByteDance/Seedream-4.5",
+    // DeepSeek — Janus-Pro multimodal text-to-image
+    "deepseek-ai/Janus-Pro-7B",
+  ] as const,
+
+  // Google AI Studio — Gemini image generation endpoints
+  googleAIStudio: [
+    // Gemini 3.1 generation — image models
+    "gemini-3.1-flash-image",
+    "gemini-3.1-flash-lite-image",
+    "gemini-3-pro-image",
   ] as const,
 };
 

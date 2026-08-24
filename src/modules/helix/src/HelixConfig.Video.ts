@@ -6,23 +6,28 @@
  * provider. Provider identity, API keys, and endpoints are reused from
  * HelixConfig.ts (HelixAIProvider / HELIX_AI_PROVIDERS) — no duplicated config.
  *
- * For now only SiliconFlow is supported for video generation; more providers
- * can be added here as they gain video endpoints.
+ * For now SiliconFlow and DeepInfra are supported for video generation; more
+ * providers can be added here as they gain video endpoints.
  */
 
 import type { HelixAIProvider } from "./HelixConfig";
 
 // ── Provider identity ─────────────────────────────────────────────────────────
 // Reuses the shared HelixAIProvider union. Video generation currently supports
-// only "siliconFlow" — the type narrows the union to video-capable providers.
+// "siliconFlow" and "deepinfra" — the type narrows the union to video-capable
+// providers.
 
 /** Providers that currently support video generation via Helix. */
-export type HelixVideoProvider = Extract<HelixAIProvider, "siliconFlow">;
+export type HelixVideoProvider = Extract<
+  HelixAIProvider,
+  "siliconFlow" | "deepinfra"
+>;
 
 // ── Provider-specific video model lists ───────────────────────────────────────
 // Add or remove video models here per provider. The "default" key is
 // auto-computed by merging all other providers — no manual duplication needed.
-// For now only SiliconFlow is populated; other providers remain unsupported.
+// For now SiliconFlow and DeepInfra are populated; other providers remain
+// unsupported.
 
 export const HELIX_PROVIDER_VIDEO_MODELS: Partial<
   Record<Exclude<HelixAIProvider, "default">, readonly string[]>
@@ -32,6 +37,14 @@ export const HELIX_PROVIDER_VIDEO_MODELS: Partial<
     "Wan-AI/Wan2.2-I2V-A14B",
     // Wan-AI — Text-to-Video (prompt only)
     "Wan-AI/Wan2.2-T2V-A14B",
+  ] as const,
+
+  // DeepInfra — OpenAI-compatible video endpoints
+  deepinfra: [
+    // PrunaAI — text-to-video
+    "PrunaAI/p-video",
+    // PrunaAI — video with avatar
+    "PrunaAI/p-video-avatar",
   ] as const,
 };
 
