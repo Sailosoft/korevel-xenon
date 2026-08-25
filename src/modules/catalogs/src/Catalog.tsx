@@ -193,6 +193,16 @@ function CatalogInner() {
                 Korevel
                 <span style={{ color: theme.logoAccent }}>Xenon</span>
               </span>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border"
+                style={{
+                  color: theme.logoText,
+                  borderColor: theme.navBorder,
+                  backgroundColor: theme.cardBadgeBg,
+                }}
+              >
+                v{pkg.version}
+              </span>
             </div>
 
             {/* Nav links (desktop) */}
@@ -554,21 +564,11 @@ function CatalogInner() {
       >
         <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
           <p
-            className="text-sm flex items-center gap-2"
+            className="text-sm"
             style={{ color: theme.footerText }}
           >
             &copy; {new Date().getFullYear()} Korevel Xenon. All rights
             reserved.
-            <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border"
-              style={{
-                color: theme.footerText,
-                borderColor: theme.footerBorder,
-                backgroundColor: theme.cardBadgeBg,
-              }}
-            >
-              v{pkg.version}
-            </span>
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a
