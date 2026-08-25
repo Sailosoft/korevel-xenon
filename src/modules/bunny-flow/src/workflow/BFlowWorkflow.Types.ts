@@ -80,6 +80,7 @@ export const BFlowStepOutputTypeSchema = z.enum([
   "csv",
   "json_array",
   "yaml",
+  "tailwind",
 ]);
 export type BFlowStepOutputType = z.infer<typeof BFlowStepOutputTypeSchema>;
 
@@ -117,7 +118,7 @@ export const BFlowStepSchema = z.object({
    * Simple output type for the step's response format.
    * Only valid when `output` is NOT defined (i.e. no structured outputs).
    * If neither `output` nor `outputType` is set, defaults to "markdown".
-   * Values: plain | markdown | json | html | csv | json_array | yaml
+   * Values: plain | markdown | json | html | csv | json_array | yaml | tailwind
    */
   outputType: BFlowStepOutputTypeSchema.optional(),
 });

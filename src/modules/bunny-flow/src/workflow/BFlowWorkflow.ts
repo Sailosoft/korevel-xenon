@@ -148,7 +148,7 @@ jobs:
         name: step-1
         prompts: ""
         # Step-level outputType (optional, default "markdown"):
-        # outputType: markdown  # plain | markdown | html | json | csv | yaml
+        # outputType: markdown  # plain | markdown | html | json | csv | yaml | tailwind
         # Or use structured outputs:
         # output:
         #   - name: result
