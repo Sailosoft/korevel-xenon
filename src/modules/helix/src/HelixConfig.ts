@@ -229,8 +229,6 @@ const HELIX_PROVIDER_MODELS: Record<
     // Legacy 1.5 Stable Generation
     "gemini-1.5-pro",
     "gemini-1.5-flash",
-
-    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
     "gemini-3-flash-preview",
     "gemini-3.5-flash-lite",

@@ -86,7 +86,19 @@ export interface BSConversation {
   provider?: HelixAIProvider;
   /** model used to produce the output */
   model?: string;
-  /** message content */
+  /**
+   * The AI's private reasoning preamble, extracted from <thought>…</thought>
+   * tags in the raw stream. Stored in its own column (separate from `content`)
+   * and rendered in a collapsible "Thought process" panel. It is NEVER included
+   * in persistence of the main content, in exports, or in the history sent
+   * back to the AI on the next turn (rules: thought is display-only).
+   */
+  thought?: string;
+  /**
+   * Message content. For assistant responses this holds ONLY the actual
+   * output — the <thought>…</thought> preamble is stripped out and kept in
+   * the `thought` column instead.
+   */
   content: string;
   /** base on render type (e.g. "markdown", "mermaid", ...) */
   contentType?: RenderFormat;

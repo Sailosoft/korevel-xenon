@@ -78,6 +78,21 @@ const SECTIONS: BSSidebarSection[] = [
     ],
   },
   {
+    title: "Favorites",
+    items: [
+      {
+        href: "/modules/bunny-studio/chat-favorites",
+        label: "Chat Favorites",
+        icon: <Star className="w-4 h-4" />,
+      },
+      {
+        href: "/modules/bunny-studio/chat-categories",
+        label: "Chat Categories",
+        icon: <Tags className="w-4 h-4" />,
+      },
+    ],
+  },
+  {
     title: "Image",
     items: [
       {
@@ -179,21 +194,6 @@ const SECTIONS: BSSidebarSection[] = [
         label: "Knowledges",
         icon: <Database className="w-4 h-4" />,
         matchPrefix: true,
-      },
-    ],
-  },
-  {
-    title: "Favorites",
-    items: [
-      {
-        href: "/modules/bunny-studio/chat-favorites",
-        label: "Chat Favorites",
-        icon: <Star className="w-4 h-4" />,
-      },
-      {
-        href: "/modules/bunny-studio/chat-categories",
-        label: "Chat Categories",
-        icon: <Tags className="w-4 h-4" />,
       },
     ],
   },

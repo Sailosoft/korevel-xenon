@@ -5,6 +5,7 @@
 // proper IndexedDB schema migration without data loss.
 
 import type { IPhazeModelBuilder } from "@/src/modules/phaze/src/PhazeDB";
+import { splitThoughtBlocks } from "./modules/chat/BSChat.Thought";
 
 export function configureBSMigrations(model: IPhazeModelBuilder): void {
   // ── Version 1 — initial schema ────────────────────────────────────
@@ -142,5 +143,43 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
       table.uuid();
       table.index("updatedDate");
     });
+  });
+
+  // ── Version 8 — AI thought-process column (feature: thought response) ───
+  // Assistant responses may carry a private <thought>…</thought> preamble.
+  // It is stored in its own `thought` column so the main `content` column and
+  // multi-turn history contain ONLY the actual output. (Dexie stores the field
+  // on every record; indexing it makes it a first-class column in the schema.)
+  model.schema((config) => {
+    config.update(
+      "conversations",
+      (table) => {
+        table.index("thought");
+      },
+      // Backfill legacy rows: any assistant message whose `content` still
+      // contains <thought>…</thought> tags (persisted before this feature was
+      // added) is split in place — the thought moves to its own column and
+      // `content` keeps only the real answer. No regeneration needed.
+      async (trans) => {
+        const table = trans.table("conversations");
+        await table
+          .toCollection()
+          .modify(
+            (row: { type?: string; content?: string; thought?: string }) => {
+              try {
+                if (row.type === "assistant" && typeof row.content === "string") {
+                  const split = splitThoughtBlocks(row.content);
+                  if (split.thought && !row.thought) {
+                    row.thought = split.thought;
+                    row.content = split.content;
+                  }
+                }
+              } catch {
+                /* keep the original row if a single parse ever fails */
+              }
+            },
+          );
+      },
+    );
   });
 }

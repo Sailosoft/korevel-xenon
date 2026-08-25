@@ -29,6 +29,10 @@ import type {
   BSConversationType,
 } from "./BSChat.Types";
 import type { BSKnowledgeSearchHit } from "../knowledge-base/BSKnowledgeBase.Orama";
+import {
+  splitThoughtBlocks,
+  stripThoughtTags,
+} from "./BSChat.Thought";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -412,7 +416,12 @@ export function useBSChat({
           role: (c.type === "assistant" ? "assistant" : "user") as
             | "user"
             | "assistant",
-          content: c.content,
+          // Assistant history forwards ONLY the actual output — the thought
+          // preamble is never sent back to the AI on the next turn (rule:
+          // thought is not part of the multi-turn conversation). stripThoughtTags
+          // also protects legacy rows that may have tags embedded in `content`.
+          content:
+            c.type === "assistant" ? stripThoughtTags(c.content) : c.content,
         }));
       // The current user message carries the base64 image URLs as multimodal
       // image parts (feature: attach image). Prior history stays text-only so
@@ -469,11 +478,22 @@ export function useBSChat({
         const decoder = new TextDecoder();
         accumulatedRef.current = "";
 
-        // Stream tokens into the assistant bubble
+        // Stream tokens into the assistant bubble — the raw text is split on
+        // every tick into the thought preamble (kept in its own column) and the
+        // actual output (feature: thought response). This lets the bubble show
+        // the "thinking…" animation inside the collapsible thought panel while
+        // the model reasons, then stream the real answer once </thought> lands.
         const updateStreamed = (text: string) => {
+          const split = splitThoughtBlocks(text);
           setConversations((prev) =>
             prev.map((c) =>
-              c.id === assistantId ? { ...c, content: text } : c,
+              c.id === assistantId
+                ? {
+                    ...c,
+                    thought: split.thought || undefined,
+                    content: split.content,
+                  }
+                : c,
             ),
           );
         };
@@ -486,9 +506,14 @@ export function useBSChat({
         }
 
         // Persist the final assistant message (with the measured duration).
+        // The raw stream is split so the thought preamble is saved to its own
+        // column and `content` holds ONLY the actual output (feature: thought
+        // is stored separately and never pollutes the main content column).
+        const finalSplit = splitThoughtBlocks(accumulatedRef.current);
         const finalAssistant: BSConversation = {
           ...placeholder,
-          content: accumulatedRef.current,
+          thought: finalSplit.thought || undefined,
+          content: finalSplit.content,
           responseMs: Date.now() - requestStartTime,
           ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
         };
@@ -496,16 +521,18 @@ export function useBSChat({
         setConversations((prev) =>
           prev.map((c) => (c.id === assistantId ? finalAssistant : c)),
         );
-        void updateTitleFromResponse(accumulatedRef.current);
+        void updateTitleFromResponse(finalSplit.content);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           // User aborted — keep whatever was accumulated
           if (accumulatedRef.current) {
+            const abortSplit = splitThoughtBlocks(accumulatedRef.current);
             await bsDB.conversationsRepo.create({
               id: assistantId,
               chatId: chatIdValue,
               type: "assistant",
-              content: accumulatedRef.current,
+              thought: abortSplit.thought || undefined,
+              content: abortSplit.content,
               provider,
               model,
               contentType: options.contentType,
@@ -514,7 +541,7 @@ export function useBSChat({
               responseMs: Date.now() - requestStartTime,
               ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
             });
-            void updateTitleFromResponse(accumulatedRef.current);
+            void updateTitleFromResponse(abortSplit.content);
           }
         } else {
           console.error("[BSChat] Streaming error:", err);
@@ -525,9 +552,11 @@ export function useBSChat({
             }`;
           // Error bubble — rendered in red and never sent back to the AI.
           // Persisted so it also shows after a reload (feature: error bubble).
+          const errorSplit = splitThoughtBlocks(errorContent);
           const errorConvo: BSConversation = {
             ...placeholder,
-            content: errorContent,
+            thought: errorSplit.thought || undefined,
+            content: errorSplit.content,
             isError: true,
             responseMs: Date.now() - requestStartTime,
             ...(knowledgeHits.length > 0 ? { knowledgeHits } : {}),
