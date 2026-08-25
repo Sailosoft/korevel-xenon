@@ -30,6 +30,9 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Brain,
 } from "lucide-react";
 import { RenderView } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
@@ -40,6 +43,7 @@ import {
   BSChatKnowledgeBaseIndicator,
   BSChatKnowledgeBaseScores,
 } from "./BSChat.KnowledgeBase";
+import { splitThoughtBlocks } from "./BSChat.Thought";
 
 // ─── Copy hook helper ─────────────────────────────────────────────────
 
@@ -154,9 +158,40 @@ export function BSChatConversationView({
     ? stripAttachedBlocks(conversation.content)
     : conversation.content;
 
+  // AI thought-process support (feature: thought response) — a private
+  // reasoning preamble wrapped in <thought>…</thought> tags. The hook stores it
+  // in `conversation.thought` (its own column) so `content` holds only the
+  // actual output. Legacy rows may still have tags embedded in `content`, so we
+  // fall back to parsing them out here (rule: the bubble only shows the real
+  // answer; the thought lives in a separate collapsible panel).
+  const isAssistant = !isUser && !isSystem && !isError;
+  const parsedThought = splitThoughtBlocks(conversation.content);
+  const hasThoughtColumn = conversation.thought !== undefined;
+  const thought = hasThoughtColumn
+    ? conversation.thought
+    : parsedThought.thought;
+  const assistantContent = hasThoughtColumn
+    ? conversation.content
+    : parsedThought.content;
+  const showThoughtPanel = isAssistant && !!thought;
+  // "Thinking…" animation: visible while the model is still writing the thought
+  // preamble and the real answer has not started streaming yet.
+  const isThinking = isStreaming && showThoughtPanel && !assistantContent;
+
+  // Text actually read aloud / copied for assistant messages — the real output
+  // only; the thought preamble is never read aloud or copied (feature).
+  const speakContent = isAssistant ? assistantContent : conversation.content;
+
   // Render toggle state only applies to assistant messages
   const [view, setView] = useState<"render" | "raw">("render");
   const showRenderToggle = !isUser && !isSystem && !isError;
+
+  // Collapsible "Thought process" panel (feature: thought response).
+  // Collapsed by default — the panel only expands when the user clicks
+  // "Thought process" to view the streaming reasoning. While collapsed the
+  // header still shows the animated thinking dots so the user knows the AI is
+  // still working and can click to peek at the live thought.
+  const [thoughtOpen, setThoughtOpen] = useState(false);
 
   // "Open in editor" modal state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -209,7 +244,7 @@ export function BSChatConversationView({
     // Manual read-aloud — keep the existing unmount behaviour (stop speech when
     // this bubble unmounts, e.g. scrolled out of the virtualized list).
     autoTTSSpeechRef.current = false;
-    const started = speakText(conversation.content, {
+    const started = speakText(speakContent, {
       key: conversation.id,
       chatId: conversation.chatId,
       onStart: () => setSpeaking(true),
@@ -221,7 +256,8 @@ export function BSChatConversationView({
   };
 
   // Auto TTS (feature): when a streamed message finishes and auto-TTS is on,
-  // read it aloud automatically (per-chat override wins over the global).
+  // read it aloud automatically (per-chat override wins over the global). Only
+  // the actual output is read — never the thought preamble (feature).
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     const finished =
@@ -233,13 +269,13 @@ export function BSChatConversationView({
       !isUser &&
       !isSystem &&
       !isError &&
-      conversation.content &&
+      speakContent &&
       ttsSupported
     ) {
       // Mark this bubble as speaking so the rainbow ring appears while the
       // message is actually being read aloud (feature: TTS bubble animation).
       autoTTSSpeechRef.current = true;
-      const started = speakText(conversation.content, {
+      const started = speakText(speakContent, {
         key: conversation.id,
         chatId: conversation.chatId,
         onStart: () => setSpeaking(true),
@@ -250,7 +286,7 @@ export function BSChatConversationView({
         setSpeaking(true);
       }
     }
-  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, conversation.content, conversation.id, conversation.chatId, ttsSupported, speakText]);
+  }, [isStreaming, effectiveAutoTTS, isUser, isSystem, isError, speakContent, conversation.id, conversation.chatId, ttsSupported, speakText]);
 
   // Stop speech when this bubble unmounts — but only for manual read-aloud.
   // Auto-TTS speech is left running so the first-message navigation (which
@@ -325,9 +361,66 @@ export function BSChatConversationView({
         {/* Assistant render / raw content */}
         {showRenderToggle ? (
           <div>
+            {/* Collapsible AI thought-process panel (feature: thought response).
+                Shown only for assistant bubbles that carried a <thought>
+                preamble. The thought lives in its own column and is rendered
+                here as a private reasoning stream, separate from the actual
+                answer below. While the model is still writing it (streaming,
+                no real output yet) the panel shows an animated "thinking…"
+                indicator (rule: the main bubble only ever shows the answer). */}
+            {showThoughtPanel && (
+              <div className="mb-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 overflow-hidden">
+                <button
+                  onClick={() => setThoughtOpen((o) => !o)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:bg-gray-100 transition"
+                >
+                  <Brain className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  <span className="flex-1 text-left font-medium">
+                    Thought process
+                  </span>
+                  {isThinking ? (
+                    // While the model is reasoning, show the animated dots
+                    // (AI is still thinking) alongside the chevron so it is
+                    // clear the panel can be clicked to view the live thought.
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="flex items-center gap-1"
+                        title="AI is still thinking…"
+                        aria-label="AI is still thinking"
+                      >
+                        <span className="bs-thinking-dot" />
+                        <span className="bs-thinking-dot" />
+                        <span className="bs-thinking-dot" />
+                      </span>
+                      {thoughtOpen ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </span>
+                  ) : thoughtOpen ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                {thoughtOpen && (
+                  <div className="px-3 pb-3 text-xs text-gray-500 whitespace-pre-wrap break-words font-mono leading-relaxed max-h-64 overflow-auto border-t border-gray-200/70 pt-2">
+                    {thought}
+                    {isThinking && <span className="bs-thinking-cursor" />}
+                  </div>
+                )}
+              </div>
+            )}
+
             {view === "render" ? (
-              conversation.content ? (
-                <RenderView format={renderFormat} content={conversation.content} />
+              assistantContent ? (
+                <RenderView format={renderFormat} content={assistantContent} />
+              ) : showThoughtPanel ? (
+                // Still in the thought phase — the animated panel above is the
+                // progress indicator, so don't render a second loading state.
+                null
               ) : (
                 <BSChatKnowledgeBaseIndicator
                   retrieving={isRetrievingKnowledge}
@@ -336,7 +429,7 @@ export function BSChatConversationView({
               )
             ) : (
               <pre className="whitespace-pre-wrap font-mono text-xs text-gray-600 bg-gray-50 rounded-xl p-3 max-h-96 overflow-auto">
-                {conversation.content}
+                {assistantContent}
               </pre>
             )}
 
@@ -379,7 +472,7 @@ export function BSChatConversationView({
 
               <div className="flex-1" />
 
-              {ttsSupported && conversation.content && (
+              {ttsSupported && speakContent && (
                 <button
                   onClick={handleSpeak}
                   title={isThisSpeaking ? "Stop reading" : "Read aloud"}
@@ -406,7 +499,7 @@ export function BSChatConversationView({
               </button>
 
               <button
-                onClick={() => copy(conversation.content)}
+                onClick={() => copy(assistantContent)}
                 title="Copy"
                 className="flex items-center justify-center w-6 h-6 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
               >

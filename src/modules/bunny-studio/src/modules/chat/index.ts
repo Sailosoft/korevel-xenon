@@ -63,6 +63,11 @@ export type {
   BSChatSendOptions,
 } from "./BSChat.Hooks";
 export { BSChatRepository, BSConversationHelper } from "./BSChat.Repository";
+export {
+  splitThoughtBlocks,
+  stripThoughtTags,
+} from "./BSChat.Thought";
+export type { BSThoughtSplit } from "./BSChat.Thought";
 export type {
   BSChat,
   BSConversation,
