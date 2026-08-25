@@ -15,7 +15,7 @@
 //   - html      → Renders in a sandboxed iframe via blob URL
 //   - plain     → Renders as plain, monospaced text
 //   - json      → Renders as syntax-highlighted code
-//   - yaml      → Renders with Monaco editor (read-only, syntax highlighted)
+//   - yaml      → Renders with CodeMirror 6 (read-only, syntax highlighted)
 //
 // Extensibility: new formats can be added by:
 //   1. Creating a RenderAdapter implementation
@@ -30,12 +30,12 @@ import dynamic from "next/dynamic";
 import MermaidRenderer from "./RenderView.Mermaid";
 import type { RenderViewProps, RenderTableColors } from "../RenderModule.Types";
 
-// ── Lazy Monaco YAML Viewer (SSR-safe) ──────────────────────────────────────
+// ── Lazy CodeMirror YAML Viewer (SSR-safe) ──────────────────────────────────
 
-const MonacoYamlViewer = dynamic(
+const CodeMirrorYamlViewer = dynamic(
   () =>
     import("./RenderView.Yaml").then((mod) => ({
-      default: mod.YamlMonacoViewer,
+      default: mod.YamlCodeMirrorViewer,
     })),
   {
     ssr: false,
@@ -905,7 +905,7 @@ export default function RenderView({
               <div style={loadingStyle}>Loading YAML viewer...</div>
             }
           >
-            <MonacoYamlViewer content={content} />
+            <CodeMirrorYamlViewer content={content} />
           </Suspense>
         );
 

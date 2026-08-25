@@ -182,6 +182,7 @@ export const OUTPUT_TYPE_OPTIONS = [
   { label: "CSV", value: "csv" },
   { label: "JSON Array", value: "json_array" },
   { label: "YAML", value: "yaml" },
+  { label: "Tailwind", value: "tailwind" },
 ];
 
 /**

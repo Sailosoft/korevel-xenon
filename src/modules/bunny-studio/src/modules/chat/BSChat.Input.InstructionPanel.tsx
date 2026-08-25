@@ -88,7 +88,8 @@ export function BSChatInputInstructionPanel({
           onChange={(e) => onInstructionChange(e.target.value)}
           placeholder="Custom instruction…"
           rows={1}
-          className="w-full px-4 py-2.5 pr-10 text-sm text-gray-600 border-b border-gray-100 outline-none resize-none placeholder:text-gray-400"
+          // text-base on mobile avoids iOS auto-zoom on focus (mobile friendly)
+          className="w-full px-4 py-2.5 pr-10 text-base sm:text-sm text-gray-600 border-b border-gray-100 outline-none resize-none placeholder:text-gray-400"
         />
         <button
           type="button"

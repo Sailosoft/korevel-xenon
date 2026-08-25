@@ -5,8 +5,11 @@
  * plus a test-run mode banner to visually distinguish in-memory test runs.
  */
 
+"use client";
+
 import React from "react";
-import { Loader2, XCircle, Beaker, RotateCcw } from "lucide-react";
+import { Download, Loader2, XCircle, Beaker, RotateCcw } from "lucide-react";
+import { Dropdown, Label } from "@heroui/react";
 
 /**
  * Full-height centered spinner for loading states.
@@ -35,18 +38,39 @@ export function BFlowErrorState({ message }: { message: string }) {
 }
 
 /**
+ * A single export action shown inside the test-run banner's "Export" dropdown.
+ * Keeps the banner presentational — callers wire the actual export logic.
+ */
+export interface BFlowTestRunExportAction {
+  /** Unique key for the dropdown item. */
+  key: string;
+  /** Human-readable label for the dropdown item. */
+  label: string;
+  /** Optional icon rendered before the label. */
+  icon?: React.ReactNode;
+  /** Called when the dropdown item is selected. */
+  onPress: () => void;
+  /** Whether the action is disabled (e.g. no run results yet). */
+  isDisabled?: boolean;
+}
+
+/**
  * Prominent test-run mode banner shown when test run results are being displayed.
  * Visually distinguishes in-memory (ephemeral) results from persisted pipeline runs.
+ * When `exportActions` is provided, an "Export" dropdown is rendered so the user
+ * can preview / download the run results (HTML, markdown, plain text, etc.).
  */
 export function BFlowTestRunBanner({
   status,
   onClearTestRun,
+  exportActions,
 }: {
   status?: string;
   onClearTestRun: () => void;
+  exportActions?: BFlowTestRunExportAction[];
 }) {
   return (
-    <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-3">
+    <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap">
       <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
         <Beaker className="w-4 h-4 text-violet-600" />
       </div>
@@ -63,6 +87,36 @@ export function BFlowTestRunBanner({
                 : ""}
         </p>
       </div>
+
+      {/* Export options dropdown (e.g. markdown / html / plain) */}
+      {exportActions && exportActions.length > 0 && (
+        <Dropdown>
+          <Dropdown.Trigger>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 transition-colors text-xs font-medium text-violet-700"
+              title="Export test run results"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          </Dropdown.Trigger>
+          <Dropdown.Popover>
+            <Dropdown.Menu aria-label="Test run export options">
+              {exportActions.map((action) => (
+                <Dropdown.Item
+                  key={action.key}
+                  onPress={action.onPress}
+                  isDisabled={action.isDisabled}
+                >
+                  {action.icon}
+                  <Label>{action.label}</Label>
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      )}
+
       <button
         onClick={onClearTestRun}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 transition-colors text-xs font-medium text-violet-700"

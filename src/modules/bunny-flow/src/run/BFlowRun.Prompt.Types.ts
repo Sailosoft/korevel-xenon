@@ -150,6 +150,8 @@ IMPORTANT: Your response MUST be a valid JSON object. Do NOT wrap it in markdown
 IMPORTANT: Your response MUST be valid CSV (comma-separated values) data ONLY. The first line MUST be a header row with column names. Each subsequent line MUST be a data row. Do NOT include any introductory text, explanations, or commentary. Do NOT wrap the output in markdown code blocks. Return ONLY the raw CSV data.
 {{else if (eq step.outputType "yaml")}}
 IMPORTANT: Your response MUST be valid YAML ONLY. Use proper YAML syntax with correct indentation (2 spaces), key-value pairs, lists, and nested structures. Do NOT include any introductory text, explanations, or commentary. Do NOT wrap the output in markdown code blocks. Return ONLY the raw YAML content.
+{{else if (eq step.outputType "tailwind")}}
+IMPORTANT: Your response MUST be valid HTML styled with Tailwind CSS utility classes (e.g. class="flex p-4 bg-blue-500"). Use proper semantic HTML structure (e.g. <div>, <h1>, <p>, <ul>) with Tailwind utility classes for layout and styling. Do NOT wrap the output in markdown code fences or include any text outside the HTML.
 {{else}}
 IMPORTANT: Format your response using markdown. Use headings, lists, code blocks, and other markdown elements as appropriate for readability.
 {{/if}}

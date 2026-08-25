@@ -368,7 +368,7 @@ export function BSChatInputAttachmentButtons({
         disabled={disabled}
         title="Upload image"
         aria-label="Upload image"
-        className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:pointer-events-none"
+        className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:pointer-events-none"
       >
         <ImagePlus className="w-4 h-4" />
       </button>
@@ -377,7 +377,7 @@ export function BSChatInputAttachmentButtons({
         disabled={disabled}
         title="Upload text file (md, txt, js, ts, css, html…)"
         aria-label="Upload text file"
-        className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:pointer-events-none"
+        className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-40 disabled:pointer-events-none"
       >
         <Paperclip className="w-4 h-4" />
       </button>

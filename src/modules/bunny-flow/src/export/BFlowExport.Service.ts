@@ -839,8 +839,9 @@ ${body}
       color: #0f172a;
     }
     .step-body pre {
-      background: #1e293b;
-      color: #e2e8f0;
+      background: #f1f5f9;
+      color: #1e293b;
+      border: 1px solid #e2e8f0;
       padding: 1em 1.25em;
       border-radius: 8px;
       overflow-x: auto;
@@ -980,6 +981,7 @@ ${body}
     csv: "csv",
     json_array: "json",
     yaml: "yaml",
+    tailwind: "tailwind",
   };
 
   /**
@@ -988,7 +990,7 @@ ${body}
    * between interactive preview and exported HTML for all output types.
    *
    * Adapts BFlowStepOutputType values (html, csv, json, plain, markdown,
-   * json_array, yaml) to the corresponding RenderFormat and delegates to
+   * json_array, yaml, tailwind) to the corresponding RenderFormat and delegates to
    * the engine's renderHtml() method. Falls back to marked.parse() if the
    * engine or adapter is unavailable.
    */

@@ -7,6 +7,32 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.4.1",
+    title: "Bunny Flow: Enhanced Rendering & HTML Export",
+    content: [
+      "Refined the render view for YAML and JSON documents, producing clearer and more readable output.",
+      "Redesigned the export flow and polished the visual design when exporting workflows to HTML.",
+      "Added new export options, giving more control over how workflows are exported."
+    ],
+    apps: [
+      CatalogApp.BunnyFlow
+    ],
+    dates: []
+  },
+  {
+    version: "v4.4.0",
+    title: "Bunny Studio: Improve Mobile Interface On Chat",
+    content: [
+      "Improve mobile friendly on chat and conversation of Bunny Studio"
+    ],
+    apps: [
+      CatalogApp.BunnyStudio
+    ],
+    dates: [
+      "08-25-2026"
+    ]
+  },
+  {
     version: "v4.3.0",
     title: "Application Suite Launch",
     content: [

@@ -55,6 +55,8 @@ import {
   FileText,
   Eye,
   Code,
+  Download,
+  FileBarChart,
   Brain,
   Monitor,
   PenTool,
@@ -70,13 +72,19 @@ import { BFlowWorkflowSchema } from "../workflow/BFlowWorkflow.Types";
 import { bflowDB } from "../database/BFlowDatabase";
 import { useBFlowTestRun } from "../run/BFlowRun.Hooks.TestRun";
 import { BFlowStatusBadge, getStatusConfig } from "../run/BFlowStatusBadge";
-import { BFlowTestRunBanner } from "../run/BFlowRunState";
+import {
+  BFlowTestRunBanner,
+  type BFlowTestRunExportAction,
+} from "../run/BFlowRunState";
 import { BFlowStepNode } from "../run/BFlowStepNode";
 import { BFlowStepDetailsModal } from "../run/BFlowStepDetailsModal";
 import { BFlowOutputModal } from "../run/BFlowOutputModal";
 import { BFlowComputedInputsModal } from "../run/BFlowComputedInputsModal";
 import { BFlowReportViewModal } from "../run/BFlowReportViewModal";
+import { BFlowReportPreviewModal } from "../run/BFlowReportPreviewModal";
+import { BFlowHtmlPreviewModal } from "../run/BFlowHtmlPreviewModal";
 import { BFlowRunVariablesModal } from "../run/BFlowRunVariablesModal";
+import { bflowExportService } from "../export/BFlowExport.Service";
 import { BFlowRunInputResolver } from "../run/BFlowRun.InputResolver";
 import { BFlowRunPromptBuilder } from "../run/BFlowRun.SectionBuilder";
 import { BFlowPromptBuilderKind } from "../run/BFlowRun.Prompt.Types";
@@ -280,6 +288,14 @@ export default function BFlowWorkflowStudio({
     report: BFlowWorkflowReport;
     content?: string;
   } | null>(null);
+  /** Test-run report preview modal (markdown export preview + download). */
+  const [reportPreview, setReportPreview] = useState<{
+    content: string;
+    title: string;
+    filename: string;
+  } | null>(null);
+  /** Test-run HTML preview modal (Tailwind-styled HTML export). */
+  const [viewHtmlPreview, setViewHtmlPreview] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // ── Generative Menu state ──────────────────────────────────────────
@@ -615,6 +631,120 @@ export default function BFlowWorkflowStudio({
   /** True when the current in-memory results have NOT been registered yet. */
   const canSaveTestRunAsSession =
     hasTestRunResult && testRun?.id !== savedRunId && !isTestRunning;
+
+  // ── Test-run export (HTML / markdown / plain) ────────────────────
+  // Reuses the same BFlowExportService + preview modals as the pipeline
+  // run view, but feeds it from the in-memory test run results so users
+  // can preview/download the ephemeral output without saving a session.
+
+  const testRunExportInput = useMemo(() => {
+    if (testJobRuns.length === 0 && testStepRuns.length === 0) return null;
+    return {
+      pipelineName: workflow?.name ?? "Workflow Report",
+      description: workflow?.description,
+      jobRuns: testJobRuns,
+      stepRuns: testStepRuns,
+      reports: parsedReports,
+      jobs: currentJobs,
+    };
+  }, [workflow, testJobRuns, testStepRuns, parsedReports, currentJobs]);
+
+  /** Trigger a browser download from an export blob. */
+  const triggerDownload = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const testRunBaseName = workflow?.slug ?? "workflow";
+
+  const handleViewMarkdown = useCallback(() => {
+    if (!testRunExportInput) return;
+    const content = bflowExportService.generate(testRunExportInput, {
+      format: "markdown",
+    });
+    setReportPreview({
+      content,
+      title: "Test Run Report",
+      filename: `${testRunBaseName}-test-run`,
+    });
+  }, [testRunExportInput, testRunBaseName]);
+
+  const handleDownloadMarkdown = useCallback(() => {
+    if (!testRunExportInput) return;
+    const blob = bflowExportService.exportToBlob(testRunExportInput, {
+      format: "markdown",
+    });
+    triggerDownload(blob, `${testRunBaseName}-test-run.md`);
+  }, [testRunExportInput, testRunBaseName, triggerDownload]);
+
+  const handleDownloadHtmlDocs = useCallback(() => {
+    if (!testRunExportInput) return;
+    const blob = bflowExportService.exportToBlob(testRunExportInput, {
+      format: "html-docs",
+    });
+    triggerDownload(blob, `${testRunBaseName}-test-run.html`);
+  }, [testRunExportInput, testRunBaseName, triggerDownload]);
+
+  const handleDownloadPlain = useCallback(() => {
+    if (!testRunExportInput) return;
+    const blob = bflowExportService.exportToBlob(testRunExportInput, {
+      format: "plain",
+    });
+    triggerDownload(blob, `${testRunBaseName}-test-run.txt`);
+  }, [testRunExportInput, testRunBaseName, triggerDownload]);
+
+  /** Export actions surfaced in the test-run banner's "Export" dropdown. */
+  const testRunExportActions = useMemo<BFlowTestRunExportAction[]>(() => {
+    const disabled = !testRunExportInput || isTestRunning;
+    return [
+      {
+        key: "view-markdown",
+        label: "View Markdown",
+        icon: <FileText className="w-4 h-4" />,
+        onPress: handleViewMarkdown,
+        isDisabled: disabled,
+      },
+      {
+        key: "view-html",
+        label: "View HTML",
+        icon: <Eye className="w-4 h-4" />,
+        onPress: () => setViewHtmlPreview(true),
+        isDisabled: disabled,
+      },
+      {
+        key: "download-markdown",
+        label: "Download Markdown",
+        icon: <Download className="w-4 h-4" />,
+        onPress: handleDownloadMarkdown,
+        isDisabled: disabled,
+      },
+      {
+        key: "download-html-docs",
+        label: "Download HTML (Docs)",
+        icon: <FileBarChart className="w-4 h-4" />,
+        onPress: handleDownloadHtmlDocs,
+        isDisabled: disabled,
+      },
+      {
+        key: "download-plain",
+        label: "Download Plain Text",
+        icon: <FileText className="w-4 h-4" />,
+        onPress: handleDownloadPlain,
+        isDisabled: disabled,
+      },
+    ];
+  }, [
+    testRunExportInput,
+    isTestRunning,
+    handleViewMarkdown,
+    handleDownloadMarkdown,
+    handleDownloadHtmlDocs,
+    handleDownloadPlain,
+  ]);
 
   // ── Ephemeral run (in-memory only, no DB write) ──────────────────
   // Supersedes the old "Test Workflow" button — run the workflow and
@@ -1051,6 +1181,7 @@ export default function BFlowWorkflowStudio({
               <BFlowTestRunBanner
                 status={testRun?.status}
                 onClearTestRun={clearTestRun}
+                exportActions={testRunExportActions}
               />
             </div>
           )}
@@ -1403,6 +1534,33 @@ export default function BFlowWorkflowStudio({
           report={viewReport.report}
           content={viewReport.content}
           jobs={currentJobs}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+           TEST-RUN EXPORT MODALS — Markdown report preview & HTML preview
+           ═══════════════════════════════════════════════════════════════ */}
+      {reportPreview && (
+        <BFlowReportPreviewModal
+          open={!!reportPreview}
+          onClose={() => setReportPreview(null)}
+          content={reportPreview.content}
+          title={reportPreview.title}
+          downloadFilename={reportPreview.filename}
+        />
+      )}
+
+      {viewHtmlPreview && testRunExportInput && (
+        <BFlowHtmlPreviewModal
+          open={viewHtmlPreview}
+          onClose={() => setViewHtmlPreview(false)}
+          input={testRunExportInput}
+          filename={`${testRunBaseName}-test-run.html`}
+          options={{
+            includeResolvedPrompts: false,
+            includeResolvedInputs: true,
+            includeDescription: true,
+          }}
         />
       )}
 

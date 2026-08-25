@@ -2,7 +2,11 @@
 // Render Module — YAML Adapter
 //
 // Formats and syntax-highlights YAML content for export.
-// React rendering is handled by RenderModule.View.tsx (Monaco editor).
+// React rendering is handled by RenderModule.View.tsx (CodeMirror 6 viewer).
+//
+// The exported block defaults to a light theme (matching the light report
+// documents it is embedded in) and falls back to a dark palette when the
+// caller passes `{ darkMode: true }`.
 // ───────────────────────────────────────────────────────────────────────────────
 
 import type { RenderAdapter, RenderHtmlResult, RenderOptions } from "../RenderModule.Types";
@@ -22,20 +26,66 @@ function escapeHtml(text: string): string {
     .replace(/'/g, APOS);
 }
 
+// ─── Colour palettes ───────────────────────────────────────────────────────────
+
+interface YamlPalette {
+  background: string;
+  color: string;
+  border: string;
+  comment: string;
+  directive: string;
+  anchor: string;
+  tag: string;
+  string: string;
+  boolean: string;
+  number: string;
+  key: string;
+}
+
+/** Light palette — high-contrast on light report documents. */
+const LIGHT_PALETTE: YamlPalette = {
+  background: "#f8fafc",
+  color: "#0f172a",
+  border: "#e2e8f0",
+  comment: "#22863a",
+  directive: "#8250df",
+  anchor: "#9a6700",
+  tag: "#8250df",
+  string: "#a44100",
+  boolean: "#0e7490",
+  number: "#1a7f37",
+  key: "#0550ae",
+};
+
+/** Dark palette — VSCode-style dark theme for `{ darkMode: true }` callers. */
+const DARK_PALETTE: YamlPalette = {
+  background: "#1e1e1e",
+  color: "#d4d4d4",
+  border: "#3c3c3c",
+  comment: "#6a9955",
+  directive: "#c586c0",
+  anchor: "#dcdcaa",
+  tag: "#c586c0",
+  string: "#ce9178",
+  boolean: "#569cd6",
+  number: "#b5cea8",
+  key: "#9cdcfe",
+};
+
 /**
- * Apply basic YAML syntax highlighting to escaped HTML content.
+ * Apply YAML syntax highlighting to escaped HTML content.
  *
  * Highlights:
- *   - Comments (# ...)          → dim green
- *   - Keys (word:)              → light blue
- *   - Strings ("...", '...')    → orange
- *   - Booleans & null           → cyan
- *   - Numbers                   → light green
- *   - Anchors (&word, *word)    → yellow
- *   - Tags (!tag)               → pink
- *   - Directives (%YAML, ---)   → magenta
+ *   - Comments (# ...)          → green
+ *   - Keys (word:)              → blue
+ *   - Strings ("...", '...')    → brown/orange
+ *   - Booleans & null           → teal
+ *   - Numbers                   → green
+ *   - Anchors (&word, *word)    → amber
+ *   - Tags (!tag)               → purple
+ *   - Directives (%YAML, ---)   → purple
  */
-function highlightYaml(escaped: string): string {
+function highlightYaml(escaped: string, p: YamlPalette): string {
   const lines = escaped.split("\n");
   const result: string[] = [];
 
@@ -44,7 +94,7 @@ function highlightYaml(escaped: string): string {
 
     // Full-line comment (no key before it)
     if (/^\s*#/.test(hl)) {
-      hl = '<span style="color:#6a9955;">' + hl + '</span>';
+      hl = '<span style="color:' + p.comment + ';">' + hl + '</span>';
       result.push(hl);
       continue;
     }
@@ -52,55 +102,55 @@ function highlightYaml(escaped: string): string {
     // Directives / document markers
     hl = hl.replace(
       /^(%YAML\s[\d.]+|%TAG\s\S+|\.\.\.|---)$/,
-      '<span style="color:#c586c0;">$1</span>',
+      '<span style="color:' + p.directive + ';">$1</span>',
     );
 
     // Anchors and aliases
     hl = hl.replace(
       new RegExp("(" + AMP + "\\w+|\\*\\w+)", "g"),
-      '<span style="color:#dcdcaa;">$1</span>',
+      '<span style="color:' + p.anchor + ';">$1</span>',
     );
 
     // Tags
     hl = hl.replace(
       new RegExp("(!" + LT + "[\\w./-]+" + GT + "|!\\S+)", "g"),
-      '<span style="color:#c586c0;">$1</span>',
+      '<span style="color:' + p.tag + ';">$1</span>',
     );
 
     // Inline comments (after a value)
     hl = hl.replace(
       /(\s#\s.*$)/,
-      '<span style="color:#6a9955;">$1</span>',
+      '<span style="color:' + p.comment + ';">$1</span>',
     );
 
     // Double-quoted strings
     hl = hl.replace(
       new RegExp("(" + QUOT + "(?:[^&#]|&#(?!34;)|&(?!quot;))*" + QUOT + ")", "g"),
-      '<span style="color:#ce9178;">$1</span>',
+      '<span style="color:' + p.string + ';">$1</span>',
     );
 
     // Single-quoted strings
     hl = hl.replace(
       new RegExp("(" + APOS + "(?:[^&#]|&#(?!39;))*" + APOS + ")", "g"),
-      '<span style="color:#ce9178;">$1</span>',
+      '<span style="color:' + p.string + ';">$1</span>',
     );
 
     // Booleans and null (standalone values)
     hl = hl.replace(
       /\b(true|false|null|yes|no|on|off)\b/g,
-      '<span style="color:#569cd6;">$1</span>',
+      '<span style="color:' + p.boolean + ';">$1</span>',
     );
 
     // Numbers (integers, floats, hex)
     hl = hl.replace(
       /\b(-?\d+\.?\d*(?:e[+-]?\d+)?|0x[0-9a-fA-F]+)\b/g,
-      '<span style="color:#b5cea8;">$1</span>',
+      '<span style="color:' + p.number + ';">$1</span>',
     );
 
     // Keys (word followed by colon, at start of line or after indent)
     hl = hl.replace(
       /^(\s*)([\w.-]+)(\s*:)/gm,
-      '$1<span style="color:#9cdcfe;">$2</span>$3',
+      '$1<span style="color:' + p.key + ';">$2</span>$3',
     );
 
     result.push(hl);
@@ -113,17 +163,19 @@ function highlightYaml(escaped: string): string {
  * YAML Adapter
  *
  * Displays YAML content with syntax highlighting for export.
- * In the React view layer, YAML is rendered with a Monaco editor
- * for a full code-editing experience with syntax highlighting.
+ * In the React view layer, YAML is rendered with a CodeMirror 6 viewer
+ * with syntax highlighting, line numbers, and folding.
  */
 export const yamlAdapter: RenderAdapter = {
   format: "yaml",
   displayName: "YAML",
   description: "Displays YAML content with syntax highlighting.",
 
-  renderHtml(content: string, _options?: RenderOptions): RenderHtmlResult {
+  renderHtml(content: string, options?: RenderOptions): RenderHtmlResult {
+    const dark = options?.darkMode === true;
+    const p = dark ? DARK_PALETTE : LIGHT_PALETTE;
     const escaped = escapeHtml(content);
-    const highlighted = highlightYaml(escaped);
+    const highlighted = highlightYaml(escaped, p);
 
     const html = [
       '<pre style="',
@@ -133,8 +185,10 @@ export const yamlAdapter: RenderAdapter = {
       'font-size:0.8rem;',
       'line-height:1.6;',
       'overflow:auto;',
-      'background:#1e1e1e;',
-      'color:#d4d4d4;',
+      'background:' + p.background + ';',
+      'color:' + p.color + ';',
+      'border:1px solid ' + p.border + ';',
+      'border-radius:8px;',
       'white-space:pre-wrap;',
       'word-break:break-word;',
       '">',

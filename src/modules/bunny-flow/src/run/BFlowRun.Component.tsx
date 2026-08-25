@@ -331,6 +331,7 @@ export default function BFlowRunComponent() {
       csv: "csv",
       json_array: "json",
       yaml: "markdown",
+      tailwind: "tailwind",
     };
 
     return reports.map((r) => {

@@ -44,7 +44,7 @@ Each step in a job:
 - agent?: string (agent slug reference)
 - skipIf?: array of { inputs, condition (==|!=|>|<|>=|<=), value }
 - inputs?: array of { name, source } — source references vars.{name} or {job}.{step}.outputs.{name}
-- output?: array of { name, type (plain|markdown|json|html|csv|json_array|yaml) }
+- output?: array of { name, type (plain|markdown|json|html|csv|json_array|yaml|tailwind) }
 
 IMPORTANT RULES:
 1. Variable source references use dots: vars.variable_name or job_name.step_name.outputs.field_name or job_name.step_name (this equal to job_name.step_name.outpus.__raw__)
