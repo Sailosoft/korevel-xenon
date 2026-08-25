@@ -7,6 +7,19 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.3.1",
+    title: "Bunny Studio: Improve Mobile Interface On Chat",
+    content: [
+      "Improve mobile friendly on chat and conversation of Bunny Studio"
+    ],
+    apps: [
+      CatalogApp.BunnyStudio
+    ],
+    dates: [
+      "08-25-2026"
+    ]
+  },
+  {
     version: "v4.3.0",
     title: "Application Suite Launch",
     content: [

@@ -261,7 +261,8 @@ export function BSChatInput({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={1}
-              className="w-full px-4 py-3 text-sm text-gray-800 outline-none resize-none placeholder:text-gray-400 bg-transparent min-h-[48px]"
+              // text-base on mobile avoids iOS auto-zoom on focus (mobile friendly)
+              className="w-full px-4 py-3 text-base sm:text-sm text-gray-800 outline-none resize-none placeholder:text-gray-400 bg-transparent min-h-[48px]"
             />
           )}
 
@@ -273,10 +274,11 @@ export function BSChatInput({
             onRemoveFile={attachments.removeFile}
           />
 
-          {/* Footer actions */}
-          <div className="flex items-center justify-between gap-2 px-3 py-2">
-            {/* Left group: attachment buttons + toolbar in a single row */}
-            <div className="flex items-center gap-1 min-w-0">
+          {/* Footer actions — toolbar on its own full-width row on mobile,
+              single row with the primary actions on sm+ (mobile friendly) */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2">
+            {/* Toolbar (mode selector + render type + open in modal) */}
+            <div className="flex items-center min-w-0 w-full sm:w-auto sm:flex-1">
               <BSChatInputToolbar
                 mode={mode}
                 onModeChange={setMode}
@@ -288,38 +290,45 @@ export function BSChatInput({
               />
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <BSChatInputAttachmentButtons
-                disabled={isStreaming}
-                onAddImages={attachments.addImageFiles}
-                onAddTextFiles={attachments.addTextFiles}
-              />
-              <BSChatInputSTTButton
-                supported={stt.supported}
-                listening={stt.listening}
-                error={stt.error}
-                disabled={isStreaming}
-                onStart={stt.start}
-                onStop={stt.stop}
-              />
+            {/* Primary actions — attachment + voice + send/stop */}
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center gap-1">
+                <BSChatInputAttachmentButtons
+                  disabled={isStreaming}
+                  onAddImages={attachments.addImageFiles}
+                  onAddTextFiles={attachments.addTextFiles}
+                />
+                <BSChatInputSTTButton
+                  supported={stt.supported}
+                  listening={stt.listening}
+                  error={stt.error}
+                  disabled={isStreaming}
+                  onStart={stt.start}
+                  onStop={stt.stop}
+                />
+              </div>
 
               {isStreaming ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-4 py-2 text-sm transition animate-pulse shrink-0"
+                  aria-label="Stop"
+                  title="Stop"
+                  className="flex items-center justify-center gap-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-full sm:rounded-xl w-10 h-10 sm:w-auto sm:h-auto sm:px-4 sm:py-2 text-sm transition animate-pulse shrink-0"
                 >
-                  <Square className="w-3.5 h-3.5" />
-                  Stop
+                  <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Stop</span>
                 </button>
               ) : (
                 <button
                   onClick={handleSend}
                   disabled={!canSend}
-                  className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 text-sm transition shrink-0"
+                  aria-label="Send"
+                  title="Send"
+                  className="flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full sm:rounded-xl w-10 h-10 sm:w-auto sm:h-auto sm:px-4 sm:py-2 text-sm transition shrink-0"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <Send className="w-3.5 h-3.5" />
-                  Send
+                  <Sparkles className="w-3.5 h-3.5 hidden sm:block" />
+                  <Send className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Send</span>
                 </button>
               )}
             </div>

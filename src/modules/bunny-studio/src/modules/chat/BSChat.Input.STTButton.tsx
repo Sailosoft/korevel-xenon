@@ -52,7 +52,7 @@ export function BSChatInputSTTButton({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`flex items-center justify-center w-8 h-8 rounded-xl transition shrink-0 ${
+      className={`flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-xl transition shrink-0 ${
         listening
           ? "bg-red-600 text-white animate-pulse shadow-sm"
           : disabled

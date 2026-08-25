@@ -57,9 +57,9 @@ export function BSChatInputToolbar({
   onOpenEditorModal,
 }: BSChatInputToolbarProps) {
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center gap-2 min-w-0 w-full flex-wrap sm:flex-nowrap">
       {/* Mode selector — icon-only; label shown as a tooltip */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shrink-0">
         {MODE_BUTTONS.map((b) => (
           <button
             key={b.mode}
@@ -88,7 +88,7 @@ export function BSChatInputToolbar({
           }
           disabled={isStreaming}
           title="Render type for the next message"
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 outline-none focus:border-red-300 disabled:opacity-50 max-w-[140px]"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 outline-none focus:border-red-300 disabled:opacity-50 min-w-[120px] max-w-full sm:max-w-[140px] flex-1 sm:flex-none"
         >
           <option value="">No render</option>
           {renderTypes.map((f) => (
@@ -99,19 +99,21 @@ export function BSChatInputToolbar({
         </select>
       )}
 
-      {/* Open the code editor in a modal (feature) */}
+      {/* Open the code editor in a modal (feature) — icon-only on mobile */}
       {mode === "codemirror" && !isStreaming && (
         <button
           onClick={onOpenEditorModal}
           title="Open code editor in a modal"
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 hover:border-red-300 hover:text-red-600 transition"
+          aria-label="Open code editor in a modal"
+          className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-500 hover:border-red-300 hover:text-red-600 transition shrink-0"
         >
           <ExternalLink className="w-3 h-3" />
-          Open in Modal
+          <span className="hidden sm:inline">Open in Modal</span>
         </button>
       )}
 
-      <span className="text-[10px] text-gray-400 truncate">
+      {/* Keyboard hint — desktop only to keep the row compact on mobile */}
+      <span className="hidden sm:inline text-[10px] text-gray-400 truncate">
         {isStreaming
           ? "Generating…"
           : "Enter to send · Shift+Enter for new line"}
