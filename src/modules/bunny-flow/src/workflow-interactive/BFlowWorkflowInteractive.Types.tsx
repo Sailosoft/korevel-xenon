@@ -10,6 +10,7 @@
 
 "use client";
 
+import type { Ref } from "react";
 import type { BFlowVariableType } from "../shared/BFlowVariableBase";
 import { VARIABLE_TYPE_OPTIONS } from "../shared/BFlowVariableBase";
 
@@ -92,6 +93,25 @@ export interface BFlowInteractiveReport {
 
 // ─── Props ────────────────────────────────────────────────────────────
 
+/**
+ * Imperative handle exposed by BFlowWorkflowInteractive (React 19 ref-as-prop).
+ * Lets the parent studio reorder steps programmatically — e.g. from the
+ * pipeline display's step nodes while interactive mode is active.
+ */
+export interface BFlowWorkflowInteractiveHandle {
+  /**
+   * Reorder a step within a job.
+   * @param jobIndex  Index of the job in `data.jobs`
+   * @param stepIndex Index of the step within the job's `steps` array
+   * @param direction "up" moves the step earlier, "down" moves it later
+   */
+  moveStep: (
+    jobIndex: number,
+    stepIndex: number,
+    direction: "up" | "down",
+  ) => void;
+}
+
 export interface BFlowWorkflowInteractiveProps {
   /** Initial YAML content (parsed) */
   initialYaml: string;
@@ -103,6 +123,8 @@ export interface BFlowWorkflowInteractiveProps {
    * that expands pool template data into workflow agent entries.
    */
   agentPools?: BFlowInteractiveAgentPool[];
+  /** React 19 ref — imperative handle for programmatic step reordering. */
+  ref?: Ref<BFlowWorkflowInteractiveHandle>;
 }
 
 /**

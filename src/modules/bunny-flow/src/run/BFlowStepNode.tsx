@@ -8,7 +8,14 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Eye, FileText, Code, RotateCw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Code,
+  Eye,
+  FileText,
+  RotateCw,
+} from "lucide-react";
 import { Button } from "@heroui/react";
 import { BFlowStatusBadge, getStatusConfig } from "./BFlowStatusBadge";
 import type { BFlowStep } from "../workflow/BFlowWorkflow.Types";
@@ -34,6 +41,16 @@ export interface BFlowStepNodeProps {
   jobName?: string;
   /** Whether this step is currently being re-run */
   isRerunning?: boolean;
+  /**
+   * When provided, renders "Move Up" / "Move Down" buttons that reorder the
+   * step within its job (used by the studio's interactive mode).
+   * Receives the direction of the move.
+   */
+  onMoveStep?: (direction: "up" | "down") => void;
+  /** Whether the "Move Up" button is enabled (false for the first step). */
+  canMoveUp?: boolean;
+  /** Whether the "Move Down" button is enabled (false for the last step). */
+  canMoveDown?: boolean;
 }
 
 /**
@@ -167,6 +184,9 @@ export function BFlowStepNode({
   onRerun,
   jobName,
   isRerunning,
+  onMoveStep,
+  canMoveUp,
+  canMoveDown,
 }: BFlowStepNodeProps) {
   const status = stepRun?.status ?? "pending";
   const cfg = getStatusConfig(status);
@@ -240,6 +260,32 @@ export function BFlowStepNode({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Reorder Buttons (interactive mode only — shown when onMoveStep is provided) */}
+        {onMoveStep && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 px-1.5 text-default-400"
+              isDisabled={canMoveUp === false}
+              onPress={() => onMoveStep("up")}
+              aria-label={`Move step "${step.name}" up`}
+            >
+              <ChevronUp className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 px-1.5 text-default-400"
+              isDisabled={canMoveDown === false}
+              onPress={() => onMoveStep("down")}
+              aria-label={`Move step "${step.name}" down`}
+            >
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </>
+        )}
+
         {/* View Computed Inputs Button */}
         <Button
           variant="ghost"
