@@ -1,0 +1,1 @@
+https://docs.bswen.com/blog/2026-03-15-opencode-vs-kilocode-vs-cline-comparison/#google_vignette
