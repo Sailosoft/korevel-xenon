@@ -7,6 +7,27 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.4.2",
+    title: "Version 4.4.2: Bunny Flow, Case, Book and Lemon Coder Update",
+    content: [
+      "Bunny Case: Added Discussion and Mental Health Mode",
+      "Bunny Flow: Can adjsut steps and improve export to html",
+      "Lemon Coder: Improve Bugs on header and fix logout button",
+      "Bunny Book: Add Text To Speech and Add HTML Export"
+    ],
+    apps: [
+      CatalogApp.BunnyCase,
+      CatalogApp.BunnyFlow,
+      CatalogApp.LemonCoder,
+      CatalogApp.BunnyBook
+    ],
+    dates: [
+      "2026-08-28",
+      "2026-09-01",
+      "2026-09-02"
+    ]
+  },
+  {
     version: "v4.4.1",
     title: "Bunny Flow: Enhanced Rendering & HTML Export",
     content: [
@@ -17,7 +38,7 @@ export const catalogReleases: CatalogRelease[] = [
     apps: [
       CatalogApp.BunnyFlow
     ],
-    dates: []
+    dates: ["2026-08-28"]
   },
   {
     version: "v4.4.0",
@@ -29,7 +50,7 @@ export const catalogReleases: CatalogRelease[] = [
       CatalogApp.BunnyStudio
     ],
     dates: [
-      "08-25-2026"
+      "2026-08-25"
     ]
   },
   {
