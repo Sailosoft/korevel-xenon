@@ -1,7 +1,7 @@
 import { BUIBookHTMLTemplate } from "../bui.book.export.types";
 
-export const BUIHTMLTemplateMilanote: BUIBookHTMLTemplate = {
-  name: "Milanote Inspired Template",
+export const BUIHTMLTemplateBookAI: BUIBookHTMLTemplate = {
+  name: "Book AI Inspired Template",
   description:
     "A gorgeous, highly animated, vibrant blue creative workspace template using GSAP",
   globalAsset: {
@@ -19,8 +19,8 @@ export const BUIHTMLTemplateMilanote: BUIBookHTMLTemplate = {
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-    /* Milanote Gradient Wave Hero Concept & Backgrounds */
-    .milanote-hero {
+    /* Book AI Gradient Wave Hero Concept & Backgrounds */
+    .bookai-hero {
       background: linear-gradient(135deg, #4376f6 0%, #3b66df 100%);
       border-bottom-left-radius: 40px;
       position: relative;
@@ -131,10 +131,10 @@ export const BUIHTMLTemplateMilanote: BUIBookHTMLTemplate = {
     <aside id="bunny-sidebar" class="no-print fixed md:sticky top-0 left-0 h-screen w-72 bg-white border-r border-slate-200 flex flex-col z-50 hidden md:flex shrink-0 shadow-sm">
         <div class="p-6 border-b border-slate-100 flex items-center space-x-3">
             <div class="w-9 h-9 bg-[#4376f6] rounded-xl flex items-center justify-center shadow-md shadow-blue-200">
-                 <span class="text-white font-bold text-sm tracking-tighter">M</span>
+                 <span class="text-white font-bold text-sm tracking-tighter">AI</span>
             </div>
             <div>
-                <span class="text-base font-bold text-slate-900 block tracking-tight">Milanote Export</span>
+                <span class="text-base font-bold text-slate-900 block tracking-tight">Book AI Export</span>
                 <span class="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Creative Document System</span>
             </div>
         </div>
@@ -173,7 +173,7 @@ export const BUIHTMLTemplateMilanote: BUIBookHTMLTemplate = {
         </div>
     </main>`,
     mainHeaderWrapper: `
-    <div id="hero-bg" class="milanote-hero px-6 py-12 md:px-12 md:py-20 text-white shadow-xl overflow-hidden">
+    <div id="hero-bg" class="bookai-hero px-6 py-12 md:px-12 md:py-20 text-white shadow-xl overflow-hidden">
         <div class="absolute top-6 right-12 opacity-20 hidden sm:block">
             <div class="grid grid-cols-4 gap-2">
                 <div class="w-2 h-2 bg-white rounded-full"></div><div class="w-2 h-2 bg-white rounded-full"></div><div class="w-2 h-2 bg-white rounded-full"></div><div class="w-2 h-2 bg-white rounded-full"></div>
@@ -275,7 +275,7 @@ export const BUIHTMLTemplateMilanote: BUIBookHTMLTemplate = {
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Live Workspace Sync Active</span>
         </div>
-        <span class="font-mono text-[10px] uppercase text-slate-400/80">&copy; {{currentYear}} MILANOTE CORE ENGINE</span>
+        <span class="font-mono text-[10px] uppercase text-slate-400/80">&copy; {{currentYear}} BOOK AI CORE ENGINE</span>
     </footer>`,
   },
 };
