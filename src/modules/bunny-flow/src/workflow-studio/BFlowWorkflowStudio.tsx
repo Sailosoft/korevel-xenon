@@ -105,6 +105,7 @@ import type {
   BFlowInteractiveWorkflowData,
   BFlowInteractiveAgent,
   BFlowInteractiveAgentPool,
+  BFlowWorkflowInteractiveHandle,
 } from "../workflow-interactive/BFlowWorkflowInteractive.Types";
 
 // Agent Pool integration
@@ -163,6 +164,10 @@ export default function BFlowWorkflowStudio({
 
   // ── Interactive mode toggle ─────────────────────────────────────
   const [interactiveMode, setInteractiveMode] = useState(false);
+
+  // Ref to the interactive builder — lets the pipeline display reorder
+  // steps in the interactive form while interactive mode is active.
+  const interactiveRef = useRef<BFlowWorkflowInteractiveHandle>(null);
 
   // ── Agent Pools (for filling agents in interactive mode) ────────
   const {
@@ -1214,6 +1219,7 @@ export default function BFlowWorkflowStudio({
               </div>
               <div className="flex-1 min-h-[50vh] lg:min-h-0">
                 <BFlowWorkflowInteractive
+                  ref={interactiveRef}
                   initialYaml={yamlContent}
                   onDataChange={handleInteractiveDataChange}
                   agentPools={interactiveAgentPools}
@@ -1407,6 +1413,25 @@ export default function BFlowWorkflowStudio({
                               }
                               onViewComputedInputs={(s, sr) =>
                                 setViewComputedInputs({ step: s, stepRun: sr })
+                              }
+                              onMoveStep={
+                                interactiveMode
+                                  ? (direction) =>
+                                      interactiveRef.current?.moveStep(
+                                        selectedJobIndex,
+                                        stepIdx,
+                                        direction,
+                                      )
+                                  : undefined
+                              }
+                              canMoveUp={
+                                interactiveMode ? stepIdx > 0 : undefined
+                              }
+                              canMoveDown={
+                                interactiveMode
+                                  ? stepIdx <
+                                    (currentJob.steps ?? []).length - 1
+                                  : undefined
                               }
                             />
                           );

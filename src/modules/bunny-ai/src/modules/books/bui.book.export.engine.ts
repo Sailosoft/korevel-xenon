@@ -107,6 +107,7 @@ export class BUIBookExportEngine {
     });
 
     const mainContentWrapper = mainContentWrapperTemplate({
+      bookTitle: book.title,
       mainHeaderWrapper: mainHeaderWrapper,
       articleContainer: articleContainer,
       pageFooter: pageFooter,

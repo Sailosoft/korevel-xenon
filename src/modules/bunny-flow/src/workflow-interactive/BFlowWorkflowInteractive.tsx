@@ -20,10 +20,18 @@
 
 "use client";
 
-import React, { useCallback, useId, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import { Button, Card, Input, Label, TextArea, Select, ListBox } from "@heroui/react";
 import {
   Brain,
+  ChevronDown,
+  ChevronUp,
   Edit3,
   FileText,
   Eye,
@@ -46,6 +54,7 @@ import type {
   BFlowInteractiveVariable,
   BFlowInteractiveReport,
   BFlowInteractiveAgentPool,
+  BFlowWorkflowInteractiveHandle,
 } from "./BFlowWorkflowInteractive.Types";
 import {
   BFLOW_DEFAULT_STEP,
@@ -122,6 +131,7 @@ export default function BFlowWorkflowInteractive({
   initialYaml,
   onDataChange,
   agentPools = [],
+  ref,
 }: BFlowWorkflowInteractiveProps) {
   const [data, setData] = useState<BFlowInteractiveWorkflowData>(() =>
     parseBflowInteractive(initialYaml),
@@ -394,6 +404,35 @@ export default function BFlowWorkflowInteractive({
       emitChange(newData);
     },
     [data, emitChange],
+  );
+
+  /** Reorder a step within a job ("up" = earlier, "down" = later). */
+  const moveStep = useCallback(
+    (jobIndex: number, stepIndex: number, direction: "up" | "down") => {
+      const job = data.jobs[jobIndex];
+      if (!job) return;
+      const target = direction === "up" ? stepIndex - 1 : stepIndex + 1;
+      if (target < 0 || target >= job.steps.length) return;
+
+      const newData = { ...data };
+      newData.jobs = [...data.jobs];
+      newData.jobs[jobIndex] = { ...newData.jobs[jobIndex] };
+      const steps = [...newData.jobs[jobIndex].steps];
+      [steps[stepIndex], steps[target]] = [steps[target], steps[stepIndex]];
+      newData.jobs[jobIndex].steps = steps;
+      emitChange(newData);
+    },
+    [data, emitChange],
+  );
+
+  // Expose imperative API (React 19 ref-as-prop) so the parent studio can
+  // reorder steps from the pipeline display's step nodes.
+  useImperativeHandle(
+    ref,
+    () => ({
+      moveStep,
+    }),
+    [moveStep],
   );
 
   // ── Report handlers ───────────────────────────────────────────
@@ -783,6 +822,26 @@ export default function BFlowWorkflowInteractive({
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  onPress={() => moveStep(jIdx, sIdx, "up")}
+                                  variant="ghost"
+                                  size="sm"
+                                  isDisabled={sIdx === 0}
+                                  className="text-default-400 h-6 min-w-0 w-6 p-0 disabled:opacity-40"
+                                  aria-label={`Move step "${step.name || `Step ${sIdx + 1}`}" up`}
+                                >
+                                  <ChevronUp className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  onPress={() => moveStep(jIdx, sIdx, "down")}
+                                  variant="ghost"
+                                  size="sm"
+                                  isDisabled={sIdx === job.steps.length - 1}
+                                  className="text-default-400 h-6 min-w-0 w-6 p-0 disabled:opacity-40"
+                                  aria-label={`Move step "${step.name || `Step ${sIdx + 1}`}" down`}
+                                >
+                                  <ChevronDown className="w-3 h-3" />
+                                </Button>
                                 <Button
                                   onPress={() => handleEditStep(jIdx, sIdx)}
                                   variant="ghost"

@@ -3,7 +3,8 @@ import { BUI_DEFAULT_BOOK_TEMPLATE } from "./bui.book.export.default";
 import { BUIBookHTMLTemplate } from "./bui.book.export.types";
 import { BUIHTMLTemplateBook } from "./html-templates/bui.html-template.book";
 import { BUIHTMLTemplateLaravel } from "./html-templates/bui.html-template.laravel";
-import { BUIHTMLTemplateMilanote } from "./html-templates/bui.html-template.milanote";
+import { BUIHTMLTemplateBookAI } from "./html-templates/bui.html-template.book-ai";
+import { BUIHTMLTemplateFacebook } from "./html-templates/bui.html-template.facebook";
 import { BUIHTMLTemplateMobile } from "./html-templates/bui.html-template.mobile";
 import { BUIHTMLTemplateSleek } from "./html-templates/bui.html-template.sleek";
 import { BUIHTMLTemplateSwipe } from "./html-templates/bui.html-template.swipe";
@@ -15,7 +16,8 @@ export const BUI_AVAILABLE_BOOK_TEMPLATES: BUIBookHTMLTemplate[] = [
   BUIHTMLTemplateLaravel,
   BUIHTMLTemplateMobile,
   BUIHTMLTemplateSwipe,
-  BUIHTMLTemplateMilanote,
+  BUIHTMLTemplateBookAI,
+  BUIHTMLTemplateFacebook,
 ];
 
 export const buiBookGetTemplateOptions = () => {

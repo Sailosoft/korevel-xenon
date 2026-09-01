@@ -20,7 +20,10 @@ import {
 } from "./bc.gauntlet.server";
 import BCSettingsRepository from "../settings/bc.settings.repository";
 import type { BCGenAIOptionId } from "../generative-ai/bc.generative-ai.entity";
-import { BC_GEN_AI_DEFAULT_OPTION_ID } from "../generative-ai/bc.generative-ai.entity";
+import {
+  BC_GEN_AI_DEFAULT_OPTION_ID,
+  bcGenAIIsGraded,
+} from "../generative-ai/bc.generative-ai.entity";
 
 export interface BCGauntletState {
   personas: BCCasePersona[];
@@ -62,6 +65,9 @@ export function useBCGauntlet(): BCGauntletState {
   const [aiOption, setAiOption] = useState<BCGenAIOptionId>(
     BC_GEN_AI_DEFAULT_OPTION_ID,
   );
+  /** True when the selected mode is graded/scored; false for supportive modes
+   * (e.g. mental-health) where nothing is certified. */
+  const isGraded = bcGenAIIsGraded(aiOption);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,13 +289,25 @@ export function useBCGauntlet(): BCGauntletState {
         aiConfig,
       );
       setEvaluation(result);
-      await bcDatabase.sessions.update(sessionId, {
-        status: result.passed ? "certified" : "failed",
-        resolved: result.passed,
-        curveballs,
-        endedAt: Date.now(),
-        summary: result.summary,
-      });
+      if (isGraded) {
+        await bcDatabase.sessions.update(sessionId, {
+          status: result.passed ? "certified" : "failed",
+          resolved: result.passed,
+          curveballs,
+          endedAt: Date.now(),
+          summary: result.summary,
+        });
+      } else {
+        // Supportive, ungraded modes (e.g. mental-health): there is no
+        // pass/fail certification — the session is simply completed.
+        await bcDatabase.sessions.update(sessionId, {
+          status: "completed",
+          resolved: true,
+          curveballs,
+          endedAt: Date.now(),
+          summary: result.summary,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
@@ -302,6 +320,7 @@ export function useBCGauntlet(): BCGauntletState {
     historyForAI,
     curveballs,
     aiOption,
+    isGraded,
   ]);
 
   const restart = useCallback(() => {

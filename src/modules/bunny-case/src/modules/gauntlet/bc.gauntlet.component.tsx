@@ -28,6 +28,7 @@ import type { BCCaseMessage } from "../trainer/bc.trainer.entity";
 import { BCGenAIOptionSelector } from "../generative-ai/bc.generative-ai.selector";
 import {
   bcGenAIBubbleLabels,
+  bcGenAIIsGraded,
   type BCGenAIBubbleLabels,
 } from "../generative-ai/bc.generative-ai.entity";
 
@@ -142,6 +143,7 @@ function GauntletContent() {
 
   const started = sessionId != null;
   const bubbleLabels = bcGenAIBubbleLabels(aiOption);
+  const isGraded = bcGenAIIsGraded(aiOption);
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 md:px-6 space-y-6">
@@ -238,8 +240,9 @@ function GauntletContent() {
             )}
           </Button>
           <p className="text-xs text-slate-400">
-            Resolve the case without coaching. The persona may throw unexpected
-            curveballs.
+            {isGraded
+              ? "Resolve the case without coaching. The persona may throw unexpected curveballs."
+              : "A supportive conversation — open up freely. Nothing is graded or certified."}
           </p>
         </div>
       )}
@@ -291,18 +294,20 @@ function GauntletContent() {
               {busy ? (
                 <span className="flex items-center gap-2">
                   <Spinner size="sm" color="current" />
-                  Evaluating…
+                  {isGraded ? "Evaluating…" : "Closing…"}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <Flag className="w-4 h-4" />
-                  Submit for Evaluation
+                  {isGraded ? "Submit for Evaluation" : "Complete Session"}
                 </span>
               )}
             </Button>
-            <span className="text-xs text-slate-400">
-              Curveballs so far: {curveballs}
-            </span>
+            {isGraded && (
+              <span className="text-xs text-slate-400">
+                Curveballs so far: {curveballs}
+              </span>
+            )}
           </div>
         </>
       )}
@@ -310,26 +315,40 @@ function GauntletContent() {
       {evaluation && (
         <div
           className={`rounded-2xl border p-5 space-y-3 ${
-            evaluation.passed
-              ? "bg-emerald-50 border-emerald-200"
-              : "bg-red-50 border-red-200"
+            isGraded
+              ? evaluation.passed
+                ? "bg-emerald-50 border-emerald-200"
+                : "bg-red-50 border-red-200"
+              : "bg-teal-50 border-teal-200"
           }`}
         >
           <div className="flex items-center gap-3">
-            {evaluation.passed ? (
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-            ) : (
+            {isGraded && !evaluation.passed ? (
               <XCircle className="w-8 h-8 text-red-500" />
+            ) : (
+              <CheckCircle2
+                className={`w-8 h-8 ${
+                  isGraded ? "text-emerald-600" : "text-teal-600"
+                }`}
+              />
             )}
             <div>
               <h2 className="text-lg font-bold text-slate-800">
-                {evaluation.passed
-                  ? "Certification Granted"
-                  : "Certification Not Granted"}
+                {isGraded
+                  ? evaluation.passed
+                    ? "Certification Granted"
+                    : "Certification Not Granted"
+                  : "Session Reflection"}
               </h2>
-              <p className="text-sm text-slate-500">
-                Score: {evaluation.score}/100 · Curveballs: {curveballs}
-              </p>
+              {isGraded ? (
+                <p className="text-sm text-slate-500">
+                  Score: {evaluation.score}/100 · Curveballs: {curveballs}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Supportive session complete — nothing is graded or certified.
+                </p>
+              )}
             </div>
           </div>
           <p className="text-sm text-slate-700">{evaluation.reason}</p>
@@ -340,7 +359,7 @@ function GauntletContent() {
               ))}
             </ul>
           )}
-          {!evaluation.passed && (
+          {isGraded && !evaluation.passed && (
             <p className="text-sm text-red-600 font-medium">
               Route back to the Conversation Trainer for more practice, then
               retry the gauntlet.
@@ -349,7 +368,11 @@ function GauntletContent() {
           <Button onPress={restart} className="bg-slate-800 text-white">
             <span className="flex items-center gap-2">
               <RotateCcw className="w-4 h-4" />
-              {evaluation.passed ? "Run Another Exam" : "Practice & Retry"}
+              {isGraded
+                ? evaluation.passed
+                  ? "Run Another Exam"
+                  : "Practice & Retry"
+                : "Start Another Session"}
             </span>
           </Button>
         </div>

@@ -267,7 +267,21 @@ const REPORT_HEAD = `
   /* Code panels → dark so the text matches the code-block background */
   .output-panel pre { background: #0f172a !important; }
   .output-panel pre code { color: #e2e8f0; }
-  .output-panel .rm-plain { color: #e2e8f0; border: 1px solid rgba(15,23,42,0.1); }
+
+  /* Plain text output → clean light panel: black text on a white surface */
+  .output-panel pre.rm-plain {
+    color: #0f172a !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace !important;
+    font-size: 0.875rem !important;
+    line-height: 1.75 !important;
+    padding: 1.25rem !important;
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
+    font-variant-ligatures: none;
+  }
 
   /* Raw HTML output — sandboxed iframe with an "open in new tab" action */
   .html-frame {

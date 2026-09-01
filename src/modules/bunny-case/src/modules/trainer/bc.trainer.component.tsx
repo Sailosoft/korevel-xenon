@@ -40,6 +40,7 @@ import type { BCCaseMessage } from "./bc.trainer.entity";
 import { BCGenAIOptionSelector } from "../generative-ai/bc.generative-ai.selector";
 import {
   bcGenAIBubbleLabels,
+  bcGenAIIsGraded,
   type BCGenAIBubbleLabels,
 } from "../generative-ai/bc.generative-ai.entity";
 
@@ -149,6 +150,7 @@ function TrainerContent() {
   const { ttsSupported, autoTTS, setAutoTTS, speakRoleText } = useBCVoice();
 
   const bubbleLabels = bcGenAIBubbleLabels(aiOption);
+  const isGraded = bcGenAIIsGraded(aiOption);
 
   const stt = useBCSpeechRecognition({
     onFinalTranscript: (text) => {
@@ -499,9 +501,12 @@ function TrainerContent() {
             <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-violet-700 font-semibold text-sm">
                 <Sparkles className="w-4 h-4" /> AI Trainer validation
-                <span className="ml-auto text-xs font-medium text-violet-500">
-                  Score: {critique.score != null ? `${critique.score}/10` : "—"}
-                </span>
+                {isGraded && (
+                  <span className="ml-auto text-xs font-medium text-violet-500">
+                    Score:{" "}
+                    {critique.score != null ? `${critique.score}/10` : "—"}
+                  </span>
+                )}
               </div>
               {critique.strengths?.length > 0 && (
                 <div className="space-y-1">
@@ -566,9 +571,12 @@ function TrainerContent() {
             <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-violet-700 font-semibold text-sm">
                 <Sparkles className="w-4 h-4" /> AI Trainer coaching
-                <span className="ml-auto text-xs font-medium text-violet-500">
-                  Score: {feedback.score != null ? `${feedback.score}/10` : "—"}
-                </span>
+                {isGraded && (
+                  <span className="ml-auto text-xs font-medium text-violet-500">
+                    Score:{" "}
+                    {feedback.score != null ? `${feedback.score}/10` : "—"}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-violet-900">
                 <span className="font-semibold">Suggested:</span>{" "}
@@ -639,7 +647,7 @@ function TrainerContent() {
                 }
               />
               <div className="flex flex-col gap-1 shrink-0">
-                {trainerOptionEnabled && (
+                {trainerOptionEnabled && isGraded && (
                   <Button
                     onPress={() => void validateDraft()}
                     isDisabled={busy || !draft.trim()}
@@ -654,9 +662,11 @@ function TrainerContent() {
                 )}
                 <Button
                   // Feature #8: "Send (no guide)" must send the draft right
-                  // away instead of running the validation function.
+                  // away instead of running the validation function. Ungraded
+                  // modes (e.g. mental-health) always send directly — nothing
+                  // is scored or corrected.
                   onPress={() =>
-                    void (trainerOptionEnabled
+                    void (!isGraded || trainerOptionEnabled
                       ? sendWithoutGuide()
                       : submitDraft())
                   }
@@ -717,12 +727,27 @@ function TrainerContent() {
           {/* ── Session controls ────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-2">
             <Button
+              onPress={() => void endSession()}
+              isDisabled={busy}
+              variant="outline"
+              className="text-slate-500 border-slate-200"
+            >
+              {busy ? (
+                <span className="flex items-center gap-2">
+                  <Spinner size="sm" color="current" />
+                  Reviewing…
+                </span>
+              ) : (
+                "Resolve Case"
+              )}
+            </Button>
+            <Button
               onPress={() => void resolveCase()}
               className="bg-emerald-600 text-white"
             >
               <span className="flex items-center gap-2">
                 <Flag className="w-4 h-4" />
-                Resolve Case
+                End Session
               </span>
             </Button>
             <Button
@@ -742,21 +767,6 @@ function TrainerContent() {
                   <Library className="w-4 h-4" />
                   Save to Playbook
                 </span>
-              )}
-            </Button>
-            <Button
-              onPress={() => void endSession()}
-              isDisabled={busy}
-              variant="outline"
-              className="text-slate-500 border-slate-200"
-            >
-              {busy ? (
-                <span className="flex items-center gap-2">
-                  <Spinner size="sm" color="current" />
-                  Reviewing…
-                </span>
-              ) : (
-                "End Session"
               )}
             </Button>
           </div>
@@ -785,12 +795,14 @@ function TrainerContent() {
               <Flag className="w-4 h-4 text-emerald-500" />
               End-of-Session Review
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-0.5 shrink-0">
-              Score:{" "}
-              {sessionSummary.score != null
-                ? `${sessionSummary.score}/10`
-                : "—"}
-            </span>
+            {isGraded && (
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-0.5 shrink-0">
+                Score:{" "}
+                {sessionSummary.score != null
+                  ? `${sessionSummary.score}/10`
+                  : "—"}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-700">{sessionSummary.summary}</p>
 

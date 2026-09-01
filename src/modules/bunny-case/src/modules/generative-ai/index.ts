@@ -16,6 +16,7 @@ export {
   bcResolveGenAIOption,
   bcGenAIOptionList,
   bcGenAIBubbleLabels,
+  bcGenAIIsGraded,
 } from "./bc.generative-ai.entity";
 export {
   bcGenAISystemDirectives,
