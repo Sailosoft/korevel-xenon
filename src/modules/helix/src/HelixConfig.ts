@@ -37,6 +37,24 @@ export type HelixTemperaturePreset =
   | "creative"
   | "exploratory";
 
+/**
+ * Resolve the effective sampling temperature for a chat call.
+ *
+ * Some providers/models only accept the default temperature (1) — notably
+ * OpenAI reasoning models (o1/o3/o4) reject any other value with:
+ *   "Unsupported value: 'temperature' does not support 0.7 with this model.
+ *    Only the default (1) value is supported."
+ * For the "openai" provider we therefore force 1.0. All other providers keep
+ * the caller-supplied value, falling back to the 0.7 default.
+ */
+export function resolveTemperature(
+  provider?: string,
+  temperature?: number,
+): number {
+  if (provider === "openai") return 1;
+  return temperature ?? 0.7;
+}
+
 // ── Provider DTOs ─────────────────────────────────────────────────────────────
 
 /** Override DTO to swap the default provider+model at call-site */
@@ -189,20 +207,11 @@ const OLLAMA_CLOUD = [
   // Check model
   "gemma4:31b-cloud",
   "gpt-oss:20b-cloud",
-  "minimax-m2.5:cloud",
-  "minimax-m3:cloud",
+  "gpt-oss:120b-cloud",
   "nemotron-3-super:cloud",
   "nemotron-3-nano:30b-cloud",
-  // Limit Expire Soon
-  "glm-4.7:cloud",
-  "ministral-3:14b-cloud",
-  "gemma3:27b-cloud",
-  "devstral-small-2:24b-cloud",
-  "qwen3-coder-next:cloud",
-  "qwen3-coder:480b-cloud",
-
-  // Not Available
-  "devstral-2:123b-cloud",
+  "nemotron-3-ultra:cloud"
+  
 ];
 
 const HELIX_PROVIDER_MODELS: Record<
@@ -291,10 +300,7 @@ const HELIX_PROVIDER_MODELS: Record<
     ...OLLAMA_CLOUD,
   ] as const,
   ollamaCloud: OLLAMA_CLOUD,
-  deepseek: [
-    "deepseek-v4-flash",
-    "deepseek-v4-pro",
-  ] as const,
+  deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"] as const,
   groq: [
     // Alibaba Cloud
     "qwen/qwen3-32b",
@@ -325,7 +331,39 @@ const HELIX_PROVIDER_MODELS: Record<
     "whisper-large-v3",
     "whisper-large-v3-turbo",
   ] as const,
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"] as const,
+  openai: [
+    // Flagship & Frontier Models
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+
+    // Reasoning & Deep Intelligence (o-Series)
+    "o3",
+    "o3-pro",
+    "o4-mini",
+    "o1",
+    "o1-mini",
+
+    // Agentic & Coding-Specific
+    "gpt-5.3-codex",
+
+    // Multimodal & Legacy GPT-4 Series
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.5-preview",
+    "gpt-4-turbo",
+    "gpt-3.5-turbo",
+
+    // Open-Weights (Local/Self-Hosted API)
+    "gpt-oss-120b",
+    "gpt-oss-20b",
+  ] as const,
   requesty: [
     // free
     "google/gemma-4-31b-it", // 0/0

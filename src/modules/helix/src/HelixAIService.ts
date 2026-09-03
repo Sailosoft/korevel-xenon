@@ -3,11 +3,12 @@ import type {
   ChatCompletion,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
-import type {
-  HelixAIOption,
-  HelixAIProviderConfig,
-  HelixTemperaturePreset,
-  HelixAIConfig,
+import {
+  resolveTemperature,
+  type HelixAIOption,
+  type HelixAIProviderConfig,
+  type HelixTemperaturePreset,
+  type HelixAIConfig,
 } from "./HelixConfig";
 import { HelixAIServiceType } from "./HelixAIServiceInterface";
 import {
@@ -84,6 +85,7 @@ interface ResolvedCallConfig {
   client: OpenAI;
   model: string;
   maxTokens: number;
+  provider: string;
 }
 
 interface ChatCallOptions {
@@ -124,6 +126,7 @@ function prepareCall(
     client,
     model: effectiveModel,
     maxTokens: options.maxToken ?? defaultMaxTokens,
+    provider: resolved.provider,
   };
 }
 
@@ -135,15 +138,16 @@ async function executeChatCompletion(
   client: OpenAI,
   model: string,
   messages: ChatCompletionMessageParam[],
-  temperature: number,
+  temperature: number | undefined,
   maxTokens: number,
+  provider: string,
   response_format?: OpenAI.ResponseFormatJSONSchema | { type: "json_object" },
 ): Promise<ChatCompletion> {
   try {
     return await client.chat.completions.create({
       model,
       messages,
-      temperature: temperature ?? 0.7,
+      temperature: resolveTemperature(provider, temperature),
       max_tokens: maxTokens,
       ...(response_format ? { response_format } : {}),
     });
@@ -228,7 +232,7 @@ export default class HelixAIService implements HelixAIServiceType {
     type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
-    const { client, model, maxTokens } = prepareCall(
+    const { client, model, maxTokens, provider } = prepareCall(
       this.provider,
       this.providerConfigs,
       this.ai,
@@ -239,8 +243,9 @@ export default class HelixAIService implements HelixAIServiceType {
       client,
       model,
       option.messages,
-      option.temperature ?? 0.7,
+      option.temperature,
       maxTokens,
+      provider,
     );
     return response.choices[0]?.message?.content || "";
   }
@@ -255,7 +260,7 @@ export default class HelixAIService implements HelixAIServiceType {
     maxToken?: number;
     response_format?: { type: "json_object" };
   }): Promise<ChatCompletion> {
-    const { client, model, maxTokens } = prepareCall(
+    const { client, model, maxTokens, provider } = prepareCall(
       this.provider,
       this.providerConfigs,
       this.ai,
@@ -266,8 +271,9 @@ export default class HelixAIService implements HelixAIServiceType {
       client,
       model,
       option.messages,
-      option.temperature ?? 0.7,
+      option.temperature,
       maxTokens,
+      provider,
       option.response_format,
     );
   }
@@ -314,7 +320,7 @@ export default class HelixAIService implements HelixAIServiceType {
     type?: HelixTemperaturePreset;
     maxToken?: number;
   }): Promise<string> {
-    const { client, model, maxTokens } = prepareCall(
+    const { client, model, maxTokens, provider } = prepareCall(
       this.provider,
       this.providerConfigs,
       this.ai,
@@ -329,8 +335,9 @@ export default class HelixAIService implements HelixAIServiceType {
       client,
       model,
       messages,
-      option.temperature ?? 0.7,
+      option.temperature,
       maxTokens,
+      provider,
     );
     return response.choices[0]?.message?.content || "";
   }
@@ -354,7 +361,7 @@ export default class HelixAIService implements HelixAIServiceType {
     temperature?: number;
     type?: HelixTemperaturePreset;
   }): Promise<T> {
-    const { client, model: effectiveModel, maxTokens } = prepareCall(
+    const { client, model: effectiveModel, maxTokens, provider: resolvedProvider } = prepareCall(
       this.provider,
       this.providerConfigs,
       this.ai,
@@ -376,8 +383,9 @@ export default class HelixAIService implements HelixAIServiceType {
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      temperature ?? 0.7,
+      temperature,
       maxTokens,
+      resolvedProvider,
       responseFormat,
     );
     console.log(response.choices);

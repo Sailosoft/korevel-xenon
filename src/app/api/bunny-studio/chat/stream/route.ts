@@ -9,7 +9,10 @@
 
 import { streamText, type ModelMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { HELIX_AI_PROVIDERS } from "@/src/modules/helix";
+import {
+  HELIX_AI_PROVIDERS,
+  resolveTemperature,
+} from "@/src/modules/helix";
 import type { BSChatStreamRequest, BSChatWireMessage } from "@/src/modules/bunny-studio/src/modules/chat/BSChat.Types";
 import {
   BS_API_TOKEN_HEADER,
@@ -115,7 +118,7 @@ export async function POST(req: Request) {
         systemMessages.length > 0
           ? systemMessages.map((m) => m.content).join("\n\n")
           : undefined,
-      temperature: body.temperature ?? 0.7,
+      temperature: resolveTemperature(body.provider, body.temperature),
     });
 
     // Peek at the first streamed parts before responding. Upstream errors
