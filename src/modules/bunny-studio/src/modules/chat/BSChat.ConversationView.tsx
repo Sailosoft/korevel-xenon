@@ -42,6 +42,8 @@ import { useBSVoice } from "./BSChat.Voice";
 import {
   BSChatKnowledgeBaseIndicator,
   BSChatKnowledgeBaseScores,
+  BSChatKnowledgeSourceBadge,
+  stripKnowledgeSourceTag,
 } from "./BSChat.KnowledgeBase";
 import { splitThoughtBlocks } from "./BSChat.Thought";
 
@@ -180,7 +182,9 @@ export function BSChatConversationView({
 
   // Text actually read aloud / copied for assistant messages — the real output
   // only; the thought preamble is never read aloud or copied (feature).
-  const speakContent = isAssistant ? assistantContent : conversation.content;
+  const speakContent = isAssistant
+    ? stripKnowledgeSourceTag(assistantContent)
+    : conversation.content;
 
   // Render toggle state only applies to assistant messages
   const [view, setView] = useState<"render" | "raw">("render");
@@ -416,7 +420,10 @@ export function BSChatConversationView({
 
             {view === "render" ? (
               assistantContent ? (
-                <RenderView format={renderFormat} content={assistantContent} />
+                <RenderView
+                  format={renderFormat}
+                  content={stripKnowledgeSourceTag(assistantContent)}
+                />
               ) : showThoughtPanel ? (
                 // Still in the thought phase — the animated panel above is the
                 // progress indicator, so don't render a second loading state.
@@ -431,6 +438,13 @@ export function BSChatConversationView({
               <pre className="whitespace-pre-wrap font-mono text-xs text-gray-600 bg-gray-50 rounded-xl p-3 max-h-96 overflow-auto">
                 {assistantContent}
               </pre>
+            )}
+
+            {/* Answer-source disclosure badge (feature) — the AI tags its
+                response with where the answer came from (Knowledge Base,
+                general knowledge, or both); render it as a small pill. */}
+            {isAssistant && (
+              <BSChatKnowledgeSourceBadge content={assistantContent} />
             )}
 
             {/* Actions at the bottom of the bubble (feature) */}
