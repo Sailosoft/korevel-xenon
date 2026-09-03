@@ -26,6 +26,7 @@ import LCFileViewDisplayMode, {
   canPreviewFile,
   isMarkdownFile,
   isHtmlFile,
+  isCsvFile,
 } from "./LCFileView.DisplayMode";
 import type { LCFileViewDisplayMode as LCFileViewDisplayModeType } from "./LCFileView.DisplayMode";
 import type { LCFileTreeItem, LCExternalChangeStatus, LCFileActionResult } from "./LCInterface";
@@ -153,6 +154,7 @@ export default function LCFileView({
   // ── Derived display-mode helpers ─────────────────────────────────────────
   const canPreview = selectedFile ? canPreviewFile(selectedFile.name) : false;
   const htmlFile = selectedFile ? isHtmlFile(selectedFile.name) : false;
+  const csvFile = selectedFile ? isCsvFile(selectedFile.name) : false;
 
   // Close the header dropdown on click outside
   useEffect(() => {
@@ -228,12 +230,14 @@ export default function LCFileView({
                   ? "View rendered markdown"
                   : htmlFile
                     ? "View rendered HTML"
-                    : "View rendered diagram"
+                    : csvFile
+                      ? "View rendered CSV table"
+                      : "View rendered diagram"
               }
             >
               <Eye className="w-3 h-3" />
               <span className="hidden sm:inline">
-                {mdFile ? "Preview" : htmlFile ? "Preview" : "Diagram"}
+                {mdFile ? "Preview" : htmlFile ? "Preview" : csvFile ? "Table" : "Diagram"}
               </span>
             </button>
           </div>

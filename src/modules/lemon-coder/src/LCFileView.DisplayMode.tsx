@@ -59,6 +59,7 @@ export function getLanguage(fileName: string): string {
     env: "dotenv",
     xml: "xml",
     svg: "xml",
+    csv: "plaintext",
     txt: "plaintext",
   };
   return languageMap[ext] || "plaintext";
@@ -87,8 +88,18 @@ export function isHtmlFile(fileName: string): boolean {
   return getFileExt(fileName) === "html";
 }
 
+export function isCsvFile(fileName: string): boolean {
+  return getFileExt(fileName) === "csv";
+}
+
 export function canPreviewFile(fileName: string): boolean {
-  return isMarkdownFile(fileName) || isMermaidFile(fileName) || isMindmapFile(fileName) || isHtmlFile(fileName);
+  return (
+    isMarkdownFile(fileName) ||
+    isMermaidFile(fileName) ||
+    isMindmapFile(fileName) ||
+    isHtmlFile(fileName) ||
+    isCsvFile(fileName)
+  );
 }
 
 // ── Map file name to RenderFormat ───────────────────────────────────────────
@@ -98,6 +109,7 @@ function getRenderFormat(fileName: string): RenderFormat {
   if (isMindmapFile(fileName)) return "mindmap";
   if (isMarkdownFile(fileName)) return "markdown";
   if (isHtmlFile(fileName)) return "html";
+  if (isCsvFile(fileName)) return "csv";
   return "plain";
 }
 
