@@ -111,6 +111,8 @@ export const buiAuthorModule: BunnyConfig<BUIAuthor, BUIAuthor> = {
                 { label: "Creative Narrative", value: "creative" },
                 { label: "Short Blurb / Summary", value: "short" },
                 { label: "Basic", value: "basic" },
+                { label: "Non-Fictional Writer", value: "non-fictional" },
+                { label: "Concise", value: "concise" },
               ],
             },
             {

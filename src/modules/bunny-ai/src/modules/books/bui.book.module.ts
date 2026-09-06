@@ -265,6 +265,9 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
                 { label: "Academic / Thesis Abstract", value: "academic" },
                 { label: "Cinematic Plot Synopsis", value: "cinematic" },
                 { label: "Minimalist Elevator Pitch", value: "minimalist" },
+                { label: "Non-Technical / Plain Language", value: "non-technical" },
+                { label: "Technical Focus", value: "technical" },
+                { label: "Concise", value: "concise" },
               ],
             },
             {
