@@ -57,6 +57,36 @@ alias that delegates to `createBunnyHelixAction`.
 | `temperature?` / `type?` | `number` / `HelixTemperaturePreset` | Generation temperature overrides. |
 | `onCreate` | `"prefill" \| "direct"` | `prefill` opens the module create modal pre-filled; `direct` creates the record and refreshes the table. |
 | `generate?` | `BunnyHelixGenerateFn` | Escape-hatch to swap in a custom server action. Defaults to `bunnyHelixGenerate`. |
+| `modes?` | `BunnyHelixModesConfig` | Optional generation modes: a mode selector is rendered as the first modal input and its `prompt` is injected into the generation instructions. |
+
+## Generation modes
+
+`modes` adds an optional/selectable mode to the modal, steering how the AI
+builds the record. Example:
+
+```tsx
+modes: {
+  required: false, // optional (default); select "None" to skip
+  label: "Mode",   // selector label (default "Mode")
+  field: "mode",   // value property name when required (default "mode")
+  modes: [
+    { label: "Simple Instruction", mode: "simple-instruction",
+      prompt: "Generate a simple, short instruction." },
+    { label: "Detailed Instruction", mode: "detailed-instruction", default: true,
+      prompt: "Generate a detailed, step-by-step instruction." },
+  ],
+},
+```
+
+Behavior:
+
+- **Optional** (`required: false`) — the selector includes a "None" option.
+  Picking a mode appends its `prompt` to the generation instructions; choosing
+  "None" excludes any mode prompt and no mode value is added to the record.
+- **Required** (`required: true`) — a mode must be present. The mode value is
+  declared as the **first** schema property, is forced into the generated data
+  under `field`, and when nothing is selected defaults to the mode marked
+  `default: true` (or the first mode).
 
 ## Supported field types
 

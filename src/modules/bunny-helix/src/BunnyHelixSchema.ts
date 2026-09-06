@@ -27,6 +27,7 @@ import type {
 import type {
   BunnyHelixTarget,
   BunnyHelixSelectChoice,
+  BunnyHelixModeContext,
 } from "./BunnyHelix.Interface";
 
 // ── Internal resolved shapes ─────────────────────────────────────────────────
@@ -126,15 +127,22 @@ function moduleTypeInfo(
  * type/label/options are derived; self-contained targets are used as declared.
  * Select choices are embedded in the property description (no `enum`).
  *
+ * When a required `modeContext` is provided, the mode property is declared
+ * FIRST in the schema (constrained to the defined modes). It is intentionally
+ * NOT added to the validation constraints — the caller overrides the generated
+ * value with the resolved mode since it is deterministic.
+ *
  * @param targets - The action's AI-generated target fields.
  * @param moduleFields - The module's form config fields (used to resolve `field` refs).
+ * @param modeContext - Optional required-mode context injected into the schema.
  * @returns The Helix schema plus per-field constraint metadata.
  */
 export async function buildBunnyHelixSchema<TForm>(
   targets: BunnyHelixTarget<TForm>[],
   moduleFields: BunnyFormField<TForm>[],
+  modeContext?: BunnyHelixModeContext,
 ): Promise<BunnyHelixSchemaResult> {
-  const properties: HelixAISchemaProperties = {};
+  let properties: HelixAISchemaProperties = {};
   const fields: BunnyHelixSchemaResult["fields"] = {};
 
   const byName = new Map<string, BunnyFormField<TForm>>();
@@ -151,6 +159,20 @@ export async function buildBunnyHelixSchema<TForm>(
     } else {
       fields[resolved.name] = { type: resolved.type };
     }
+  }
+
+  // Required mode: declare the mode property first so the AI signs the record.
+  if (modeContext?.modes.required) {
+    const cfg = modeContext.modes;
+    const modeName = cfg.field ?? "mode";
+    const choices = cfg.modes.map((m) => m.label).join(", ");
+    properties = {
+      [modeName]: {
+        type: "string",
+        description: `Must be exactly one of: ${choices}.`,
+      } as HelixStrictPropertyDefinition,
+      ...properties,
+    };
   }
 
   const schema: HelixAISchemaOptions = {

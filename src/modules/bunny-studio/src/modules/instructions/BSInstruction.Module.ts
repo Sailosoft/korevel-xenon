@@ -116,6 +116,24 @@ export const bsInstructionModule = BunnyFeature.create<BSInstruction, BSInstruct
               rows: 4,
             },
           ],
+          modes: {
+            label: "Mode",
+            field: "mode",
+            modes: [
+              {
+                label: "Simple Instruction",
+                mode: "simple-instruction",
+                prompt: "Generate a short, simple instruction (1-2 sentences).",
+              },
+              {
+                label: "Detailed Instruction",
+                mode: "detailed-instruction",
+                default: true,
+                prompt:
+                  "Generate a detailed, step-by-step instruction with clear structure.",
+              },
+            ],
+          },
           targets: [
             {
               field: "title",

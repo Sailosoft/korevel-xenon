@@ -138,6 +138,13 @@ export interface BunnyHelixActionConfig<TForm = Record<string, unknown>> {
   ai: BunnyHelixAIAdapter;
   /** Modal fields the user fills in before generation. */
   inputFields: BunnyFormField<TForm>[];
+  /**
+   * Optional generation modes. When set, a mode selector is rendered as the
+   * first modal input; the chosen mode's prompt is injected into the
+   * generation instructions, and (when `required`) its value is added as the
+   * first generated property.
+   */
+  modes?: BunnyHelixModesConfig;
   /** Record fields the AI will generate. */
   targets: BunnyHelixTarget<TForm>[];
   /**
@@ -163,6 +170,51 @@ export interface BunnyHelixActionConfig<TForm = Record<string, unknown>> {
   submitLabel?: string;
   /** Label for the cancel button (defaults to "Cancel"). */
   cancelLabel?: string;
+}
+
+// ── Modes (optional generation modes) ────────────────────────────────────────
+
+/**
+ * A selectable generation mode. When chosen, its `prompt` is appended to the
+ * generation instructions so it steers how the AI builds the record fields.
+ */
+export interface BunnyHelixMode {
+  /** Human-readable label shown in the modal selector. */
+  label: string;
+  /** Stable value stored in the record / form (e.g. "simple-instruction"). */
+  mode: string;
+  /** Guidance included in the generation prompt when this mode is chosen. */
+  prompt: string;
+  /** Marks this mode as the default (used when `required` and none selected). */
+  default?: boolean;
+}
+
+/**
+ * Optional mode configuration for an action. When present, bunny-helix renders
+ * a mode selector as the first modal input field.
+ *
+ * Requirement level:
+ * - `required: false` (default) — the selector is optional; a "None" option is
+ *   added and picking it excludes any mode prompt and value.
+ * - `required: true` — the mode must be present; it is embedded in the
+ *   generated data under `field` and declared first in the schema properties,
+ *   defaulting to the `default` mode (or the first mode) when unselected.
+ */
+export interface BunnyHelixModesConfig {
+  modes: BunnyHelixMode[];
+  /** Require a mode and embed its value in the generated record. */
+  required?: boolean;
+  /** Name of the generated record property holding the mode value. @default "mode" */
+  field?: string;
+  /** Label of the mode selector shown in the modal. @default "Mode" */
+  label?: string;
+}
+
+/** Resolved mode context passed to the schema builder. */
+export interface BunnyHelixModeContext {
+  modes: BunnyHelixModesConfig;
+  /** The selected (or defaulted) mode value when the mode is required. */
+  selectedValue?: string;
 }
 
 // ── Re-exports used by consumers ────────────────────────────────────────────

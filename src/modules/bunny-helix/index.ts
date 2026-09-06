@@ -27,6 +27,9 @@ export type {
   BunnyHelixGenerateParams,
   BunnyHelixGenerateFn,
   BunnyHelixPromptContext,
+  BunnyHelixMode,
+  BunnyHelixModesConfig,
+  BunnyHelixModeContext,
 } from "./src/BunnyHelix.Interface";
 
 export type {

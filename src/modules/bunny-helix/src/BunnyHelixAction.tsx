@@ -19,7 +19,7 @@
  */
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@heroui/react";
 import type { BunnyHeaderAction } from "@/src/modules/bunny/src/header/BunnyHeader.Interface";
 import { useBunnyHeaderActionForm } from "@/src/modules/bunny";
@@ -33,6 +33,7 @@ import type {
   BunnyHelixActionConfig,
   BunnyHelixPromptContext,
   BunnyHelixTarget,
+  BunnyHelixModesConfig,
 } from "./BunnyHelix.Interface";
 import { resolveBunnyHelixAI } from "./BunnyHelixAdapter";
 import {
@@ -88,6 +89,10 @@ function resolveSystemPrompt<TForm>(
       });
 }
 
+function defaultMode(modeConfig: BunnyHelixModesConfig): string | undefined {
+  return (modeConfig.modes.find((m) => m.default) ?? modeConfig.modes[0])?.mode;
+}
+
 function toButtonVariant(
   variant?: BunnyHeaderAction["variant"],
 ): "primary" | "secondary" | "ghost" | "danger" | "danger-soft" | "outline" | "tertiary" {
@@ -113,10 +118,50 @@ function toButtonVariant(
 
 // ── Internal host component (rendered inside the bunny provider) ────────────
 
+/**
+ * Renders the visible trigger button plus the modal host. Each click remounts
+ * the modal (fresh `session` key) so the composed bunny modal always opens with
+ * empty input fields instead of reusing the previous session's values.
+ */
 function BunnyHelixActionHost<TRow, TForm>({
   config,
 }: {
   config: BunnyHelixActionConfig<TForm>;
+}) {
+  const [session, setSession] = useState(0);
+  const pendingOpen = useRef(false);
+
+  const handleClick = useCallback(() => {
+    pendingOpen.current = true;
+    setSession((s) => s + 1);
+  }, []);
+
+  return (
+    <>
+      <Button variant={toButtonVariant(config.variant)} onClick={handleClick}>
+        {config.icon}
+        <span className="hidden sm:inline ml-1">{config.label}</span>
+      </Button>
+      <BunnyHelixActionModal<TRow, TForm>
+        key={session}
+        config={config}
+        pendingOpenRef={pendingOpen}
+      />
+    </>
+  );
+}
+
+/**
+ * A single modal session backed by bunny's `useBunnyHeaderActionForm`. New
+ * instances are mounted fresh (keyed by `session`), so all internal state —
+ * including the rendered input fields — starts empty.
+ */
+function BunnyHelixActionModal<TRow, TForm>({
+  config,
+  pendingOpenRef,
+}: {
+  config: BunnyHelixActionConfig<TForm>;
+  pendingOpenRef: React.MutableRefObject<boolean>;
 }) {
   const providerKernel = useBunnyKernel();
 
@@ -139,6 +184,24 @@ function BunnyHelixActionHost<TRow, TForm>({
         );
       }
 
+      // Resolve the selected mode (prompt guidance + required value).
+      let modePrompt: string | undefined;
+      let modeValue: string | undefined;
+      if (config.modes) {
+        const modeField = config.modes.field ?? "mode";
+        const rawValue = (formData as Record<string, unknown>)[modeField];
+        const selected = config.modes.modes.find(
+          (m) => m.mode === rawValue,
+        );
+        if (selected) {
+          modeValue = selected.mode;
+          modePrompt = selected.prompt;
+        }
+        if (config.modes.required && !modeValue) {
+          modeValue = defaultMode(config.modes);
+        }
+      }
+
       const moduleFields = deriveModuleFields(typedKernel);
 
       setState((prev) => ({
@@ -149,18 +212,24 @@ function BunnyHelixActionHost<TRow, TForm>({
       const schemaResult = await buildBunnyHelixSchema<TForm>(
         config.targets,
         moduleFields,
+        config.modes
+          ? { modes: config.modes, selectedValue: modeValue }
+          : undefined,
       );
 
       const fieldPrompts = buildFieldPrompts(config.targets, moduleFields);
+      const promptNotes = modePrompt
+        ? `${fieldPrompts}${fieldPrompts ? "\n" : ""}- Mode: ${modePrompt}`
+        : fieldPrompts;
       const promptCtx: BunnyHelixPromptContext<TForm> = {
         title: typedKernel.config.title,
         inputs: formData as TForm,
-        fieldPrompts,
+        fieldPrompts: promptNotes,
       };
       const system = resolveSystemPrompt(config, promptCtx);
       const user = buildUserPrompt(
         formData as Record<string, unknown>,
-        fieldPrompts,
+        promptNotes,
       );
 
       setState((prev) => ({
@@ -183,6 +252,11 @@ function BunnyHelixActionHost<TRow, TForm>({
         throw new Error(validated.error);
       }
 
+      // Required mode: the value is deterministic — pin the generated data.
+      if (validated.ok && config.modes?.required && modeValue) {
+        validated.data[config.modes.field ?? "mode"] = modeValue;
+      }
+
       if (config.onCreate === "direct") {
         const flow = await directCreate<TRow, TForm>(
           typedKernel,
@@ -197,6 +271,34 @@ function BunnyHelixActionHost<TRow, TForm>({
   );
 
   // Stable for the composed bunny hook; only the module config changes matter.
+  const formFields = useMemo<BunnyFormField[]>(() => {
+    const inputs = config.inputFields as BunnyFormField[];
+    if (!config.modes) return inputs;
+    const modeField = config.modes.field ?? "mode";
+    const options: Array<{ label: string; value: string }> = [];
+    if (!config.modes.required) options.push({ label: "None", value: "" });
+    options.push(
+      ...config.modes.modes.map((m) => ({ label: m.label, value: m.mode })),
+    );
+    return [
+      {
+        name: modeField,
+        label: config.modes.label ?? "Mode",
+        type: "select",
+        options,
+      },
+      ...inputs,
+    ];
+  }, [config]);
+
+  const initialData = useMemo<Record<string, unknown> | undefined>(() => {
+    if (!config.modes?.required) return undefined;
+    const value = defaultMode(config.modes);
+    return value === undefined
+      ? undefined
+      : { [config.modes.field ?? "mode"]: value };
+  }, [config]);
+
   const formConfig = useMemo(
     () => ({
       id: config.id,
@@ -206,25 +308,27 @@ function BunnyHelixActionHost<TRow, TForm>({
       modalTitle: config.modalTitle || config.label,
       submitLabel: config.submitLabel || config.label,
       cancelLabel: config.cancelLabel,
-      formFields: config.inputFields as BunnyFormField[],
+      formFields,
+      initialData,
       submitAction,
     }),
-    [config, submitAction],
+    [config, formFields, initialData, submitAction],
   );
 
   const action = useBunnyHeaderActionForm<Record<string, unknown>>(
     formConfig as never,
   );
 
-  return (
-    <>
-      <Button variant={toButtonVariant(config.variant)} onClick={() => action.onClick?.()}>
-        {config.icon}
-        <span className="hidden sm:inline ml-1">{config.label}</span>
-      </Button>
-      {action.render ? action.render(providerKernel) : null}
-    </>
-  );
+  // Open this fresh session only when the mount was caused by a click on the
+  // trigger button (the initial page-load mount stays closed).
+  useEffect(() => {
+    if (pendingOpenRef.current) {
+      pendingOpenRef.current = false;
+      action.onClick?.();
+    }
+  }, [action, pendingOpenRef]);
+
+  return action.render ? action.render(providerKernel) : null;
 }
 
 // ── Factory ──────────────────────────────────────────────────────────────────
