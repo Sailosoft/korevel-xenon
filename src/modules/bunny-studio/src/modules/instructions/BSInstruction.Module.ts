@@ -4,8 +4,12 @@
 // input. Optionally belongs to an InstructionGroup (feature: Custom
 // Instructions).
 
+import { createElement } from "react";
+import { Sparkles } from "lucide-react";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
+import { createBunnyHelixAction } from "@/src/modules/bunny-helix";
 import { bsDB } from "../../BSDatabase";
+import { BS_AI_SETTINGS_ID } from "../ai-settings/BSAISettings.Types";
 import type { BSInstruction } from "./BSInstruction.Types";
 
 export const bsInstructionModule = BunnyFeature.create<BSInstruction, BSInstruction>(
@@ -83,5 +87,51 @@ export const bsInstructionModule = BunnyFeature.create<BSInstruction, BSInstruct
     });
 
     feature.useDataLayer(bsDB.instructionsRepo.dataLayer);
+
+    // ── "AI Create" header action (bunny-helix) ──────────────────────────
+    // Plug-and-play: createBunnyHelixAction is a plain factory callable right
+    // here at module scope. It opens a modal; the AI generates title + content
+    // from a brief and prefills the create form. The provider/model comes from
+    // the aiSettings singleton, resolved fresh at submit time.
+    feature.configureHeader((header) => {
+      header.addAction(
+        createBunnyHelixAction<BSInstruction, BSInstruction>({
+          id: "ai-create",
+          label: "AI Create",
+          icon: createElement(Sparkles, { className: "size-4" }),
+          variant: "accent",
+          ai: async () => {
+            const res = await bsDB.aiSettingsRepo.get(BS_AI_SETTINGS_ID);
+            if (!res.isSuccess || !res.value.provider || !res.value.model) {
+              return undefined;
+            }
+            return { provider: res.value.provider, model: res.value.model };
+          },
+          inputFields: [
+            {
+              name: "brief",
+              label: "Describe the instruction",
+              type: "textarea",
+              required: true,
+              rows: 4,
+            },
+          ],
+          targets: [
+            {
+              field: "title",
+              prompt: "A short, specific title (max ~60 chars).",
+            },
+            {
+              field: "content",
+              prompt:
+                "The complete instruction text: imperative, precise, ready to paste into a prompt box.",
+            },
+          ],
+          onCreate: "prefill",
+          modalTitle: "AI Create Instruction",
+          submitLabel: "Generate",
+        }),
+      );
+    });
   },
 );
