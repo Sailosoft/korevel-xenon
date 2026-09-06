@@ -23,9 +23,12 @@ function firstError(errors: Record<string, string>): string | undefined {
 /**
  * Open the module's create modal pre-filled with the generated data.
  *
- * The modal's `useEffect → resetForm()` runs when `isOpen` flips true; the
- * generated values must be applied AFTER that reset, so the merge is deferred
- * to the next macrotask.
+ * The modal's `useEffect → resetForm()` runs when `isOpen` flips true, and
+ * React flushes passive effects asynchronously (message-task) — so a single
+ * `setTimeout(0)` merge can land BEFORE the reset and be wiped. The merge is
+ * therefore applied twice: once immediately (covers the common case where it
+ * already lands after the reset) and once shortly after, which is guaranteed to
+ * run after the reset effect has flushed on every modern React rendering path.
  *
  * @param kernel - The active `BunnyKernel`.
  * @param data - AI-generated record fields.
@@ -38,12 +41,15 @@ export function prefillCreate<TRow, TForm>(
 
   modal.openCreate();
 
-  setTimeout(() => {
+  const apply = () => {
     form.setFormData((prev: TForm) => ({
       ...(prev as Record<string, unknown>),
       ...data,
     }) as TForm);
-  }, 0);
+  };
+
+  setTimeout(apply, 0);
+  setTimeout(apply, 150);
 
   return { ok: true };
 }
