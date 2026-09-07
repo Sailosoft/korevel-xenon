@@ -509,61 +509,37 @@ const HELIX_PROVIDER_MODELS: Record<
     "zai/glm-5.2", // 0.50/1.50
   ] as const,
   openRouter: [
-    "openrouter/fusion",
-    "moonshotai/kimi-k2.7-code",
-    "openrouter/free",
-    "openrouter/bodybuilder",
-    "openrouter/auto",
-    "nex-agi/nex-n2-pro:free",
-    "nvidia/nemotron-3.5-content-safety:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "openrouter/owl-alpha",
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-    "poolside/laguna-xs.2:free",
-    "poolside/laguna-m.1:free",
+    // new batch
+    // google
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
-    "google/lyria-3-pro-preview",
+    // inclusion
+    "inclusionai/ling-3.0-flash-sante:free",
+    "inclusionai/ling-3.0-flash-fin:free",
+
+    // dots
+    "dots-studio/dots-3-note-preview:free",
+
+    // liquid
+    "liquid/lfm-2.5-2.6b:free",
+
+    // nvidia
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3.5-content-safety:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "liquid/lfm-2.5-1.2b-thinking:free",
-    "liquid/lfm-2.5-1.2b-instruct:free",
-    "nvidia/nemotron-nano-12b-v2-vl:free",
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "nvidia/nemotron-nano-9b-v2:free",
-    "openai/gpt-oss-120b:free",
-    "qwen/qwen3-coder:free",
-    "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "meta-llama/llama-3.2-3b-instruct:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    "inclusionai/ling-2.6-flash",
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-nemo",
-    "ibm-granite/granite-4.0-h-micro",
-    "openai/gpt-oss-20b",
-    "sao10k/l3-lunaris-8b",
-    "meta-llama/llama-3.2-1b-instruct",
-    "amazon/nova-micro-v1",
-    "qwen/qwen-2.5-7b-instruct",
-    "cohere/command-r7b-12-2024",
-    "mistralai/mistral-small-24b-instruct-2501",
-    "ibm-granite/granite-4.1-8b",
-    "arcee-ai/trinity-mini",
-    "google/gemma-3-4b-it",
-    "google/gemma-3-12b-it",
-    "gryphe/mythomax-l2-13b",
-    "microsoft/phi-4",
-    "qwen/qwen3-8b",
-    "qwen/qwen3.5-flash-02-23",
-    "google/gemma-4-26b-a4b-it",
-    "mistralai/mistral-small-3.2-24b-instruct",
-    "google/gemma-3-27b-it",
-    "z-ai/glm-4.7-flash",
-    "qwen/qwen3-coder-30b-a3b-instruct",
-    "bytedance-seed/seed-1.6-flash",
-    "qwen/qwen3-32b",
-    "deepseek/deepseek-v4-flash",
-    "stepfun/step-3.5-flash",
+
+    // thinking
+    "thinkingmachines/inkling-small:free",
+    "thinkingmachines/inkling:free",
+
+    // poolside
+    "poolside/laguna-s-2.1:free",
+    "poolside/laguna-xs-2.1:free",
+
+    // cohere
+    "cohere/north-mini-code:free",
   ] as const,
   siliconFlow: [
     "tencent/Hy3",
