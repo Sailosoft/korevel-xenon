@@ -16,6 +16,7 @@ import type { RenderFormat, RenderTableColors } from "@/src/modules/render";
 import type { LCFileTreeItem } from "./LCInterface";
 import type { Components } from "react-markdown";
 import LCCodeMonacoEditor from "./LCCodeMonacoEditor";
+import LCFileViewDisplayModeCsv from "./LCFileView.DisplayMode.Csv";
 
 // ── Dynamically import editors to avoid SSR issues ─────────────────────────
 
@@ -352,14 +353,24 @@ export default function LCFileViewDisplayMode({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {displayMode === "file" && canPreviewFile(selectedFile.name) ? (
-        /* ── Render Module Preview (markdown, mermaid, mindmap, html) ─── */
-        <RenderView
-          format={getRenderFormat(selectedFile.name)}
-          content={content}
-          className="flex-1 min-h-0"
-          markdownComponents={lemonCoderMarkdownComponents}
-          tableColors={lemonCoderTableColors}
-        />
+        isCsvFile(selectedFile.name) ? (
+          /* ── Excel-like CSV Editor (editable table) ─────────────────── */
+          <LCFileViewDisplayModeCsv
+            content={content}
+            onContentChange={onContentChange}
+            onSave={onSave}
+            fileName={selectedFile.name}
+          />
+        ) : (
+          /* ── Render Module Preview (markdown, mermaid, mindmap, html) ─── */
+          <RenderView
+            format={getRenderFormat(selectedFile.name)}
+            content={content}
+            className="flex-1 min-h-0"
+            markdownComponents={lemonCoderMarkdownComponents}
+            tableColors={lemonCoderTableColors}
+          />
+        )
       ) : useCodeMirror ? (
         <CodeMirrorEditor
           key={selectedFile.path}
