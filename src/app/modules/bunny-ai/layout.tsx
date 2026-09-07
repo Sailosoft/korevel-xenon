@@ -9,6 +9,7 @@ import {
   Zap,
   FileText,
   Settings,
+  Store,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
@@ -48,6 +49,11 @@ const BUNNY_AI_SHELL_CONFIG: BUIDocumentShellConfig = {
       href: "/modules/bunny-ai/author-skills",
       label: "Skills",
       icon: Zap,
+    },
+    {
+      href: "/modules/bunny-ai/skills-market",
+      label: "Skills Market",
+      icon: Store,
     },
     {
       href: "/modules/bunny-ai/prompt-viewer",
