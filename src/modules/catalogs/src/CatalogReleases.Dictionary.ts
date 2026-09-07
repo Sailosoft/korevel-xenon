@@ -7,6 +7,27 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.5.0",
+    title: "Version 4.5.0: Improve AI Assisted on Studio and Book, Lemon Coder CSV Editor, Improve Studio Knowledge Base and Added Bunny Helix",
+    content: [
+      "LemonCoder: Improve CSV Rendering and Added CSV Editor",
+      "BunnyStudio: Improve knowledge base referencing(Reference, General, Mixed)",
+      "BunnyStudio: Added AI Assisted Instruction Generation",
+      "Helix: Improve OpenAI temperature support compatibility",
+      "BunnyHelix: Added Bunny and Helix AI Assisted Generator adapter",
+      "BunnyBook: Added Skill Market and Improve Book and Author Generator",
+    ],
+    apps: [
+      CatalogApp.LemonCoder,
+      CatalogApp.BunnyStudio,
+      CatalogApp.BunnyBook
+    ],
+    dates: [
+      "2026-09-03",
+      "2026-09-07"
+    ]
+  },
+  {
     version: "v4.4.2",
     title: "Version 4.4.2: Bunny Flow, Case, Book and Lemon Coder Update",
     content: [

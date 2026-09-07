@@ -6,8 +6,10 @@
 //    ready-to-inject RAG context string. Unlike the low-level helper it also
 //    returns the raw Orama hits (with similarity scores) so the UI can render
 //    the collapsible scoring panel.
-//  - buildKnowledgeInstruction(): wrap the retrieved context into the strict
-//    system instruction the assistant must answer from.
+//  - buildKnowledgeInstruction(): wrap the retrieved context into a reference
+//    system instruction — the assistant builds on it (code, instructions,
+//    explanations) and discloses whether the answer came from the knowledge
+//    base or its own knowledge.
 //  - BSChatKnowledgeBaseIndicator(): the assistant loading indicator — shows
 //    "Retrieving from Knowledge" + the bouncing dots while the RAG search runs,
 //    then switches back to the plain dots once streaming begins.
@@ -51,14 +53,111 @@ export async function retrieveKnowledgeForChat(
 }
 
 /**
- * Build the strict system-instruction block that grounds the assistant in the
- * retrieved knowledge base context.
+ * Build the system-instruction block that gives the assistant the retrieved
+ * knowledge base context as a REFERENCE (not a hard limit). The assistant may
+ * build on the context — quote it, summarize it, or generate code/instructions/
+ * explanations grounded in it — and may fall back to its own knowledge when the
+ * context is insufficient. It must always disclose which source it answered
+ * from via a trailing tag so the user can tell a knowledge-base answer from a
+ * general-knowledge one.
  */
 export function buildKnowledgeInstruction(context: string): string {
   return (
-    "Answer the user's question using ONLY the provided Knowledge Base context. " +
-    "If the context does not contain the answer, politely say that you do not know.\n\n" +
+    "You have access to a Knowledge Base reference below. Use it as your primary " +
+    "reference whenever it is relevant: quote it, summarize it, or build on top of it " +
+    "(for example generate code, instructions, or explanations grounded in it). " +
+    "If the Knowledge Base does not contain what the user needs, answer from your own " +
+    "knowledge instead of refusing — the reference is a helper, not a hard limit.\n\n" +
+    "Disclosure rule: end your answer with a single line containing exactly one of " +
+    "these source tags so the user can tell where the answer came from:\n" +
+    `- ${KNOWLEDGE_SOURCE_TAG["knowledge-base"]} — the answer is based on the Knowledge Base context.\n` +
+    `- ${KNOWLEDGE_SOURCE_TAG.general} — the answer comes from your own knowledge.\n` +
+    `- ${KNOWLEDGE_SOURCE_TAG.mixed} — the answer combines both.\n\n` +
     `Knowledge Base Context:\n${context}`
+  );
+}
+
+// ─── Answer-source disclosure ──────────────────────────────────────────
+//
+// The knowledge instruction asks the assistant to end its answer with a
+// source tag. These helpers detect that tag in the streamed response and let
+// the UI render a small badge (and hide the raw tag from the rendered view).
+
+export type BSKnowledgeAnswerSource =
+  | "knowledge-base"
+  | "general"
+  | "mixed"
+  | "unknown";
+
+export const KNOWLEDGE_SOURCE_TAG: Record<
+  Exclude<BSKnowledgeAnswerSource, "unknown">,
+  string
+> = {
+  "knowledge-base": "[Source: Knowledge Base]",
+  general: "[Source: General Knowledge]",
+  mixed: "[Source: Knowledge Base + General Knowledge]",
+};
+
+/** Detect which source the assistant disclosed for a response. */
+export function detectKnowledgeAnswerSource(
+  content: string,
+): BSKnowledgeAnswerSource {
+  if (!content) return "unknown";
+  if (content.includes(KNOWLEDGE_SOURCE_TAG.mixed)) return "mixed";
+  if (content.includes(KNOWLEDGE_SOURCE_TAG["knowledge-base"])) {
+    return "knowledge-base";
+  }
+  if (content.includes(KNOWLEDGE_SOURCE_TAG.general)) return "general";
+  return "unknown";
+}
+
+/** Remove the disclosed source tag(s) from content for clean display. */
+export function stripKnowledgeSourceTag(content: string): string {
+  if (!content) return content;
+  let out = content;
+  for (const tag of Object.values(KNOWLEDGE_SOURCE_TAG)) {
+    out = out.split(tag).join("");
+  }
+  return out.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export interface BSChatKnowledgeSourceBadgeProps {
+  /** Assistant message content to detect the disclosed source from. */
+  content: string;
+}
+
+const SOURCE_BADGE_STYLE: Record<BSKnowledgeAnswerSource, string> = {
+  "knowledge-base": "bg-red-100 text-red-600",
+  general: "bg-gray-100 text-gray-500",
+  mixed: "bg-amber-100 text-amber-700",
+  unknown: "bg-gray-100 text-gray-400",
+};
+
+const SOURCE_BADGE_LABEL: Record<BSKnowledgeAnswerSource, string> = {
+  "knowledge-base": "From Knowledge Base",
+  general: "From General Knowledge",
+  mixed: "From Knowledge Base + General",
+  unknown: "Source Unknown",
+};
+
+/**
+ * Small pill that shows where the assistant's answer came from. Renders nothing
+ * when the response carries no disclosure tag (e.g. no knowledge group was
+ * active, so the disclosure instruction was never injected).
+ */
+export function BSChatKnowledgeSourceBadge({
+  content,
+}: BSChatKnowledgeSourceBadgeProps) {
+  const source = detectKnowledgeAnswerSource(content);
+  if (source === "unknown") return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${SOURCE_BADGE_STYLE[source]}`}
+      title="The AI disclosed where this answer came from"
+    >
+      <BookOpen className="w-3 h-3" />
+      {SOURCE_BADGE_LABEL[source]}
+    </span>
   );
 }
 

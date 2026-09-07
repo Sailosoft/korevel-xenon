@@ -1,4 +1,7 @@
 // BSInstruction.Component — Instructions page rendered through Bunny.
+//
+// The "AI Create" bunny-helix header action is declared entirely in
+// BSInstruction.Module via createBunnyHelixAction — nothing to wire here.
 
 "use client";
 

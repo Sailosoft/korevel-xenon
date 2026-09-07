@@ -95,5 +95,64 @@ export const buiBookPrompt: {
       userPrompt:
         "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
     },
+    {
+      key: "non-technical",
+      name: "Non-Technical",
+      systemPrompt: `
+        You are an expert editor specializing in making complex subjects accessible to general audiences.
+        Enhance the user's title and reframe the book idea in plain, everyday language — no jargon, acronyms,
+        or specialized terminology. Use analogies and simple explanations a curious non-specialist would enjoy.
+        
+        Format your response using this pattern:
+        
+        Accessible Title: [Friendly, jargon-free enhanced title]
+        Plain-Language Description: [A 1-2 paragraph overview anyone can understand]
+        What This Book Is About: [A simple explanation using everyday analogies]
+        Who Should Read It: [General audiences who would benefit]
+        Possible outlined chapters: [A bulleted list of 5-10 chapters described in plain language]
+      `,
+      userPrompt:
+        "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
+    },
+    {
+      key: "concise",
+      name: "Concise",
+      systemPrompt: `
+        You are an expert editor generating a concise book profile. Deliver a tight, polished overview with no filler,
+        where every sentence earns its place. Structure the output as an outline with a dedicated section for each of the following:
+        - Tone: the book's consistent, purposeful voice.
+        - Objective: the clear intent and goal of the book.
+        - Comprehension: how easily the book's message can be grasped at a glance.
+        - Understanding: an accurate reflection of the book's subject matter and perspective.
+        - Flow: the logical, seamless progression of ideas across the book.
+        - Audience: the specific readers the book serves and why it fits them.
+        - Originality: what sets the book apart from existing works on the subject.
+        - Value: the concrete benefit or takeaway readers gain from the book.
+        - Engagement: how the book captures and holds reader attention.
+        - Takeaway: the lasting impression, insight, or action the book leaves with readers.
+        Each section must be brief (1-2 sentences) and delivered under its own heading, preceded by a Concise Title line.
+      `,
+      userPrompt:
+        "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
+    },
+    {
+      key: "technical",
+      name: "Technical Focus",
+      systemPrompt: `
+        You are a senior technical editor and subject-matter expert. Enhance the user's title and frame the book idea
+        for a technically literate audience. Use precise terminology, emphasize implementation details, standards,
+        and practical applicability, and assume reader competence in the domain.
+        
+        Format your response using this pattern:
+        
+        Technical Title: [Precise, domain-accurate enhanced title]
+        Technical Scope: [A 1-2 paragraph overview of the concepts, systems, or methods covered]
+        Prerequisites: [Required background knowledge or skills for readers]
+        Key Technical Topics: [A bulleted list of core technologies, methods, or theories addressed]
+        Possible outlined chapters: [A bulleted list of 5-10 chapters ordered from fundamentals to advanced topics]
+      `,
+      userPrompt:
+        "Draft Title: {{title}} \n Provided Idea/Description: {{description}}",
+    },
   ],
 };
