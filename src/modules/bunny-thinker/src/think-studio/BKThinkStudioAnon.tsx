@@ -1189,10 +1189,10 @@ export default function BKThinkStudioAnon({
           {/* Export */}
           {hasThinkingStarted && !isThinking && (
             <Dropdown>
-              <Dropdown.Trigger>
-                <Button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5">
-                  <Download size={16} /> Export <ChevronDown size={14} />
-                </Button>
+              <Dropdown.Trigger
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+              >
+                <Download size={16} /> Export <ChevronDown size={14} />
               </Dropdown.Trigger>
               <Dropdown.Popover placement="bottom end">
                 <Dropdown.Menu
