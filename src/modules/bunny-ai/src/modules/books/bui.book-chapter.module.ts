@@ -21,7 +21,7 @@ import {
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import BUIBookChapterComponentMobileView from "./bui.book-chapter.component.mobile-view";
 import BUIBookChapterComponentGenerate from "./bui.book-chapter.component.generate";
-import BUIBookChapterReadContentModule from "./read-content";
+import BUIBookChapterReadContentModule from "./bui.book-chapter.read-content";
 import BUIBookChapterComponentPipeline from "./bui.book-chapter.component.pipeline"; // Imported Pipeline Component
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterServerContent } from "./bui.book-chapter.server.content";
