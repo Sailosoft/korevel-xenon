@@ -57,6 +57,7 @@ export default function BKThoughtConfigPanel({
   onRemoveStep,
   onUpdateStep,
   renderStepActions,
+  renderBelowStepHeader,
   renderStepsHeaderActions,
   renderStepsFooter,
   hideThoughtDefinition,
@@ -170,6 +171,9 @@ export default function BKThoughtConfigPanel({
                   </Button>
                 </div>
               </div>
+
+              {/* Optional content directly beneath the header (e.g. attached idea bubbles) */}
+              {renderBelowStepHeader?.(step, index)}
 
               {/* Step name */}
               <div>
