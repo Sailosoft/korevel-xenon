@@ -61,6 +61,12 @@ export interface UseAnonymousModeReturn {
   craftConfigs: BKCraftConfig[];
   craftConfigsLoading: boolean;
 
+  // Step-generation context (pattern / association baked for the AI producer)
+  stepPatternContext: string | undefined;
+  stepAssociationContext: string | undefined;
+  hasStepPattern: boolean;
+  hasStepAssociation: boolean;
+
   // Editable thought fields
   thoughtName: string;
   thoughtDescription: string;
@@ -277,6 +283,14 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   );
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
 
+  // ── Step-generation context (pattern / association baked for the AI) ──
+  const [stepPatternContext, setStepPatternContext] = useState<
+    string | undefined
+  >();
+  const [stepAssociationContext, setStepAssociationContext] = useState<
+    string | undefined
+  >();
+
   // ── Derived ───────────────────────────────────────────────────────
   const isReadyToThink =
     !!thoughtName && !!thoughtContent && steps.some((s) => s.name && s.thought);
@@ -308,6 +322,56 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
 
   const isProcessingComplete = completedSteps.length > 0;
   const isTabPinnedRef = useRef(false);
+
+  // ── Bake thought pattern / association context for AI step generation ──
+  const activeStepPatternId =
+    selectedThought?.patternId ?? selectedPattern?.id ?? undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolve = async () => {
+      if (!activeStepPatternId) {
+        setStepPatternContext(undefined);
+        setStepAssociationContext(undefined);
+        return;
+      }
+      try {
+        const result =
+          await bkThinkerDB.thoughtPatternsRepo.get(activeStepPatternId);
+        if (cancelled || !result.isSuccess) return;
+        const pattern = result.value;
+        setStepPatternContext(bakePatternContext(pattern));
+        if (
+          associationOverrideEnabled &&
+          associationOverrideSlotValues.length > 0
+        ) {
+          setStepAssociationContext(
+            bakePatternContext(pattern, associationOverrideSlotValues),
+          );
+        } else if (selectedAssociation) {
+          setStepAssociationContext(
+            bakePatternContext(pattern, selectedAssociation.slotValues),
+          );
+        } else {
+          setStepAssociationContext(undefined);
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudioAnon] Failed to resolve step generation context:",
+          err,
+        );
+      }
+    };
+    resolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeStepPatternId,
+    selectedAssociation,
+    associationOverrideEnabled,
+    associationOverrideSlotValues,
+  ]);
 
   // ── Load thinkers ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1279,6 +1343,10 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     ideasLoading,
     craftConfigs,
     craftConfigsLoading,
+    stepPatternContext,
+    stepAssociationContext,
+    hasStepPattern: !!stepPatternContext,
+    hasStepAssociation: !!stepAssociationContext,
     thoughtName,
     thoughtDescription,
     thoughtContent,

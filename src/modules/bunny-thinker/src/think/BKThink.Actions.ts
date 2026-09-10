@@ -18,10 +18,11 @@ import { BKPromptBuildThoughtSystem } from "../thoughts/BKThoughts.Prompt";
 import { BKPromptThinkerSwarm } from "../thinker/BKThinker.Prompt";
 import { BKPromptGenerateThought } from "../thoughts/BKThoughts.Prompt";
 import { BKPromptGenerateSteps } from "../thoughts/BKThoughts.Prompt";
+import { BKPromptRefineSteps } from "../thoughts/BKThoughts.Prompt";
 import type {
   BKStepGenerationMode,
   BKStepGenerationStrategy,
-} from "../thoughts/BKThoughtGeneration.Config";
+} from "../steps/BKStepAIGenerate.Config";
 import type { BKCraftFormat } from "../craft/BKCraft.Types";
 import { BKPromptCraftSystemSuffix } from "../craft/BKCraft.Prompt";
 import { bkThinkConstant } from "./BKThink.Constant";
@@ -132,6 +133,15 @@ export interface BKGenerateStepsRequest {
    * for the generated steps (merged with any manual request).
    */
   useDescriptionAsDirection?: boolean;
+  /**
+   * When false, the thought's main prompt/content is omitted from the
+   * generation context.
+   */
+  includeThoughtPrompt?: boolean;
+  /** Baked thought-pattern context (resolved slots) to include in the prompt. */
+  thoughtPatternContext?: string;
+  /** Baked thought-association override context (slot values) to include. */
+  thoughtAssociationContext?: string;
   /** AI config override */
   aiConfig?: HelixAIOption;
 }
@@ -145,6 +155,31 @@ export interface BKGeneratedStep {
 export interface BKGenerateStepsResponse {
   success: boolean;
   steps: BKGeneratedStep[];
+  error?: string;
+}
+
+export interface BKRefineStepsRequest {
+  /** Natural-language instruction describing how to refine the steps */
+  instruction: string;
+  /** The current steps to refine (ordered) */
+  steps: Array<{ name: string; thought: string; order: number }>;
+  /** Optional thought context to keep the refinement coherent */
+  thoughtName?: string;
+  thoughtDescription?: string;
+  thoughtContent?: string;
+  /** AI config override */
+  aiConfig?: HelixAIOption;
+}
+
+export interface BKRefinedStep {
+  name: string;
+  thought: string;
+  order: number;
+}
+
+export interface BKRefineStepsResponse {
+  success: boolean;
+  steps: BKRefinedStep[];
   error?: string;
 }
 
@@ -407,6 +442,9 @@ export async function generateStepsAction(
       thoughtContent: request.thoughtContent,
       existingSteps: request.existingSteps,
       useDescriptionAsDirection: request.useDescriptionAsDirection,
+      includeThoughtPrompt: request.includeThoughtPrompt,
+      thoughtPatternContext: request.thoughtPatternContext,
+      thoughtAssociationContext: request.thoughtAssociationContext,
     });
 
     const result = await helix.doChatStructuredFallback({
@@ -433,6 +471,77 @@ export async function generateStepsAction(
     const message =
       error instanceof Error ? error.message : "Unknown generation error";
     console.error("[BKThink.Actions] generateStepsAction failed:", message);
+    return {
+      success: false,
+      steps: [],
+      error: message,
+    };
+  }
+}
+
+// ─── Refine Steps Action ──────────────────────────────────────────────────
+
+/**
+ * Refine an existing sequence of train-of-thought steps using AI.
+ *
+ * Accepts a natural-language refinement instruction plus the current steps
+ * and returns the FULL revised sequence, applying step updates (name /
+ * prompt), additions, and removals as instructed.
+ */
+export async function refineStepsAction(
+  request: BKRefineStepsRequest,
+): Promise<BKRefineStepsResponse> {
+  try {
+    if (!request.instruction?.trim()) {
+      return {
+        success: false,
+        steps: [],
+        error: "Provide a refinement instruction",
+      };
+    }
+
+    if (!request.steps || request.steps.length === 0) {
+      return {
+        success: false,
+        steps: [],
+        error: "There are no steps to refine",
+      };
+    }
+
+    const helix = createHelixService(request.aiConfig);
+
+    const prompt = BKPromptRefineSteps({
+      instruction: request.instruction,
+      steps: request.steps,
+      thoughtName: request.thoughtName,
+      thoughtDescription: request.thoughtDescription,
+      thoughtContent: request.thoughtContent,
+    });
+
+    const result = await helix.doChatStructuredFallback({
+      system: bkThinkConstant.SYSTEM_JSON_ONLY_OBJECT,
+      user: prompt,
+      temperature: bkThinkConstant.DEFAULT_JSON_TEMPERATURE,
+      maxToken: bkThinkConstant.DEFAULT_THOUGHT_MAX_TOKENS,
+      schema: bkThinkConstant.STEP_REFINE_SCHEMA,
+    });
+
+    const rawSteps = Array.isArray(result.steps) ? result.steps : [];
+
+    return {
+      success: true,
+      steps: rawSteps
+        .filter((s) => s && typeof s.name === "string" && s.name.trim())
+        .map((s, i) => ({
+          name: s.name,
+          thought: typeof s.thought === "string" ? s.thought : "",
+          order: i,
+        })),
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown refinement error";
+    console.error("[BKThink.Actions] refineStepsAction failed:", message);
     return {
       success: false,
       steps: [],

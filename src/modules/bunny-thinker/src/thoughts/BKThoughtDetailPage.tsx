@@ -21,21 +21,25 @@ import {
   Lightbulb,
   Trash2,
   Sparkles,
+  WandSparkles,
 } from "lucide-react";
 import BKStepActions from "../steps/BKStepActions";
+import { bkBakePatternContext } from "../steps/BKStepAIGenerate";
+import BKStepAIGenerateModal from "../steps/BKStepAIGenerate.Modal";
+import BKStepAIRefineModal from "../steps/BKStepAIRefine.Modal";
 import { useRouter } from "next/navigation";
 import { v7 as uuidv7 } from "uuid";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import { useAISettings } from "../ai-settings/BKAISettings.Context";
 import BKThoughtConfigPanel from "./BKThoughtConfigPanel";
-import BKGenerateStepsModal from "./BKGenerateStepsModal";
 import BKConfirmDialog from "../components/BKConfirmDialog";
 import type { BKThought, BKTrainOfThought } from "../thoughts/BKThoughts.Types";
 import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
 import type { BKCraftConfig, BKCraftFormat } from "../craft/BKCraft.Types";
 import type { BKThink } from "../think/BKThink.Types";
 import type { BKGeneratedStep } from "../think/BKThink.Actions";
-import type { BKStepGenerationStrategy } from "./BKThoughtGeneration.Config";
+import type { BKRefinedStep } from "../think/BKThink.Actions";
+import type { BKStepGenerationStrategy } from "../steps/BKStepAIGenerate.Config";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -146,6 +150,7 @@ export default function BKThoughtDetailPage({
   const router = useRouter();
   const { aiConfig } = useAISettings();
   const [showGenerateSteps, setShowGenerateSteps] = useState(false);
+  const [showRefineSteps, setShowRefineSteps] = useState(false);
   const [thought, setThought] = useState<BKThought | null>(null);
   const [trainOfThoughts, setTrainOfThoughts] = useState<BKTrainOfThought[]>(
     [],
@@ -156,6 +161,9 @@ export default function BKThoughtDetailPage({
   const [saving, setSaving] = useState(false);
   const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
   const [craftConfigsLoading, setCraftConfigsLoading] = useState(false);
+  const [stepPatternContext, setStepPatternContext] = useState<
+    string | undefined
+  >();
   const [previousRuns, setPreviousRuns] = useState<BKThink[]>([]);
   const [confirmDeleteThink, setConfirmDeleteThink] = useState<BKThink | null>(
     null,
@@ -169,6 +177,33 @@ export default function BKThoughtDetailPage({
   useEffect(() => {
     bkLoadThought();
   }, [thoughtId]);
+
+  // ── Bake the thought's pattern context for AI step generation ────────
+  useEffect(() => {
+    let cancelled = false;
+    const resolve = async () => {
+      const patternId = thought?.patternId;
+      if (!patternId) {
+        setStepPatternContext(undefined);
+        return;
+      }
+      try {
+        const result = await bkThinkerDB.thoughtPatternsRepo.get(patternId);
+        if (!cancelled && result.isSuccess) {
+          setStepPatternContext(bkBakePatternContext(result.value));
+        }
+      } catch (err) {
+        console.error(
+          "[BKThoughtDetail] Failed to resolve pattern context:",
+          err,
+        );
+      }
+    };
+    resolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [thought?.patternId]);
 
   const bkLoadThought = async () => {
     try {
@@ -355,6 +390,20 @@ export default function BKThoughtDetailPage({
     },
     [],
   );
+
+  // ── Apply AI-refined steps (full replace) ─────────────────────────
+  const bkHandleRefinedSteps = useCallback((steps: BKRefinedStep[]) => {
+    const newSteps = steps.map((s, i) => ({
+      id: uuidv7(),
+      name: s.name,
+      thought: s.thought,
+      order: i,
+      craftFormat: undefined,
+    }));
+    setEditedSteps(newSteps);
+    setStepIdeaMap(Object.fromEntries(newSteps.map((s) => [s.id, []])));
+    setShowRefineSteps(false);
+  }, []);
 
   const bkSaveTrainOfThoughts = async () => {
     if (!thought) return;
@@ -589,14 +638,24 @@ export default function BKThoughtDetailPage({
           hideThoughtDefinition
           renderStepActions={renderStepActions}
           renderStepsHeaderActions={
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setShowGenerateSteps(true)}
-              className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
-            >
-              <Sparkles size={14} /> Generate
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => setShowGenerateSteps(true)}
+                className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
+              >
+                <Sparkles size={14} /> Generate
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => setShowRefineSteps(true)}
+                className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1 text-xs"
+              >
+                <WandSparkles size={14} /> Refine
+              </Button>
+            </>
           }
           renderStepsFooter={
             <div className="flex justify-end pt-2">
@@ -727,7 +786,7 @@ export default function BKThoughtDetailPage({
         />
 
         {/* ── Generative AI Step Producer ─────────────────────── */}
-        <BKGenerateStepsModal
+        <BKStepAIGenerateModal
           isOpen={showGenerateSteps}
           onClose={() => setShowGenerateSteps(false)}
           thoughtName={thought.name}
@@ -736,8 +795,24 @@ export default function BKThoughtDetailPage({
           existingSteps={editedSteps
             .filter((s) => s.name.trim() || s.thought.trim())
             .map((s) => ({ name: s.name, thought: s.thought }))}
+          hasPattern={!!stepPatternContext}
+          getContexts={() => ({ patternContext: stepPatternContext })}
           aiConfig={aiConfig}
           onGenerated={bkHandleGeneratedSteps}
+        />
+
+        {/* ── AI Step Refiner ─────────────────────────────────── */}
+        <BKStepAIRefineModal
+          isOpen={showRefineSteps}
+          onClose={() => setShowRefineSteps(false)}
+          steps={editedSteps
+            .filter((s) => s.name.trim() || s.thought.trim())
+            .map((s, i) => ({ name: s.name, thought: s.thought, order: i }))}
+          thoughtName={thought.name}
+          thoughtDescription={thought.description || ""}
+          thoughtContent={thought.thought}
+          aiConfig={aiConfig}
+          onRefined={bkHandleRefinedSteps}
         />
       </div>
     </>

@@ -31,6 +31,7 @@ import {
   Plus,
   Eye,
   FileJson,
+  WandSparkles,
 } from "lucide-react";
 import { useAnonymousMode } from "./BKThinkStudioAnonHooks";
 import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
@@ -41,13 +42,19 @@ import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThoughtConfigPanel from "../thoughts/BKThoughtConfigPanel";
 import type { BKConfigPanelStep } from "../thoughts/BKThoughtConfigPanel.Types";
-import BKGenerateStepsModal from "../thoughts/BKGenerateStepsModal";
-import { BKStepActions, BKStepIdeasPicker, BKStepIdeasBubbles } from "../steps";
+import {
+  BKStepAIGenerateModal,
+  BKStepAIRefineModal,
+  BKStepActions,
+  BKStepIdeasPicker,
+  BKStepIdeasBubbles,
+} from "../steps";
 import BKRenderCraftContent, {
   BKCRAFT_TO_RENDER_FORMAT,
 } from "./BKThinkStudioAnon.RenderCraftContent";
 import type { BKGeneratedStep } from "../think/BKThink.Actions";
-import type { BKStepGenerationStrategy } from "../thoughts/BKThoughtGeneration.Config";
+import type { BKRefinedStep } from "../think/BKThink.Actions";
+import type { BKStepGenerationStrategy } from "../steps/BKStepAIGenerate.Config";
 import { v7 as uuidv7 } from "uuid";
 import {
   bkViewAsHtml,
@@ -198,6 +205,10 @@ export default function BKThinkStudioAnon({
     patternsLoading,
     craftConfigs,
     craftConfigsLoading,
+    stepPatternContext,
+    stepAssociationContext,
+    hasStepPattern,
+    hasStepAssociation,
     associations,
     associationSelectLoading,
     ideas,
@@ -280,6 +291,7 @@ export default function BKThinkStudioAnon({
   const [showSettings, setShowSettings] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
   const [showGenerateSteps, setShowGenerateSteps] = React.useState(false);
+  const [showRefineSteps, setShowRefineSteps] = React.useState(false);
   const [showQuickAddAssociation, setShowQuickAddAssociation] =
     React.useState(false);
   const [quickAssocName, setQuickAssocName] = React.useState("");
@@ -306,19 +318,47 @@ export default function BKThinkStudioAnon({
     [appendSteps, replaceAllSteps],
   );
 
+  // ── Apply AI-refined steps to the anonymous editor ─────────────────
+  const anonHandleRefinedSteps = useCallback(
+    (refined: BKRefinedStep[]) => {
+      replaceAllSteps(
+        refined.map((s) => ({ name: s.name, thought: s.thought })),
+      );
+      setShowRefineSteps(false);
+    },
+    [replaceAllSteps],
+  );
+
   // Reusable header action rendered beside "Add Step" in the steps editor
   const renderGenerateStepsButton = useCallback(
     () => (
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={() => setShowGenerateSteps(true)}
-        className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
-      >
-        <Sparkles size={14} /> Generate
-      </Button>
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => setShowGenerateSteps(true)}
+          className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
+        >
+          <Sparkles size={14} /> Generate
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => setShowRefineSteps(true)}
+          className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1 text-xs"
+        >
+          <WandSparkles size={14} /> Refine
+        </Button>
+      </>
     ),
     [],
+  );
+  const getStepGenerateContexts = useCallback(
+    () => ({
+      patternContext: stepPatternContext,
+      associationContext: stepAssociationContext,
+    }),
+    [stepPatternContext, stepAssociationContext],
   );
   const [isSaving, setIsSaving] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
@@ -934,7 +974,7 @@ export default function BKThinkStudioAnon({
         )}
 
         {/* ── Generative AI Step Producer ─────────────────────────── */}
-        <BKGenerateStepsModal
+        <BKStepAIGenerateModal
           isOpen={showGenerateSteps}
           onClose={() => setShowGenerateSteps(false)}
           thoughtName={thoughtName}
@@ -943,8 +983,25 @@ export default function BKThinkStudioAnon({
           existingSteps={steps
             .filter((s) => s.name.trim() || s.thought.trim())
             .map((s) => ({ name: s.name, thought: s.thought }))}
+          hasPattern={hasStepPattern}
+          hasAssociation={hasStepAssociation}
+          getContexts={getStepGenerateContexts}
           aiConfig={aiConfig}
           onGenerated={anonHandleGeneratedSteps}
+        />
+
+        {/* ── AI Step Refiner ─────────────────────────────────────── */}
+        <BKStepAIRefineModal
+          isOpen={showRefineSteps}
+          onClose={() => setShowRefineSteps(false)}
+          steps={steps
+            .filter((s) => s.name.trim() || s.thought.trim())
+            .map((s, i) => ({ name: s.name, thought: s.thought, order: i }))}
+          thoughtName={thoughtName}
+          thoughtDescription={thoughtDescription}
+          thoughtContent={thoughtContent}
+          aiConfig={aiConfig}
+          onRefined={anonHandleRefinedSteps}
         />
 
         {/* ── Quick-Add Association Modal ─────────────────────────── */}
@@ -1805,7 +1862,7 @@ export default function BKThinkStudioAnon({
       )}
 
       {/* ── Generative AI Step Producer ───────────────────────────── */}
-      <BKGenerateStepsModal
+      <BKStepAIGenerateModal
         isOpen={showGenerateSteps}
         onClose={() => setShowGenerateSteps(false)}
         thoughtName={thoughtName}
@@ -1814,8 +1871,25 @@ export default function BKThinkStudioAnon({
         existingSteps={steps
           .filter((s) => s.name.trim() || s.thought.trim())
           .map((s) => ({ name: s.name, thought: s.thought }))}
+        hasPattern={hasStepPattern}
+        hasAssociation={hasStepAssociation}
+        getContexts={getStepGenerateContexts}
         aiConfig={aiConfig}
         onGenerated={anonHandleGeneratedSteps}
+      />
+
+      {/* ── AI Step Refiner ───────────────────────────────────────── */}
+      <BKStepAIRefineModal
+        isOpen={showRefineSteps}
+        onClose={() => setShowRefineSteps(false)}
+        steps={steps
+          .filter((s) => s.name.trim() || s.thought.trim())
+          .map((s, i) => ({ name: s.name, thought: s.thought, order: i }))}
+        thoughtName={thoughtName}
+        thoughtDescription={thoughtDescription}
+        thoughtContent={thoughtContent}
+        aiConfig={aiConfig}
+        onRefined={anonHandleRefinedSteps}
       />
 
       {/* ── Settings Modal ────────────────────────────────────────── */}
