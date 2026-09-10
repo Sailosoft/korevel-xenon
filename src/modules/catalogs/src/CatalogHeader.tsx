@@ -38,6 +38,7 @@ const Icons = {
 const NAV_LINKS = [
   { label: "Catalog", href: "/" },
   { label: "Releases", href: "/modules/catalogs/releases" },
+  { label: "OpenCode Go", href: "/modules/catalogs/opencode-go-calculator" },
   { label: "Documentation", href: "#" },
   { label: "Support", href: "#" },
 ];

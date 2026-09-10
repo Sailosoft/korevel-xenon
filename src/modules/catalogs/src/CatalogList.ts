@@ -92,4 +92,15 @@ export const catalogApps: CatalogApp[] = [
     gradientFrom: "#facc15",
     gradientTo: "#a3e635",
   },
+  {
+    id: 12,
+    name: "OpenCode Go Calculator",
+    url: "/modules/catalogs/opencode-go-calculator",
+    description: "Price monthly quotas, value OpenCode Go model credits, and regenerate the pricing dictionary TypeScript from a pasted pricing table.",
+    category: "code-editor",
+    status: "Active",
+    iconColor: "from-indigo-400 to-violet-300",
+    gradientFrom: "#6366f1",
+    gradientTo: "#a855f7",
+  },
 ];
