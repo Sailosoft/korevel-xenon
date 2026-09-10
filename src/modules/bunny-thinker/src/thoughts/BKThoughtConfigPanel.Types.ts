@@ -46,6 +46,12 @@ export interface BKThoughtConfigPanelProps {
     index: number,
   ) => React.ReactNode;
 
+  /** Render extra content directly beneath the step header row (e.g. attached idea bubbles) */
+  renderBelowStepHeader?: (
+    step: BKConfigPanelStep,
+    index: number,
+  ) => React.ReactNode;
+
   /**
    * Render extra actions in the "Train of Thoughts" header, beside the
    * "Add Step" button (e.g. a Generative AI step producer button).

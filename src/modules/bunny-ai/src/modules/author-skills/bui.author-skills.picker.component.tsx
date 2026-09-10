@@ -18,6 +18,44 @@ import type { BUIAuthorSkill } from "./bui.author-skills.entity";
 import { buiAuthorSkillGetAll } from "./bui.author-skills.util";
 import BUIAuthorSkillRelationRepository from "./bui.author-skills.relation.repository";
 
+function SkillTooltipItem({
+  skill,
+  checked,
+  onToggle,
+}: {
+  skill: BUIAuthorSkill;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label
+      title={skill.description || undefined}
+      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors ${
+        checked
+          ? "border-primary/40 bg-primary/5"
+          : "border-default-100 hover:border-default-300 hover:bg-default-50"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="rounded accent-primary"
+      />
+      <div className="flex flex-col flex-1 min-w-0">
+        <span className="text-sm font-medium text-default-700">
+          {skill.name}
+        </span>
+        {skill.description && (
+          <span className="text-xs text-default-400 truncate">
+            {skill.description}
+          </span>
+        )}
+      </div>
+    </label>
+  );
+}
+
 export interface BUIAuthorSkillPickerProps {
   /** Currently selected skill names (controlled by the parent). */
   selectedNames?: string[];
@@ -240,33 +278,13 @@ export default function BUIAuthorSkillPicker({
                 <div className="flex flex-col gap-1 max-h-64 overflow-y-auto border border-default-200 rounded-lg p-1.5">
                   {filteredSkills.map((skill) => {
                     const key = (skill.name ?? "").trim().toLowerCase();
-                    const checked = draft.has(key);
                     return (
-                      <label
+                      <SkillTooltipItem
                         key={key}
-                        className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors ${
-                          checked
-                            ? "border-primary/40 bg-primary/5"
-                            : "border-default-100 hover:border-default-300 hover:bg-default-50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleDraft(key)}
-                          className="rounded accent-primary"
-                        />
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="text-sm font-medium text-default-700">
-                            {skill.name}
-                          </span>
-                          {skill.description && (
-                            <span className="text-xs text-default-400 truncate">
-                              {skill.description}
-                            </span>
-                          )}
-                        </div>
-                      </label>
+                        skill={skill}
+                        checked={draft.has(key)}
+                        onToggle={() => toggleDraft(key)}
+                      />
                     );
                   })}
                 </div>

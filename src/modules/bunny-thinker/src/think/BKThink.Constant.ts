@@ -98,4 +98,36 @@ export const bkThinkConstant = {
       },
     },
   } satisfies HelixAISchemaOptions,
+
+  /**
+   * Schema for structured step-refinement output.
+   * The AI returns the full revised sequence after applying an instruction
+   * (adding, updating, and/or removing steps).
+   */
+  STEP_REFINE_SCHEMA: {
+    name: "step_refine",
+    description: "Refined ordered train-of-thought steps for a thought",
+    properties: {
+      steps: {
+        type: "array" as const,
+        description:
+          "Full revised ordered list of steps after applying the refinement",
+        items: {
+          type: "object" as const,
+          description: "A single train-of-thought step",
+          properties: {
+            name: { type: "string" as const, description: "Step name / label" },
+            thought: {
+              type: "string" as const,
+              description: "Step content / reasoning",
+            },
+            order: {
+              type: "number" as const,
+              description: "Step sequence position",
+            },
+          },
+        },
+      },
+    },
+  } satisfies HelixAISchemaOptions,
 };

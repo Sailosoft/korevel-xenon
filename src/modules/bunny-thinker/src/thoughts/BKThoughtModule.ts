@@ -104,7 +104,7 @@ export const bkThoughtModule = BunnyFeature.create<BKThought, BKThought>(
           name: "thought",
           label: "Thought Content",
           placeholder: "Enter the main thought / system prompt content...",
-          type: "textarea",
+          type: "editor",
           required: true,
           rows: 8,
           // colSpan: 2,

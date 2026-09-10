@@ -1707,14 +1707,11 @@ export default function BKThinkStudio({ thinkId }: BKThinkStudioProps) {
               {/* Dropdown arrow — shown in rethink state for extra options */}
               {conversation.length > 0 && !isThinking && (
                 <Dropdown>
-                  <Dropdown.Trigger>
-                    <Button
-                      isIconOnly
-                      aria-label="Rethink options"
-                      className="px-2 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-r-lg rounded-l-none hover:bg-blue-700 transition-colors flex items-center"
-                    >
-                      <ChevronDown size={16} />
-                    </Button>
+                  <Dropdown.Trigger
+                    aria-label="Rethink options"
+                    className="px-2 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-r-lg rounded-l-none hover:bg-blue-700 transition-colors flex items-center"
+                  >
+                    <ChevronDown size={16} />
                   </Dropdown.Trigger>
                   <Dropdown.Popover placement="bottom end">
                     <Dropdown.Menu

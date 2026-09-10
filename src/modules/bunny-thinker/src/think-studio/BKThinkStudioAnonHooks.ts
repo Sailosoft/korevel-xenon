@@ -23,6 +23,7 @@ import type {
 } from "../thought-association/BKThoughtAssociation.Types";
 import type { BKThoughtPattern } from "../thought-pattern/BKThoughtPattern.Types";
 import type { HelixAIOption } from "@/src/modules/helix";
+import type { BKIdea, BKTrainOfThoughtIdea } from "../ideas/BKIdeas.Types";
 
 // ─── Editable step type ──────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export interface BKThinkStudioAnonStep {
   order: number;
   /** Optional craft config ID to apply per-step formatting */
   craftId?: string;
+  /** Optional idea IDs attached to this step's prompt */
+  ideaIds?: string[];
 }
 
 // ─── Hook return type ────────────────────────────────────────────────
@@ -46,6 +49,10 @@ export interface UseAnonymousModeReturn {
   associations: BKThoughtAssociation[];
   associationSelectLoading: boolean;
 
+  // Ideas
+  ideas: BKIdea[];
+  ideasLoading: boolean;
+
   // Patterns
   patterns: BKThoughtPattern[];
   patternsLoading: boolean;
@@ -53,6 +60,12 @@ export interface UseAnonymousModeReturn {
   // Craft configs
   craftConfigs: BKCraftConfig[];
   craftConfigsLoading: boolean;
+
+  // Step-generation context (pattern / association baked for the AI producer)
+  stepPatternContext: string | undefined;
+  stepAssociationContext: string | undefined;
+  hasStepPattern: boolean;
+  hasStepAssociation: boolean;
 
   // Editable thought fields
   thoughtName: string;
@@ -124,6 +137,11 @@ export interface UseAnonymousModeReturn {
     name: string,
     slotValues: BKAssociationSlotValue[],
   ) => Promise<void>;
+  createQuickAssociation: (
+    name: string,
+    description?: string,
+    slotValues?: BKAssociationSlotValue[],
+  ) => Promise<BKThoughtAssociation | null>;
   associationSaving: boolean;
 
   addStep: () => void;
@@ -133,6 +151,10 @@ export interface UseAnonymousModeReturn {
   moveStepDown: (index: number) => void;
   removeStep: (index: number) => void;
   updateStep: (index: number, field: "name" | "thought" | "craftId", value: string) => void;
+  /** Attach or detach an idea on a step */
+  toggleStepIdea: (stepId: string, ideaId: string) => void;
+  /** Replace all idea attachments on a step (commit from the picker modal) */
+  setStepIdeaIds: (stepId: string, ideaIds: string[]) => void;
   /** Append AI-generated steps to the current step list */
   appendSteps: (steps: Array<{ name: string; thought: string; craftId?: string }>) => void;
   /** Replace the current step list with AI-generated steps */
@@ -177,6 +199,17 @@ function bakePatternContext(
   return lines.join("\n");
 }
 
+// ─── Helper: bake attached ideas into a step prompt ─────────────────
+
+function buildStepPrompt(thought: string, attachedIdeas: BKIdea[]): string {
+  if (attachedIdeas.length === 0) return thought;
+  const lines = attachedIdeas.map(
+    (idea) =>
+      `- **${idea.name}**${idea.tags ? ` (${idea.tags})` : ""}\n  ${idea.idea}`,
+  );
+  return `${thought}\n\n---\n**Attached Ideas:**\n${lines.join("\n")}`;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useAnonymousMode(): UseAnonymousModeReturn {
@@ -194,6 +227,10 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   // ── Craft configs ─────────────────────────────────────────────────
   const [craftConfigs, setCraftConfigs] = useState<BKCraftConfig[]>([]);
   const [craftConfigsLoading, setCraftConfigsLoading] = useState(false);
+
+  // ── Ideas ─────────────────────────────────────────────────────────
+  const [ideas, setIdeas] = useState<BKIdea[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
 
   // ── Selections ────────────────────────────────────────────────────
   const [selectedPattern, setSelectedPattern] =
@@ -246,6 +283,14 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
   );
   const [showProcessedOutput, setShowProcessedOutput] = useState(false);
 
+  // ── Step-generation context (pattern / association baked for the AI) ──
+  const [stepPatternContext, setStepPatternContext] = useState<
+    string | undefined
+  >();
+  const [stepAssociationContext, setStepAssociationContext] = useState<
+    string | undefined
+  >();
+
   // ── Derived ───────────────────────────────────────────────────────
   const isReadyToThink =
     !!thoughtName && !!thoughtContent && steps.some((s) => s.name && s.thought);
@@ -277,6 +322,56 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
 
   const isProcessingComplete = completedSteps.length > 0;
   const isTabPinnedRef = useRef(false);
+
+  // ── Bake thought pattern / association context for AI step generation ──
+  const activeStepPatternId =
+    selectedThought?.patternId ?? selectedPattern?.id ?? undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolve = async () => {
+      if (!activeStepPatternId) {
+        setStepPatternContext(undefined);
+        setStepAssociationContext(undefined);
+        return;
+      }
+      try {
+        const result =
+          await bkThinkerDB.thoughtPatternsRepo.get(activeStepPatternId);
+        if (cancelled || !result.isSuccess) return;
+        const pattern = result.value;
+        setStepPatternContext(bakePatternContext(pattern));
+        if (
+          associationOverrideEnabled &&
+          associationOverrideSlotValues.length > 0
+        ) {
+          setStepAssociationContext(
+            bakePatternContext(pattern, associationOverrideSlotValues),
+          );
+        } else if (selectedAssociation) {
+          setStepAssociationContext(
+            bakePatternContext(pattern, selectedAssociation.slotValues),
+          );
+        } else {
+          setStepAssociationContext(undefined);
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudioAnon] Failed to resolve step generation context:",
+          err,
+        );
+      }
+    };
+    resolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeStepPatternId,
+    selectedAssociation,
+    associationOverrideEnabled,
+    associationOverrideSlotValues,
+  ]);
 
   // ── Load thinkers ─────────────────────────────────────────────────
   useEffect(() => {
@@ -357,6 +452,26 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     loadCraftConfigs();
   }, [loadCraftConfigs]);
 
+  // ── Load all ideas for step attachments ───────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setIdeasLoading(true);
+      try {
+        const result = await bkThinkerDB.ideasRepo.query.getAll({
+          page: 0,
+          pageSize: 9999,
+          filters: [],
+        });
+        setIdeas(result.data);
+      } catch (err) {
+        console.error("[BKThinkStudioAnon] Failed to load ideas:", err);
+      } finally {
+        setIdeasLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   // ── Load existing thought (populate form) ─────────────────────────
   const loadExistingThought = useCallback(async (thoughtId: string) => {
     if (!thoughtId) return;
@@ -385,6 +500,23 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             (a: BKTrainOfThought, b: BKTrainOfThought) => a.order - b.order,
           );
 
+        // Load idea mappings for each train of thought step (indexed by step id)
+        const stepIds = filtered.map((tr: BKTrainOfThought) => tr.id);
+        const ideaIdsByStep = new Map<string, string[]>();
+        const allIdeaMappings = stepIds.length
+          ? (await bkThinkerDB.trainOfThoughtIdeas
+              .where("trainOfThoughtId")
+              .anyOf(stepIds)
+              .toArray() as Array<{
+              trainOfThoughtId: string;
+              ideaId: string;
+            }>)
+          : [];
+        for (const mapping of allIdeaMappings) {
+          const current = ideaIdsByStep.get(mapping.trainOfThoughtId) ?? [];
+          ideaIdsByStep.set(mapping.trainOfThoughtId, [...current, mapping.ideaId]);
+        }
+
         setSteps(
           filtered.length > 0
             ? filtered.map((tr: BKTrainOfThought) => ({
@@ -393,8 +525,9 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
                 thought: tr.thought,
                 order: tr.order,
                 craftId: tr.craftId,
+                ideaIds: ideaIdsByStep.get(tr.id) ?? [],
               }))
-            : [{ id: uuidv7(), name: "", thought: "", order: 0 }],
+            : [{ id: uuidv7(), name: "", thought: "", order: 0, ideaIds: [] }],
         );
 
         // Load associations for this thought's pattern
@@ -526,11 +659,53 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     [selectedThought?.patternId, selectedPattern?.id],
   );
 
+  // ── Quick-create association (name + description only) ─────────────
+  const createQuickAssociation = useCallback(
+    async (
+      name: string,
+      description?: string,
+      slotValues?: BKAssociationSlotValue[],
+    ) => {
+      const patternId =
+        selectedThought?.patternId ?? selectedPattern?.id ?? undefined;
+      if (!name || !patternId) return null;
+      setAssociationSaving(true);
+      try {
+        const result = await bkThinkerDB.thoughtAssociationsRepo.create({
+          name,
+          patternId,
+          description: description || "",
+          slotValues: slotValues || [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        } as unknown as BKThoughtAssociation);
+        if (result.isSuccess) {
+          const saved = result.value;
+          setSelectedAssociationId(saved.id);
+          setSelectedAssociation(saved);
+          const items =
+            await bkThinkerDB.thoughtAssociationsRepo.getByPatternId(patternId);
+          setAssociations(items);
+          return saved;
+        }
+      } catch (err) {
+        console.error(
+          "[BKThinkStudioAnon] Failed to quick-create association:",
+          err,
+        );
+      } finally {
+        setAssociationSaving(false);
+      }
+      return null;
+    },
+    [selectedThought?.patternId, selectedPattern?.id],
+  );
+
   // ── Step CRUD ─────────────────────────────────────────────────────
   const addStep = useCallback(() => {
     setSteps((prev) => [
       ...prev,
-      { id: uuidv7(), name: "", thought: "", order: prev.length },
+      { id: uuidv7(), name: "", thought: "", order: prev.length, ideaIds: [] },
     ]);
   }, []);
 
@@ -580,7 +755,13 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       const after = prev.slice(index);
       return [
         ...before,
-        { id: newId, name: "", thought: "", order: before.length },
+        {
+          id: newId,
+          name: "",
+          thought: "",
+          order: before.length,
+          ideaIds: [],
+        },
         ...after,
       ].map((s, i) => ({ ...s, order: i }));
     });
@@ -593,10 +774,39 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       const after = prev.slice(index + 1);
       return [
         ...before,
-        { id: newId, name: "", thought: "", order: before.length },
+        {
+          id: newId,
+          name: "",
+          thought: "",
+          order: before.length,
+          ideaIds: [],
+        },
         ...after,
       ].map((s, i) => ({ ...s, order: i }));
     });
+  }, []);
+
+  // ── Toggle an idea on a step ──────────────────────────────────────
+  const toggleStepIdea = useCallback((stepId: string, ideaId: string) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              ideaIds: (s.ideaIds ?? []).includes(ideaId)
+                ? (s.ideaIds ?? []).filter((id) => id !== ideaId)
+                : [...(s.ideaIds ?? []), ideaId],
+            }
+          : s,
+      ),
+    );
+  }, []);
+
+  // ── Replace all idea attachments on a step ────────────────────────
+  const setStepIdeaIds = useCallback((stepId: string, ideaIds: string[]) => {
+    setSteps((prev) =>
+      prev.map((s) => (s.id === stepId ? { ...s, ideaIds } : s)),
+    );
   }, []);
 
   // ── Bulk step setters (used by Generative AI step producer) ──────
@@ -702,6 +912,14 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             craftId: s.craftId,
           }));
 
+        // Resolve attached ideas per step
+        const ideasByStep = new Map(
+          steps.map((s) => [
+            s.id,
+            ideas.filter((idea) => (s.ideaIds ?? []).includes(idea.id)),
+          ]),
+        );
+
         setTrainOfThoughts(stepTrains);
         setCurrentStepIndex(0);
         setActiveStepIndex(0);
@@ -751,6 +969,12 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             ? craftConfigMap.get(step.craftId)
             : null;
 
+          // Bake attached ideas into this step's prompt
+          const stepPrompt = buildStepPrompt(
+            step.thought,
+            ideasByStep.get(step.id) ?? [],
+          );
+
           const conversationMessages: BKThinkMessage[] =
             initialConversation.map((msg) => ({
               role: msg.role === "system" ? "system" : msg.role,
@@ -766,7 +990,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerDescription: selectedThinker?.description,
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
-            newMessage: { name: step.name, content: step.thought },
+            newMessage: { name: step.name, content: stepPrompt },
             craftFormat: stepCraftConfig?.format ?? craftFormat,
             craftInstruction: stepCraftConfig?.instruction ?? (craftInstruction || undefined),
             associationContext,
@@ -780,7 +1004,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
 
           initialConversation.push({
             role: "user",
-            content: step.thought,
+            content: stepPrompt,
             timestamp: Date.now(),
           });
           initialConversation.push({
@@ -813,6 +1037,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       thoughtName,
       thoughtContent,
       steps,
+      ideas,
       selectedThinker,
       craftFormat,
       resolveAssociationContext,
@@ -834,6 +1059,16 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
         const associationContext = await resolveAssociationContext();
         const remainingSteps = trainOfThoughts.slice(stepIndex);
 
+        // Resolve attached ideas per remaining step from the current editor steps
+        const ideasByStep = new Map(
+          steps
+            .filter((s) => s.name && s.thought)
+            .map((s) => [
+              s.id,
+              ideas.filter((idea) => (s.ideaIds ?? []).includes(idea.id)),
+            ]),
+        );
+
         // Load craft configs to resolve per-step craft formats (same as startThinking)
         const allCraftConfigs = await bkThinkerDB.craftConfigs
           .toArray() as BKCraftConfig[];
@@ -853,6 +1088,12 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             ? rethinkCraftConfigMap.get(step.craftId)
             : null;
 
+          // Bake attached ideas into this step's prompt
+          const stepPrompt = buildStepPrompt(
+            step.thought,
+            ideasByStep.get(step.id) ?? [],
+          );
+
           const conversationMessages: BKThinkMessage[] =
             truncatedConversation.map((msg) => ({
               role: msg.role === "system" ? "system" : msg.role,
@@ -868,7 +1109,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             thinkerDescription: selectedThinker?.description,
             thinkerRole: selectedThinker?.role,
             messages: conversationMessages,
-            newMessage: { name: step.name, content: step.thought },
+            newMessage: { name: step.name, content: stepPrompt },
             craftFormat: stepCraftConfig?.format ?? craftFormat,
             craftInstruction: stepCraftConfig?.instruction ?? (craftInstruction || undefined),
             associationContext,
@@ -882,7 +1123,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
 
           truncatedConversation.push({
             role: "user",
-            content: step.thought,
+            content: stepPrompt,
             timestamp: Date.now(),
           });
           truncatedConversation.push({
@@ -916,8 +1157,10 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     [
       conversation,
       trainOfThoughts,
+      steps,
       thoughtName,
       thoughtContent,
+      ideas,
       selectedThinker,
       craftFormat,
       craftInstruction,
@@ -944,7 +1187,12 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
             }
           : null,
         craftFormat,
-        steps: steps.map((s) => ({ name: s.name, thought: s.thought, craftId: s.craftId })),
+        steps: steps.map((s) => ({
+          name: s.name,
+          thought: s.thought,
+          craftId: s.craftId,
+          ideaIds: s.ideaIds ?? [],
+        })),
         conversation: conversation.map((msg) => ({
           role: msg.role,
           content: msg.content,
@@ -1004,8 +1252,9 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
       for (let i = 0; i < steps.length; i++) {
         const s = steps[i];
         if (!s.name || !s.thought) continue;
+        const stepId = uuidv7();
         await bkThinkerDB.trainOfThoughtsRepo.create({
-          id: uuidv7(),
+          id: stepId,
           thoughtId,
           name: s.name,
           thought: s.thought,
@@ -1015,6 +1264,15 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
+
+        // Persist idea attachments for this step
+        for (const ideaId of s.ideaIds ?? []) {
+          await bkThinkerDB.trainOfThoughtIdeasRepo.create({
+            id: uuidv7(),
+            trainOfThoughtId: stepId,
+            ideaId,
+          } as BKTrainOfThoughtIdea);
+        }
       }
 
       // Create think with conversation
@@ -1052,7 +1310,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     setThoughtName("");
     setThoughtDescription("");
     setThoughtContent("");
-    setSteps([{ id: uuidv7(), name: "", thought: "", order: 0 }]);
+    setSteps([{ id: uuidv7(), name: "", thought: "", order: 0, ideaIds: [] }]);
     setSelectedThought(null);
     setSelectedThinker(null);
     setSelectedAssociation(null);
@@ -1081,8 +1339,14 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     patternsLoading,
     associations,
     associationSelectLoading,
+    ideas,
+    ideasLoading,
     craftConfigs,
     craftConfigsLoading,
+    stepPatternContext,
+    stepAssociationContext,
+    hasStepPattern: !!stepPatternContext,
+    hasStepAssociation: !!stepAssociationContext,
     thoughtName,
     thoughtDescription,
     thoughtContent,
@@ -1126,6 +1390,7 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     associationOverrideSlotValues,
     onAssociationOverrideSlotValuesChange: setAssociationOverrideSlotValues,
     savePersistentAssociation,
+    createQuickAssociation,
     associationSaving,
     addStep,
     addStepBefore,
@@ -1134,6 +1399,8 @@ export function useAnonymousMode(): UseAnonymousModeReturn {
     moveStepDown,
     removeStep,
     updateStep,
+    toggleStepIdea,
+    setStepIdeaIds,
     appendSteps,
     replaceAllSteps,
     startThinking,

@@ -1,18 +1,20 @@
 "use client";
 
-// BKGenerateStepsModal.tsx
+// BKStepAIGenerate.Modal.tsx
 //
-// Reusable modal that produces train-of-thought steps via Generative AI.
+// Single reusable modal that produces train-of-thought steps via Generative AI.
 // Lets the user pick a production mode (Analytic, Plan, SDLC, ContentWriting,
 // Guide, Architecture), enter a direction for the steps, and — when existing
 // steps are present — choose to append to them or override them.
 //
+// All generation logic lives in `useStepAIGenerate` (BKStepAIGenerate.ts).
+//
 // Used by:
-// - BKThoughtDetailPage
 // - BKThinkStudioAnon
+// - BKThoughtDetailPage
 
-import React, { useMemo, useState } from "react";
-import { Button, toast } from "@heroui/react";
+import React from "react";
+import { Button } from "@heroui/react";
 import {
   Sparkles,
   X,
@@ -22,30 +24,40 @@ import {
   FileText,
   Layers,
   Braces,
+  Search,
+  Lightbulb,
+  Scale,
+  Bug,
+  ClipboardCheck,
+  GraduationCap,
 } from "lucide-react";
 import {
-  BK_STEP_GENERATION_MODES,
-  bkGetStepGenerationMode,
+  useStepAIGenerate,
+  BK_STEP_GENERATION_MODES_SORTED,
   type BKStepGenerationMode,
-  type BKStepGenerationStrategy,
-} from "./BKThoughtGeneration.Config";
-import {
-  generateStepsAction,
   type BKGeneratedStep,
-} from "../think/BKThink.Actions";
+  type BKStepGenerationStrategy,
+  type BKStepAIGenerateContextSources,
+  type BKStepAIGenerateExistingStep,
+} from "./BKStepAIGenerate";
 import type { HelixAIOption } from "@/src/modules/helix";
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
-export interface BKGenerateStepsModalProps {
+export interface BKStepAIGenerateModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** The thought being built — used as generation context */
   thoughtName: string;
-  thoughtDescription: string;
+  thoughtDescription?: string;
   thoughtContent: string;
   /** Existing steps, passed so the AI stays coherent when appending */
-  existingSteps?: Array<{ name: string; thought: string }>;
+  existingSteps?: BKStepAIGenerateExistingStep[];
+  /** Whether a thought pattern / association is available to include */
+  hasPattern?: BKStepAIGenerateContextSources["hasPattern"];
+  hasAssociation?: BKStepAIGenerateContextSources["hasAssociation"];
+  /** Resolve baked pattern/association context text on demand */
+  getContexts?: BKStepAIGenerateContextSources["getContexts"];
   /** AI config (provider + model) */
   aiConfig: HelixAIOption;
   /** Called with the generated steps and the chosen merge strategy */
@@ -55,95 +67,116 @@ export interface BKGenerateStepsModalProps {
   ) => void;
 }
 
+// ─── Toggle row ──────────────────────────────────────────────────────────
+
+function ContextToggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 p-2.5 rounded-lg border bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs font-medium text-gray-700">{label}</span>
+        <span className="block text-[10px] text-gray-500 mt-0.5">
+          {description}
+        </span>
+      </span>
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? "bg-purple-600" : "bg-gray-300"
+        }`}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-[18px]" : "translate-x-[3px]"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 // ─── Mode icons ──────────────────────────────────────────────────────────
 
 const MODE_ICONS: Record<BKStepGenerationMode, React.ReactNode> = {
+  plain: <FileText size={16} />,
   analytic: <FileText size={16} />,
   plan: <Layers size={16} />,
   sdlc: <Braces size={16} />,
   contentWriting: <FileText size={16} />,
   guide: <GitMerge size={16} />,
   architecture: <Layers size={16} />,
+  research: <Search size={16} />,
+  brainstorm: <Lightbulb size={16} />,
+  decision: <Scale size={16} />,
+  debug: <Bug size={16} />,
+  review: <ClipboardCheck size={16} />,
+  teaching: <GraduationCap size={16} />,
 };
 
 // ─── Component ──────────────────────────────────────────────────────────
 
-export default function BKGenerateStepsModal({
+export default function BKStepAIGenerateModal({
   isOpen,
   onClose,
   thoughtName,
   thoughtDescription,
   thoughtContent,
   existingSteps,
+  hasPattern,
+  hasAssociation,
+  getContexts,
   aiConfig,
   onGenerated,
-}: BKGenerateStepsModalProps) {
-  const [mode, setMode] = useState<BKStepGenerationMode>("analytic");
-  const [request, setRequest] = useState("");
-  const [strategy, setStrategy] = useState<BKStepGenerationStrategy>("append");
-  const [useDescriptionAsDirection, setUseDescriptionAsDirection] =
-    useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState("");
-
-  const hasExistingSteps = useMemo(
-    () => !!existingSteps && existingSteps.length > 0,
-    [existingSteps],
-  );
-
-  // Keep the default strategy aligned with whether existing steps are present.
-  const resolvedStrategy: BKStepGenerationStrategy = hasExistingSteps
-    ? strategy
-    : "override";
-
-  const activeMode = bkGetStepGenerationMode(mode);
+}: BKStepAIGenerateModalProps) {
+  const {
+    mode,
+    setMode,
+    request,
+    setRequest,
+    strategy,
+    setStrategy,
+    useDescriptionAsDirection,
+    setUseDescriptionAsDirection,
+    includeThoughtPrompt,
+    setIncludeThoughtPrompt,
+    includePattern,
+    setIncludePattern,
+    includeAssociation,
+    setIncludeAssociation,
+    hasPattern: canIncludePattern,
+    hasAssociation: canIncludeAssociation,
+    generating,
+    error,
+    hasExistingSteps,
+    activeMode,
+    generate,
+  } = useStepAIGenerate({
+    aiConfig,
+    thoughtName,
+    thoughtDescription,
+    thoughtContent,
+    existingSteps,
+    hasPattern,
+    hasAssociation,
+    getContexts,
+    onGenerated,
+  });
 
   if (!isOpen) return null;
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setError("");
-    try {
-      const result = await generateStepsAction({
-        mode,
-        strategy: resolvedStrategy,
-        request,
-        thoughtName,
-        thoughtDescription,
-        thoughtContent,
-        existingSteps: hasExistingSteps ? existingSteps : undefined,
-        useDescriptionAsDirection,
-        aiConfig,
-      });
-
-      if (!result.success) {
-        setError(result.error || "Failed to generate steps");
-        toast.danger(result.error || "Failed to generate steps");
-        return;
-      }
-
-      if (!result.steps || result.steps.length === 0) {
-        setError("The AI returned no steps. Try a different direction.");
-        toast.danger("The AI returned no steps. Try a different direction.");
-        return;
-      }
-
-      onGenerated(result.steps, resolvedStrategy);
-      toast.success(
-        `${result.steps.length} step${result.steps.length > 1 ? "s" : ""} generated (${
-          resolvedStrategy === "append" ? "appended" : "replaced"
-        })`,
-      );
-      setRequest("");
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Unknown generation error";
-      setError(msg);
-      toast.danger(msg);
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   return (
     <div
@@ -184,42 +217,45 @@ export default function BKGenerateStepsModal({
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
               Production Mode
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {BK_STEP_GENERATION_MODES.map((m) => {
-                const isActive = m.id === mode;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setMode(m.id)}
-                    className={`text-left p-3 rounded-xl border transition-all ${
-                      isActive
-                        ? "border-purple-500 bg-purple-50 ring-2 ring-purple-100"
-                        : "border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50/40"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`${
-                          isActive ? "text-purple-600" : "text-gray-400"
-                        }`}
-                      >
-                        {MODE_ICONS[m.id]}
-                      </span>
-                      <span
-                        className={`text-sm font-medium ${
-                          isActive ? "text-purple-800" : "text-gray-700"
-                        }`}
-                      >
-                        {m.label}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1 leading-snug line-clamp-2">
-                      {m.description}
-                    </p>
-                  </button>
-                );
-              })}
+            {/* Scrollable 3-column × 2-row grid — extra modes scroll into view */}
+            <div className="max-h-[192px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 gap-2 auto-rows-[92px]">
+                {BK_STEP_GENERATION_MODES_SORTED.map((m) => {
+                  const isActive = m.id === mode;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMode(m.id)}
+                      className={`h-full text-left p-2.5 rounded-xl border transition-all overflow-hidden ${
+                        isActive
+                          ? "border-purple-500 bg-purple-50 ring-2 ring-purple-100"
+                          : "border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`shrink-0 ${
+                            isActive ? "text-purple-600" : "text-gray-400"
+                          }`}
+                        >
+                          {MODE_ICONS[m.id]}
+                        </span>
+                        <span
+                          className={`text-[13px] font-medium truncate ${
+                            isActive ? "text-purple-800" : "text-gray-700"
+                          }`}
+                        >
+                          {m.label}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1 leading-snug line-clamp-2">
+                        {m.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Active mode detail */}
@@ -244,7 +280,7 @@ export default function BKGenerateStepsModal({
             />
 
             {/* Toggle: use thought description as direction */}
-            {thoughtDescription.trim() && (
+            {(thoughtDescription ?? "").trim() && (
               <button
                 type="button"
                 role="switch"
@@ -260,7 +296,7 @@ export default function BKGenerateStepsModal({
                   </span>
                   <span className="block text-[10px] text-gray-500 mt-0.5 truncate">
                     {useDescriptionAsDirection ? "The AI will use: " : "Ignored — "}
-                    &ldquo;{thoughtDescription.trim()}&rdquo;
+                    &ldquo;{(thoughtDescription ?? "").trim()}&rdquo;
                   </span>
                 </span>
                 <span
@@ -279,6 +315,43 @@ export default function BKGenerateStepsModal({
               </button>
             )}
           </div>
+
+          {/* Context toggles */}
+          {(thoughtContent.trim() ||
+            canIncludePattern ||
+            (includePattern && canIncludeAssociation)) && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                Context to include
+              </label>
+              <div className="space-y-2">
+                {thoughtContent.trim() && (
+                  <ContextToggle
+                    label="Thought prompt"
+                    description="Include the thought's main prompt/content in the generation context."
+                    checked={includeThoughtPrompt}
+                    onChange={setIncludeThoughtPrompt}
+                  />
+                )}
+                {canIncludePattern && (
+                  <ContextToggle
+                    label="Thought pattern"
+                    description="Include this thought's pattern and slots to shape the steps."
+                    checked={includePattern}
+                    onChange={setIncludePattern}
+                  />
+                )}
+                {includePattern && canIncludeAssociation && (
+                  <ContextToggle
+                    label="Thought association overrides"
+                    description="Apply the selected association's slot values on top of the pattern."
+                    checked={includeAssociation}
+                    onChange={setIncludeAssociation}
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Strategy — only when existing steps exist */}
           {hasExistingSteps && (
@@ -376,7 +449,7 @@ export default function BKGenerateStepsModal({
           <Button
             size="sm"
             isDisabled={generating}
-            onPress={handleGenerate}
+            onPress={generate}
             className="px-5 py-2 bg-gradient-to-r from-purple-600 to-amber-500 text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1.5 text-sm font-medium"
           >
             {generating ? (

@@ -7,6 +7,28 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.6.0",
+    title: "Version 4.6.0: OpenCode Go Calculator, Helix Model Organization, Bunny Thinker AI Studio Steps and Bunny Book Reading",
+    content: [
+      "Helix: Reorganized the model layer into dedicated provider modules and refreshed the Open Router model list.",
+      "BunnyThinker: Added anonymous Studio mode with an ideas picker, render crafting, and HeroUI compatibility fixes.",
+      "BunnyThinker: Improved AI assisted steps generation with configurable AI Generate and AI Refine steps.",
+      "BunnyBook: Improved the skills picker, book chapter reading content, and Facebook HTML export template.",
+      "Catalog: Add OpenCode Go Calculator for pricing OpenCode Go model credits and regenerating its pricing dictionary.",
+    ],
+    apps: [
+      CatalogApp.BunnyThinker,
+      CatalogApp.BunnyBook,
+      CatalogApp.Catalog
+    ],
+    dates: [
+      "2026-09-08",
+      "2026-09-09",
+      "2026-09-10",
+      "2026-09-11"
+    ]
+  },
+  {
     version: "v4.5.0",
     title: "Version 4.5.0: Improve AI Assisted on Studio and Book, Lemon Coder CSV Editor, Improve Studio Knowledge Base and Added Bunny Helix",
     content: [

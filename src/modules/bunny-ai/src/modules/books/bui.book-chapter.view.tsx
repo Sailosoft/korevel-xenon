@@ -12,6 +12,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
 import {
   Rocket,
@@ -78,7 +79,9 @@ function ChapterReadModal({
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {chapter.content ? (
             <div className="prose prose-sm max-w-none prose-headings:text-slate-800 prose-headings:font-bold prose-p:text-slate-600 prose-a:text-[#ff2d20] prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-slate-50 prose-pre:border prose-pre:border-slate-200 prose-pre:rounded-xl prose-img:rounded-xl prose-blockquote:border-l-[#ff2d20] prose-blockquote:text-slate-500">
-              <ReactMarkdown>{chapter.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {chapter.content}
+              </ReactMarkdown>
             </div>
           ) : (
             <div className="text-center py-16">

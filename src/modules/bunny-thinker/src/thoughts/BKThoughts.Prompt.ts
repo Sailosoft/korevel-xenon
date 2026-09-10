@@ -7,8 +7,8 @@ import { BKPromptCraftSystemSuffix } from "../craft/BKCraft.Prompt";
 import type {
   BKStepGenerationMode,
   BKStepGenerationStrategy,
-} from "./BKThoughtGeneration.Config";
-import { bkGetStepGenerationMode } from "./BKThoughtGeneration.Config";
+} from "../steps/BKStepAIGenerate.Config";
+import { bkGetStepGenerationMode } from "../steps/BKStepAIGenerate.Config";
 
 /**
  * Build the system prompt for a thought with its train of thoughts.
@@ -102,6 +102,15 @@ export function BKPromptGenerateSteps(params: {
    * for the generated steps (merged with any manual request).
    */
   useDescriptionAsDirection?: boolean;
+  /**
+   * When false, the thought's main prompt/content is omitted from the
+   * generation context.
+   */
+  includeThoughtPrompt?: boolean;
+  /** Baked thought-pattern context (resolved slots). */
+  thoughtPatternContext?: string;
+  /** Baked thought-association override context (slot values). */
+  thoughtAssociationContext?: string;
 }): string {
   const modeCfg = bkGetStepGenerationMode(params.mode);
 
@@ -132,12 +141,23 @@ export function BKPromptGenerateSteps(params: {
         manualRequest || "(generate a natural progression for the thought)"
       }`;
 
+  const thoughtContentSection =
+    params.includeThoughtPrompt === false
+      ? ""
+      : `\nThought Content:\n${params.thoughtContent}`;
+
+  const patternSection = params.thoughtPatternContext?.trim()
+    ? `\nThought Pattern (shape and sequence the steps according to this pattern):\n${params.thoughtPatternContext.trim()}`
+    : "";
+
+  const associationSection = params.thoughtAssociationContext?.trim()
+    ? `\nThought Association Overrides (slot values that refine the pattern for this run):\n${params.thoughtAssociationContext.trim()}`
+    : "";
+
   return `Generate a sequence of train-of-thought steps for the thought below.
 
 Thought Name: ${params.thoughtName}
-Thought Description: ${params.thoughtDescription || "(none)"}
-Thought Content:
-${params.thoughtContent}${existingSection}
+Thought Description: ${params.thoughtDescription || "(none)"}${thoughtContentSection}${patternSection}${associationSection}${existingSection}
 
 ${directionSection}
 
@@ -145,6 +165,69 @@ MODE: ${modeCfg.label}
 ${modeCfg.instruction}
 
 ${strategySection}
+
+For each step, provide:
+- name: A short, descriptive label for the step
+- thought: The detailed prompt/instruction the AI should execute for this step (rich markdown)
+- order: The sequential index starting at 0
+
+Output a JSON object with a "steps" array field. Each element is an object with "name" (string), "thought" (string), and "order" (number).`;
+}
+
+/**
+ * Prompt for refining an existing train-of-thought sequence.
+ *
+ * The AI receives the current steps plus a natural-language refinement
+ * instruction and returns the FULL revised sequence — applying updates to
+ * step names/prompts, adding new steps, and removing obsolete ones.
+ */
+export function BKPromptRefineSteps(params: {
+  instruction: string;
+  steps: Array<{ name: string; thought: string; order: number }>;
+  thoughtName?: string;
+  thoughtDescription?: string;
+  thoughtContent?: string;
+}): string {
+  const ordered = [...params.steps].sort((a, b) => a.order - b.order);
+
+  const stepsSection = ordered.length
+    ? ordered
+        .map(
+          (s, i) =>
+            `${i + 1}. ${s.name || "(untitled)"}\n   Prompt: ${s.thought || "(empty)"}`,
+        )
+        .join("\n\n")
+    : "(no steps yet)";
+
+  const thoughtSection = params.thoughtName
+    ? `\nThought Context:
+Thought Name: ${params.thoughtName}${
+        params.thoughtDescription
+          ? `\nThought Description: ${params.thoughtDescription}`
+          : ""
+      }${
+        params.thoughtContent
+          ? `\nThought Content:\n${params.thoughtContent}`
+          : ""
+      }\n`
+    : "";
+
+  return `You are refining an existing train-of-thought sequence.
+${thoughtSection}
+Current steps (in order):
+${stepsSection}
+
+Refinement instruction:
+${params.instruction}
+
+Apply the instruction by editing the sequence:
+- UPDATE the name and/or prompt of steps that need changes (keep their intent unless asked otherwise).
+- ADD new steps where the instruction calls for additional reasoning.
+- REMOVE steps that are no longer needed.
+- PRESERVE unchanged steps exactly as they are.
+- Keep the sequence logically ordered.
+
+Return the FULL revised sequence (not a diff), renumbered with "order" starting at 0.
 
 For each step, provide:
 - name: A short, descriptive label for the step

@@ -1,4 +1,7 @@
+import { createElement } from "react";
+import { Sparkles } from "lucide-react";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
+import { createBunnyHelixAction } from "@/src/modules/bunny-helix";
 import { bkThinkerDB } from "../database/BKThinkerDatabase";
 import type { BKIdea } from "../ideas/BKIdeas.Types";
 import { useBKIdeaFormValidation } from "./BKIdea.Validation";
@@ -54,5 +57,51 @@ export const bkIdeaModule = BunnyFeature.create<BKIdea, BKIdea>(
     });
 
     feature.useDataLayer(bkThinkerDB.ideasRepo.dataLayer);
+
+    feature.configureHeader((header) => {
+      header.addAction(
+        createBunnyHelixAction<BKIdea, BKIdea>({
+          id: "ai-generate-idea",
+          label: "AI Generate",
+          icon: createElement(Sparkles, { className: "size-4" }),
+          variant: "accent",
+          ai: async () => {
+            const res = await bkThinkerDB.aiSettingsRepo.get("global");
+            if (!res.isSuccess || !res.value.provider || !res.value.model) {
+              return undefined;
+            }
+            return { provider: res.value.provider, model: res.value.model };
+          },
+          inputFields: [
+            {
+              name: "brief",
+              label: "Describe the idea",
+              type: "textarea",
+              required: true,
+              rows: 4,
+            },
+          ],
+          targets: [
+            {
+              field: "name",
+              prompt: "A short, specific name for the idea (max ~60 chars).",
+            },
+            {
+              field: "idea",
+              prompt:
+                "The complete idea content: clear, actionable, ready to use as a reusable prompt template or reference.",
+            },
+            {
+              field: "tags",
+              prompt:
+                "Comma-separated tags that categorize the idea (e.g. creative, technical, analysis).",
+            },
+          ],
+          onCreate: "prefill",
+          modalTitle: "AI Generate Idea",
+          submitLabel: "Generate",
+        }),
+      );
+    });
   },
 );

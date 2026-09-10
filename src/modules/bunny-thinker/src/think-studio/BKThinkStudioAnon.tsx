@@ -11,9 +11,8 @@ import React, { useCallback, useRef, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import RenderView from "@/src/modules/render/src/components/RenderModule.View";
-import type { RenderFormat } from "@/src/modules/render/src/RenderModule.Types";
 import Editor from "@monaco-editor/react";
-import { Button, Select, ListBox, toast } from "@heroui/react";
+import { Button, Select, ListBox, Dropdown, Toast, toast } from "@heroui/react";
 import {
   Brain,
   RotateCcw,
@@ -29,19 +28,57 @@ import {
   Pencil,
   Link2,
   GitBranch,
+  Plus,
+  Eye,
+  FileJson,
+  WandSparkles,
 } from "lucide-react";
 import { useAnonymousMode } from "./BKThinkStudioAnonHooks";
 import type { BKThinkStudioAnonStep } from "./BKThinkStudioAnonHooks";
 import type { HelixAIOption } from "@/src/modules/helix";
 import { BKCraftEngine } from "../craft/BKCraft.Engine";
-import type { BKCraftFormat, BKCraftConfig } from "../craft/BKCraft.Types";
+import type { BKCraftFormat } from "../craft/BKCraft.Types";
 import MermaidRenderer from "../components/MermaidRenderer";
 import BKThinkStudioSettingsModal from "./BKThinkStudioSettingsModal";
 import BKThoughtConfigPanel from "../thoughts/BKThoughtConfigPanel";
-import BKGenerateStepsModal from "../thoughts/BKGenerateStepsModal";
-import BKStepActions from "../steps/BKStepActions";
+import type { BKConfigPanelStep } from "../thoughts/BKThoughtConfigPanel.Types";
+import {
+  BKStepAIGenerateModal,
+  BKStepAIRefineModal,
+  BKStepActions,
+  BKStepIdeasPicker,
+  BKStepIdeasBubbles,
+} from "../steps";
+import BKRenderCraftContent, {
+  BKCRAFT_TO_RENDER_FORMAT,
+} from "./BKThinkStudioAnon.RenderCraftContent";
 import type { BKGeneratedStep } from "../think/BKThink.Actions";
-import type { BKStepGenerationStrategy } from "../thoughts/BKThoughtGeneration.Config";
+import type { BKRefinedStep } from "../think/BKThink.Actions";
+import type { BKStepGenerationStrategy } from "../steps/BKStepAIGenerate.Config";
+import { v7 as uuidv7 } from "uuid";
+import {
+  bkViewAsHtml,
+  bkDownloadHtml,
+} from "../memory/BKMemory.Export";
+import type { BKMemory, BKMemoryNeuron } from "../memory/BKMemory.Types";
+import type { RenderFormat } from "@/src/modules/render/src/RenderModule.Types";
+import BKConfirmDialog from "../components/BKConfirmDialog";
+
+// ─── Helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Resolve a BKCraftFormat to a storage-friendly format string.
+ * Falls back to "markdown" for craft-only formats without a RenderView map.
+ */
+function resolveMemoryFormat(craftFormat: BKCraftFormat): string {
+  const renderFormat = BKCRAFT_TO_RENDER_FORMAT[craftFormat];
+  return renderFormat ?? "markdown";
+}
+
+/** Resolve a BKCraftFormat to a RenderFormat for HTML view/download export. */
+function resolveRenderFormat(craftFormat: string): RenderFormat {
+  return BKCRAFT_TO_RENDER_FORMAT[craftFormat as BKCraftFormat] ?? "markdown";
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────
 
@@ -49,185 +86,7 @@ export interface BKThinkStudioAnonProps {
   aiConfig: HelixAIOption;
 }
 
-// ─── Map BKCraftFormat → RenderFormat for common formats ───────────────
-const BKCRAFT_TO_RENDER_FORMAT: Partial<Record<BKCraftFormat, RenderFormat>> = {
-  markdown: "markdown",
-  html: "html",
-  tailwind: "tailwind",
-  csv: "csv",
-  json: "json",
-  mermaid: "mermaid",
-  plain: "plain",
-};
-
-function renderCraftContent(
-  content: string,
-  craftFormat: BKCraftFormat,
-  viewMode: "view" | "raw",
-) {
-  // Raw mode: render through ReactMarkdown
-  if (viewMode === "raw") {
-    return (
-      <div className="prose prose-sm prose-code:before:content-none prose-code:after:content-none max-w-none text-gray-800">
-        <ReactMarkdown
-          components={{
-            code({ className, children, ...props }) {
-              const isInline = !className;
-              const match = /language-(\w+)/.exec(className || "");
-              const codeStr = String(children).replace(/\n$/, "");
-
-              if (isInline) {
-                return (
-                  <code
-                    className="px-1.5 py-0.5 bg-gray-100 text-pink-600 rounded text-xs font-mono"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              }
-
-              return (
-                <div className="relative group">
-                  <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-t-lg">
-                    <span>{match?.[1] || "code"}</span>
-                    <button
-                      onClick={() =>
-                        navigator.clipboard.writeText(codeStr)
-                      }
-                      className="hover:text-white transition-colors"
-                      title="Copy code"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <pre className="!mt-0 bg-gray-900 text-gray-100 p-4 rounded-b-lg overflow-x-auto">
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  </pre>
-                </div>
-              );
-            },
-            pre({ children }) {
-              return <>{children}</>;
-            },
-          }}
-        >
-          {content}
-        </ReactMarkdown>
-      </div>
-    );
-  }
-
-  // View mode: use RenderView for common formats, fallback for craft-only formats
-  const renderFormat = BKCRAFT_TO_RENDER_FORMAT[craftFormat];
-  if (renderFormat) {
-    return (
-      <div className="min-h-[120px]">
-        <RenderView format={renderFormat} content={content} />
-      </div>
-    );
-  }
-
-  // View mode for craft-only formats — use the Craft Engine + existing renderers
-  const processed = BKCraftEngine.process(content, craftFormat);
-
-  switch (craftFormat) {
-    case "imageList":
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-    case "architecture":
-      return (
-        <div
-          className="border border-gray-200 rounded-lg overflow-hidden"
-          style={{ minHeight: 420 }}
-        >
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
-            <span>ARCHITECTURE.md</span>
-            <span className="text-gray-500">Markdown</span>
-          </div>
-          <Editor
-            height="380px"
-            defaultLanguage="markdown"
-            value={content}
-            theme="vs-dark"
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              lineNumbers: "on",
-              scrollBeyondLastLine: false,
-              wordWrap: "on",
-              tabSize: 2,
-            }}
-          />
-        </div>
-      );
-    case "agentSwarm":
-      return (
-        <div
-          className="border border-gray-200 rounded-lg overflow-hidden"
-          style={{ minHeight: 420 }}
-        >
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
-            <span>AGENT.md</span>
-            <span className="text-gray-500">Markdown</span>
-          </div>
-          <Editor
-            height="380px"
-            defaultLanguage="markdown"
-            value={content}
-            theme="vs-dark"
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              lineNumbers: "on",
-              scrollBeyondLastLine: false,
-              wordWrap: "on",
-              tabSize: 2,
-            }}
-          />
-        </div>
-      );
-    case "docker":
-      return (
-        <div
-          className="border border-gray-200 rounded-lg overflow-hidden"
-          style={{ minHeight: 420 }}
-        >
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-300 text-xs">
-            <span>docker-compose.yaml</span>
-            <span className="text-gray-500">YAML</span>
-          </div>
-          <Editor
-            height="380px"
-            defaultLanguage="yaml"
-            value={content}
-            theme="vs-dark"
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              lineNumbers: "on",
-              scrollBeyondLastLine: false,
-              wordWrap: "on",
-              tabSize: 2,
-            }}
-          />
-        </div>
-      );
-    default:
-      return (
-        <div
-          className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: processed.parsed }}
-        />
-      );
-  }
-}
+// ─── Step Panel ────────────────────────────────────────────────────────
 
 function BKStepPanel({
   step,
@@ -258,7 +117,7 @@ function BKStepPanel({
           </div>
           <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
             <div className="prose prose-sm max-w-none text-gray-700">
-              <ReactMarkdown>{step.thought}</ReactMarkdown>
+              <ReactMarkdown>{userMessage?.content ?? step.thought}</ReactMarkdown>
             </div>
           </div>
         </div>
@@ -310,7 +169,11 @@ function BKStepPanel({
             </div>
           </div>
           <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-            {renderCraftContent(assistantMessage.content, craftFormat, viewMode)}
+            <BKRenderCraftContent
+              content={assistantMessage.content}
+              craftFormat={craftFormat}
+              viewMode={viewMode}
+            />
           </div>
         </div>
       ) : (
@@ -342,8 +205,14 @@ export default function BKThinkStudioAnon({
     patternsLoading,
     craftConfigs,
     craftConfigsLoading,
+    stepPatternContext,
+    stepAssociationContext,
+    hasStepPattern,
+    hasStepAssociation,
     associations,
     associationSelectLoading,
+    ideas,
+    ideasLoading,
 
     // Editable fields
     thoughtName,
@@ -392,6 +261,7 @@ export default function BKThinkStudioAnon({
     associationOverrideSlotValues,
     onAssociationOverrideSlotValuesChange,
     savePersistentAssociation,
+    createQuickAssociation,
     associationSaving,
 
     // Actions
@@ -406,6 +276,8 @@ export default function BKThinkStudioAnon({
     moveStepDown,
     removeStep,
     updateStep,
+    toggleStepIdea,
+    setStepIdeaIds,
     appendSteps,
     replaceAllSteps,
     startThinking,
@@ -419,6 +291,15 @@ export default function BKThinkStudioAnon({
   const [showSettings, setShowSettings] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
   const [showGenerateSteps, setShowGenerateSteps] = React.useState(false);
+  const [showRefineSteps, setShowRefineSteps] = React.useState(false);
+  const [showQuickAddAssociation, setShowQuickAddAssociation] =
+    React.useState(false);
+  const [quickAssocName, setQuickAssocName] = React.useState("");
+  const [quickAssocDescription, setQuickAssocDescription] = React.useState("");
+  const [quickAssocSlotValues, setQuickAssocSlotValues] = React.useState<
+    { slotId: string; value: string }[]
+  >([]);
+  const [quickAssocSaving, setQuickAssocSaving] = React.useState(false);
 
   // ── Apply generated (AI) steps to the anonymous editor ─────────────
   const anonHandleGeneratedSteps = useCallback(
@@ -437,19 +318,47 @@ export default function BKThinkStudioAnon({
     [appendSteps, replaceAllSteps],
   );
 
+  // ── Apply AI-refined steps to the anonymous editor ─────────────────
+  const anonHandleRefinedSteps = useCallback(
+    (refined: BKRefinedStep[]) => {
+      replaceAllSteps(
+        refined.map((s) => ({ name: s.name, thought: s.thought })),
+      );
+      setShowRefineSteps(false);
+    },
+    [replaceAllSteps],
+  );
+
   // Reusable header action rendered beside "Add Step" in the steps editor
   const renderGenerateStepsButton = useCallback(
     () => (
-      <Button
-        variant="ghost"
-        size="sm"
-        onPress={() => setShowGenerateSteps(true)}
-        className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
-      >
-        <Sparkles size={14} /> Generate
-      </Button>
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => setShowGenerateSteps(true)}
+          className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs"
+        >
+          <Sparkles size={14} /> Generate
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => setShowRefineSteps(true)}
+          className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1 text-xs"
+        >
+          <WandSparkles size={14} /> Refine
+        </Button>
+      </>
     ),
     [],
+  );
+  const getStepGenerateContexts = useCallback(
+    () => ({
+      patternContext: stepPatternContext,
+      associationContext: stepAssociationContext,
+    }),
+    [stepPatternContext, stepAssociationContext],
   );
   const [isSaving, setIsSaving] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
@@ -467,6 +376,160 @@ export default function BKThinkStudioAnon({
       setIsSaving(false);
     }
   }, [saveAsThought, router]);
+
+  // ── HTML view/download export (parity with BKThinkStudio) ─────────
+  const [showDownloadConfirm, setShowDownloadConfirm] = React.useState(false);
+  const [downloadFileName, setDownloadFileName] = React.useState("");
+  const pendingHtmlExportRef = useRef<{
+    neurons: BKMemoryNeuron[];
+    memory: BKMemory;
+    getNeuronFormat: (neuronId: string) => RenderFormat;
+  } | null>(null);
+
+  const handleExportAction = useCallback(
+    (actionKey: string | number) => {
+      const key = String(actionKey);
+      if (key === "json") {
+        exportAsJson();
+        return;
+      }
+      if (conversation.length === 0) return;
+
+      // Build a map of step index → render format from trainOfThoughts
+      const stepFormatMap = new Map<number, RenderFormat>();
+      for (const step of trainOfThoughts) {
+        const stepCraftConfig = step.craftId
+          ? craftConfigs.find((c) => c.id === step.craftId)
+          : null;
+        stepFormatMap.set(
+          step.order,
+          resolveRenderFormat(stepCraftConfig?.format ?? craftFormat),
+        );
+      }
+
+      // Build neurons from assistant responses (conversation index 2, 4, 6, ...)
+      const memoryId = uuidv7();
+      const neurons: BKMemoryNeuron[] = [];
+      for (let i = 1; i < conversation.length; i += 2) {
+        const assistantMsg = conversation[i + 1];
+        if (assistantMsg && assistantMsg.role === "assistant") {
+          const stepIndex = (i - 1) / 2;
+          const step = trainOfThoughts[stepIndex];
+          const neuronFormat = step
+            ? (stepFormatMap.get(step.order) ?? "markdown")
+            : "markdown";
+          neurons.push({
+            id: uuidv7(),
+            memoryId,
+            name: `Neuron ${stepIndex + 1}${step?.name ? ` - ${step.name}` : ""}`,
+            value: assistantMsg.content,
+            order: stepIndex,
+            format: neuronFormat,
+          });
+        }
+      }
+
+      if (neurons.length === 0) {
+        toast.warning("No assistant responses to export.");
+        return;
+      }
+
+      const memory: BKMemory = {
+        id: memoryId,
+        thinkId: memoryId,
+        name: thoughtName || "Anonymous Think",
+        description: thoughtDescription || undefined,
+        format: resolveMemoryFormat(craftFormat),
+        createdAt: Date.now(),
+      };
+
+      const getNeuronFormat = (neuronId: string): RenderFormat => {
+        const neuron = neurons.find((n) => n.id === neuronId);
+        return resolveRenderFormat(neuron?.format ?? craftFormat);
+      };
+
+      if (key === "view") {
+        bkViewAsHtml(neurons, memory, getNeuronFormat);
+      } else if (key === "download") {
+        pendingHtmlExportRef.current = { neurons, memory, getNeuronFormat };
+        setDownloadFileName(memory.name || "thoughts");
+        setShowDownloadConfirm(true);
+      }
+    },
+    [
+      conversation,
+      trainOfThoughts,
+      craftConfigs,
+      craftFormat,
+      thoughtName,
+      thoughtDescription,
+      exportAsJson,
+    ],
+  );
+
+  const handleHtmlDownload = useCallback(() => {
+    const pending = pendingHtmlExportRef.current;
+    if (!pending) return;
+    const fileName =
+      downloadFileName.trim() || pending.memory.name || "thoughts";
+    bkDownloadHtml(
+      pending.neurons,
+      pending.memory.id,
+      { ...pending.memory, name: fileName },
+      pending.getNeuronFormat,
+    );
+  }, [downloadFileName]);
+
+  // ── Step actions with idea attachments (shared across setup/edit) ──
+  const renderAnonStepActions = useCallback(
+    (step: BKConfigPanelStep, index: number) => {
+      const anonStep = steps.find((s) => s.id === step.id);
+      return (
+        <BKStepActions
+          stepIndex={index}
+          totalSteps={steps.length}
+          onMoveUp={moveStepUp}
+          onMoveDown={moveStepDown}
+          onAddBefore={addStepBefore}
+          onAddAfter={addStepAfter}
+        >
+          <BKStepIdeasPicker
+            stepId={step.id}
+            selectedIdeaIds={anonStep?.ideaIds ?? []}
+            ideas={ideas}
+            ideasLoading={ideasLoading}
+            onChange={setStepIdeaIds}
+          />
+        </BKStepActions>
+      );
+    },
+    [
+      steps,
+      ideas,
+      ideasLoading,
+      moveStepUp,
+      moveStepDown,
+      addStepBefore,
+      addStepAfter,
+      setStepIdeaIds,
+    ],
+  );
+
+  // ── Attached idea bubbles rendered beneath each step header ────────
+  const renderStepIdeasBelowHeader = useCallback(
+    (step: BKConfigPanelStep) => {
+      const anonStep = steps.find((s) => s.id === step.id);
+      return (
+        <BKStepIdeasBubbles
+          stepId={step.id}
+          selectedIdeaIds={anonStep?.ideaIds ?? []}
+          ideas={ideas}
+          onToggle={toggleStepIdea}
+        />
+      );
+    },
+    [steps, ideas, toggleStepIdea],
+  );
 
   // ── Has thinking been started? ──────────────────────────────────────
   const hasThinkingStarted = conversation.length > 0;
@@ -662,9 +725,31 @@ export default function BKThinkStudioAnon({
 
             {/* Association Selector */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-600">
-                Association Override
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-600">
+                  Association Override
+                </label>
+                {selectedPattern && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAssocName("");
+                      setQuickAssocDescription("");
+                      setQuickAssocSlotValues(
+                        (selectedPattern?.slots || []).map((s) => ({
+                          slotId: s.id,
+                          value: s.defaultValue || "",
+                        })),
+                      );
+                      setShowQuickAddAssociation(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full transition-colors"
+                    title="Quick-add a new association"
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                )}
+              </div>
               <Select
                 aria-label="Select association"
                 value={selectedAssociationId ?? ""}
@@ -771,16 +856,8 @@ export default function BKThinkStudioAnon({
           onAddStep={addStep}
           onRemoveStep={removeStep}
           onUpdateStep={handleUpdateStep}
-          renderStepActions={(_step, index) => (
-            <BKStepActions
-              stepIndex={index}
-              totalSteps={steps.length}
-              onMoveUp={moveStepUp}
-              onMoveDown={moveStepDown}
-              onAddBefore={addStepBefore}
-              onAddAfter={addStepAfter}
-            />
-          )}
+          renderStepActions={renderAnonStepActions}
+          renderBelowStepHeader={renderStepIdeasBelowHeader}
           renderStepsHeaderActions={renderGenerateStepsButton()}
         />
 
@@ -897,7 +974,7 @@ export default function BKThinkStudioAnon({
         )}
 
         {/* ── Generative AI Step Producer ─────────────────────────── */}
-        <BKGenerateStepsModal
+        <BKStepAIGenerateModal
           isOpen={showGenerateSteps}
           onClose={() => setShowGenerateSteps(false)}
           thoughtName={thoughtName}
@@ -906,16 +983,213 @@ export default function BKThinkStudioAnon({
           existingSteps={steps
             .filter((s) => s.name.trim() || s.thought.trim())
             .map((s) => ({ name: s.name, thought: s.thought }))}
+          hasPattern={hasStepPattern}
+          hasAssociation={hasStepAssociation}
+          getContexts={getStepGenerateContexts}
           aiConfig={aiConfig}
           onGenerated={anonHandleGeneratedSteps}
         />
+
+        {/* ── AI Step Refiner ─────────────────────────────────────── */}
+        <BKStepAIRefineModal
+          isOpen={showRefineSteps}
+          onClose={() => setShowRefineSteps(false)}
+          steps={steps
+            .filter((s) => s.name.trim() || s.thought.trim())
+            .map((s, i) => ({ name: s.name, thought: s.thought, order: i }))}
+          thoughtName={thoughtName}
+          thoughtDescription={thoughtDescription}
+          thoughtContent={thoughtContent}
+          aiConfig={aiConfig}
+          onRefined={anonHandleRefinedSteps}
+        />
+
+        {/* ── Quick-Add Association Modal ─────────────────────────── */}
+        {showQuickAddAssociation && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                  Quick-Add Association
+                </h3>
+                <button
+                  onClick={() => setShowQuickAddAssociation(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Create a new association override for{" "}
+                <strong>{selectedPattern?.name}</strong>.
+                {selectedPattern?.slots && selectedPattern.slots.length > 0 && (
+                  <> Fill in slot values below, or leave blank to use defaults.</>
+                )}
+              </p>
+
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={quickAssocName}
+                    onChange={(e) => setQuickAssocName(e.target.value)}
+                    placeholder="e.g. My Custom Override"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">
+                    Description
+                  </label>
+                  <textarea
+                    value={quickAssocDescription}
+                    onChange={(e) => setQuickAssocDescription(e.target.value)}
+                    placeholder="Optional description..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  />
+                </div>
+
+                {selectedPattern?.slots && selectedPattern.slots.length > 0 && (
+                  <div className="space-y-2.5 pt-1 border-t border-gray-100">
+                    <label className="text-xs font-medium text-gray-600 block">
+                      Slot Values
+                    </label>
+                    {selectedPattern.slots.map((slot) => {
+                      const slotValue = quickAssocSlotValues.find(
+                        (sv) => sv.slotId === slot.id,
+                      );
+                      return (
+                        <div key={slot.id}>
+                          <label className="text-[11px] text-gray-500 mb-0.5 block">
+                            {slot.label || slot.name}
+                            {slot.required && (
+                              <span className="text-red-500 ml-0.5">*</span>
+                            )}
+                            {slot.type !== "text" && (
+                              <span className="text-gray-400 ml-1">
+                                ({slot.type})
+                              </span>
+                            )}
+                          </label>
+                          {slot.type === "textarea" || slot.type === "editor" ? (
+                            <textarea
+                              value={slotValue?.value || ""}
+                              onChange={(e) => {
+                                setQuickAssocSlotValues((prev) => {
+                                  const idx = prev.findIndex(
+                                    (sv) => sv.slotId === slot.id,
+                                  );
+                                  if (idx >= 0) {
+                                    const next = [...prev];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      value: e.target.value,
+                                    };
+                                    return next;
+                                  }
+                                  return [
+                                    ...prev,
+                                    { slotId: slot.id, value: e.target.value },
+                                  ];
+                                });
+                              }}
+                              placeholder={slot.defaultValue || `Enter ${slot.label || slot.name}...`}
+                              rows={3}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-mono"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={slotValue?.value || ""}
+                              onChange={(e) => {
+                                setQuickAssocSlotValues((prev) => {
+                                  const idx = prev.findIndex(
+                                    (sv) => sv.slotId === slot.id,
+                                  );
+                                  if (idx >= 0) {
+                                    const next = [...prev];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      value: e.target.value,
+                                    };
+                                    return next;
+                                  }
+                                  return [
+                                    ...prev,
+                                    { slotId: slot.id, value: e.target.value },
+                                  ];
+                                });
+                              }}
+                              placeholder={slot.defaultValue || `Enter ${slot.label || slot.name}...`}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowQuickAddAssociation(false)}
+                  className="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!quickAssocName.trim()) return;
+                    setQuickAssocSaving(true);
+                    try {
+                      const created = await createQuickAssociation(
+                        quickAssocName.trim(),
+                        quickAssocDescription.trim() || undefined,
+                        quickAssocSlotValues,
+                      );
+                      if (created) {
+                        setShowQuickAddAssociation(false);
+                        setQuickAssocName("");
+                        setQuickAssocDescription("");
+                        setQuickAssocSlotValues([]);
+                      }
+                    } finally {
+                      setQuickAssocSaving(false);
+                    }
+                  }}
+                  disabled={!quickAssocName.trim() || quickAssocSaving}
+                  className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  {quickAssocSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} /> Create
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // ── Results phase UI (thinking in progress or completed) ──────────
   return (
-    <div className="bk-think-studio space-y-6">
+    <>
+      <Toast.Provider />
+      <div className="bk-think-studio space-y-6">
       {/* ── Header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -971,12 +1245,59 @@ export default function BKThinkStudioAnon({
 
           {/* Export */}
           {hasThinkingStarted && !isThinking && (
-            <Button
-              onPress={exportAsJson}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
-            >
-              <Download size={16} /> Export
-            </Button>
+            <Dropdown>
+              <Dropdown.Trigger
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+              >
+                <Download size={16} /> Export <ChevronDown size={14} />
+              </Dropdown.Trigger>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu
+                  aria-label="Export options"
+                  onAction={handleExportAction}
+                >
+                  <Dropdown.Item id="json">
+                    <div className="flex items-center gap-2">
+                      <FileJson size={16} />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          Export as JSON
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Download .json file
+                        </span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="view">
+                    <div className="flex items-center gap-2">
+                      <Eye size={16} />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          View as HTML
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Open in new browser tab
+                        </span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="download">
+                    <div className="flex items-center gap-2">
+                      <Download size={16} />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          Download as HTML
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Save as .html file
+                        </span>
+                      </div>
+                    </div>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           )}
 
           {/* Save */}
@@ -1069,16 +1390,7 @@ export default function BKThinkStudioAnon({
             onAddStep={addStep}
             onRemoveStep={removeStep}
             onUpdateStep={handleUpdateStep}
-            renderStepActions={(_step, index) => (
-              <BKStepActions
-                stepIndex={index}
-                totalSteps={steps.length}
-                onMoveUp={moveStepUp}
-                onMoveDown={moveStepDown}
-                onAddBefore={addStepBefore}
-                onAddAfter={addStepAfter}
-              />
-            )}
+            renderStepActions={renderAnonStepActions}
             renderStepsHeaderActions={renderGenerateStepsButton()}
           />
 
@@ -1550,7 +1862,7 @@ export default function BKThinkStudioAnon({
       )}
 
       {/* ── Generative AI Step Producer ───────────────────────────── */}
-      <BKGenerateStepsModal
+      <BKStepAIGenerateModal
         isOpen={showGenerateSteps}
         onClose={() => setShowGenerateSteps(false)}
         thoughtName={thoughtName}
@@ -1559,8 +1871,25 @@ export default function BKThinkStudioAnon({
         existingSteps={steps
           .filter((s) => s.name.trim() || s.thought.trim())
           .map((s) => ({ name: s.name, thought: s.thought }))}
+        hasPattern={hasStepPattern}
+        hasAssociation={hasStepAssociation}
+        getContexts={getStepGenerateContexts}
         aiConfig={aiConfig}
         onGenerated={anonHandleGeneratedSteps}
+      />
+
+      {/* ── AI Step Refiner ───────────────────────────────────────── */}
+      <BKStepAIRefineModal
+        isOpen={showRefineSteps}
+        onClose={() => setShowRefineSteps(false)}
+        steps={steps
+          .filter((s) => s.name.trim() || s.thought.trim())
+          .map((s, i) => ({ name: s.name, thought: s.thought, order: i }))}
+        thoughtName={thoughtName}
+        thoughtDescription={thoughtDescription}
+        thoughtContent={thoughtContent}
+        aiConfig={aiConfig}
+        onRefined={anonHandleRefinedSteps}
       />
 
       {/* ── Settings Modal ────────────────────────────────────────── */}
@@ -1615,6 +1944,24 @@ export default function BKThinkStudioAnon({
           }}
         />
       )}
+
+      {/* ── Download HTML rename dialog ───────────────────────── */}
+      <BKConfirmDialog
+        isOpen={showDownloadConfirm}
+        title="Download as HTML"
+        message="Choose the file name to save this conversation as an HTML document before downloading."
+        confirmLabel="Download"
+        cancelLabel="Cancel"
+        showInput
+        inputLabel="File name"
+        inputPlaceholder="e.g. my-thought-export"
+        inputValue={downloadFileName}
+        onInputChange={setDownloadFileName}
+        confirmDisabled={!downloadFileName.trim()}
+        onConfirm={handleHtmlDownload}
+        onClose={() => setShowDownloadConfirm(false)}
+      />
     </div>
+    </>
   );
 }
