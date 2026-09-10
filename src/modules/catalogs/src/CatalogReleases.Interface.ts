@@ -15,7 +15,7 @@ export enum CatalogApp {
   BunnyThinker = "Bunny Thinker",
   BunnyBookBuilder = "Bunny(1st): Book Builder",
   LemonCoder = "Lemon Coder",
-  OpenCodeGoCalculator = "OpenCode Go Calculator",
+  Catalog = "Catalog",
 }
 
 /**
