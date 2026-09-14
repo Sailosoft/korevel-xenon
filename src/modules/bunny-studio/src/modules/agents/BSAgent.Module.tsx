@@ -12,6 +12,7 @@ import {
   BunnyFieldRendererProps,
 } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
+import type { AdminPanelQueryOptions } from "@/src/modules/admin-panel/features/query/admin-panel-query.interface";
 import {
   HELIX_PROVIDER_LABELS,
   HELIX_AI_MODELS,
@@ -21,6 +22,11 @@ import { createElement } from "react";
 import { WandSparkles } from "lucide-react";
 import { bsDB } from "../../BSDatabase";
 import type { BSAgent } from "./BSAgent.Types";
+import { applyBSAgentPoolFilter } from "./BSAgent.Filter";
+import {
+  BSAgentPoolFilterButton,
+  BSAgentPoolFilterPicker,
+} from "./BSAgent.Picker";
 
 // ─── Provider / Model override fields ───────────────────────────────────
 // The two selects are interdependent (model list depends on provider), so we
@@ -202,6 +208,36 @@ export const bsAgentModule = BunnyFeature.create<BSAgent, BSAgent>(
     });
 
     feature.configureHeader((header) => {
+      // ── "Filter by Agent Pool" header action ─────────────────────
+      // Opens a dialog with the pool filter picker. Selecting an option
+      // writes to the module-level filter store (BSAgent.Filter), then the
+      // table is refreshed so the override below re-applies the filter.
+      header.addAction({
+        id: "filter-agent-pool",
+        label: "Filter by Agent Pool",
+        variant: "secondary",
+        displayMode: "always",
+        render: (context) =>
+          createElement(BSAgentPoolFilterButton, {
+            onOpen: () => {
+              context?.adminPanel.dialog.openDialog({
+                actionId: "filter-agent-pool",
+                title: "Filter by Agent Pool",
+                contentOnly: true,
+                size: "sm",
+                hideFooter: true,
+                children: createElement(BSAgentPoolFilterPicker, {
+                  onClose: () => {
+                    context?.adminPanel.dialog.closeDialog();
+                    void context?.adminPanel.table.fetchData();
+                  },
+                }),
+                onConfirm: async () => ({ success: true }),
+              });
+            },
+          }),
+      });
+
       // ── "Generate Agents" header action (opens BSGenerateAgentsModal) ─
       // The onClick is overridden by the consuming component (global Agents
       // page + BSScopedPoolAgents) to open the AI generation modal.
@@ -213,6 +249,25 @@ export const bsAgentModule = BunnyFeature.create<BSAgent, BSAgent>(
       });
     });
 
-    feature.useDataLayer(bsDB.agentsRepo.dataLayer);
+    // Data layer: apply the active agent-pool filter on every read.
+    const baseQuery = bsDB.agentsRepo.dataLayer.query;
+    feature.useDataLayer({
+      query: {
+        ...baseQuery,
+        getAll: async (
+          options: AdminPanelQueryOptions,
+          overrideOptions?: AdminPanelQueryOptions,
+        ) => {
+          const res = await baseQuery.getAll(options, overrideOptions);
+          const filtered = applyBSAgentPoolFilter(res.data);
+          return {
+            ...res,
+            data: filtered,
+            total: filtered.length,
+          };
+        },
+      },
+      mutation: bsDB.agentsRepo.dataLayer.mutation,
+    });
   },
 );

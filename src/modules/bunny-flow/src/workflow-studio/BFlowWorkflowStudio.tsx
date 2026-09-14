@@ -39,8 +39,6 @@ import {
   Dropdown,
   Label,
   Modal,
-  Select,
-  ListBox,
 } from "@heroui/react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -57,12 +55,7 @@ import {
   Code,
   Download,
   FileBarChart,
-  Brain,
-  Monitor,
   PenTool,
-  Sparkles,
-  Layers,
-  ListTree,
   Play,
   ChevronDown,
   SlidersHorizontal,
@@ -117,12 +110,7 @@ import { useBFlowEditorSettings } from "../settings/BFlowEditorSettings";
 
 // ─── Generative Menu ────────────────────────────────────────────────
 
-import {
-  AgentSwarmModal,
-  GenerateJobsModal,
-  GenerateStepsModal,
-  type GenerativeMenuOption,
-} from "./BFlowWorkflowStudio.GenerativeMenu";
+import { BFlowGenerativeMenu } from "./BFlowWorkflowStudio.GenerativeMenu.Select";
 
 // ─── Dynamic Monaco import (SSR-safe) ────────────────────────────────
 
@@ -162,8 +150,8 @@ export default function BFlowWorkflowStudio({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Interactive mode toggle ─────────────────────────────────────
-  const [interactiveMode, setInteractiveMode] = useState(false);
+  // ── Interactive mode toggle (defaults to interactive) ───────────
+  const [interactiveMode, setInteractiveMode] = useState(true);
 
   // Ref to the interactive builder — lets the pipeline display reorder
   // steps in the interactive form while interactive mode is active.
@@ -302,10 +290,6 @@ export default function BFlowWorkflowStudio({
   /** Test-run HTML preview modal (Tailwind-styled HTML export). */
   const [viewHtmlPreview, setViewHtmlPreview] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-
-  // ── Generative Menu state ──────────────────────────────────────────
-  const [generativeMenuOption, setGenerativeMenuOption] =
-    useState<GenerativeMenuOption>(null);
 
   // ── Run-as-session state ──────────────────────────────────────────
   const [variablesModalOpen, setVariablesModalOpen] = useState(false);
@@ -972,75 +956,12 @@ export default function BFlowWorkflowStudio({
                 </button>
               </div>
 
-              {/* ── Generative Menu Select ──────────────────────────── */}
-              <Select
-                className="min-w-[150px] max-h-9 [&_[data-slot=trigger]]:min-h-0 [&_[data-slot=trigger]]:h-8 [&_[data-slot=trigger]]:py-0 [&_[data-slot=trigger]]:text-xs"
-                value={generativeMenuOption}
-                onChange={(val) =>
-                  setGenerativeMenuOption(val as GenerativeMenuOption)
-                }
-                placeholder="✦ AI Generate"
-              >
-                <Select.Trigger>
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    <ListBox.Item
-                      key="agent-swarm"
-                      id="agent-swarm"
-                      textValue="Agent Swarm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Brain className="w-4 h-4 text-violet-500" />
-                        <div>
-                          <span className="text-sm font-medium">
-                            Agent Swarm
-                          </span>
-                          <p className="text-xs text-default-400">
-                            Generate AI agents from config
-                          </p>
-                        </div>
-                      </div>
-                    </ListBox.Item>
-                    <ListBox.Item
-                      key="generate-jobs"
-                      id="generate-jobs"
-                      textValue="Generate Jobs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-primary-500" />
-                        <div>
-                          <span className="text-sm font-medium">
-                            Generate Jobs
-                          </span>
-                          <p className="text-xs text-default-400">
-                            Create job definitions from config
-                          </p>
-                        </div>
-                      </div>
-                    </ListBox.Item>
-                    <ListBox.Item
-                      key="generate-steps"
-                      id="generate-steps"
-                      textValue="Generate Steps"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ListTree className="w-4 h-4 text-teal-500" />
-                        <div>
-                          <span className="text-sm font-medium">
-                            Generate Steps
-                          </span>
-                          <p className="text-xs text-default-400">
-                            Create steps and assign agents
-                          </p>
-                        </div>
-                      </div>
-                    </ListBox.Item>
-                  </ListBox>
-                </Select.Popover>
-              </Select>
+              {/* ── Generative Menu ─────────────────────────────────── */}
+              <BFlowGenerativeMenu
+                yamlContent={yamlContent}
+                jobs={currentJobs}
+                onYamlUpdate={handleGenerativeYamlUpdate}
+              />
 
               {/* ── Interactive Mode Toggle ─────────────────────────── */}
               <div className="flex items-center bg-default-100 rounded-lg p-0.5 border border-default-200">
@@ -1633,37 +1554,6 @@ export default function BFlowWorkflowStudio({
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
-
-      {/* ═══════════════════════════════════════════════════════════════
-           GENERATIVE MENU MODALS — AgentSwarm, GenerateJobs, GenerateSteps
-           ═══════════════════════════════════════════════════════════════ */}
-
-      {/* Agent Swarm Modal */}
-      <AgentSwarmModal
-        open={generativeMenuOption === "agent-swarm"}
-        yamlContent={yamlContent}
-        jobs={currentJobs}
-        onYamlUpdate={handleGenerativeYamlUpdate}
-        onClose={() => setGenerativeMenuOption(null)}
-      />
-
-      {/* Generate Jobs Modal */}
-      <GenerateJobsModal
-        open={generativeMenuOption === "generate-jobs"}
-        yamlContent={yamlContent}
-        jobs={currentJobs}
-        onYamlUpdate={handleGenerativeYamlUpdate}
-        onClose={() => setGenerativeMenuOption(null)}
-      />
-
-      {/* Generate Steps Modal */}
-      <GenerateStepsModal
-        open={generativeMenuOption === "generate-steps"}
-        yamlContent={yamlContent}
-        jobs={currentJobs}
-        onYamlUpdate={handleGenerativeYamlUpdate}
-        onClose={() => setGenerativeMenuOption(null)}
-      />
 
       {/* ═══════════════════════════════════════════════════════════════
            RUN WITH VARIABLE OVERRIDES MODAL — variable override form

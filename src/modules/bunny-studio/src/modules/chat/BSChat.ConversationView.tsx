@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronUp,
   Brain,
+  SlidersHorizontal,
 } from "lucide-react";
 import { RenderView } from "@/src/modules/render";
 import type { RenderFormat } from "@/src/modules/render";
@@ -107,6 +108,24 @@ function stripAttachedBlocks(content: string): string {
     .trim();
 }
 
+// ─── Custom-instruction parser (feature: collapsible instruction in user bubble) ──
+//
+// User messages built with the "instruction + text" input mode are persisted
+// with the custom-instruction wrapper. This helper splits them back into the
+// instruction (shown only when the user expands the panel) and the target
+// text (always visible by default).
+
+const CUSTOM_INSTRUCTION_RE =
+  /^--- Custom Instruction ---\n([\s\S]*?)\n\n--- Text ---\n([\s\S]*)$/;
+
+function splitUserContent(content: string): {
+  text: string;
+  instruction?: string;
+} {
+  const m = content.match(CUSTOM_INSTRUCTION_RE);
+  return m ? { instruction: m[1], text: m[2] } : { text: content };
+}
+
 // ─── Bubble ───────────────────────────────────────────────────────────
 
 export interface BSChatConversationViewProps {
@@ -156,9 +175,23 @@ export function BSChatConversationView({
   // Display text for user messages: attached file blocks are appended to the
   // message for the AI but hidden from the bubble — they show as compact chips
   // below instead of raw appended text (feature).
-  const displayContent = isUser
+  const userContent = isUser
     ? stripAttachedBlocks(conversation.content)
     : conversation.content;
+  // For instruction-mode messages the persisted content also carries a
+  // "--- Custom Instruction ---" wrapper. We split it out so the bubble can
+  // render the target text by default and the instruction only when the user
+  // expands the collapsible panel (feature: collapsible instruction in user
+  // bubble).
+  const { text: displayContent, instruction: displayInstruction } =
+    isUser
+      ? splitUserContent(userContent)
+      : { text: userContent, instruction: undefined };
+
+  // Collapsible custom-instruction panel (feature: collapsible instruction in
+  // user bubble). Default collapsed — only the target text is visible until
+  // the user clicks the chevron to peek at the instruction.
+  const [instructionOpen, setInstructionOpen] = useState(false);
 
   // AI thought-process support (feature: thought response) — a private
   // reasoning preamble wrapped in <thought>…</thought> tags. The hook stores it
@@ -574,9 +607,48 @@ export function BSChatConversationView({
                 </div>
               )}
 
-            <div className="whitespace-pre-wrap break-words">
-              {displayContent}
-            </div>
+            {/* Collapsible custom-instruction panel (feature: collapsible
+                instruction in user bubble). Only shown when the persisted
+                message actually carries a custom-instruction wrapper — i.e.
+                the user sent it via instruction mode. Default collapsed so
+                the bubble shows only the target text. */}
+            {isUser && displayInstruction ? (
+              <div>
+                <button
+                  onClick={() => setInstructionOpen((o) => !o)}
+                  title={
+                    instructionOpen ? "Hide instruction" : "Show instruction"
+                  }
+                  aria-label={
+                    instructionOpen ? "Hide instruction" : "Show instruction"
+                  }
+                  aria-expanded={instructionOpen}
+                  className="flex items-center gap-1.5 text-[10px] text-white/70 hover:text-white mb-1.5 transition"
+                >
+                  {instructionOpen ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
+                  <SlidersHorizontal className="w-3 h-3" />
+                  <span className="font-medium">
+                    {instructionOpen ? "Hide instruction" : "Show instruction"}
+                  </span>
+                </button>
+                {instructionOpen && (
+                  <div className="mb-2 px-2.5 py-2 rounded-lg bg-white/10 border border-white/20 text-[11px] text-white/90 whitespace-pre-wrap break-words">
+                    {displayInstruction}
+                  </div>
+                )}
+                <div className="whitespace-pre-wrap break-words">
+                  {displayContent}
+                </div>
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap break-words">
+                {displayContent}
+              </div>
+            )}
 
             {/* User actions: copy / edit / resend own content (feature) */}
             {isUser && (
