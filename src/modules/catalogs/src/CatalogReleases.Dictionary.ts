@@ -7,6 +7,19 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.7.0",
+    title: "",
+    content: [
+      "BunnyFlow: Improve AI Assistent Steps Generation"
+    ],
+    apps: [
+      CatalogApp.BunnyFlow
+    ],
+    dates: [
+      "2026-09-15"
+    ]
+  },
+  {
     version: "v4.6.0",
     title: "Version 4.6.0: OpenCode Go Calculator, Helix Model Organization, Bunny Thinker AI Studio Steps and Bunny Book Reading",
     content: [

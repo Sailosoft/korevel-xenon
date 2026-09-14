@@ -1,8 +1,8 @@
 /**
  * BFlowWorkflowStudio.GenerativeMenu — AI-powered generative modal components.
  *
- * Provides three modal dialogs triggered from a HeroUI Select in the workflow
- * studio header:
+ * Provides the generative modal dialogs triggered from a HeroUI Select in the
+ * workflow studio header:
  *
  * 1. AgentSwarm   — Generates AI agents from the workflow YAML config using
  *                   one of three strategies: Job Swarm, Request Swarm, or
@@ -10,18 +10,18 @@
  * 2. GenerateJobs — Generates possible job definitions based on the current
  *                   workflow configuration with optional job-count range and
  *                   domain type (medical, frontend, backend, plan, etc.).
- * 3. GenerateSteps — Generates step definitions for a selected job (or all jobs)
- *                   and assigns appropriate agents.
+ *
+ * The step-generation modal lives in `BFlowWorkflowStudio.GenerativeMenu.Step`
+ * and is exported from there as `GenerateStepsModal`.
  */
 
 "use client";
 
 import React, { useCallback, useId, useState } from "react";
-import { Button, Input, Label, TextArea, Select, ListBox } from "@heroui/react";
+import { Button, Label, TextArea, Select, ListBox } from "@heroui/react";
 import {
   Brain,
   Layers,
-  ListTree,
   Sparkles,
   Loader2,
   CheckCircle2,
@@ -114,7 +114,7 @@ export function AgentSwarmModal({
       const existingAgents: BFlowWorkflowAgent[] = parsed?.agents ?? [];
       const existingJobs: BFlowWorkflowJob[] = parsed?.jobs ?? [];
 
-      let newAgents: BFlowWorkflowAgent[] = [];
+      const newAgents: BFlowWorkflowAgent[] = [];
 
       switch (swarmType) {
         case "job-swarm": {
@@ -348,7 +348,7 @@ export function AgentSwarmModal({
             {swarmType === "job-swarm" && (
               <p>
                 Creates one agent per existing job, named after the job, with
-                the job's prompt as context. Skips jobs that already have a
+                the job&apos;s prompt as context. Skips jobs that already have a
                 matching agent.
               </p>
             )}
@@ -778,301 +778,8 @@ export function GenerateJobsModal({
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 3. GenerateStepsModal
+// GenerateStepsModal
+//
+// Moved to `BFlowWorkflowStudio.GenerativeMenu.Step` — import it from there.
 // ═══════════════════════════════════════════════════════════════════════
 
-interface GenerateStepsModalProps extends GenerativeMenuModalProps {
-  open: boolean;
-}
-
-export function GenerateStepsModal({
-  open,
-  yamlContent,
-  jobs,
-  onYamlUpdate,
-  onClose,
-}: GenerateStepsModalProps) {
-  const [selectedJobNames, setSelectedJobNames] = useState<Set<string>>(
-    new Set(),
-  );
-  const [selectAll, setSelectAll] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const toggleJob = useCallback((jobName: string) => {
-    setSelectedJobNames((prev) => {
-      const next = new Set(prev);
-      if (next.has(jobName)) {
-        next.delete(jobName);
-      } else {
-        next.add(jobName);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (selectAll) {
-      setSelectedJobNames(new Set());
-      setSelectAll(false);
-    } else {
-      setSelectedJobNames(new Set(jobs.map((j) => j.name)));
-      setSelectAll(true);
-    }
-  }, [selectAll, jobs]);
-
-  const handleGenerate = useCallback(async () => {
-    setIsGenerating(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const parsed = parseYaml(yamlContent);
-      const existingJobs: BFlowWorkflowJob[] = parsed?.jobs ?? [];
-      const existingAgents: BFlowWorkflowAgent[] = parsed?.agents ?? [];
-
-      // List of typical step templates mapped by domain keywords
-      const stepTemplates: Array<{
-        name: string;
-        prompt: string;
-        agentSuffix?: string;
-      }> = [
-        {
-          name: "analyze",
-          prompt: "Analyze the input and define requirements",
-        },
-        {
-          name: "research",
-          prompt: "Research and gather relevant information",
-        },
-        { name: "plan", prompt: "Plan the execution strategy and approach" },
-        { name: "design", prompt: "Design the solution architecture" },
-        {
-          name: "implement",
-          prompt: "Implement the solution based on the design",
-        },
-        {
-          name: "review",
-          prompt: "Review the implementation for quality and consistency",
-        },
-        { name: "refine", prompt: "Refine and optimize based on feedback" },
-        { name: "test", prompt: "Test and validate the output" },
-        { name: "document", prompt: "Document the results and findings" },
-        { name: "finalize", prompt: "Finalize and prepare deliverables" },
-      ];
-
-      const jobsToProcess = selectAll
-        ? existingJobs
-        : existingJobs.filter((j) => selectedJobNames.has(j.name));
-
-      if (jobsToProcess.length === 0) {
-        setError("Please select at least one job to generate steps for.");
-        setIsGenerating(false);
-        return;
-      }
-
-      let totalStepsAdded = 0;
-      const updatedJobs = existingJobs.map((job) => {
-        if (!jobsToProcess.find((jp) => jp.name === job.name)) return job;
-
-        // Skip if job already has steps
-        if ((job.steps ?? []).length > 0) return job;
-
-        // Pick 3-5 random step templates based on job domain
-        const numSteps = Math.min(
-          Math.floor(Math.random() * 3) + 3,
-          stepTemplates.length,
-        );
-        const shuffled = [...stepTemplates].sort(() => Math.random() - 0.5);
-        const selected = shuffled.slice(0, numSteps);
-
-        const newSteps = selected.map((tmpl, idx) => {
-          // Assign appropriate agent if available
-          let agent: string | undefined;
-          if (existingAgents.length > 0) {
-            const agentIdx = idx % existingAgents.length;
-            agent = existingAgents[agentIdx].name;
-          }
-
-          return {
-            id: uuidv7(),
-            name: `${tmpl.name}-${job.name}`
-              .toLowerCase()
-              .replace(/[^a-z0-9-]/g, "-"),
-            prompts: [`${tmpl.prompt} for job "${job.name}"`],
-            agent,
-          };
-        });
-
-        totalStepsAdded += newSteps.length;
-        return {
-          ...job,
-          steps: newSteps,
-        };
-      });
-
-      if (totalStepsAdded === 0) {
-        setResult("Selected jobs already have steps defined.");
-        setIsGenerating(false);
-        return;
-      }
-
-      // Update YAML with new steps
-      const updatedParsed = {
-        ...parsed,
-        jobs: updatedJobs,
-      };
-      const newYaml = stringifyYaml(updatedParsed, {
-        indent: 2,
-        lineWidth: -1,
-      });
-      onYamlUpdate(newYaml);
-
-      setResult(
-        `Generated ${totalStepsAdded} step${totalStepsAdded !== 1 ? "s" : ""} across ${jobsToProcess.length} job${jobsToProcess.length !== 1 ? "s" : ""}.\n${jobsToProcess.map((j) => `  • ${j.name}: ${(updatedJobs.find((uj) => uj.name === j.name)?.steps ?? []).length} steps`).join("\n")}`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate steps");
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [yamlContent, jobs, selectedJobNames, selectAll, onYamlUpdate]);
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-2xl shadow-xl max-w-lg w-full mx-4 max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-default-100">
-          <div className="flex items-center gap-2">
-            <ListTree className="w-5 h-5 text-teal-500" />
-            <div>
-              <h3 className="text-base font-semibold text-foreground">
-                Generate Steps
-              </h3>
-              <p className="text-xs text-default-400 mt-0.5">
-                Generate steps and assign agents for selected jobs
-              </p>
-            </div>
-          </div>
-          <Button
-            onPress={onClose}
-            variant="ghost"
-            size="sm"
-            className="text-default-400 h-8 w-8 min-w-0 p-0"
-          >
-            ✕
-          </Button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Select All Toggle */}
-          <button
-            onClick={handleSelectAll}
-            className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
-              selectAll
-                ? "bg-teal-50 border-teal-200 text-teal-700"
-                : "bg-background border-default-200 text-default-600 hover:bg-default-50"
-            }`}
-          >
-            {selectAll ? "✓ All jobs selected" : "Select All Jobs"}
-          </button>
-
-          {/* Job Selection */}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-medium">Jobs</Label>
-            <div className="max-h-[240px] overflow-y-auto space-y-1.5">
-              {jobs.map((job) => {
-                const isSelected = selectedJobNames.has(job.name);
-                const stepCount = (job.steps ?? []).length;
-                return (
-                  <button
-                    key={job.name}
-                    onClick={() => toggleJob(job.name)}
-                    disabled={selectAll}
-                    className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-all ${
-                      isSelected || selectAll
-                        ? "bg-primary-50 border-primary-200 text-primary-700"
-                        : "bg-background border-default-200 text-default-600 hover:bg-default-50"
-                    } ${selectAll ? "opacity-60 cursor-not-allowed" : ""}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{job.name}</span>
-                      <span className="text-[10px] text-default-400">
-                        {stepCount > 0
-                          ? `${stepCount} step${stepCount !== 1 ? "s" : ""}`
-                          : "No steps"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Info */}
-          <div className="bg-default-50 rounded-xl p-3 text-xs text-default-500">
-            <p className="font-medium text-default-600 mb-1">How it works:</p>
-            <p>
-              Generates 3-5 contextual steps for each selected job (only if the
-              job has no steps yet). Each step gets a relevant prompt and is
-              assigned an appropriate agent from the existing agent pool.
-            </p>
-          </div>
-
-          {/* Result / Error */}
-          {result && (
-            <div className="bg-success-50 border border-success-200 rounded-xl p-3 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-              <pre className="text-xs text-success-700 whitespace-pre-wrap font-sans">
-                {result}
-              </pre>
-            </div>
-          )}
-          {error && (
-            <div className="bg-danger-50 border border-danger-200 rounded-xl p-3 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-              <p className="text-xs text-danger-700">{error}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-default-100">
-          <Button
-            onPress={onClose}
-            variant="ghost"
-            size="sm"
-            className="text-default-500"
-          >
-            Close
-          </Button>
-          <Button
-            onPress={handleGenerate}
-            variant="primary"
-            size="sm"
-            isDisabled={
-              isGenerating || (!selectAll && selectedJobNames.size === 0)
-            }
-            className="bg-teal-600 text-white"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Generate Steps
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
