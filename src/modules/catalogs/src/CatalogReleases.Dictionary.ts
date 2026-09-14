@@ -7,13 +7,16 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
-    version: "v4.7.0",
-    title: "",
+    version: "v4.6.1",
+    title: "Version 4.6.1 Release: Flow: Improved AI Steps, Studio: Better Instruction Response Rendering & Agent Pool Filter",
     content: [
-      "BunnyFlow: Improve AI Assistent Steps Generation"
+      "BunnyFlow: Improve AI Assistent Steps Generation",
+      "BunnyStudio: Improve Instruction Response Rendering",
+      "BunnyStudio: Agent Filter By Agent Pool"
     ],
     apps: [
-      CatalogApp.BunnyFlow
+      CatalogApp.BunnyFlow,
+      CatalogApp.BunnyStudio
     ],
     dates: [
       "2026-09-15"
