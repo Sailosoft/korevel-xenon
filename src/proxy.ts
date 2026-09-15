@@ -12,12 +12,22 @@
 //
 // When `NEXT_PUBLIC_BUNNY_STUDIO_API_TOKEN` is not configured (e.g. local dev),
 // the token check is skipped but the same-origin check still applies.
+//
+// The same-origin check is controlled by the `SAME_ORIGIN` env var: it defaults
+// to enabled, and setting `SAME_ORIGIN=false` bypasses it entirely (useful when
+// calling the API from another local origin during development).
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const BS_API_TOKEN_HEADER = "x-bunny-studio-token";
 const BS_API_TOKEN_ENV = "NEXT_PUBLIC_BUNNY_STUDIO_API_TOKEN";
+const SAME_ORIGIN_ENV = "SAME_ORIGIN";
+
+// Enabled unless explicitly disabled.
+function isSameOriginEnforced(): boolean {
+  return process.env[SAME_ORIGIN_ENV]?.toLowerCase() !== "false";
+}
 
 function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
@@ -31,8 +41,9 @@ function isSameOrigin(request: NextRequest): boolean {
 
 export function proxy(request: NextRequest) {
   // Cross-site / cross-origin requests are always rejected for the Bunny
-  // Studio API (browsers send an Origin header on cross-site POSTs).
-  if (!isSameOrigin(request)) {
+  // Studio API (browsers send an Origin header on cross-site POSTs) unless the
+  // check is disabled via SAME_ORIGIN=false.
+  if (isSameOriginEnforced() && !isSameOrigin(request)) {
     return NextResponse.json(
       { error: "Forbidden: cross-origin access to the Bunny Studio API is not allowed." },
       { status: 403 },
