@@ -6,6 +6,9 @@ export * from "./components";
 // ── Database ──────────────────────────────────────────────────────────
 export { BSDatabase, bsDB } from "./BSDatabase";
 
+// ── Libraries ─────────────────────────────────────────────────────────
+export * from "./modules/crypto";
+
 // ── Modules ───────────────────────────────────────────────────────────
 export * from "./modules/chat";
 export * from "./modules/agents";
