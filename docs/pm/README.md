@@ -15,6 +15,7 @@ then covers the PM2 setup that already exists in this repo.
 | `npm run sub`       | `3051`  | Secondary development server.                       |
 | `npm run build`     | —       | Production build (`next build`).                    |
 | `npm start`         | `3000`  | `next start` with the default port.                 |
+| `npm run start:pm2` | `3051`  | Build, start under PM2, then print status.          |
 | `pm2` (`next-app`)  | `3051`  | Production server managed by PM2 (`ecosystem.config.js`). |
 
 The PM2 app is named `next-app` and runs `next start -p 3051` with `NODE_ENV=production`.
@@ -34,12 +35,28 @@ From the repository root:
 
 ```bash
 npm install
+npm run start:pm2
+```
+
+`start:pm2` is the one-liner for the full sequence:
+
+```json
+"start:pm2": "npm run build && pm2 start ecosystem.config.js && pm2 status"
+```
+
+It builds the app, starts it under PM2, and prints `pm2 status`. The app is then
+served at <http://localhost:3051>.
+
+Equivalent manual commands:
+
+```bash
 npm run build
 pm2 start ecosystem.config.js
 pm2 status
 ```
 
-The app is then served at <http://localhost:3051>.
+If `next-app` is already running, `pm2 start` reports `Script already launched`; use
+the [deploy update flow](#deploying-an-update) instead of restarting from scratch.
 
 ## ecosystem.config.js
 
