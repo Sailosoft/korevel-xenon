@@ -5,6 +5,15 @@
 // proper IndexedDB schema migration without data loss.
 
 import type { IPhazeModelBuilder } from "@/src/modules/phaze/src/PhazeDB";
+import {
+  HELIX_TRANSFORMERS_ENGINE,
+  getEmbeddingModelDimensions,
+  getEmbeddingModelProvider,
+  getProviderDefaultEmbeddingModelForEngine,
+  isHelixEmbeddingEngine,
+  isTransformersEmbeddingModel,
+  type HelixEmbeddingEngine,
+} from "@/src/modules/helix/src/HelixConfig.Embedding";
 import { splitThoughtBlocks } from "./modules/chat/BSChat.Thought";
 
 export function configureBSMigrations(model: IPhazeModelBuilder): void {
@@ -179,6 +188,50 @@ export function configureBSMigrations(model: IPhazeModelBuilder): void {
               }
             },
           );
+      },
+    );
+  });
+
+  // ── Version 9 — Embedding engine per knowledge group ──────────────────
+  // New groups default to the local Transformers.js engine; legacy groups are
+  // pinned to the LLM provider that produced their persisted index so their
+  // existing vectors stay usable without a re-index (feature: local embeddings).
+  model.schema((config) => {
+    config.update(
+      "knowledgeGroups",
+      (table) => {
+        table.index("embeddingEngine");
+      },
+      async (trans) => {
+        const table = trans.table("knowledgeGroups");
+        await table.toCollection().modify(
+          (row: {
+            embeddingEngine?: HelixEmbeddingEngine;
+            embeddingModel?: string;
+            embeddingDimensions?: number;
+          }) => {
+            try {
+              const storedModel =
+                typeof row.embeddingModel === "string" ? row.embeddingModel : "";
+              const engine: HelixEmbeddingEngine =
+                row.embeddingEngine &&
+                isHelixEmbeddingEngine(row.embeddingEngine)
+                  ? row.embeddingEngine
+                  : isTransformersEmbeddingModel(storedModel)
+                    ? HELIX_TRANSFORMERS_ENGINE
+                    : getEmbeddingModelProvider(storedModel);
+              const resolvedModel =
+                row.embeddingModel ||
+                getProviderDefaultEmbeddingModelForEngine(engine);
+              row.embeddingEngine = engine;
+              row.embeddingModel = resolvedModel;
+              row.embeddingDimensions =
+                getEmbeddingModelDimensions(resolvedModel);
+            } catch {
+              /* keep the original row if a single backfill ever fails */
+            }
+          },
+        );
       },
     );
   });

@@ -2,10 +2,20 @@
 //
 // A knowledge group is a selectable RAG corpus. In chat, the user picks a
 // knowledge group so the assistant can answer from its indexed sources. Each
-// group can carry a category tag (feature: add category to knowledge group).
+// group can carry a category tag (feature: add category to knowledge group)
+// and its own embedding engine + model (local Transformers.js by default).
 
 import { BunnyFeature } from "@/src/modules/bunny/src/feature/BunnyFeature";
+import {
+  DEFAULT_EMBEDDING_ENGINE,
+  DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
+  HELIX_EMBEDDING_ENGINE_LABELS,
+  getEmbeddingModelDimensions,
+  getProviderDefaultEmbeddingModelForEngine,
+  type HelixEmbeddingEngine,
+} from "@/src/modules/helix";
 import { bsDB } from "../../BSDatabase";
+import { BSEmbeddingModelPicker } from "./BSEmbeddingModelPicker";
 import type { BSKnowledgeGroup } from "./BSKnowledge.Types";
 
 export const bsKnowledgeGroupModule = BunnyFeature.create<
@@ -34,7 +44,19 @@ export const bsKnowledgeGroupModule = BunnyFeature.create<
         header: "Description",
         sortable: false,
         render: (row) => row.description || "—",
-      }
+      },
+      {
+        field: "embeddingModel",
+        header: "Embedding",
+        sortable: false,
+        render: (row) => {
+          const engine = row.embeddingEngine ?? DEFAULT_EMBEDDING_ENGINE;
+          const model =
+            row.embeddingModel ||
+            getProviderDefaultEmbeddingModelForEngine(engine);
+          return `${HELIX_EMBEDDING_ENGINE_LABELS[engine]} · ${model}`;
+        },
+      },
       // {
       //   field: "createdDate",
       //   header: "Created",
@@ -46,6 +68,13 @@ export const bsKnowledgeGroupModule = BunnyFeature.create<
 
   feature.configureForm((form) => {
     form.setOnSuccess({ mode: "closeOnly" });
+    form.setFormDefaultData({
+      embeddingEngine: DEFAULT_EMBEDDING_ENGINE,
+      embeddingModel: DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
+      embeddingDimensions: getEmbeddingModelDimensions(
+        DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
+      ),
+    });
     form.addFields([
       {
         name: "name",
@@ -66,6 +95,26 @@ export const bsKnowledgeGroupModule = BunnyFeature.create<
         placeholder: "Optional description for this group",
         type: "textarea",
         rows: 3,
+      },
+      {
+        name: "embeddingEngine",
+        label: "Embedding Engine",
+        type: "select",
+        required: true,
+        defaultValue: DEFAULT_EMBEDDING_ENGINE,
+        options: (
+          Object.keys(HELIX_EMBEDDING_ENGINE_LABELS) as HelixEmbeddingEngine[]
+        ).map((engine) => ({
+          label: HELIX_EMBEDDING_ENGINE_LABELS[engine],
+          value: engine,
+        })),
+      },
+      {
+        name: "embeddingModel",
+        label: "Embedding Model",
+        type: "custom",
+        component: BSEmbeddingModelPicker,
+        required: true,
       },
     ]);
     form.setGridCols(1);

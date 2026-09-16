@@ -18,8 +18,10 @@ import {
 } from "../../BSApiSecurity";
 import { bsDB } from "../../BSDatabase";
 import {
+  deleteGroupIndex,
   indexKnowledge,
   removeKnowledgeFromIndex,
+  resolveGroupEmbedding,
 } from "./BSKnowledgeBase.Orama";
 import type {
   BSKnowledge,
@@ -40,6 +42,15 @@ export interface BSIngestState {
   knowledge: BSKnowledge | null;
 }
 
+/** State of a group re-index run (drives the shared status banner). */
+export interface BSReindexState {
+  status: BSIngestStatus;
+  /** Human-readable error when status === "error" */
+  error: string;
+  /** Progress message ("Re-indexing 2/5 sources…") */
+  message: string;
+}
+
 /** Normalized result of the website scan route. */
 export interface BSScanResult {
   title: string;
@@ -53,6 +64,12 @@ const INITIAL_STATE: BSIngestState = {
   error: "",
   message: "",
   knowledge: null,
+};
+
+const INITIAL_REINDEX_STATE: BSReindexState = {
+  status: "idle",
+  error: "",
+  message: "",
 };
 
 // ─── Standalone helpers ─────────────────────────────────────────────────
@@ -159,6 +176,8 @@ export function useBSKnowledgeIngest() {
             content: opts.content,
           },
           opts.model,
+          // Surface local-model loading progress in the status banner.
+          (message) => finish({ message }),
         );
 
         const knowledge: BSKnowledge = {
@@ -211,4 +230,85 @@ export function useBSKnowledgeIngest() {
   const reset = useCallback(() => setState(INITIAL_STATE), []);
 
   return { state, ingestKnowledge, removeKnowledge, reset };
+}
+
+// ─── Re-index ───────────────────────────────────────────────────────────
+
+/**
+ * Rebuild a group's Orama index from its stored knowledge sources: clears the
+ * index, then re-chunks + re-embeds every source with the group's current
+ * engine/model. Sequential so progress can be reported per source.
+ */
+export function useBSKnowledgeReindex() {
+  const [state, setState] = useState<BSReindexState>(INITIAL_REINDEX_STATE);
+  const requestIdRef = useRef(0);
+
+  const reindexGroup = useCallback(async (groupId: string): Promise<boolean> => {
+    const requestId = ++requestIdRef.current;
+    const finish = (patch: Partial<BSReindexState>) => {
+      if (requestId !== requestIdRef.current) return;
+      setState((s) => ({ ...s, ...patch }));
+    };
+
+    if (!groupId) {
+      finish({
+        status: "error",
+        error: "Select a knowledge group first.",
+        message: "",
+      });
+      return false;
+    }
+
+    setState({
+      status: "ingesting",
+      error: "",
+      message: "Clearing the group index…",
+    });
+    try {
+      const embedding = await resolveGroupEmbedding(groupId);
+      const sources = await bsDB.knowledgesRepo.listByGroup(groupId);
+      await deleteGroupIndex(groupId);
+
+      let indexed = 0;
+      for (const source of sources) {
+        finish({
+          message: `Re-indexing ${indexed + 1}/${sources.length} source(s)…`,
+        });
+        const chunkIds = await indexKnowledge(
+          groupId,
+          {
+            knowledgeId: source.id,
+            title: source.title,
+            source: source.sourceType,
+            content: source.content,
+          },
+          embedding.model,
+          (message) => finish({ message }),
+        );
+        await bsDB.knowledges.update(source.id, {
+          chunkIds,
+          chunkCount: chunkIds.length,
+        });
+        indexed += 1;
+      }
+
+      finish({
+        status: "success",
+        error: "",
+        message: `Re-indexed ${indexed} source(s) with ${embedding.model}.`,
+      });
+      return true;
+    } catch (err) {
+      finish({
+        status: "error",
+        error: err instanceof Error ? err.message : "Re-indexing failed.",
+        message: "",
+      });
+      return false;
+    }
+  }, []);
+
+  const reset = useCallback(() => setState(INITIAL_REINDEX_STATE), []);
+
+  return { state, reindexGroup, reset };
 }

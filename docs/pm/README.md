@@ -219,3 +219,10 @@ module.exports = {
 
 - PM2 documentation: <https://pm2.keymetrics.io/docs/usage/quick-start/>
 - Next.js self-hosting: <https://nextjs.org/docs/app/guides/self-hosting>
+
+
+```
+npm i -g pm2-installer
+pm2-installer setup          # installs a service that runs `pm2 resurrect` at boot
+pm2 save                     # service resurrects this saved list
+```

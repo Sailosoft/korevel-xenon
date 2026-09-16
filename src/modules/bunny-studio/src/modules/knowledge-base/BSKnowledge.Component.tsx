@@ -4,9 +4,11 @@
 //  - Website: scan a website URL (server-side fetch → clean text).
 //  - Resources: upload a .txt / .md file.
 //
-// Each added source is chunked, embedded (SiliconFlow) and indexed into the
-// selected group's Orama vector database. The group can then be selected in
-// Chat Settings so the assistant answers from it (feature: knowledge base tool).
+// Each added source is chunked, embedded with the group's engine (local
+// Transformers.js by default, or SiliconFlow / DeepInfra through the server
+// route) and indexed into the selected group's Orama vector database. The group
+// can then be selected in Chat Settings so the assistant answers from it
+// (feature: knowledge base tool).
 
 "use client";
 
@@ -27,6 +29,7 @@ import {
   Link2,
   FolderOpen,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { bsDB } from "../../BSDatabase";
 import type { BSKnowledgeGroup } from "./BSKnowledge.Types";
@@ -37,16 +40,19 @@ import {
   readFileAsText,
   scanWebsite,
   useBSKnowledgeIngest,
+  useBSKnowledgeReindex,
   type BSScanResult,
 } from "./BSKnowledge.Hooks";
 import {
-  EMBEDDING_MODELS,
-  HELIX_PROVIDER_EMBEDDING_MODELS,
+  DEFAULT_EMBEDDING_ENGINE,
+  DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
+  HELIX_EMBEDDING_ENGINE_LABELS,
+  getEmbeddingModelDimensions,
+  getEmbeddingModelEngine,
+  getEmbeddingModelsForEngine,
+  getProviderDefaultEmbeddingModelForEngine,
+  type HelixEmbeddingEngine,
 } from "./BSKnowledgeBase.Embedding";
-import {
-  HELIX_PROVIDER_LABELS,
-  type HelixAIProvider,
-} from "@/src/modules/helix";
 import {
   clearAllGroupIndexes,
   deleteGroupIndex,
@@ -88,12 +94,20 @@ export function BSKnowledgeComponent() {
 
   const { state, ingestKnowledge, removeKnowledge, reset } =
     useBSKnowledgeIngest();
+  const {
+    state: reindexState,
+    reindexGroup,
+    reset: resetReindex,
+  } = useBSKnowledgeReindex();
 
   // ── UI state ─────────────────────────────────────────────────────────
   const [tab, setTab] = useState<"website" | "resource">("website");
   const [groupId, setGroupId] = useState("");
+  const [embeddingEngine, setEmbeddingEngine] = useState<HelixEmbeddingEngine>(
+    DEFAULT_EMBEDDING_ENGINE,
+  );
   const [embeddingModel, setEmbeddingModel] = useState<string>(
-    EMBEDDING_MODELS[0],
+    DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
   );
 
   // Website tab
@@ -119,12 +133,50 @@ export function BSKnowledgeComponent() {
 
   const selectedGroup = groups?.find((g) => g.id === groupId) ?? null;
 
+  // Engine + model selectable for the current engine (group-scoped).
+  const engineModels = getEmbeddingModelsForEngine(embeddingEngine);
+
+  /**
+   * Persist the group's embedding engine/model and invalidate its index: the
+   * stored vectors were produced by the previous configuration, so they can no
+   * longer be mixed with new ones (the user re-indexes to rebuild them).
+   */
+  const applyEmbeddingChange = (
+    engine: HelixEmbeddingEngine,
+    model: string,
+  ) => {
+    if (!groupId) return;
+    void bsDB.knowledgeGroups.update(groupId, {
+      embeddingEngine: engine,
+      embeddingModel: model,
+      embeddingDimensions: getEmbeddingModelDimensions(model),
+    });
+    const hadIndex = (ragIndexes ?? []).some((idx) => idx.id === groupId);
+    void deleteGroupIndex(groupId);
+    if (hadIndex) {
+      setRagMessage({ ok: true, text: "Index cleared — re-index this group." });
+    }
+  };
+
+  // Change the engine and reset the model to that engine's default.
+  const handleEmbeddingEngineChange = (value: string) => {
+    const engine = value as HelixEmbeddingEngine;
+    const model = getProviderDefaultEmbeddingModelForEngine(engine);
+    setEmbeddingEngine(engine);
+    setEmbeddingModel(model);
+    if (selectedGroup) applyEmbeddingChange(engine, model);
+  };
+
   // Persist the group's embedding model when the user changes it.
   const handleEmbeddingModelChange = (value: string) => {
     setEmbeddingModel(value);
-    if (groupId) {
-      void bsDB.knowledgeGroups.update(groupId, { embeddingModel: value });
-    }
+    if (selectedGroup) applyEmbeddingChange(embeddingEngine, value);
+  };
+
+  /** Clear the group index and re-embed every source with the group's engine. */
+  const handleReindexGroup = async () => {
+    if (!groupId || reindexState.status === "ingesting") return;
+    await reindexGroup(groupId);
   };
 
   // Stats for the selected group (when one is chosen).
@@ -276,6 +328,7 @@ export function BSKnowledgeComponent() {
   };
 
   const ingesting = state.status === "ingesting";
+  const reindexing = reindexState.status === "ingesting";
 
   return (
     <div className="h-full overflow-y-auto">
@@ -375,14 +428,24 @@ export function BSKnowledgeComponent() {
                       const nextGroupId = e.target.value;
                       setGroupId(nextGroupId);
                       setPage(1);
-                      // Keep the model selector in sync with the selected
-                      // group's configured model (a group must stay on one
-                      // model so its vectors share a space).
+                      setRagMessage(null);
+                      // Keep the engine + model selectors in sync with the
+                      // selected group's configuration (a group must stay on
+                      // one engine/model so its vectors share a space).
                       const nextGroup = groups?.find(
                         (g) => g.id === nextGroupId,
                       );
+                      const nextEngine =
+                        nextGroup?.embeddingEngine ??
+                        (nextGroup?.embeddingModel
+                          ? getEmbeddingModelEngine(nextGroup.embeddingModel)
+                          : DEFAULT_EMBEDDING_ENGINE);
+                      setEmbeddingEngine(nextEngine);
                       setEmbeddingModel(
-                        nextGroup?.embeddingModel || EMBEDDING_MODELS[0],
+                        nextGroup?.embeddingModel ||
+                          getProviderDefaultEmbeddingModelForEngine(
+                            nextEngine,
+                          ),
                       );
                     }}
                     className={SELECT_STYLE}
@@ -401,53 +464,89 @@ export function BSKnowledgeComponent() {
                         {groupStats.count} knowledge source(s) ·{" "}
                         {groupStats.chunks} indexed chunk(s)
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => void handleClearGroupIndex()}
-                        disabled={clearingGroup}
-                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Remove this group's vector embeddings. Sources stay but must be re-indexed."
-                      >
-                        {clearingGroup ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-3 h-3" />
-                        )}
-                        Clear group index
-                      </button>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleReindexGroup()}
+                          disabled={reindexing}
+                          className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Clear this group's index and re-embed every source with its engine/model."
+                        >
+                          {reindexing ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-3 h-3" />
+                          )}
+                          Re-index group
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleClearGroupIndex()}
+                          disabled={clearingGroup || reindexing}
+                          className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Remove this group's vector embeddings. Sources stay but must be re-indexed."
+                        >
+                          {clearingGroup ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3 h-3" />
+                          )}
+                          Clear group index
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                    Embedding Model
-                  </label>
-                  <select
-                    value={embeddingModel}
-                    onChange={(e) => handleEmbeddingModelChange(e.target.value)}
-                    className={SELECT_STYLE}
-                  >
-                    {(
-                      Object.entries(
-                        HELIX_PROVIDER_EMBEDDING_MODELS,
-                      ) as [HelixAIProvider, readonly string[] | undefined][]
-                    ).map(([provider, models]) => (
-                      <optgroup
-                        key={provider}
-                        label={HELIX_PROVIDER_LABELS[provider] ?? provider}
-                      >
-                        {(models ?? []).map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Used to generate vectors. Applies to this group (keep it
-                    consistent with already-indexed content).
-                  </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      Embedding Engine
+                    </label>
+                    <select
+                      value={embeddingEngine}
+                      onChange={(e) =>
+                        handleEmbeddingEngineChange(e.target.value)
+                      }
+                      disabled={!selectedGroup}
+                      className={`${SELECT_STYLE} disabled:opacity-60`}
+                    >
+                      {(
+                        Object.keys(
+                          HELIX_EMBEDDING_ENGINE_LABELS,
+                        ) as HelixEmbeddingEngine[]
+                      ).map((engine) => (
+                        <option key={engine} value={engine}>
+                          {HELIX_EMBEDDING_ENGINE_LABELS[engine]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                      Embedding Model
+                    </label>
+                    <select
+                      value={embeddingModel}
+                      onChange={(e) =>
+                        handleEmbeddingModelChange(e.target.value)
+                      }
+                      disabled={!selectedGroup}
+                      className={`${SELECT_STYLE} disabled:opacity-60`}
+                    >
+                      {engineModels.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      {getEmbeddingModelDimensions(embeddingModel)} dimensions ·{" "}
+                      {embeddingEngine === "transformers"
+                        ? "runs locally in the browser (no API key; first use downloads the model)."
+                        : "generated through the Helix server route."}{" "}
+                      Changing either clears this group&apos;s index.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -494,13 +593,15 @@ export function BSKnowledgeComponent() {
                           if (e.key === "Enter") void handleScan();
                         }}
                         placeholder="https://example.com/docs"
-                        disabled={scanning || ingesting}
+                        disabled={scanning || ingesting || reindexing}
                         className={`${INPUT_STYLE} disabled:opacity-60`}
                       />
                       <button
                         type="button"
                         onClick={() => void handleScan()}
-                        disabled={!url.trim() || scanning || ingesting}
+                        disabled={
+                          !url.trim() || scanning || ingesting || reindexing
+                        }
                         className="shrink-0 flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl px-4 py-2 transition"
                       >
                         {scanning ? (
@@ -548,7 +649,7 @@ export function BSKnowledgeComponent() {
                       <button
                         type="button"
                         onClick={() => void handleAddWebsite()}
-                        disabled={!groupId || ingesting}
+                        disabled={!groupId || ingesting || reindexing}
                         className="mt-3 flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl px-4 py-2 transition"
                       >
                         {ingesting ? (
@@ -631,7 +732,47 @@ export function BSKnowledgeComponent() {
               </div>
             )}
 
-            {/* Ingest status */}
+            {/* Re-index status */}
+            {reindexState.status === "ingesting" && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                {reindexState.message}
+              </div>
+            )}
+            {reindexState.status === "success" && (
+              <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {reindexState.message}
+                <button
+                  type="button"
+                  onClick={resetReindex}
+                  className="ml-auto text-[11px] text-green-700 hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            {reindexState.status === "error" && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {reindexState.error}
+                <button
+                  type="button"
+                  onClick={resetReindex}
+                  className="ml-auto text-[11px] text-red-500 hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Ingest status — also reports local model loading progress */}
+            {state.status === "ingesting" && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                {state.message}
+              </div>
+            )}
             {state.status === "success" && (
               <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
