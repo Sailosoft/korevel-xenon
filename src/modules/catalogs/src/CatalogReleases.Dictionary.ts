@@ -7,6 +7,28 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.6.2",
+    title: "Version 4.6.2: BunnyStudio Transformer Embeddings & Knowledge Base Improvements, Prompt Input Hashing, and System Enhancements",
+    content: [
+      "BunnyStudio: Added a local Transformers.js embedding engine with an embedding model picker, set as the default for new knowledge groups.",
+      "BunnyStudio: Improved the knowledge base Resources tab with text and source code file support, language detection, and code-aware chunking.",
+      "BunnyStudio: Encrypt Feature",
+      "System: Added a SAME_ORIGIN env toggle to bypass the Bunny Studio same-origin API guard when calling from another origin.",
+      "System: Improved the PM2 workflow with a start:pm2 script, updated port, and boot service setup documentation.",
+      "Catalog: Streamlined the header navigation by removing the OpenCode Go link and hiding the Documentation and Support links.",
+    ],
+    apps: [
+      CatalogApp.BunnyStudio,
+      CatalogApp.Catalog
+    ],
+    dates: [
+      "2026-09-15",
+      "2026-09-16",
+      "2026-09-17",
+      "2026-09-18"
+    ]
+  },
+  {
     version: "v4.6.1",
     title: "Version 4.6.1 Release: Flow: Improved AI Steps, Studio: Better Instruction Response Rendering & Agent Pool Filter",
     content: [

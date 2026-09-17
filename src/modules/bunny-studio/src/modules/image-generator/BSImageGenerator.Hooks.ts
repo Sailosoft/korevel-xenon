@@ -4,6 +4,9 @@
 // (OpenAI-compatible, server-side provider keys via Helix config) and persists
 // every successful result into the local `imageLibrary` table so the Image
 // Library page stays fully offline.
+//
+// The prompt text is encrypted before it is placed in the POST body (see
+// BSCrypto.Library) and decrypted by the route handler.
 
 "use client";
 
@@ -14,6 +17,7 @@ import {
   getBSApiToken,
 } from "../../BSApiSecurity";
 import { bsDB } from "../../BSDatabase";
+import { encryptBSText } from "../crypto";
 import type { BSImageAsset, BSImageSize } from "./BSImageGenerator.Types";
 
 // ─── Public types ───────────────────────────────────────────────────────
@@ -104,7 +108,8 @@ export function useBSImageGenerator() {
             [BS_API_TOKEN_HEADER]: getBSApiToken() ?? "",
           },
           body: JSON.stringify({
-            prompt: opts.prompt,
+            // Encrypted so the prompt text never travels as plaintext in the body.
+            prompt: encryptBSText(opts.prompt),
             provider: opts.provider,
             model: opts.model,
             size: opts.size ?? "1024x1024",

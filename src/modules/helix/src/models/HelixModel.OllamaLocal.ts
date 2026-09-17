@@ -18,5 +18,6 @@ export const OLLAMA_LOCAL_MODELS = [
   "llama3.2:1b",
   "mistral:7b",
   "qwen2.5:7b",
+  "phi4-mini:3.8b",
   ...OLLAMA_CLOUD_MODELS,
 ] as const;

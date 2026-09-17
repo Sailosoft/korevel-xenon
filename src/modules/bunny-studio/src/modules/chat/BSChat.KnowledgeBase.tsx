@@ -201,6 +201,7 @@ export function BSChatKnowledgeBaseIndicator({
 const SOURCE_LABEL: Record<BSKnowledgeSourceType, string> = {
   website: "Website",
   resource: "Resource",
+  text: "Pasted Text",
 };
 
 /** Orama similarity is 0..1 — render it as an intuitive percentage. */

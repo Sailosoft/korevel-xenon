@@ -24,6 +24,10 @@ import {
   BS_API_TOKEN_HEADER,
   BS_API_TOKEN_ENV,
 } from "@/src/modules/bunny-studio/src/BSApiSecurity";
+import {
+  decryptBSText,
+  isBSEncryptedText,
+} from "@/src/modules/bunny-studio/src/modules/crypto";
 
 // ─── Frontend-only access guard (defense-in-depth) ─────────────────────
 // Mirrors the chat stream/transcribe routes so the endpoint stays protected
@@ -65,7 +69,12 @@ export async function POST(req: Request) {
       apiKey?: string;
     };
 
-    const prompt = (body.prompt ?? "").trim();
+    const rawPrompt = (body.prompt ?? "").trim();
+    // The client hides the prompt in the POST body, so decrypt it here while
+    // still accepting plaintext from direct/dev callers.
+    const prompt = isBSEncryptedText(rawPrompt)
+      ? (decryptBSText(rawPrompt) ?? "").trim()
+      : rawPrompt;
     if (!prompt) {
       return jsonResponse({ error: "A prompt is required." }, 400);
     }

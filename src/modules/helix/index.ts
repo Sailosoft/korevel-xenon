@@ -51,7 +51,10 @@ export type { HelixVideoSize } from "./src/HelixConfig.Video";
 // ── Embedding model library ────────────────────────────────────────────────────
 // Reuses HelixConfig provider identity/config; only the embedding model
 // collections, defaults, endpoints, and API-key env names are defined separately.
-export type { HelixEmbeddingProvider } from "./src/HelixConfig.Embedding";
+export type {
+  HelixEmbeddingProvider,
+  HelixEmbeddingEngine,
+} from "./src/HelixConfig.Embedding";
 export {
   HELIX_PROVIDER_EMBEDDING_MODELS,
   HELIX_EMBEDDING_MODELS,
@@ -59,12 +62,24 @@ export {
   DEFAULT_EMBEDDING_PROVIDER,
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_EMBEDDING_DIMENSIONS,
+  HELIX_TRANSFORMERS_ENGINE,
+  HELIX_EMBEDDING_ENGINE_LABELS,
+  HELIX_TRANSFORMERS_EMBEDDING_MODELS,
+  HELIX_TRANSFORMERS_EMBEDDING_MODEL_DIMENSIONS,
+  DEFAULT_EMBEDDING_ENGINE,
+  DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
   HELIX_PROVIDER_EMBEDDING_ENDPOINTS,
   HELIX_PROVIDER_EMBEDDING_API_KEY_ENV,
   HELIX_EMBEDDING_MODEL_DIMENSIONS,
   isHelixEmbeddingProvider,
+  isHelixEmbeddingEngine,
+  isTransformersEmbeddingModel,
   getEmbeddingModelProvider,
   getProviderDefaultEmbeddingModel,
+  getEmbeddingModelEngine,
+  getEmbeddingModelDimensions,
+  getEmbeddingModelsForEngine,
+  getProviderDefaultEmbeddingModelForEngine,
 } from "./src/HelixConfig.Embedding";
 
 // ── Embedding service ───────────────────────────────────────────────────────────
