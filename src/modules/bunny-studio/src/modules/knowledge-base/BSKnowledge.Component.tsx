@@ -2,7 +2,7 @@
 //
 // Lets the user add knowledge to a Knowledge Group via two tabs:
 //  - Website: scan a website URL (server-side fetch → clean text).
-//  - Resources: upload a .txt / .md file.
+//  - Resources: upload a text / source-code file, or paste text manually.
 //
 // Each added source is chunked, embedded with the group's engine (local
 // Transformers.js by default, or SiliconFlow / DeepInfra through the server
@@ -30,19 +30,26 @@ import {
   FolderOpen,
   X,
   RefreshCw,
+  ClipboardType,
+  FileCode,
 } from "lucide-react";
 import { bsDB } from "../../BSDatabase";
 import type { BSKnowledgeGroup } from "./BSKnowledge.Types";
 import type { BSKnowledge } from "./BSKnowledge.Types";
 import type { BSKnowledgeIndexSnapshot } from "./BSKnowledge.Types";
 import {
-  isAllowedResourceFile,
   readFileAsText,
   scanWebsite,
   useBSKnowledgeIngest,
   useBSKnowledgeReindex,
   type BSScanResult,
 } from "./BSKnowledge.Hooks";
+import {
+  buildResourceAccept,
+  getResourceKind,
+  getResourceLanguage,
+  isAllowedResourceFile,
+} from "./BSKnowledge.Resource";
 import {
   DEFAULT_EMBEDDING_ENGINE,
   DEFAULT_TRANSFORMERS_EMBEDDING_MODEL,
@@ -62,6 +69,7 @@ const SELECT_STYLE =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white";
 const INPUT_STYLE =
   "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-red-400 bg-white";
+const TEXTAREA_STYLE = `${INPUT_STYLE} font-mono resize-y`;
 
 /** Number of knowledge rows rendered per page in the list. */
 const PAGE_SIZE = 8;
@@ -76,6 +84,58 @@ function formatBytes(bytes: number): string {
   );
   const value = bytes / 1024 ** i;
   return `${value.toFixed(i === 0 || value >= 10 ? 0 : 1)} ${units[i]}`;
+}
+
+/** Resolve the list icon, color, and detail line for a knowledge source. */
+function getKnowledgeSourceMeta(knowledge: BSKnowledge) {
+  if (knowledge.sourceType === "website") {
+    return {
+      Icon: Globe,
+      color: "bg-blue-50 text-blue-500",
+      detail: knowledge.url ?? "",
+    };
+  }
+  if (knowledge.sourceType === "text") {
+    return {
+      Icon: ClipboardType,
+      color: "bg-amber-50 text-amber-600",
+      detail: "Pasted text",
+    };
+  }
+  if (knowledge.resourceKind === "code") {
+    return {
+      Icon: FileCode,
+      color: "bg-violet-50 text-violet-600",
+      detail: [knowledge.fileName, knowledge.language]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  }
+  return {
+    Icon: FileText,
+    color: "bg-amber-50 text-amber-600",
+    detail: knowledge.fileName ?? "",
+  };
+}
+
+/**
+ * Extract dropped files from a drag event. `dataTransfer.files` is empty for
+ * some drag sources (VS Code, other apps), so also check `items` which expose
+ * each dragged file via `getAsFile()`.
+ */
+function extractDroppedFiles(dataTransfer: DataTransfer): File[] {
+  const files: File[] = [];
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    for (const item of Array.from(dataTransfer.items)) {
+      if (item.kind !== "file") continue;
+      const dropped = item.getAsFile();
+      if (dropped) files.push(dropped);
+    }
+  }
+  if (files.length === 0 && dataTransfer.files) {
+    files.push(...Array.from(dataTransfer.files));
+  }
+  return files;
 }
 
 export function BSKnowledgeComponent() {
@@ -116,9 +176,15 @@ export function BSKnowledgeComponent() {
   const [scanError, setScanError] = useState("");
   const [scanned, setScanned] = useState<BSScanResult | null>(null);
 
-  // Resources tab
+  // Resources tab — file upload
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+
+  // Resources tab — manual text input
+  const [textTitle, setTextTitle] = useState("");
+  const [textContent, setTextContent] = useState("");
+  const [textError, setTextError] = useState("");
 
   // Knowledge list pagination
   const [page, setPage] = useState(1);
@@ -252,15 +318,75 @@ export function BSKnowledgeComponent() {
   };
 
   // ── Resources tab handlers ───────────────────────────────────────────
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] ?? null;
+  /** Validate a picked/dropped file and select it (or report why not). */
+  const selectResourceFile = (selected: File | null) => {
     setFileError("");
     if (selected && !isAllowedResourceFile(selected)) {
-      setFileError("Only .txt and .md files are supported.");
+      setFileError(
+        "Unsupported file. Use a text file (.txt / .md) or a source-code file (.ts, .cs, .css, .html, .js, …).",
+      );
       setFile(null);
       return;
     }
     setFile(selected);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    selectResourceFile(e.target.files?.[0] ?? null);
+  };
+
+  // Allow dropping a resource file (text or source code) onto the Resources panel.
+  const handleFileDrop = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    const [dropped] = extractDroppedFiles(e.dataTransfer);
+    if (dropped) {
+      selectResourceFile(dropped);
+      return;
+    }
+    // Some drag sources expose no file at all (e.g. dragging from VS Code).
+    setFileError(
+      "Could not read the dropped item. Drag the file from your file explorer, or use the file picker.",
+    );
+  };
+
+  // Dropping a text/code file on the textarea loads its text for manual editing.
+  const handleTextAreaDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    // Handle it here instead of letting the panel treat it as an upload.
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const [dropped] = extractDroppedFiles(e.dataTransfer);
+    if (!dropped) return;
+    if (!isAllowedResourceFile(dropped)) {
+      setTextError(
+        "Unsupported file. Drop a text or source-code file (.txt, .md, .ts, .cs, .css, .html, .js, …).",
+      );
+      return;
+    }
+    void readFileAsText(dropped)
+      .then((text) => {
+        setTextContent(text);
+        if (!textTitle.trim()) setTextTitle(dropped.name);
+        setTextError("");
+      })
+      .catch((err) => {
+        setTextError(
+          err instanceof Error ? err.message : "Failed to read the file.",
+        );
+      });
+  };
+
+  // Keep the drop highlight while a file is dragged over the panel; clear it
+  // only when the pointer actually leaves the panel (not its children).
+  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    if (!dragActive) setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragActive(false);
   };
 
   const handleAddResource = async () => {
@@ -273,11 +399,34 @@ export function BSKnowledgeComponent() {
         sourceType: "resource",
         content,
         fileName: file.name,
+        resourceKind: getResourceKind(file.name),
+        language: getResourceLanguage(file.name),
         model: embeddingModel,
       });
       if (created) setFile(null);
     } catch (err) {
       setFileError(err instanceof Error ? err.message : "Failed to read file.");
+    }
+  };
+
+  /** Add manually pasted text as a knowledge source in the selected group. */
+  const handleAddText = async () => {
+    setTextError("");
+    if (!textContent.trim()) {
+      setTextError("Paste or type some text first.");
+      return;
+    }
+    const created = await ingestKnowledge({
+      groupId,
+      title:
+        textTitle.trim() || `Pasted text — ${new Date().toLocaleString()}`,
+      sourceType: "text",
+      content: textContent,
+      model: embeddingModel,
+    });
+    if (created) {
+      setTextTitle("");
+      setTextContent("");
     }
   };
 
@@ -346,8 +495,9 @@ export function BSKnowledgeComponent() {
               </span>
             </h1>
             <p className="text-gray-500 mt-0.5 text-sm">
-              Add knowledge by scanning a website or uploading a file, then
-              pick the group in Chat Settings to answer from it.
+              Add knowledge by scanning a website, uploading a text / code
+              file, or pasting text. Pick the group in Chat Settings to answer
+              from it.
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5">
               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium px-2.5 py-1">
@@ -667,20 +817,40 @@ export function BSKnowledgeComponent() {
 
             {/* Resources tab */}
             {tab === "resource" && (
-              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div
+                onDragEnter={handleDragOver}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleFileDrop}
+                className={`rounded-2xl border bg-white shadow-sm overflow-hidden transition-colors ${
+                  dragActive ? "border-red-400" : "border-gray-200"
+                }`}
+              >
                 <div className="p-5 space-y-4">
+                  {/* File upload — prose text or source code */}
                   <div>
                     <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-                      <FileText className="w-4 h-4 text-red-500" /> Text File
-                      (.txt / .md)
+                      <FileCode className="w-4 h-4 text-red-500" /> File
+                      <span className="text-[11px] font-normal text-gray-400">
+                        text (.txt / .md) or code (.ts, .cs, .css, .html, .js, …)
+                      </span>
                     </label>
                     {file ? (
                       <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3">
                         <div className="min-w-0 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                          {getResourceKind(file.name) === "code" ? (
+                            <FileCode className="w-4 h-4 text-violet-500 shrink-0" />
+                          ) : (
+                            <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                          )}
                           <span className="text-sm text-gray-700 truncate">
                             {file.name}
                           </span>
+                          {getResourceLanguage(file.name) && (
+                            <span className="text-[10px] uppercase tracking-wide text-violet-600 bg-violet-50 rounded px-1.5 py-0.5 shrink-0">
+                              {getResourceLanguage(file.name)}
+                            </span>
+                          )}
                           <span className="text-[11px] text-gray-400 shrink-0">
                             ({(file.size / 1024).toFixed(1)} KB)
                           </span>
@@ -695,12 +865,20 @@ export function BSKnowledgeComponent() {
                         </button>
                       </div>
                     ) : (
-                      <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500 hover:border-red-400 hover:text-red-600 transition-colors">
+                      <label
+                        className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-sm transition-colors ${
+                          dragActive
+                            ? "border-red-400 bg-red-50 text-red-600"
+                            : "border-gray-300 text-gray-500 hover:border-red-400 hover:text-red-600"
+                        }`}
+                      >
                         <Upload className="w-5 h-5" />
-                        Choose a .txt or .md file to add
+                        {dragActive
+                          ? "Drop the file to add it"
+                          : "Choose, drag & drop, or drop a file into the text box below"}
                         <input
                           type="file"
-                          accept=".txt,.md,.markdown,text/plain,text/markdown"
+                          accept={buildResourceAccept()}
                           className="hidden"
                           onChange={handleFileChange}
                         />
@@ -728,6 +906,57 @@ export function BSKnowledgeComponent() {
                       Add to group
                     </button>
                   )}
+
+                  {/* Manual text — paste any text straight into the group */}
+                  <div className="pt-4 border-t border-gray-100">
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
+                      <ClipboardType className="w-4 h-4 text-red-500" /> Pasted
+                      Text
+                      <span className="text-[11px] font-normal text-gray-400">
+                        copy-paste text manually
+                      </span>
+                    </label>
+                    <input
+                      value={textTitle}
+                      onChange={(e) => setTextTitle(e.target.value)}
+                      placeholder="Optional title (defaults to a timestamp)"
+                      disabled={ingesting || reindexing}
+                      className={`${INPUT_STYLE} mb-2 disabled:opacity-60`}
+                    />
+                    <textarea
+                      value={textContent}
+                      onChange={(e) => setTextContent(e.target.value)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleTextAreaDrop}
+                      placeholder="Paste or type the text to index here, or drop a text / source-code file…"
+                      rows={7}
+                      disabled={ingesting || reindexing}
+                      className={`${TEXTAREA_STYLE} disabled:opacity-60`}
+                    />
+                    <div className="flex items-center justify-between gap-3 mt-2">
+                      <span className="text-[11px] text-gray-400">
+                        {textContent.length} character(s)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleAddText()}
+                        disabled={!groupId || ingesting || reindexing}
+                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl px-4 py-2 transition"
+                      >
+                        {ingesting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        Add text to group
+                      </button>
+                    </div>
+                    {textError && (
+                      <p className="flex items-center gap-1 text-[11px] text-red-500 mt-1.5">
+                        <AlertCircle className="w-3 h-3" /> {textError}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -806,31 +1035,24 @@ export function BSKnowledgeComponent() {
               <div className="divide-y divide-gray-100">
                 {pagedKnowledges.map((k) => {
                     const group = groups?.find((g) => g.id === k.knowledgeGroupId);
+                    const { Icon: SourceIcon, color, detail } =
+                      getKnowledgeSourceMeta(k);
                     return (
                       <div
                         key={k.id}
                         className="flex items-start gap-3 px-5 py-3.5"
                       >
                         <div
-                          className={`mt-0.5 flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
-                            k.sourceType === "website"
-                              ? "bg-blue-50 text-blue-500"
-                              : "bg-amber-50 text-amber-600"
-                          }`}
+                          className={`mt-0.5 flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${color}`}
                         >
-                          {k.sourceType === "website" ? (
-                            <Globe className="w-4 h-4" />
-                          ) : (
-                            <FileText className="w-4 h-4" />
-                          )}
+                          <SourceIcon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-800 truncate">
                             {k.title}
                           </p>
                           <p className="text-[11px] text-gray-400 truncate mt-0.5">
-                            {k.sourceType === "website" ? k.url : k.fileName} ·{" "}
-                            {k.chunkCount} chunk(s) ·{" "}
+                            {detail} · {k.chunkCount} chunk(s) ·{" "}
                             {group?.name ?? "Unknown group"}
                           </p>
                         </div>

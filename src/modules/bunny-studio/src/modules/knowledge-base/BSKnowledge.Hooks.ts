@@ -25,6 +25,7 @@ import {
 } from "./BSKnowledgeBase.Orama";
 import type {
   BSKnowledge,
+  BSKnowledgeResourceKind,
   BSKnowledgeSourceType,
 } from "./BSKnowledge.Types";
 
@@ -93,7 +94,7 @@ export async function scanWebsite(url: string): Promise<BSScanResult> {
   return data as BSScanResult;
 }
 
-/** Read a text file (.txt / .md) into a string. */
+/** Read a resource file (text or source code) into a string. */
 export function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -104,13 +105,20 @@ export function readFileAsText(file: File): Promise<string> {
   });
 }
 
-/** The file extensions accepted for the "Resources" ingestion tab. */
-export const RESOURCE_FILE_EXTENSIONS = [".txt", ".md", ".markdown"];
-
-export function isAllowedResourceFile(file: File): boolean {
-  const lower = file.name.toLowerCase();
-  return RESOURCE_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
+// Resource file rules (accepted extensions, kind, language) live in the
+// BSKnowledge.Resource library; re-exported here so existing consumers keep
+// importing them from this module.
+export {
+  RESOURCE_CODE_EXTENSIONS,
+  RESOURCE_FILE_EXTENSIONS,
+  RESOURCE_TEXT_EXTENSIONS,
+  buildResourceAccept,
+  getResourceExtension,
+  getResourceKind,
+  getResourceLanguage,
+  isAllowedResourceFile,
+  isCodeResourceFile,
+} from "./BSKnowledge.Resource";
 
 // ─── Hook ───────────────────────────────────────────────────────────────
 
@@ -127,6 +135,10 @@ export interface BSIngestOptions {
   url?: string;
   /** uploaded file name (resource) */
   fileName?: string;
+  /** for resource files: prose text or source code (selects the chunker) */
+  resourceKind?: BSKnowledgeResourceKind;
+  /** detected language label for code resources (display only) */
+  language?: string;
   /**
    * Embedding model for the vectors (must match the group's configured model).
    * Defaults to Qwen/Qwen3-Embedding-0.6B when omitted.
@@ -174,6 +186,7 @@ export function useBSKnowledgeIngest() {
             title: opts.title,
             source: opts.sourceType,
             content: opts.content,
+            kind: opts.resourceKind,
           },
           opts.model,
           // Surface local-model loading progress in the status banner.
@@ -187,6 +200,8 @@ export function useBSKnowledgeIngest() {
           sourceType: opts.sourceType,
           url: opts.url,
           fileName: opts.fileName,
+          resourceKind: opts.resourceKind,
+          language: opts.language,
           content: opts.content,
           chunkIds,
           chunkCount: chunkIds.length,
@@ -281,6 +296,7 @@ export function useBSKnowledgeReindex() {
             title: source.title,
             source: source.sourceType,
             content: source.content,
+            kind: source.resourceKind,
           },
           embedding.model,
           (message) => finish({ message }),

@@ -24,9 +24,10 @@ import { persist, restore } from "@orama/plugin-data-persistence";
 import { bsDB } from "../../BSDatabase";
 import type {
   BSKnowledgeIndexSnapshot,
+  BSKnowledgeResourceKind,
   BSKnowledgeSourceType,
 } from "./BSKnowledge.Types";
-import { chunkText } from "./BSKnowledgeBase.Text";
+import { chunkCodeText, chunkText } from "./BSKnowledgeBase.Text";
 import {
   DEFAULT_EMBEDDING_ENGINE,
   HELIX_EMBEDDING_MODEL_DIMENSIONS,
@@ -228,11 +229,16 @@ export async function indexKnowledge(
     title: string;
     source: BSKnowledgeSourceType;
     content: string;
+    /** resource files use the line-aware chunker when marked as "code" */
+    kind?: BSKnowledgeResourceKind;
   },
   model?: string,
   onProgress?: HelixEmbeddingProgress,
 ): Promise<string[]> {
-  const chunks = chunkText(payload.content);
+  const chunks =
+    payload.kind === "code"
+      ? chunkCodeText(payload.content)
+      : chunkText(payload.content);
   if (chunks.length === 0) return [];
 
   const embedding = await resolveGroupEmbedding(groupId);

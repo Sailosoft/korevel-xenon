@@ -12,9 +12,19 @@ export {
   useBSKnowledgeReindex,
   scanWebsite,
   readFileAsText,
-  isAllowedResourceFile,
-  RESOURCE_FILE_EXTENSIONS,
 } from "./BSKnowledge.Hooks";
+export {
+  RESOURCE_CODE_EXTENSIONS,
+  RESOURCE_FILE_EXTENSIONS,
+  RESOURCE_TEXT_EXTENSIONS,
+  RESOURCE_LANGUAGE_BY_EXTENSION,
+  buildResourceAccept,
+  getResourceExtension,
+  getResourceKind,
+  getResourceLanguage,
+  isAllowedResourceFile,
+  isCodeResourceFile,
+} from "./BSKnowledge.Resource";
 export { BSEmbeddingModelPicker } from "./BSEmbeddingModelPicker";
 export {
   indexKnowledge,
@@ -46,13 +56,18 @@ export {
 } from "./BSKnowledgeBase.Embedding";
 export type { BSEmbedOptions } from "./BSKnowledgeBase.Embedding";
 export type { HelixEmbeddingProgress } from "./BSKnowledgeBase.Embedding";
-export { chunkText, normalizeWhitespace } from "./BSKnowledgeBase.Text";
+export {
+  chunkCodeText,
+  chunkText,
+  normalizeWhitespace,
+} from "./BSKnowledgeBase.Text";
 export type {
   BSKnowledge,
   BSKnowledgeForm,
   BSKnowledgeGroup,
   BSKnowledgeGroupForm,
   BSKnowledgeIndexSnapshot,
+  BSKnowledgeResourceKind,
   BSKnowledgeSourceType,
 } from "./BSKnowledge.Types";
 export type {

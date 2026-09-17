@@ -5,17 +5,24 @@
 //  - Knowledge Groups organize knowledge sources. A group is selectable in
 //    chat so the assistant can answer from its contents (feature: knowledge
 //    base tool).
-//  - Knowledges are individual sources added either by scanning a website or
-//    by uploading a .txt / .md file. Each knowledge belongs to exactly one
-//    group; its text is chunked, embedded (local Transformers.js worker or the
-//    SiliconFlow / DeepInfra server route), and indexed into the group's Orama
-//    vector database.
+//  - Knowledges are individual sources added either by scanning a website, by
+//    uploading a text / source-code file, or by pasting text manually. Each
+//    knowledge belongs to exactly one group; its text is chunked, embedded
+//    (local Transformers.js worker or the SiliconFlow / DeepInfra server
+//    route), and indexed into the group's Orama vector database.
 //  - Categories tag knowledge groups (feature: add category to knowledge
 //    group) so they can be filtered / organized.
 
 import type { HelixEmbeddingEngine } from "@/src/modules/helix";
 
-export type BSKnowledgeSourceType = "website" | "resource";
+/**
+ * How a knowledge source was added: a scanned website, an uploaded resource
+ * file, or manually pasted text.
+ */
+export type BSKnowledgeSourceType = "website" | "resource" | "text";
+
+/** For resource sources: prose text or source code (selects the chunker). */
+export type BSKnowledgeResourceKind = "text" | "code";
 
 export interface BSKnowledgeGroup {
   /** uuidv7 primary key */
@@ -61,6 +68,13 @@ export interface BSKnowledge {
   url?: string;
   /** uploaded file name (when sourceType === "resource") */
   fileName?: string;
+  /**
+   * For resource sources: whether the file is prose text or source code, so
+   * re-indexing uses the same (line-aware) chunker.
+   */
+  resourceKind?: BSKnowledgeResourceKind;
+  /** detected language label for code resources (e.g. "typescript") */
+  language?: string;
   /** full extracted text of the source (kept for reference / re-indexing) */
   content: string;
   /**
