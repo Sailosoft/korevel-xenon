@@ -383,6 +383,34 @@ export function parseFlowDoc(content: string): FlowDocument {
     }
   }
 
+  // Non-flowchart diagrams: build a generic element model as plain rect nodes
+  // plus generic relations (messages / connections) so the custom canvas editor
+  // renders and edits every diagram type.
+  if (!isFlowchart) {
+    for (const el of scanGenericElements(content)) {
+      if (!nodes.has(el.id)) {
+        nodesOrdered.push(el.id);
+        nodes.set(el.id, {
+          id: el.id,
+          shape: "rect",
+          label: el.label,
+          lineIndex: el.lineIndex,
+          tokenIndex: 0,
+        });
+      }
+    }
+    for (const rel of scanGenericRelations(content)) {
+      edges.push({
+        from: rel.from,
+        to: rel.to,
+        arrowType: "solid",
+        label: rel.label,
+        lineIndex: rel.lineIndex,
+        tokenIndex: 0,
+      });
+    }
+  }
+
   return {
     lines,
     eol,
@@ -395,6 +423,575 @@ export function parseFlowDoc(content: string): FlowDocument {
     layout,
     layoutLineIndex,
   };
+}
+
+// ── Generic (non-flowchart) element scan ────────────────────────────────────
+
+export interface GenericElement {
+  id: string;
+  label: string;
+  lineIndex: number;
+}
+
+export interface GenericRelation {
+  from: string;
+  to: string;
+  label: string | null;
+  lineIndex: number;
+}
+
+// ── Gantt model ──────────────────────────────────────────────────────────────
+
+const DAY_MS = 86400000;
+
+export interface GanttTask {
+  id: string;
+  label: string;
+  section?: string;
+  start: Date;
+  end: Date;
+  days: number;
+  milestone: boolean;
+}
+
+const JOURNEY_TASK_RE = /^([^:]+?)\s*:\s*(\d+)\s*(:\s*(.*))?$/i;
+
+/**
+ * Rewrite a journey task: set a new status level (score) and/or move it to a
+ * new position within its own section. Non-task lines (comments, etc.) inside
+ * the section are preserved in place.
+ */
+export function updateJourneyTask(
+  content: string,
+  taskName: string,
+  newScore: number,
+  toIndex: number,
+): string {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const sections: Array<{ start: number; end: number }> = [];
+  let secStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (/^section\s+/i.test(t)) {
+      if (secStart >= 0) {
+        sections.push({ start: secStart, end: i });
+      }
+      secStart = i;
+    }
+  }
+  if (secStart >= 0) sections.push({ start: secStart, end: lines.length });
+
+  let targetLine = -1;
+  let targetSection = -1;
+  for (let s = 0; s < sections.length; s++) {
+    const sec = sections[s];
+    for (let i = sec.start + 1; i < sec.end; i++) {
+      const m = lines[i].match(JOURNEY_TASK_RE);
+      if (m && m[1].trim() === taskName) {
+        targetLine = i;
+        targetSection = s;
+        break;
+      }
+    }
+    if (targetLine >= 0) break;
+  }
+  if (targetLine < 0 || targetSection < 0) return content;
+
+  const sec = sections[targetSection];
+  // Slot model: everything between the header and the next header/EOF.
+  const slotCount = sec.end - sec.start - 1;
+  const slotIsTask: boolean[] = [];
+  const slotNames: string[] = [];
+  for (let i = sec.start + 1; i < sec.end; i++) {
+    const m = lines[i].match(JOURNEY_TASK_RE);
+    slotIsTask.push(Boolean(m));
+    slotNames.push(m ? m[1].trim() : "");
+  }
+
+  const taskSlots = slotIsTask
+    .map((isTask, i) => (isTask ? i : -1))
+    .filter((i) => i >= 0);
+  const currentK = taskSlots.indexOf(targetLine - sec.start - 1);
+  if (currentK < 0) return content;
+  const ordered = taskSlots.map((slot) => slotNames[slot]);
+  const name = ordered.splice(currentK, 1)[0];
+  const newK = Math.max(0, Math.min(taskSlots.length - 1, toIndex));
+  ordered.splice(newK, 0, name);
+
+  // Rebuild the section's slots, preserving non-task lines in place.
+  const rebuilt: string[] = [];
+  let taskPtr = 0;
+  for (let slot = 0; slot < slotCount; slot++) {
+    const line = lines[sec.start + 1 + slot];
+    if (!slotIsTask[slot]) {
+      rebuilt.push(line);
+      continue;
+    }
+    const orderName = ordered[taskPtr++];
+    const m = lines[sec.start + 1 + slot].match(JOURNEY_TASK_RE);
+    const people = m && m[4] !== undefined ? m[4].trim() : "";
+    const isTarget = orderName === name;
+    const score = isTarget
+      ? Math.min(5, Math.max(1, newScore))
+      : m
+        ? parseInt(m[2], 10)
+        : 5;
+    rebuilt.push(
+      people ? `${orderName}: ${score}: ${people}` : `${orderName}: ${score}`,
+    );
+  }
+
+  const out = [
+    ...lines.slice(0, sec.start + 1),
+    ...rebuilt,
+    ...lines.slice(sec.end),
+  ];
+  return out.join("\n");
+}
+
+/**
+ * Rewrite a gantt task: set a new start date and day count. Rewrites the task
+ * line as `Label : id, YYYY-MM-DD, <days>d` while preserving the task label.
+ */
+export function updateGanttTask(
+  content: string,
+  taskName: string,
+  startIso: string,
+  days: number,
+): string {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const dateLike =
+    /^(\d{4})-(\d{1,2})-(\d{1,2})$|^(\d{1,2})-(\d{1,2})-(\d{4})$/;
+  const durationLike = /^(\d+)\s*(d|w|M|y|h)$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t || t.startsWith("%%") || t.startsWith("#")) continue;
+    if (/^(gantt|dateFormat|title|accTitle|accDescr|section)\b/i.test(t)) continue;
+    const tl = t.match(/^([^:]+?)\s*:\s*([^:]*)$/);
+    if (!tl || tl[1].trim() !== taskName) continue;
+    const rest = tl[2].split(",").map((s) => s.trim()).filter(Boolean);
+    let id = "";
+    for (const tok of rest) {
+      const low = tok.toLowerCase();
+      if (/^(done|active|crit|idle|milestone)$/.test(low)) continue;
+      if (/^(after|on|until)\s+/i.test(tok)) continue;
+      if (dateLike.test(tok)) continue;
+      if (durationLike.test(tok)) continue;
+      id = tok.replace(/["']/g, "");
+      break;
+    }
+    const clean = (iso: string) => {
+      const m = iso.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) {
+        const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      }
+      return iso;
+    };
+    const newLine = `${tl[1].trim()} : ${id || taskName.replace(/\s+/g, "_")}, ${clean(startIso)}, ${Math.max(1, Math.round(days))}d`;
+    lines[i] = newLine;
+    break;
+  }
+  return lines.join("\n");
+}
+
+function parseDateToken(token: string): Date | null {
+  const t = token.trim();
+  const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3]));
+  const us = t.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (us) return new Date(Date.UTC(+us[3], +us[1] - 1, +us[2]));
+  const slash = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) return new Date(Date.UTC(+slash[3], +slash[1] - 1, +slash[2]));
+  return null;
+}
+
+function parseDuration(token: string): number | null {
+  const m = token.trim().match(/^(\d+)\s*(d|w|M|y|h)$/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  switch (m[2].toLowerCase()) {
+    case "d":
+      return n;
+    case "w":
+      return n * 7;
+    case "M":
+      return n * 30;
+    case "y":
+      return n * 365;
+    case "h":
+      return Math.max(1, Math.round(n / 24));
+    default:
+      return n;
+  }
+}
+
+interface RawGanttTask {
+  id: string;
+  label: string;
+  section?: string;
+  startToken: string | null;
+  afterId: string | null;
+  endToken: string | null;
+  untilId: string | null;
+  dur: number | null;
+  milestone: boolean;
+  start: Date | null;
+  end: Date | null;
+}
+
+/** Parse mermaid gantt source lines into dated tasks (best effort). */
+export function parseGantt(content: string): GanttTask[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  let section: string | undefined;
+  const raws: RawGanttTask[] = [];
+
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t || t.startsWith("%%") || t.startsWith("#")) continue;
+    const sec = t.match(/^section\s+(.+)$/i);
+    if (sec) {
+      section = sec[1].trim();
+      continue;
+    }
+    if (/^dateFormat\b/i.test(t) || /^gantt\b/i.test(t) || /^title\b/i.test(t) || /^accTitle\b/i.test(t) || /^accDescr\b/i.test(t)) {
+      continue;
+    }
+    const taskLine = t.match(/^([^:]+?)\s*:\s*([^:]*)$/);
+    if (!taskLine) continue;
+    const label = taskLine[1].trim();
+    const rest = taskLine[2].split(",").map((s) => s.trim()).filter(Boolean);
+
+    let id = "";
+    let startToken: string | null = null;
+    let afterId: string | null = null;
+    let endToken: string | null = null;
+    let untilId: string | null = null;
+    let dur: number | null = null;
+    let milestone = false;
+
+    let dateSeen = 0;
+    for (let i = 0; i < rest.length; i++) {
+      const tok = rest[i];
+      const low = tok.toLowerCase();
+      if (/^(done|active|crit|idle)$/.test(low)) continue;
+      if (low === "milestone") {
+        milestone = true;
+        continue;
+      }
+      const ref = tok.match(/^(?:after|on)\s+([A-Za-z0-9_\-]+)$/i);
+      if (ref) {
+        afterId = ref[1];
+        continue;
+      }
+      const unt = tok.match(/^until\s+([A-Za-z0-9_\-]+)$/i);
+      if (unt) {
+        untilId = unt[1];
+        continue;
+      }
+      const d = parseDateToken(tok);
+      if (d) {
+        if (dateSeen === 0) {
+          startToken = tok;
+          dateSeen = 1;
+        } else {
+          endToken = tok;
+        }
+        continue;
+      }
+      const durTok = parseDuration(tok);
+      if (durTok !== null) {
+        dur = durTok;
+        continue;
+      }
+      if (!id) {
+        id = tok.replace(/["']/g, "");
+      }
+    }
+
+    raws.push({
+      id: id || label.replace(/\s+/g, "_"),
+      label,
+      section,
+      startToken,
+      afterId,
+      endToken,
+      untilId,
+      dur,
+      milestone,
+      start: null,
+      end: null,
+    });
+  }
+
+  const byId = new Map<string, RawGanttTask>();
+  raws.forEach((r) => byId.set(r.id, r));
+
+  for (let pass = 0; pass < 5; pass++) {
+    let progress = false;
+    for (const r of raws) {
+      if (r.start) continue;
+      let s: Date | null = null;
+      if (r.startToken) {
+        s = parseDateToken(r.startToken);
+      } else if (r.afterId) {
+        const ref = byId.get(r.afterId);
+        if (ref && ref.end) {
+          s = new Date(ref.end.getTime() + DAY_MS / 2);
+        }
+      }
+      if (!s) continue;
+      r.start = s;
+      let e: Date | null = null;
+      if (r.endToken) {
+        e = parseDateToken(r.endToken);
+      } else if (r.untilId) {
+        const ref = byId.get(r.untilId);
+        if (ref && ref.end) e = ref.end;
+      }
+      if (e && e.getTime() < s.getTime()) e = s;
+      if (r.dur !== null) {
+        e = new Date(
+          s.getTime() +
+            Math.max(0, Math.round(r.dur) - (r.dur >= 1 ? 1 : 0)) * DAY_MS,
+        );
+        if (r.dur === 0) e = s;
+      }
+      r.end = e ?? s;
+      progress = true;
+    }
+    if (!progress) break;
+  }
+
+  const out: GanttTask[] = [];
+  for (const r of raws) {
+    if (!r.start || !r.end) continue;
+    const days = Math.round((r.end.getTime() - r.start.getTime()) / DAY_MS) + 1;
+    out.push({
+      id: r.id,
+      label: r.label,
+      section: r.section,
+      start: r.start,
+      end: r.end,
+      days: r.milestone ? 0 : Math.max(1, days),
+      milestone: r.milestone,
+    });
+  }
+  return out;
+}
+
+/**
+ * Best-effort scan of relationships for non-flowchart diagram types so the
+ * custom canvas editor draws connections: sequence messages, class relations,
+ * state transitions and ER relations.
+ */
+export function scanGenericRelations(content: string): GenericRelation[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const type = detectDiagramType(content);
+  const out: GenericRelation[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t || t.startsWith("%%") || t.startsWith("#")) continue;
+    if (GENERIC_HEADER_SKIP_RE.test(t)) continue;
+    let m: RegExpMatchArray | null = null;
+
+    if (type === "sequenceDiagram") {
+      m = t.match(
+        /^([A-Za-z0-9_\-]+)\s*[-–—]*-{0,1}\s*[>xo)]+\s*([A-Za-z0-9_\-]+)\s*:\s*(.*)$/i,
+      );
+      if (m) {
+        out.push({
+          from: m[1],
+          to: m[2],
+          label: m[3]?.trim() || null,
+          lineIndex: i,
+        });
+      }
+    } else if (type === "classDiagram") {
+      m = t.match(
+        /^([A-Za-z0-9_]+)\s*(?:<\|?[*o]*|\|?[*o]*)\s*(?:-{2,}|\.{2,})\s*(\|?>?[*o]*|\|?[*o]*)\s*([A-Za-z0-9_]+)(?:\s*:\s*(.*))?$/i,
+      );
+      if (m) {
+        out.push({
+          from: m[1],
+          to: m[3],
+          label: m[4]?.trim() || null,
+          lineIndex: i,
+        });
+      }
+    } else if (type === "stateDiagram") {
+      m = t.match(
+        /^([A-Za-z0-9_\-.*\[\]]+)\s*(?:--(?:>|-)\s*|-->)\s*([A-Za-z0-9_\-.*\[\]]+)(?:\s*[:|]\s*(.*))?$/i,
+      );
+      if (m && m[1] !== "[*]" && m[2] !== "[*]") {
+        out.push({
+          from: m[1],
+          to: m[2],
+          label: m[3]?.trim() || null,
+          lineIndex: i,
+        });
+      }
+    } else if (type === "erDiagram") {
+      m = t.match(
+        /^([A-Za-z0-9_]+)\s*(?:\|\||\|\{|[}{o\|]+|\.\.)+\s*(?:--|\.\.)\s*(?:[}{o\|]+|\|\||\.\.)+\s*([A-Za-z0-9_]+)(?:\s*:\s*(.*))?$/i,
+      );
+      if (m) {
+        out.push({
+          from: m[1],
+          to: m[2],
+          label: m[3]?.trim() || null,
+          lineIndex: i,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+const GENERIC_HEADER_SKIP_RE =
+  /^(sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|pie|journey|mindmap|timeline|flowchart|graph|title|accTitle|accDescr|dateFormat|section|direction|linkStyle|style|classDef|subgraph|end)\b/i;
+
+/**
+ * Best-effort scan of element declarations for non-flowchart diagram types so
+ * the custom canvas editor can render and edit every diagram kind. Identifiers
+ * are keyed by the token that appears in the diagram source.
+ */
+export function scanGenericElements(content: string): GenericElement[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const type = detectDiagramType(content);
+  const out: GenericElement[] = [];
+  const seen = new Set<string>();
+
+  const add = (id: string | null, label: string | null, lineIndex: number) => {
+    if (!id) return;
+    const clean = id.replace(/["'`]/g, "").trim();
+    if (!clean || seen.has(clean)) return;
+    seen.add(clean);
+    out.push({ id: clean, label: label || clean, lineIndex });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const t = raw.trim();
+    if (!t || t.startsWith("%%") || t.startsWith("#")) continue;
+    if (GENERIC_HEADER_SKIP_RE.test(t)) continue;
+
+    let id: string | null = null;
+    let label: string | null = null;
+
+    // sequenceDiagram: participant/actor ID [as Label]
+    const part = t.match(
+      /^(?:participant|actor)\s+([A-Za-z0-9_\-]+)(?:\s+as\s+(.+))?$/i,
+    );
+    if (part) {
+      id = part[1];
+      label = (part[2] ?? part[1]).trim();
+      add(id, label, i);
+      continue;
+    }
+
+    // sequenceDiagram: messages imply their participants.
+    if (type === "sequenceDiagram" && /^\s*[A-Za-z0-9_\-]+\s*-[-x)>o{]*\s*[>xo)]+\s*[A-Za-z0-9_\-]+\s*:/i.test(t)) {
+      const m = t.match(
+        /^([A-Za-z0-9_\-]+)\s*[-–—]*-{0,1}\s*[>xo)]+\s*([A-Za-z0-9_\-]+)\s*:/i,
+      );
+      if (m) {
+        add(m[1], m[1], i);
+        add(m[2], m[2], i);
+      }
+      continue;
+    }
+
+    // classDiagram: class NAME
+    const cls = t.match(/^class\s+([A-Za-z0-9_\-]+)/i);
+    if (cls) {
+      add(cls[1], cls[1], i);
+      continue;
+    }
+
+    // classDiagram: relations imply their classes.
+    if (type === "classDiagram") {
+      const rel = t.match(
+        /^([A-Za-z0-9_]+)\s*(?:<\|?[*o]*|\|?[*o]*)\s*(?:-{2,}|\.{2,})\s*(\|?>?[*o]*|\|?[*o]*)\s*([A-Za-z0-9_]+)/i,
+      );
+      if (rel) {
+        add(rel[1], rel[1], i);
+        add(rel[3], rel[3], i);
+        continue;
+      }
+    }
+
+    // stateDiagram: state "Label" as NAME | state NAME
+    const st = t.match(/^state\s+(?:"([^"]+)"\s+as\s+)?([A-Za-z0-9_\-]+)/i);
+    if (st) {
+      add(st[2], st[1] ?? st[2], i);
+      continue;
+    }
+
+    // stateDiagram: transitions imply both states.
+    if (/-->|\s--[a-z]*\s/i.test(t)) {
+      const ids = t.match(
+        /^([A-Za-z0-9_\-.*\[\]]+)\s*(?:--(?:>|-)\s*|-->)\s*([A-Za-z0-9_\-.*\[\]]+)/,
+      );
+      if (ids) {
+        if (ids[1] !== "[*]") add(ids[1], ids[1], i);
+        if (ids[2] !== "[*]") add(ids[2], ids[2], i);
+        continue;
+      }
+    }
+
+    // erDiagram: ENTITY { ... }
+    if (type === "erDiagram") {
+      const er = t.match(/^([A-Z][A-Z0-9_\-]*)\s*\{/);
+      if (er) {
+        add(er[1], er[1], i);
+        continue;
+      }
+      // erDiagram: relations imply their entities.
+      const erRel = t.match(
+        /^([A-Za-z0-9_]+)\s*(?:\|\||\|\{|[}{o\|]+|\.\.)+\s*(?:--|\.\.)\s*(?:[}{o\|]+|\|\||\.\.)+\s*([A-Za-z0-9_]+)/i,
+      );
+      if (erRel) {
+        add(erRel[1], erRel[1], i);
+        add(erRel[2], erRel[2], i);
+        continue;
+      }
+    }
+
+    if (type === "pie") {
+      const pie = t.match(/^"?([^:"']+)"?\s*:/);
+      if (pie) {
+        add(pie[1].trim(), pie[1].trim(), i);
+        continue;
+      }
+    } else if (type === "gantt") {
+      const gt = t.match(/^([A-Za-z0-9_ \-']+?)\s*:\s*([A-Za-z0-9_\-]+)/);
+      if (gt && !/^(done|active|crit|after|milestone)/i.test(gt[2])) {
+        add(gt[1].trim(), gt[1].trim(), i);
+        continue;
+      }
+    } else if (type === "journey") {
+      const jr = t.match(/^([A-Za-z0-9_ \-']+?)\s*:/);
+      if (jr) {
+        add(jr[1].trim(), jr[1].trim(), i);
+        continue;
+      }
+    } else if (type === "timeline") {
+      const tl = t.match(/^[0-9]{4}\s*:\s*(.+)$/);
+      if (tl) {
+        add(tl[1].trim(), tl[1].trim(), i);
+        continue;
+      }
+    } else if (type === "mindmap") {
+      if (raw.trim().length > 0) {
+        add(t, t, i);
+        continue;
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -825,6 +1422,86 @@ export function stripLayoutLine(content: string): string {
     .join("\n");
 }
 
+// ── Generic (non-flowchart) element editing ─────────────────────────────────
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Best-effort declaration templates per diagram type (N = new name). */
+const GENERIC_ADD_TEMPLATES: Partial<Record<DiagramType, string>> = {
+  sequenceDiagram: "participant N",
+  classDiagram: "class N",
+  stateDiagram: "state N",
+  erDiagram: "N { }",
+  mindmap: "  N",
+  gantt: "N : n, 2026-01-01, 1d",
+  pie: '"N" : 1',
+  journey: "  N : 1 : Me",
+  timeline: "2027 : N",
+};
+
+/** Append a new element declaration for a non-flowchart diagram type. */
+export function addGenericElement(
+  content: string,
+  diagramType: DiagramType,
+): string {
+  const tpl = GENERIC_ADD_TEMPLATES[diagramType];
+  if (!tpl) return content;
+  let n = 1;
+  let name = "N" + n;
+  while (content.includes(name)) {
+    n += 1;
+    name = "N" + n;
+  }
+  const line = tpl.replace("N", name);
+  return content.replace(/\r?\n$/, "") + "\n" + line + "\n";
+}
+
+/** Replace the first standalone occurrence of a label/identifier in the source,
+ *  preserving surrounding quotes when the token is quoted. */
+export function renameTextToken(
+  content: string,
+  from: string,
+  to: string,
+): string {
+  if (!from || from === to) return content;
+  const idx = content.indexOf(from);
+  if (idx < 0) return content;
+  const before = idx > 0 ? content[idx - 1] : "";
+  const after =
+    idx + from.length < content.length ? content[idx + from.length] : "";
+  const insideQuotes =
+    (before === '"' && after === '"') || (before === "'" && after === "'");
+  if (insideQuotes) {
+    return content.slice(0, idx) + to + content.slice(idx + from.length);
+  }
+  return content.replace(new RegExp(`\\b${escapeRegExp(from)}\\b`), to);
+}
+
+const DIAGRAM_HEADER_RE =
+  /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|gantt|pie|journey|mindmap|timeline)\b/i;
+
+/** Remove the first non-header line that mentions a label/identifier. */
+export function deleteTextTokenLine(content: string, token: string): string {
+  if (!token) return content;
+  const re = new RegExp(`\\b${escapeRegExp(token)}\\b`);
+  const lines = content.split(/\r?\n/);
+  let target = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith("%%") || trimmed.startsWith("#")) continue;
+    if (DIAGRAM_HEADER_RE.test(trimmed)) continue;
+    if (re.test(trimmed)) {
+      target = i;
+      break;
+    }
+  }
+  if (target < 0) return content;
+  lines.splice(target, 1);
+  return lines.join("\n");
+}
+
 // ── Templates / diagram types ────────────────────────────────────────────────
 
 export type DiagramType =
@@ -1004,16 +1681,22 @@ export function autoArrange(
 
   const padX = 24;
   const padY = 24;
+  const perRow = 6;
   sortedLayers.forEach(([, ids], layerIdx) => {
     const count = ids.length;
     ids.forEach((id, i) => {
       if (vertical) {
-        const x = padX + (count > 1 ? i * (width + 160) : 0);
-        const y = padY + layerIdx * height;
+        const row = Math.floor(i / perRow);
+        const x =
+          padX +
+          (count > 1 ? (i % perRow) * (width + 160) : 0);
+        const y = padY + layerIdx * height + row * height;
         positions[id] = [Math.round(x), Math.round(y)];
       } else {
-        const x = padX + layerIdx * width;
-        const y = padY + (count > 1 ? i * (height + 110) : 0);
+        const row = Math.floor(i / perRow);
+        const x = padX + layerIdx * width + row * width;
+        const y =
+          padY + (count > 1 ? (i % perRow) * (height + 110) : 0);
         positions[id] = [Math.round(x), Math.round(y)];
       }
     });

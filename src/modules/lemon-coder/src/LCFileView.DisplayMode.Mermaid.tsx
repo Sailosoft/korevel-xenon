@@ -35,18 +35,18 @@ import {
   X,
   Check,
   GitBranch,
+  Trash2,
 } from "lucide-react";
 import { lcDB } from "./LCDatabase";
 import { MermaidRenderer } from "@/src/modules/render";
 import LCCodeMonacoEditor from "./LCCodeMonacoEditor";
-import MermaidVisualEditor, {
-  type VisualSelection,
-} from "./LCFileView.DisplayMode.Mermaid.Visual";
 import LayoutCanvas, {
   type LayoutSelection,
   NODE_W,
   NODE_H,
 } from "./LCFileView.DisplayMode.Mermaid.Layout";
+import MermaidNonFlowchartEditor from "./LCFileView.DisplayMode.Mermaid.NonFlowchart";
+import MermaidVisualCanvas from "./LCFileView.DisplayMode.Mermaid.VisualCanvas";
 import {
   parseFlowDoc,
   stripLayoutLine,
@@ -66,6 +66,12 @@ import {
   type DiagramType,
   type FlowEdgeInfo,
   type MutationResult,
+  type ShapeKind,
+  addGenericElement,
+  renameTextToken,
+  deleteTextTokenLine,
+  updateJourneyTask,
+  updateGanttTask,
 } from "./LCFileView.DisplayMode.Mermaid.Flow";
 
 // ── Dynamically imported editors (SSR-safe) ─────────────────────────────────
@@ -98,11 +104,32 @@ export interface LCFileViewDisplayModeMermaidProps {
 type EditPane = "text" | "split" | "visual" | "layout";
 type Mode = "view" | "edit";
 
-type AnySelection = VisualSelection | LayoutSelection;
+type AnySelection = LayoutSelection;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_HISTORY = 50;
+
+/** Find a top-left spot that does not overlap existing node boxes. */
+function nextFreeSpot(
+  positions: Record<string, [number, number]>,
+  w: number,
+  h: number,
+): [number, number] {
+  const used = Object.values(positions);
+  const step = 40;
+  for (let gy = 0; gy < 2400; gy += step) {
+    for (let gx = 0; gx < 2400; gx += step) {
+      const x = 24 + gx;
+      const y = 24 + gy;
+      const overlaps = used.some(
+        ([px, py]) => Math.abs(px - x) < w && Math.abs(py - y) < h,
+      );
+      if (!overlaps) return [x, y];
+    }
+  }
+  return [24, 24];
+}
 
 const PANE_BUTTONS: ReadonlyArray<{
   key: EditPane;
@@ -160,6 +187,11 @@ export default function LCFileViewDisplayModeMermaid({
   const [editPane, setEditPane] = useState<EditPane>("split");
   const [selection, setSelection] = useState<AnySelection | null>(null);
   const [confirmType, setConfirmType] = useState<DiagramType | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<
+    | { type: "node"; key: string; label?: string }
+    | { type: "edge"; edge: FlowEdgeInfo }
+    | null
+  >(null);
 
   // Apply persisted last mode on mount, mirroring the render-time reset
   // pattern used by RenderView.Mermaid (avoids effect-triggered setState).
@@ -283,6 +315,28 @@ export default function LCFileViewDisplayModeMermaid({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo]);
 
+  // Ctrl/Cmd+S saves; Escape closes the delete confirmation.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (textRef.current !== lastEmittedRef.current) {
+          emit(textRef.current);
+        } else {
+          onSave();
+          setLastSavedAt(new Date());
+        }
+        return;
+      }
+      if (e.key === "Escape" && confirmDelete !== null) {
+        setConfirmDelete(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [emit, onSave, confirmDelete]);
+
   // ── Text editor wiring (Text / Split panes) ───────────────────────────
 
   const handleTextChange = useCallback(
@@ -327,24 +381,59 @@ export default function LCFileViewDisplayModeMermaid({
 
   const handleRenameNode = useCallback(
     (id: string, label: string) => {
-      applyMutation(setNodeLabel(doc, id, label));
+      if (isFlowchart) {
+        applyMutation(setNodeLabel(doc, id, label));
+      } else {
+        applyMutation({
+          doc,
+          content: renameTextToken(text, id, label),
+          removedNodes: [],
+        });
+      }
     },
-    [doc, applyMutation],
+    [isFlowchart, doc, text, applyMutation],
   );
 
   const handleDeleteNode = useCallback(
     (id: string) => {
-      const result = deleteNode(doc, id);
-      // ";;" noise guard is unnecessary — deleteNode returns a clean doc.
-      applyMutation(result);
+      setConfirmDelete({
+        type: "node",
+        key: id,
+        label: doc.nodes.get(id)?.label,
+      });
     },
-    [doc, applyMutation],
+    [doc],
   );
 
-  const handleAddNode = useCallback(() => {
-    const id = nextNodeId(doc);
-    applyMutation(flowAddNode(doc, id, "New node"));
-  }, [doc, applyMutation]);
+  const handleDeleteEdge = useCallback((edge: FlowEdgeInfo) => {
+    setConfirmDelete({ type: "edge", edge });
+  }, []);
+
+  const confirmDeleteAction = useCallback(() => {
+    if (!confirmDelete) return;
+    if (confirmDelete.type === "node") {
+      if (isFlowchart) {
+        applyMutation(deleteNode(doc, confirmDelete.key));
+      } else {
+        applyMutation({
+          doc,
+          content: deleteTextTokenLine(text, confirmDelete.key),
+          removedNodes: [],
+        });
+      }
+    } else if (isFlowchart) {
+      applyMutation(flowDeleteEdge(doc, confirmDelete.edge));
+    } else {
+      // Generic (non-flowchart) connection: remove the line it belongs to.
+      const target = confirmDelete.edge.label ?? confirmDelete.edge.from;
+      applyMutation({
+        doc,
+        content: deleteTextTokenLine(text, target),
+        removedNodes: [],
+      });
+    }
+    setConfirmDelete(null);
+  }, [confirmDelete, doc, isFlowchart, text, applyMutation]);
 
   const handleAddEdge = useCallback(
     (from: string, to: string) => {
@@ -353,18 +442,41 @@ export default function LCFileViewDisplayModeMermaid({
     [doc, applyMutation],
   );
 
-  const handleDeleteEdge = useCallback(
-    (edge: FlowEdgeInfo) => {
-      applyMutation(flowDeleteEdge(doc, edge));
+  const handleUpdateJourneyTask = useCallback(
+    (name: string, score: number, toIndex: number) => {
+      const content = updateJourneyTask(text, name, score, toIndex);
+      if (content !== text) {
+        applyMutation({ doc, content, removedNodes: [] });
+      }
     },
-    [doc, applyMutation],
+    [text, doc, applyMutation],
+  );
+
+  const handleUpdateGanttTask = useCallback(
+    (name: string, startIso: string, days: number) => {
+      const content = updateGanttTask(text, name, startIso, days);
+      if (content !== text) {
+        applyMutation({ doc, content, removedNodes: [] });
+      }
+    },
+    [text, doc, applyMutation],
   );
 
   const handleSetEdgeLabel = useCallback(
     (edge: FlowEdgeInfo, label: string) => {
+      if (!isFlowchart) {
+        if (edge.label && label !== edge.label) {
+          applyMutation({
+            doc,
+            content: renameTextToken(text, edge.label, label),
+            removedNodes: [],
+          });
+        }
+        return;
+      }
       applyMutation(flowSetEdgeLabel(doc, edge, label));
     },
-    [doc, applyMutation],
+    [isFlowchart, doc, text, applyMutation],
   );
 
   const handlePositionsChange = useCallback(
@@ -379,6 +491,34 @@ export default function LCFileViewDisplayModeMermaid({
     if (hasLayout && doc.layout) return doc.layout.positions;
     return autoArrange(doc, NODE_W + 120, NODE_H + 110);
   }, [doc, hasLayout]);
+
+  const handleAddNode = useCallback(
+    (shape: ShapeKind = "rect") => {
+      if (!isFlowchart) {
+        const content = addGenericElement(text, diagramType);
+        if (content !== text) {
+          applyMutation({ doc, content, removedNodes: [] });
+          const added = nextNodeId(doc);
+          if (content.includes(added)) setSelection({ type: "node", key: added });
+        }
+        return;
+      }
+      const id = nextNodeId(doc);
+      const addResult = flowAddNode(doc, id, "New node", shape);
+      // With a custom layout, place the new node at a free spot and commit its
+      // position in the same undo step so it is visible right away.
+      const hasPositions = Object.keys(canvasPositions).length > 0;
+      const result = hasPositions
+        ? setPositions(addResult.doc, {
+            ...canvasPositions,
+            [id]: nextFreeSpot(canvasPositions, NODE_W + 40, NODE_H + 40),
+          })
+        : addResult;
+      applyMutation(result);
+      setSelection({ type: "node", key: id });
+    },
+    [isFlowchart, doc, text, diagramType, canvasPositions, applyMutation],
+  );
 
   const handleSelect = useCallback((sel: AnySelection | null) => {
     setSelection(sel);
@@ -462,11 +602,10 @@ export default function LCFileViewDisplayModeMermaid({
       );
     }
 
-    // Visual / Layout are flowchart-only; fall back to split otherwise.
+    // Visual works for every diagram; Layout renders the custom flowchart
+    // canvas, so it falls back to Visual for non-flowchart diagrams.
     const pane: EditPane =
-      (editPane === "visual" || editPane === "layout") && !isFlowchart
-        ? "split"
-        : editPane;
+      (editPane === "layout") && !isFlowchart ? "visual" : editPane;
 
     switch (pane) {
       case "text":
@@ -474,25 +613,70 @@ export default function LCFileViewDisplayModeMermaid({
       case "split":
         return (
           <div className="flex-1 min-h-0 flex flex-row">
-            <div className="w-1/2 min-w-0 border-r border-[#333333]">
+            <div className="w-1/2 min-w-0 border-r border-[#333333] flex flex-col">
               {renderTextEditor(true)}
             </div>
             <div className="flex-1 min-w-0">{renderPreview()}</div>
           </div>
         );
       case "visual":
+        // Flowcharts use the flowchart canvas editor; non-flowchart diagrams
+        // use their own element-list-driven editor mechanism.
+        if (!isFlowchart) {
+          return (
+            <MermaidNonFlowchartEditor
+              diagramType={diagramType}
+              doc={doc}
+              selection={selection as LayoutSelection | null}
+              onSelect={handleSelect}
+              onRenameNode={handleRenameNode}
+              onDeleteNode={handleDeleteNode}
+              onAddNode={handleAddNode}
+              onRequestDeleteSelection={() => {
+                if (selection?.type === "node") {
+                  handleDeleteNode(selection.key);
+                } else if (selection?.type === "edge") {
+                  const edge = doc.edges.find((k) => edgeKey(k) === selection.key);
+                  if (edge) handleDeleteEdge(edge);
+                }
+              }}
+              onRequestEditEdge={(edge, label) => {
+                if (label !== (edge.label ?? "")) {
+                  handleSetEdgeLabel(edge, label);
+                }
+              }}
+              onUpdateJourney={handleUpdateJourneyTask}
+              onUpdateGantt={handleUpdateGanttTask}
+            />
+          );
+        }
+        // Flowchart visual editor: automatic positions, no layout editing.
         return (
-          <MermaidVisualEditor
-            content={stripLayoutLine(text)}
+          <MermaidVisualCanvas
             doc={doc}
-            selection={selection as VisualSelection | null}
+            positions={canvasPositions}
+            selection={selection as LayoutSelection | null}
             onSelect={handleSelect}
-            onRenameNode={handleRenameNode}
-            onDeleteNode={handleDeleteNode}
-            onAddNode={handleAddNode}
-            onAddEdge={handleAddEdge}
-            onDeleteEdge={handleDeleteEdge}
-            onSetEdgeLabel={handleSetEdgeLabel}
+            onRequestAddEdge={handleAddEdge}
+            onRequestAddNode={handleAddNode}
+            onRequestEditEdge={(edge, label) => {
+              if (label !== (edge.label ?? "")) {
+                handleSetEdgeLabel(edge, label);
+              }
+            }}
+            onRequestEditNode={(id, label) => {
+              if (label !== doc.nodes.get(id)?.label) {
+                handleRenameNode(id, label);
+              }
+            }}
+            onRequestDeleteSelection={() => {
+              if (selection?.type === "node") {
+                handleDeleteNode(selection.key);
+              } else if (selection?.type === "edge") {
+                const edge = doc.edges.find((k) => edgeKey(k) === selection.key);
+                if (edge) handleDeleteEdge(edge);
+              }
+            }}
           />
         );
       case "layout":
@@ -505,6 +689,7 @@ export default function LCFileViewDisplayModeMermaid({
             onSelect={handleSelect}
             onPositionsChange={handlePositionsChange}
             onRequestAddEdge={handleAddEdge}
+            onRequestAddNode={handleAddNode}
             onRequestEditEdge={(edge, label) => {
               if (label !== (edge.label ?? "")) {
                 handleSetEdgeLabel(edge, label);
@@ -535,7 +720,7 @@ export default function LCFileViewDisplayModeMermaid({
       ? "Edits are saved to the file automatically"
       : doc.isFlowchart
         ? "Ctrl+Z undo · Ctrl+Shift+Z redo · Escape cancels inline edits"
-        : "Text and split only — visual editing supports flowcharts";
+        : "Visual: element list + canvas · rename/add/delete from the list";
 
   return (
     <div className="relative flex flex-col flex-1 min-h-0 bg-[#1e1e1e]">
@@ -588,7 +773,7 @@ export default function LCFileViewDisplayModeMermaid({
             <div className="flex items-center gap-1">
               {PANE_BUTTONS.map((p) => {
                 const Icon = p.icon;
-                const disabled = (p.key === "visual" || p.key === "layout") && !isFlowchart;
+                const disabled = p.key === "layout" && !isFlowchart;
                 const active = editPane === p.key;
                 return (
                   <button
@@ -598,7 +783,7 @@ export default function LCFileViewDisplayModeMermaid({
                       setEditPane(p.key);
                     }}
                     disabled={disabled}
-                    title={disabled ? "Visual editing supports flowcharts only" : p.title}
+                    title={disabled ? "Layout works with flowcharts only" : p.title}
                     className={`flex items-center gap-1 text-xs h-6 px-2 rounded transition-colors ${
                       active
                         ? "bg-[#e5c07b] text-[#1e1e1e]"
@@ -669,6 +854,33 @@ export default function LCFileViewDisplayModeMermaid({
             </button>
             <button
               onClick={() => setConfirmType(null)}
+              className="flex items-center gap-1.5 text-xs h-7 px-3 rounded border border-[#444444] text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm-delete popover */}
+      {confirmDelete !== null && (
+        <div className="absolute top-12 right-4 z-50 min-w-[280px] bg-[#2d2d2d] border border-[#444444] rounded-md shadow-xl p-3">
+          <p className="text-xs text-[#d4d4d4] mb-2">
+            {confirmDelete.type === "node"
+              ? `Delete node "${confirmDelete.label ?? confirmDelete.key}" and all its connections?`
+              : `Delete the connection between "${confirmDelete.edge.from}" and "${confirmDelete.edge.to}"?`}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={confirmDeleteAction}
+              className="flex items-center gap-1.5 text-xs h-7 px-3 rounded bg-[#e06c75] text-white font-medium hover:bg-[#c94c56] transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete
+            </button>
+            <button
+              onClick={() => setConfirmDelete(null)}
               className="flex items-center gap-1.5 text-xs h-7 px-3 rounded border border-[#444444] text-[#858585] hover:text-white hover:bg-[#333333] transition-colors"
             >
               <X className="w-3 h-3" />

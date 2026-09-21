@@ -17,7 +17,8 @@ import { buiDatabase } from "../../database/bui.database";
 import { adminPanelQueryResponseAll } from "../../../../admin-panel/features/query/admin-panel-query.util";
 import { buiAuthorSkillGetAll } from "./bui.author-skills.util";
 import React from "react";
-import { CircleFadingArrowUp } from "lucide-react";
+import { CircleFadingArrowUp, Sparkles } from "lucide-react";
+import { createBunnyHelixAction } from "@/src/modules/bunny-helix";
 import { buiAuthorSkillServerEnhanceWithParams } from "./bui.author-skills.server.enhance";
 import { buiContainer } from "../../container/bui.container";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
@@ -70,7 +71,78 @@ export const buiAuthorSkillModule: BunnyConfig<BUIAuthorSkill, BUIAuthorSkill> =
       ],
     },
     defaultHeaderActions: true,
-    headerActions: [],
+    headerActions: [
+      // ── "AI Create" header action (bunny-helix) ──────────────────────────
+      // Opens a modal; the AI generates the name + description from a brief
+      // and prefills the create form. Provider/model comes from the persisted
+      // AI settings, resolved fresh at submit time. Tone styles mirror the
+      // "Enhance Skill With AI" modal-header action.
+      createBunnyHelixAction<BUIAuthorSkill, BUIAuthorSkill>({
+        id: "ai-create",
+        label: "AI Create",
+        icon: React.createElement(Sparkles, { className: "size-4" }),
+        variant: "accent",
+        ai: async () => {
+          const settingsRepo = new BUISettingsRepository();
+          const aiConfig = await settingsRepo.getActiveAIConfig();
+          return aiConfig.provider && aiConfig.model ? aiConfig : undefined;
+        },
+        inputFields: [
+          {
+            name: "brief",
+            label: "Describe the skill",
+            type: "textarea",
+            required: true,
+            rows: 4,
+          },
+        ],
+        modes: {
+          label: "AI Tone Style",
+          field: "mode",
+          modes: [
+            {
+              label: "Professional",
+              mode: "professional",
+              default: true,
+              prompt:
+                "Write the skill name and description in a professional, formal tone.",
+            },
+            {
+              label: "Creative",
+              mode: "creative",
+              prompt:
+                "Write the skill name and description with a creative, imaginative tone.",
+            },
+            {
+              label: "Short Blurb",
+              mode: "short",
+              prompt:
+                "Keep the description concise — a short, punchy blurb.",
+            },
+            {
+              label: "Detailed Breakdown",
+              mode: "detailed",
+              prompt:
+                "Provide a detailed, comprehensive breakdown of the skill.",
+            },
+          ],
+        },
+        targets: [
+          {
+            field: "name",
+            prompt: "A short, specific name for the author skill (max ~60 chars).",
+          },
+          {
+            field: "description",
+            prompt:
+              "A compelling, accurate description of what the skill does, what it produces, and when an author should use it.",
+          },
+        ],
+        onCreate: "prefill",
+        modalTitle: "AI Create Author Skill",
+        submitLabel: "Generate",
+      }),
+    ],
     defaultRowActions: true,
     modalHeaderActions: [
       {

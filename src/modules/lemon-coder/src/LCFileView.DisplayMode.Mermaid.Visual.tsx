@@ -16,7 +16,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Info } from "lucide-react";
+import { Plus, Trash2, Info, Pencil } from "lucide-react";
 import { MermaidRenderer } from "@/src/modules/render";
 import {
   type FlowDocument,
@@ -85,6 +85,10 @@ export default function MermaidVisualEditor({
   } | null>(null);
   const [edgeEditing, setEdgeEditing] = useState<FlowEdgeInfo | null>(null);
   const [edgeLabelDraft, setEdgeLabelDraft] = useState("");
+  const [toolbarRename, setToolbarRename] = useState<{
+    key: string;
+    draft: string;
+  } | null>(null);
 
   // ── Refresh hit regions from the injected SVG ────────────────────────
 
@@ -96,14 +100,10 @@ export default function MermaidVisualEditor({
       setAvailable(false);
       return;
     }
-    const nodeEls = svg.querySelectorAll<Element>(
-      "g.node[data-id], g.flowchart-node[data-id]",
-    );
     const wrapRect = wrap.getBoundingClientRect();
     const hits: NodeHit[] = [];
-    nodeEls.forEach((el) => {
-      const id = el.getAttribute("data-id");
-      if (!id) return;
+
+    const pushHit = (el: Element, id: string) => {
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) return;
       hits.push({
@@ -113,10 +113,59 @@ export default function MermaidVisualEditor({
         width: r.width,
         height: r.height,
       });
-    });
+    };
+
+    // Primary contract: some mermaid builds mark node groups with a data-id.
+    svg
+      .querySelectorAll<Element>("g.node[data-id], g.flowchart-node[data-id]")
+      .forEach((el) => {
+        const id = el.getAttribute("data-id");
+        if (id) pushHit(el, id);
+      });
+
+    // Fallback for mermaid v11 flowcharts: node groups expose the node id only
+    // through their dom id (`flowchart-<id>-<counter>`) with no data-id attr.
+    if (hits.length === 0 && doc.nodesOrdered.length > 0) {
+      const groups = Array.from(
+        svg.querySelectorAll<Element>("g.node, g.flowchart-node"),
+      );
+      const escId = (id: string) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      for (const id of doc.nodesOrdered) {
+        const re = new RegExp(`^flowchart-${escId(id)}-\\d+$`);
+        const el = groups.find(
+          (g) =>
+            g.getAttribute("data-id") === id ||
+            g.id === id ||
+            re.test(g.id),
+        );
+        if (el) pushHit(el, id);
+      }
+    }
+
+    // Generic fallback for any diagram type: make <text> labels selectable so
+    // labels can be renamed/edited regardless of the diagram kind.
+    if (hits.length === 0) {
+      const textEls = svg.querySelectorAll<Element>("text");
+      const seen = new Set<string>();
+      textEls.forEach((el) => {
+        const label = (el.textContent ?? "").trim();
+        if (!label || label.length > 60 || seen.has(label)) return;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) return;
+        seen.add(label);
+        hits.push({
+          id: label,
+          left: r.left - wrapRect.left,
+          top: r.top - wrapRect.top,
+          width: Math.max(r.width, 20),
+          height: Math.max(r.height, 14),
+        });
+      });
+    }
+
     setAvailable(hits.length > 0);
     setNodeHits(hits);
-  }, []);
+  }, [doc]);
 
   // Watch the wrapper subtree for SVG injection / pan / zoom / re-render.
   useEffect(() => {
@@ -221,6 +270,48 @@ export default function MermaidVisualEditor({
 
   // ── Node interactions ─────────────────────────────────────────────────
 
+  const openNodeRename = useCallback(
+    (hit: NodeHit) => {
+      setToolbarRename(null);
+      setLabelDraft(doc.nodes.get(hit.id)?.label ?? hit.id);
+      setEditingLabel(hit);
+    },
+    [doc],
+  );
+
+  const nodeOptions = useMemo(
+    () =>
+      doc.isFlowchart
+        ? doc.nodesOrdered.map((id) => ({
+            value: id,
+            label: doc.nodes.get(id)?.label ?? id,
+          }))
+        : nodeHits.map((h) => ({ value: h.id, label: h.id })),
+    [doc, nodeHits],
+  );
+
+  const nodeLabelFor = useCallback(
+    (key: string) => doc.nodes.get(key)?.label ?? key,
+    [doc],
+  );
+
+  const startToolbarRename = useCallback(() => {
+    if (selection?.type !== "node") return;
+    const hit = nodeHits.find((h) => h.id === selection.key) ?? null;
+    if (hit) {
+      openNodeRename(hit);
+      return;
+    }
+    setToolbarRename({ key: selection.key, draft: nodeLabelFor(selection.key) });
+  }, [selection, nodeHits, nodeLabelFor, openNodeRename]);
+
+  const commitToolbarRename = useCallback(() => {
+    if (!toolbarRename) return;
+    const next = toolbarRename.draft.trim();
+    setToolbarRename(null);
+    if (next) onRenameNode(toolbarRename.key, next);
+  }, [toolbarRename, onRenameNode]);
+
   const handleNodePointerDown = useCallback(
     (e: React.PointerEvent, id: string) => {
       e.stopPropagation();
@@ -232,11 +323,9 @@ export default function MermaidVisualEditor({
   const handleNodeDoubleClick = useCallback(
     (e: React.MouseEvent, hit: NodeHit) => {
       e.stopPropagation();
-      const info = doc.nodes.get(hit.id);
-      setLabelDraft(info?.label ?? hit.id);
-      setEditingLabel(hit);
+      openNodeRename(hit);
     },
-    [doc],
+    [openNodeRename],
   );
 
   const commitLabel = useCallback(() => {
@@ -358,7 +447,15 @@ export default function MermaidVisualEditor({
   const overlayVisible = available !== false;
 
   return (
-    <div className="relative flex-1 min-h-0 overflow-auto bg-[#1e1e1e]">
+    <div
+      className="relative flex-1 min-h-0 overflow-auto bg-[#1e1e1e]"
+      style={{
+        backgroundColor: "#1e1e1e",
+        backgroundImage:
+          "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+      }}
+    >
       <div ref={wrapRef} className="relative min-h-full p-3">
         {/* MermaidRenderer handles pan/zoom + error UI */}
         <div data-edit-skip className="relative pointer-events-none">
@@ -397,7 +494,7 @@ export default function MermaidVisualEditor({
                   transition: "box-shadow 0.12s, background 0.12s",
                 }}
               >
-                {selected && (
+                {selected && doc.isFlowchart && (
                   <div
                     onPointerDown={(e) => beginConnect(e, h.id)}
                     title="Drag to another node to create an edge"
@@ -477,50 +574,171 @@ export default function MermaidVisualEditor({
             <circle cx={connect.x} cy={connect.y} r={4} fill="#e5c07b" />
           </svg>
         )}
+
+        {/* Node label inline editor */}
+        {editingLabel && (
+          <div
+            className="absolute z-40"
+            style={{
+              left: editingLabel.left,
+              top: editingLabel.top,
+              width: editingLabel.width,
+              height: editingLabel.height,
+            }}
+          >
+            <input
+              autoFocus
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitLabel();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setEditingLabel(null);
+                }
+              }}
+              onBlur={commitLabel}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="w-full h-full bg-[#1e1e1e] border border-[#e5c07b] text-[#d4d4d4] text-center text-xs outline-none rounded"
+              spellCheck={false}
+              style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
+            />
+          </div>
+        )}
+
+        {/* Edge label editor */}
+        {edgeEditing && edgeLabelMidpoint && (
+          <div
+            className="absolute z-40 bg-[#1a1a1a] border border-[#e5c07b] rounded-md shadow-lg p-1 flex items-center gap-1"
+            style={{ left: edgeLabelMidpoint.left, top: edgeLabelMidpoint.top }}
+          >
+            <input
+              autoFocus
+              value={edgeLabelDraft}
+              onChange={(e) => setEdgeLabelDraft(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitEdgeLabel();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setEdgeEditing(null);
+                }
+              }}
+              onBlur={commitEdgeLabel}
+              className="w-36 bg-transparent text-[#d4d4d4] text-xs outline-none px-1"
+              placeholder="Edge label"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              onClick={commitEdgeLabel}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-[#333333] text-[#e5c07b] hover:bg-[#444444]"
+            >
+              OK
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Toolbar over the preview */}
-      <div className="absolute top-2 right-2 z-30 flex items-center gap-1 bg-[#252526] border border-[#444444] rounded-md p-1">
-        <button
-          type="button"
-          onClick={onAddNode}
-          className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-white hover:bg-[#333333]"
-          title="Add a new node"
-        >
-          <Plus className="w-3 h-3" />
-          <span className="hidden sm:inline">Node</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (selection?.type === "node") onDeleteNode(selection.key);
-            else if (selection?.type === "edge") {
-              const edge = doc.edges.find((e) => edgeKey(e) === selection.key);
-              if (edge) onDeleteEdge(edge);
+      {/* Toolbar over the preview (bottom-right, clear of the mermaid zoom controls) */}
+      <div className="absolute top-2 left-2 z-30 flex items-center gap-1 bg-[#252526] border border-[#444444] rounded-md p-1">
+        {toolbarRename ? (
+          <input
+            autoFocus
+            value={toolbarRename.draft}
+            onChange={(e) =>
+              setToolbarRename({ ...toolbarRename, draft: e.target.value })
             }
-          }}
-          disabled={!selection}
-          className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e06c75] hover:bg-[#333333] disabled:opacity-40 disabled:hover:text-[#858585] disabled:hover:bg-transparent"
-          title="Delete selected node/edge"
-        >
-          <Trash2 className="w-3 h-3" />
-          <span className="hidden sm:inline">Delete</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (selectedEdge) {
-              setEdgeEditing(selectedEdge);
-              setEdgeLabelDraft(selectedEdge.label ?? "");
-            }
-          }}
-          disabled={!selectedEdge}
-          className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#333333] disabled:opacity-40 disabled:hover:text-[#858585] disabled:hover:bg-transparent"
-          title="Edit selected edge label"
-        >
-          <Info className="w-3 h-3" />
-          <span className="hidden sm:inline">Edge Label</span>
-        </button>
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitToolbarRename();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setToolbarRename(null);
+              }
+            }}
+            onBlur={commitToolbarRename}
+            className="w-36 h-6 bg-[#1e1e1e] border border-[#e5c07b] text-[#d4d4d4] text-xs outline-none px-1.5 rounded"
+            placeholder="New label"
+            spellCheck={false}
+          />
+        ) : (
+          <>
+            <select
+              value={selection?.type === "node" ? selection.key : ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) onSelect({ type: "node", key: v });
+              }}
+              title="Select a node to rename or delete"
+              className="text-[11px] h-6 px-1.5 rounded border border-[#444444] bg-[#2d2d2d] text-[#d4d4d4] outline-none hover:border-[#e5c07b]/50 transition-colors"
+            >
+              <option value="">Node…</option>
+              {nodeOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={onAddNode}
+              className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-white hover:bg-[#333333]"
+              title="Add a new node"
+            >
+              <Plus className="w-3 h-3" />
+              <span className="hidden sm:inline">Node</span>
+            </button>
+            <button
+              type="button"
+              onClick={startToolbarRename}
+              disabled={selection?.type !== "node"}
+              className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#333333] disabled:opacity-40 disabled:hover:text-[#858585] disabled:hover:bg-transparent"
+              title="Rename selected node"
+            >
+              <Pencil className="w-3 h-3" />
+              <span className="hidden sm:inline">Rename</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selection?.type === "node") onDeleteNode(selection.key);
+                else if (selection?.type === "edge") {
+                  const edge = doc.edges.find((e) => edgeKey(e) === selection.key);
+                  if (edge) onDeleteEdge(edge);
+                }
+              }}
+              disabled={!selection}
+              className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e06c75] hover:bg-[#333333] disabled:opacity-40 disabled:hover:text-[#858585] disabled:hover:bg-transparent"
+              title="Delete selected node/edge"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedEdge) {
+                  setEdgeEditing(selectedEdge);
+                  setEdgeLabelDraft(selectedEdge.label ?? "");
+                }
+              }}
+              disabled={!selectedEdge}
+              className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#333333] disabled:opacity-40 disabled:hover:text-[#858585] disabled:hover:bg-transparent"
+              title="Edit selected edge label"
+            >
+              <Info className="w-3 h-3" />
+              <span className="hidden sm:inline">Edge Label</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Not-available note */}
@@ -530,75 +748,6 @@ export default function MermaidVisualEditor({
             <Info className="w-3.5 h-3.5" />
             Visual overlay is unavailable for this diagram — use Text or Split mode.
           </div>
-        </div>
-      )}
-
-      {/* Node label inline editor */}
-      {editingLabel && (
-        <div
-          className="absolute z-40"
-          style={{
-            left: editingLabel.left,
-            top: editingLabel.top,
-            width: editingLabel.width,
-            height: editingLabel.height,
-          }}
-        >
-          <input
-            autoFocus
-            value={labelDraft}
-            onChange={(e) => setLabelDraft(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commitLabel();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setEditingLabel(null);
-              }
-            }}
-            onBlur={commitLabel}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="w-full h-full bg-[#1e1e1e] border border-[#e5c07b] text-[#d4d4d4] text-center text-xs outline-none rounded"
-            spellCheck={false}
-            style={{ fontFamily: '"JetBrains Mono", "Fira Code", monospace' }}
-          />
-        </div>
-      )}
-
-      {/* Edge label editor */}
-      {edgeEditing && edgeLabelMidpoint && (
-        <div
-          className="absolute z-40 bg-[#1a1a1a] border border-[#e5c07b] rounded-md shadow-lg p-1 flex items-center gap-1"
-          style={{ left: edgeLabelMidpoint.left, top: edgeLabelMidpoint.top }}
-        >
-          <input
-            autoFocus
-            value={edgeLabelDraft}
-            onChange={(e) => setEdgeLabelDraft(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commitEdgeLabel();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setEdgeEditing(null);
-              }
-            }}
-            onBlur={commitEdgeLabel}
-            className="w-36 bg-transparent text-[#d4d4d4] text-xs outline-none px-1"
-            placeholder="Edge label"
-            spellCheck={false}
-          />
-          <button
-            type="button"
-            onClick={commitEdgeLabel}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-[#333333] text-[#e5c07b] hover:bg-[#444444]"
-          >
-            OK
-          </button>
         </div>
       )}
     </div>
