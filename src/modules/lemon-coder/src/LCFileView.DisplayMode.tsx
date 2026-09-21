@@ -17,6 +17,7 @@ import type { LCFileTreeItem } from "./LCInterface";
 import type { Components } from "react-markdown";
 import LCCodeMonacoEditor from "./LCCodeMonacoEditor";
 import LCFileViewDisplayModeCsv from "./LCFileView.DisplayMode.Csv";
+import LCFileViewDisplayModeMermaid from "./LCFileView.DisplayMode.Mermaid";
 
 // ── Dynamically import editors to avoid SSR issues ─────────────────────────
 
@@ -361,8 +362,16 @@ export default function LCFileViewDisplayMode({
             onSave={onSave}
             fileName={selectedFile.name}
           />
+        ) : isMermaidFile(selectedFile.name) ? (
+          /* ── Mermaid editor (View | Edit toggle, Text/Split/Visual/Layout) ─ */
+          <LCFileViewDisplayModeMermaid
+            content={content}
+            onContentChange={onContentChange}
+            onSave={onSave}
+            fileName={selectedFile.name}
+          />
         ) : (
-          /* ── Render Module Preview (markdown, mermaid, mindmap, html) ─── */
+          /* ── Render Module Preview (markdown, mindmap, html) ─────────── */
           <RenderView
             format={getRenderFormat(selectedFile.name)}
             content={content}
