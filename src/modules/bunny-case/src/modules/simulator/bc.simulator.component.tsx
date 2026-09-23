@@ -77,7 +77,7 @@ function SpeakButton({
   role,
   text,
 }: {
-  role: "customer" | "agent";
+  role: "actor1" | "actor2";
   text: string;
 }) {
   const { ttsSupported, speakRoleText } = useBCVoice();
@@ -89,7 +89,7 @@ function SpeakButton({
         speakRoleText(role, text);
       }}
       className={`p-1.5 rounded-lg transition-colors ${
-        role === "customer"
+        role === "actor1"
           ? "text-rose-400 hover:text-rose-600 hover:bg-rose-50"
           : "text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50"
       }`}
@@ -132,7 +132,7 @@ function TurnBubble({
           <span className="text-[10px] text-slate-400">Turn {index + 1}</span>
           <SentimentBadge sentiment={turn.sentiment} />
           <SpeakButton
-            role={isPersona ? "customer" : "agent"}
+            role={isPersona ? "actor1" : "actor2"}
             text={turn.external}
           />
         </div>
@@ -153,7 +153,7 @@ function TurnBubble({
         onClick={(e) => {
           e.stopPropagation();
           speakRoleText(
-            isPersona ? "customer" : "agent",
+            isPersona ? "actor1" : "actor2",
             turn.external,
           );
         }}
@@ -162,7 +162,7 @@ function TurnBubble({
             ? "text-rose-500 border-rose-200 bg-rose-50/60 hover:bg-rose-100"
             : "text-emerald-600 border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100"
         }`}
-        title={`Play ${isPersona ? "customer" : "agent"} audio`}
+        title={`Play ${isPersona ? "actor 1" : "actor 2"} audio`}
       >
         <PlayCircle className="w-3.5 h-3.5" />
         Play audio
@@ -196,10 +196,10 @@ function SimulatorContent() {
   const {
     personas,
     cases,
-    agentPersonas,
+    mainActorPersonas,
     personaId,
     caseId,
-    agentPersonaId,
+    mainActorId,
     turnCount,
     outcome,
     aiOption,
@@ -213,7 +213,7 @@ function SimulatorContent() {
     error,
     setPersonaId,
     setCaseId,
-    setAgentPersonaId,
+    setMainActorId,
     setTurnCount,
     setOutcome,
     setAiOption,
@@ -261,7 +261,7 @@ function SimulatorContent() {
         return;
       }
       speakRoleText(
-        turn.speaker === "persona" ? "customer" : "agent",
+        turn.speaker === "persona" ? "actor1" : "actor2",
         turn.external,
         {
           onEnd: () => {
@@ -493,27 +493,27 @@ function SimulatorContent() {
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase">
-              Agent Persona{" "}
+              Main Actor{" "}
               <span className="normal-case text-slate-400">(optional)</span>
             </label>
             <select
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              value={agentPersonaId ?? ""}
+              value={mainActorId ?? ""}
               onChange={(e) =>
-                setAgentPersonaId(
+                setMainActorId(
                   e.target.value ? Number(e.target.value) : null,
                 )
               }
             >
               <option value="">Generic ideal agent</option>
-              {agentPersonas.map((a) => (
+              {mainActorPersonas.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
               ))}
             </select>
             <p className="text-[11px] text-slate-400 mt-1">
-              Shape the ideal agent — build one in Agent Personas.
+              Shape the ideal agent — create a persona with mode Main Actor.
             </p>
           </div>
           <div>

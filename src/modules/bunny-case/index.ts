@@ -29,11 +29,6 @@ export { BCSettingsComponent, BCSettingsRepository } from "./src/modules/setting
 // ── Configure ─────────────────────────────────────────────────────────────────
 export { BCPersonaComponent, bcPersonaModule } from "./src/modules/persona-architect";
 export { BCCaseComponent, bcCaseModule } from "./src/modules/case-base";
-export {
-  BCAgentPersonaComponent,
-  bcAgentPersonaModule,
-  bcAgentPersonaGenerateProfile,
-} from "./src/modules/agent-persona";
 
 // ── Observe ───────────────────────────────────────────────────────────────────
 export { BCSimulatorComponent, useBCSimulator } from "./src/modules/simulator";
@@ -54,6 +49,12 @@ export {
   useBCVoice,
   useBCSpeechRecognition,
 } from "./src/modules/trainer";
+export {
+  BCHotSeatComponent,
+  useBCHotSeat,
+  bcHotSeatPersonaReply,
+  bcHotSeatEvaluate,
+} from "./src/modules/hot-seat";
 export { BCVoiceSettingsComponent } from "./src/modules/voice-settings";
 
 // ── Validate ──────────────────────────────────────────────────────────────────
@@ -64,5 +65,4 @@ export {
 } from "./src/modules/session-history";
 
 // ── Optimize ──────────────────────────────────────────────────────────────────
-export { BCAnalyticsComponent, useBCAnalytics } from "./src/modules/analytics";
 export { BCPlaybookComponent, bcPlaybookModule } from "./src/modules/playbook-library";

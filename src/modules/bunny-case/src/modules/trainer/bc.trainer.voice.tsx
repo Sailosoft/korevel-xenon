@@ -2,9 +2,9 @@
 //
 // Text-to-speech for the BunnyCase Trainer. Provides a context provider
 // (`BCVoiceProvider`) plus a hook (`useBCVoice`) wrapping the Web Speech API
-// `speechSynthesis`. Supports role-specific voices: customer and agent
-// (feature: voice settings). Markdown symbols are stripped before speaking
-// (feature: TextToSpeech).
+// `speechSynthesis`. Supports role-specific voices: Actor 1 (the counterpart)
+// and Actor 2 (the participant). Markdown symbols are stripped before
+// speaking (feature: TextToSpeech).
 
 "use client";
 
@@ -18,10 +18,14 @@ import React, {
   type ReactNode,
 } from "react";
 
-export type BCSpeechRole = "customer" | "agent";
+/** Actor 1 = the counterpart (persona) voice; Actor 2 = the participant voice. */
+export type BCSpeechRole = "actor1" | "actor2";
 
-const BC_CUSTOMER_VOICE_KEY = "bc.voice.customer";
-const BC_AGENT_VOICE_KEY = "bc.voice.agent";
+const BC_ACTOR1_VOICE_KEY = "bc.voice.actor1";
+const BC_ACTOR2_VOICE_KEY = "bc.voice.actor2";
+// Legacy keys kept so existing voice selections migrate automatically.
+const BC_LEGACY_CUSTOMER_VOICE_KEY = "bc.voice.customer";
+const BC_LEGACY_AGENT_VOICE_KEY = "bc.voice.agent";
 const BC_AUTO_TTS_STORAGE_KEY = "bc.voice.autoTTS";
 
 // ─── Markdown stripping (feature: TextToSpeech Markdown Issue) ─────────────
@@ -47,12 +51,12 @@ export function stripBCMarkdownForSpeech(text: string): string {
 export interface BCVoiceContextValue {
   ttsSupported: boolean;
   voices: SpeechSynthesisVoice[];
-  /** Customer (client) voice URI ("" = browser default) */
-  customerVoiceURI: string;
-  /** Agent (trainer) voice URI ("" = browser default) */
-  agentVoiceURI: string;
-  setCustomerVoiceURI: (uri: string) => void;
-  setAgentVoiceURI: (uri: string) => void;
+  /** Actor 1 (counterpart) voice URI ("" = browser default) */
+  actor1VoiceURI: string;
+  /** Actor 2 (participant) voice URI ("" = browser default) */
+  actor2VoiceURI: string;
+  setActor1VoiceURI: (uri: string) => void;
+  setActor2VoiceURI: (uri: string) => void;
   autoTTS: boolean;
   setAutoTTS: (value: boolean) => void;
   /** Speak with a specific role's configured voice. */
@@ -61,7 +65,7 @@ export interface BCVoiceContextValue {
     text: string,
     options?: { onStart?: () => void; onEnd?: () => void },
   ) => boolean;
-  /** Backward-compatible speak (uses the agent/customer default voice). */
+  /** Backward-compatible speak (uses the Actor 1 voice). */
   speakText: (
     text: string,
     options?: { onStart?: () => void; onEnd?: () => void },
@@ -113,18 +117,22 @@ export function BCVoiceProvider({ children }: { children: ReactNode }) {
     typeof window !== "undefined" && "speechSynthesis" in window;
 
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [customerVoiceURI, setCustomerVoiceURIState] = useState<string>(() =>
-    readStorage(BC_CUSTOMER_VOICE_KEY),
+  const [actor1VoiceURI, setActor1VoiceURIState] = useState<string>(
+    () =>
+      readStorage(BC_ACTOR1_VOICE_KEY) ||
+      readStorage(BC_LEGACY_CUSTOMER_VOICE_KEY),
   );
-  const [agentVoiceURI, setAgentVoiceURIState] = useState<string>(() =>
-    readStorage(BC_AGENT_VOICE_KEY),
+  const [actor2VoiceURI, setActor2VoiceURIState] = useState<string>(
+    () =>
+      readStorage(BC_ACTOR2_VOICE_KEY) ||
+      readStorage(BC_LEGACY_AGENT_VOICE_KEY),
   );
   const [autoTTS, setAutoTTSState] = useState<boolean>(
     () => readStorage(BC_AUTO_TTS_STORAGE_KEY) === "1",
   );
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
-  const customerVoiceURIRef = useRef<string>(customerVoiceURI);
-  const agentVoiceURIRef = useRef<string>(agentVoiceURI);
+  const actor1VoiceURIRef = useRef<string>(actor1VoiceURI);
+  const actor2VoiceURIRef = useRef<string>(actor2VoiceURI);
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
@@ -156,16 +164,16 @@ export function BCVoiceProvider({ children }: { children: ReactNode }) {
     };
   }, [ttsSupported]);
 
-  const setCustomerVoiceURI = useCallback((uri: string) => {
-    setCustomerVoiceURIState(uri);
-    customerVoiceURIRef.current = uri;
-    writeStorage(BC_CUSTOMER_VOICE_KEY, uri);
+  const setActor1VoiceURI = useCallback((uri: string) => {
+    setActor1VoiceURIState(uri);
+    actor1VoiceURIRef.current = uri;
+    writeStorage(BC_ACTOR1_VOICE_KEY, uri);
   }, []);
 
-  const setAgentVoiceURI = useCallback((uri: string) => {
-    setAgentVoiceURIState(uri);
-    agentVoiceURIRef.current = uri;
-    writeStorage(BC_AGENT_VOICE_KEY, uri);
+  const setActor2VoiceURI = useCallback((uri: string) => {
+    setActor2VoiceURIState(uri);
+    actor2VoiceURIRef.current = uri;
+    writeStorage(BC_ACTOR2_VOICE_KEY, uri);
   }, []);
 
   const setAutoTTS = useCallback((value: boolean) => {
@@ -195,9 +203,9 @@ export function BCVoiceProvider({ children }: { children: ReactNode }) {
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       const roleURI =
-        role === "customer"
-          ? customerVoiceURIRef.current
-          : agentVoiceURIRef.current;
+        role === "actor1"
+          ? actor1VoiceURIRef.current
+          : actor2VoiceURIRef.current;
       const selected =
         voicesRef.current.find((v) => v.voiceURI === roleURI) ||
         voicesRef.current.find((v) =>
@@ -222,7 +230,7 @@ export function BCVoiceProvider({ children }: { children: ReactNode }) {
 
   const speakText = useCallback(
     (text: string, options?: { onStart?: () => void; onEnd?: () => void }) =>
-      speakRoleText("customer", text, options),
+      speakRoleText("actor1", text, options),
     [speakRoleText],
   );
 
@@ -238,10 +246,10 @@ export function BCVoiceProvider({ children }: { children: ReactNode }) {
       value={{
         ttsSupported,
         voices,
-        customerVoiceURI,
-        agentVoiceURI,
-        setCustomerVoiceURI,
-        setAgentVoiceURI,
+        actor1VoiceURI,
+        actor2VoiceURI,
+        setActor1VoiceURI,
+        setActor2VoiceURI,
         autoTTS,
         setAutoTTS,
         speakRoleText,

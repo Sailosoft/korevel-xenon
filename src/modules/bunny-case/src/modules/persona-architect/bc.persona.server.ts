@@ -1,6 +1,8 @@
 // bc.persona.server.ts
 //
-// Persona Architect server actions — AI profile generation.
+// Persona Architect server actions — AI role-play instruction generation.
+// Only the persona name and the author's instruction are used; the result is a
+// single `aiPrompt` string.
 
 "use server";
 
@@ -18,15 +20,14 @@ const JSON_ONLY_SYSTEM_SUFFIX = `
 
 export async function bcPersonaGenerateProfile(
   name: string,
-  traits: string[],
-  description: string,
+  instruction: string,
   aiConfig?: HelixAIOption,
 ): Promise<BCGeneratedPersonaProfile> {
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
   const systemPrompt = `${bcPersonaPrompt.profile.systemPrompt}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = bcPersonaPrompt.profile.userPrompt(name, traits, description);
+  const userPrompt = bcPersonaPrompt.profile.userPrompt(name, instruction);
 
   try {
     const profile = await ai.doChatStructuredFallback({
@@ -35,35 +36,12 @@ export async function bcPersonaGenerateProfile(
       schema: {
         name: "persona_profile",
         description:
-          "AI-generated psychological profile for a customer persona used in training roleplay.",
+          "A single role-play instruction an AI follows to behave consistently as a persona.",
         properties: {
-          psychologicalProfile: {
+          aiPrompt: {
             type: "string",
-            description: "Concise portrait of the persona's mindset and motivations.",
-          },
-          triggers: {
-            type: "array",
-            description: "Behaviours that escalate this persona.",
-            items: {
-              type: "string",
-              description: "A behaviour that escalates the persona.",
-            },
-          },
-          preferences: {
-            type: "array",
-            description: "Things this persona values in a conversation.",
-            items: {
-              type: "string",
-              description: "Something the persona values.",
-            },
-          },
-          communicationStyle: {
-            type: "string",
-            description: "One paragraph of tone, pacing and empathy guidance.",
-          },
-          aiSummary: {
-            type: "string",
-            description: "One-sentence summary of the persona.",
+            description:
+              "The role-play instruction, in second person ('You are ...'), covering mindset, speaking style, escalation/calm triggers and what the persona wants.",
           },
         },
       },

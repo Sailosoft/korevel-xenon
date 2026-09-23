@@ -50,10 +50,10 @@ export default function BCVoiceSettingsComponent() {
   const {
     ttsSupported,
     voices,
-    customerVoiceURI,
-    agentVoiceURI,
-    setCustomerVoiceURI,
-    setAgentVoiceURI,
+    actor1VoiceURI,
+    actor2VoiceURI,
+    setActor1VoiceURI,
+    setActor2VoiceURI,
     autoTTS,
     setAutoTTS,
     speakRoleText,
@@ -80,18 +80,18 @@ export default function BCVoiceSettingsComponent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <VoicePicker
-          label="Client / Customer voice"
+          label="Actor 1 Voice"
           icon={<Mic className="w-4 h-4 text-rose-500" />}
-          value={customerVoiceURI}
+          value={actor1VoiceURI}
           voices={voices}
-          onChange={setCustomerVoiceURI}
+          onChange={setActor1VoiceURI}
         />
         <VoicePicker
-          label="Agent voice"
+          label="Actor 2 Voice"
           icon={<Volume2 className="w-4 h-4 text-emerald-500" />}
-          value={agentVoiceURI}
+          value={actor2VoiceURI}
           voices={voices}
-          onChange={setAgentVoiceURI}
+          onChange={setActor2VoiceURI}
         />
       </div>
 
@@ -118,16 +118,16 @@ export default function BCVoiceSettingsComponent() {
 
       <div className="flex flex-wrap gap-2 pt-1">
         <button
-          onClick={() => speakRoleText("customer", "Hello, this is your customer.")}
+          onClick={() => speakRoleText("actor1", "Hello, this is actor one.")}
           className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-3 py-1.5 hover:bg-rose-100 transition-colors"
         >
-          ▶ Test customer voice
+          ▶ Test Actor 1 voice
         </button>
         <button
-          onClick={() => speakRoleText("agent", "Hello, this is your agent.")}
+          onClick={() => speakRoleText("actor2", "Hello, this is actor two.")}
           className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5 hover:bg-emerald-100 transition-colors"
         >
-          ▶ Test agent voice
+          ▶ Test Actor 2 voice
         </button>
       </div>
 

@@ -1,7 +1,8 @@
 // bc.case.module.ts
 //
 // Case Base — Bunny CRUD module (Create / Update / Delete / Edit via Bunny)
-// with an AI "Generate Scenario" header action.
+// with an AI "Generate Scenario" header action. A case is just a Title and a
+// rich-text Content field, keeping it maximally flexible.
 
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BCCaseScenario } from "./bc.case.entity";
@@ -19,7 +20,6 @@ import { adminPanelQueryResponseAll } from "@/src/modules/admin-panel/features/q
 import React from "react";
 import { WandSparkles } from "lucide-react";
 import { bcCaseGenerateScenario } from "./bc.case.server";
-import { bcCaseJoinList } from "./bc.case.entity";
 import BCSettingsRepository from "../settings/bc.settings.repository";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import { BCGenerateAIFormDialog } from "../generative-ai/bc.generative-ai.dialog";
@@ -33,56 +33,23 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
   onFormSuccess: { mode: "closeOnly" },
   columns: [
     { field: "title", header: "Title", isRowHeader: true, sortable: true },
-    { field: "conflict", header: "Conflict" },
-    { field: "objective", header: "Objective" },
   ],
   formConfig: {
-    gridCols: 2,
+    gridCols: 1,
     fields: [
       {
         name: "title",
         label: "Title",
         type: "text",
-        colSpan: 2,
         rules: [{ rule: "required", message: "Title is required" }],
       },
       {
-        name: "personaId",
-        label: "Persona",
-        type: "select",
-        options: async () => {
-          const personas = await bcDatabase.personas.toArray();
-          return personas.map((p) => ({
-            label: p.name,
-            value: p.id as number,
-          }));
-        },
-      },
-      {
-        name: "description",
-        label: "Description",
-        type: "textarea",
-        rows: 2,
-      },
-      {
-        name: "conflict",
-        label: "Conflict",
-        type: "textarea",
-        rows: 2,
-      },
-      {
-        name: "objective",
-        label: "Objective",
-        type: "textarea",
-        rows: 2,
-      },
-      {
-        name: "escalationPoints",
-        label: "Escalation Points",
-        type: "textarea",
-        colSpan: 2,
-        rows: 2,
-        format: (value: unknown) => bcCaseJoinList(value),
+        name: "content",
+        label: "Content",
+        type: "editor",
+        rules: [{ rule: "required", message: "Content is required" }],
+        placeholder:
+          "Describe the situation, the conflict or topic, what success looks like, and possible escalations…",
       },
     ],
   },
@@ -105,7 +72,7 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
           children: React.createElement(BCGenerateAIFormDialog, {
             title: "Generate AI Scenario",
             description:
-              "Flesh out a training scenario from a persona and a raw conflict.",
+              "Flesh out a flexible training case from a title and your raw instructions.",
             fields: [
               {
                 name: "title",
@@ -113,13 +80,13 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
                 type: "text",
                 required: true,
               },
-              { name: "personaName", label: "Persona Name", type: "text" },
               {
-                name: "personaProfile",
-                label: "Persona Profile (paste from Persona Architect)",
+                name: "instructions",
+                label: "Instructions",
                 type: "textarea",
+                placeholder:
+                  "Describe the situation, the people involved, the conflict or topic, and anything the AI should emphasize…",
               },
-              { name: "conflict", label: "Raw Conflict", type: "textarea" },
             ],
             includeOption: true,
             generateLabel: "Generate Scenario",
@@ -129,32 +96,16 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
                 const aiConfig = await settingsRepo.getActiveAIConfig();
                 const scenario = await bcCaseGenerateScenario(
                   values.title ?? "",
-                  values.personaName ?? "",
-                  values.personaProfile ?? "",
-                  values.conflict ?? "",
+                  values.instructions ?? "",
                   aiConfig,
                   aiOptions,
                 );
-
-                // Link to an existing persona by name when it matches,
-                // otherwise leave the case unlinked.
-                const linkedPersona = values.personaName
-                  ? (await bcDatabase.personas.toArray()).find(
-                      (p) =>
-                        p.name.trim().toLowerCase() ===
-                        values.personaName!.trim().toLowerCase(),
-                    )
-                  : undefined;
 
                 // Persist the generated scenario directly so a record appears
                 // in the table immediately after generation.
                 const record: BCCaseScenario = {
                   title: values.title,
-                  personaId: linkedPersona?.id,
-                  description: scenario.description,
-                  conflict: scenario.conflict,
-                  objective: scenario.objective,
-                  escalationPoints: bcCaseJoinList(scenario.escalationPoints),
+                  content: scenario.content,
                   createdAt: Date.now(),
                   updatedAt: Date.now(),
                 };
@@ -208,7 +159,11 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
     create: async function (
       data: BCCaseScenario,
     ): Promise<AdminPanelResult<BCCaseScenario, unknown>> {
-      const id = await bcDatabase.cases.add(data);
+      const id = await bcDatabase.cases.add({
+        ...data,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
       return adminPanelResultSuccess<BCCaseScenario>(
         (await bcDatabase.cases.get(id)) as BCCaseScenario,
       );
@@ -220,7 +175,7 @@ export const bcCaseModule: BunnyConfig<BCCaseScenario, BCCaseScenario> = {
       if (typeof id !== "number") {
         throw new Error("Invalid ID type. Expected a number.");
       }
-      await bcDatabase.cases.update(id, data);
+      await bcDatabase.cases.update(id, { ...data, updatedAt: Date.now() });
       return adminPanelResultSuccess<BCCaseScenario>(
         (await bcDatabase.cases.get(id)) as BCCaseScenario,
       );
