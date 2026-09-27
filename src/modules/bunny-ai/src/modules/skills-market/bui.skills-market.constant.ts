@@ -164,6 +164,41 @@ export const BUI_SKILLS_MARKET = {
     description:
       "Reverse-engineer drafted text into structured bullet points for quick author verification.",
   },
+  GuideTipFocusSkill: {
+    name: "Guide & Tip Focus Skill",
+    description:
+      "Ground content in practical guides, walkthroughs, and actionable tips while avoiding fabricated stories or invented anecdotes.",
+  },
+  FourPhaseStructureSkill: {
+    name: "Four-Phase Structure Skill",
+    description:
+      "Organize every section into four consistent phases: Introduction, Main Content, Discussion, and Conclusion.",
+  },
+  MethodologicalAnalysisSkill: {
+    name: "Methodological Analysis Skill",
+    description:
+      "Apply systematic, evidence-based reasoning frameworks to content writing, emphasizing clear methodology and analytical rigor.",
+  },
+  DecisionMakerOverviewSkill: {
+    name: "Decision-Maker Overview Skill",
+    description:
+      "Frame content as high-level strategic summaries tailored for executives and decision makers who need implications, not minutiae.",
+  },
+  ExpertPerspectiveSkill: {
+    name: "Advanced Expert Perspective Skill",
+    description:
+      "Write from an advanced practitioner's viewpoint, assuming prior knowledge and surfacing nuanced edge cases over beginner fundamentals.",
+  },
+  ImplementationFirstSkill: {
+    name: "Implementation-First Skill",
+    description:
+      "Skip installation and environment setup preambles; prioritize hands-on implementation content, code patterns, and execution steps.",
+  },
+  StarMethodWriterSkill: {
+    name: "STAR Method Writer Skill",
+    description:
+      "Structure narratives and examples using the STAR framework (Situation, Task, Action, Result) for clear, outcome-focused storytelling.",
+  },
 } as const satisfies Record<string, BUISkillsMarketSkill>;
 
 /** Returns the full market catalog as plain BUISkillsMarketSkill objects. */

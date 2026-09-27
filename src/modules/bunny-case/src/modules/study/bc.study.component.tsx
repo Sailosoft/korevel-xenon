@@ -134,11 +134,11 @@ export default function BCStudyComponent() {
       return;
     }
     const scenario = cases.find((c) => c.id === caseId);
-    // Persona is optional (feature): when none is selected or linked, the
-    // handbook is generated from the case alone.
+    // Persona is optional: when none is selected, the handbook is generated
+    // from the case alone.
     const persona = personaId
       ? personas.find((p) => p.id === personaId)
-      : personas.find((p) => p.id === scenario?.personaId);
+      : undefined;
     if (!scenario) {
       setError("Could not resolve the selected case.");
       return;
@@ -256,9 +256,6 @@ export default function BCStudyComponent() {
               onChange={(e) => {
                 const id = e.target.value ? Number(e.target.value) : null;
                 setCaseId(id);
-                // Auto-select the linked persona when the case changes.
-                const scenario = cases.find((c) => c.id === id);
-                if (scenario?.personaId) setPersonaId(scenario.personaId);
               }}
             >
               <option value="">Select a case…</option>
@@ -281,7 +278,7 @@ export default function BCStudyComponent() {
                 setPersonaId(e.target.value ? Number(e.target.value) : null)
               }
             >
-              <option value="">Auto (linked persona)</option>
+              <option value="">None (case only)</option>
               {personas.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

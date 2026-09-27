@@ -1,7 +1,7 @@
 // bc.generative-ai.dialog.tsx
 //
-// Reusable "Generate with AI" dialog body used by the Case Base and Agent
-// Persona header actions. It renders native inputs (proven in the Bunny dialog
+// Reusable "Generate with AI" dialog body used by the Case Base and Persona
+// header actions. It renders native inputs (proven in the Bunny dialog
 // contentOnly mode) plus the Training Mode selector, and drives generation via
 // a caller-provided `onGenerate` callback. Using native controls avoids the
 // framework dialog form-field rendering for selects, so the Generate button and

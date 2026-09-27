@@ -7,6 +7,30 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v4.6.3",
+    title: "Version 4.6.3: BunnyCase Hot Seat & Refactor, LemonCoder Mermaid Editor, and BunnyBook Skills Patterns",
+    content: [
+      "BunnyCase: Added the Hot Seat training mode that reverses the Conversation Trainer — the AI role-plays the persona while the trainee challenges it, with Issue Handling, Job Interview, Discussion, and Mental Health prompt sets.",
+      "BunnyCase: Refactored the persona, simulator, trainer, and gauntlet prompts into dedicated per-mode prompt sets and added a 30-trait persona multi-select.",
+      "BunnyCase: Removed the legacy Agent Persona and Sentiment Analytics modules and renamed the shelf navigation to Personas and Cases.",
+      "LemonCoder: Added a Mermaid editor with a View/Edit toggle, diagram-type template picker, and Text, Split, Visual, and Layout modes, including WYSIWYG layout persistence for flowcharts.",
+      "LemonCoder: Added Mermaid renderers covering Flowchart, Sequence, Class, ER, Gantt, Journey, and other diagram types.",
+      "BunnyBook: Added new skills-market patterns including Guide & Tip Focus, Four-Phase Structure, Methodological Analysis, Decision-Maker Overview, Expert Perspective, Implementation-First, and STAR Method.",
+    ],
+    apps: [
+      CatalogApp.BunnyCase,
+      CatalogApp.LemonCoder,
+      CatalogApp.BunnyBook
+    ],
+    dates: [
+      "2026-09-19",
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-24",
+      "2026-09-27"
+    ]
+  },
+  {
     version: "v4.6.2",
     title: "Version 4.6.2: BunnyStudio Transformer Embeddings & Knowledge Base Improvements, Prompt Input Hashing, and System Enhancements",
     content: [

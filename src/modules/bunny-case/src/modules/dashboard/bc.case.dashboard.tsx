@@ -1,7 +1,7 @@
 // bc.case.dashboard.tsx
 //
 // BunnyCase dashboard — the Conversational AI Training Ecosystem workflow:
-// Architect → Simulator → Trainer → Gauntlet → Analytics → Playbook.
+// Personas + Cases → Simulator → Trainer → Gauntlet → Playbook.
 
 "use client";
 
@@ -13,10 +13,9 @@ import {
   MessagesSquare,
   PlayCircle,
   Swords,
-  LineChart,
   Library,
   BookOpen,
-  Bot,
+  Flame,
   ArrowRight,
 } from "lucide-react";
 
@@ -31,22 +30,15 @@ interface BCSection {
 const BC_SECTIONS: BCSection[] = [
   {
     section: "Configure",
-    title: "Persona Architect",
-    description: "Define who the customer is — traits become an AI psychological profile.",
+    title: "Personas",
+    description: "Define who is in the conversation — mode, traits and an AI role-play prompt.",
     href: "/modules/bunny-case/personas",
     icon: Users,
   },
   {
     section: "Configure",
-    title: "Agent Persona",
-    description: "Build the ideal agent persona — optionally apply it to the Simulator.",
-    href: "/modules/bunny-case/agent-personas",
-    icon: Bot,
-  },
-  {
-    section: "Configure",
-    title: "Case Base",
-    description: "Define the scenario — link a conflict to a persona.",
+    title: "Cases",
+    description: "Define the scenario — a title and free-form content, generated or written.",
     href: "/modules/bunny-case/cases",
     icon: Briefcase,
   },
@@ -72,18 +64,18 @@ const BC_SECTIONS: BCSection[] = [
     icon: PlayCircle,
   },
   {
+    section: "Interact",
+    title: "Hot Seat",
+    description: "Flip it — you grill the AI persona and your questioning is scored.",
+    href: "/modules/bunny-case/hot-seat",
+    icon: Flame,
+  },
+  {
     section: "Validate",
     title: "Stress-Test Gauntlet",
     description: "The final exam — no coach, unexpected curveballs.",
     href: "/modules/bunny-case/gauntlet",
     icon: Swords,
-  },
-  {
-    section: "Optimize",
-    title: "Sentiment Analytics",
-    description: "Which words turned the customer's mood from negative to positive.",
-    href: "/modules/bunny-case/analytics",
-    icon: LineChart,
   },
   {
     section: "Optimize",
@@ -105,8 +97,8 @@ export default function BCCaseDashboard() {
           Conversational AI Training Ecosystem
         </h1>
         <p className="text-sm text-slate-400 max-w-xl mx-auto">
-          From crafting a customer persona to certifying communication skills —
-          Architect → Simulator → Trainer → Gauntlet → Analytics → Playbook.
+          From crafting a persona to certifying communication skills —
+          Simulator → Trainer → Gauntlet → Playbook.
         </p>
       </div>
 

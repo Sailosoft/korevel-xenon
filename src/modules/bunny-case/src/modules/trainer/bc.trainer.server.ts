@@ -3,12 +3,19 @@
 // Conversation Trainer server actions:
 //  - bcTrainerPersonaReply  → the persona's spoken + hidden response.
 //  - bcTrainerCoachFeedback → the AI Trainer's correction + explanation.
+//  - bcTrainerTurnGuide     → the AI Trainer's per-turn guide.
+//  - bcTrainerCritiqueDraft → the AI Trainer's validation of a draft.
+//  - bcTrainerSessionSummary→ the end-of-session review.
+//
+// Each training mode (issue-handling / job-interview / discussion /
+// mental-health) has its own prompt set under ./prompts/, resolved by the
+// selected Generative AI option.
 
 "use server";
 
 import type { HelixAIOption } from "@/src/modules/helix";
 import { bcContainer } from "../../container/bc.container";
-import { bcTrainerPrompt } from "./bc.trainer.prompt";
+import { bcResolveTrainerPrompts } from "./bc.trainer.prompt";
 import type {
   BCTrainerCritique,
   BCTrainerFeedback,
@@ -23,6 +30,7 @@ import {
   bcGenAISystemDirectives,
   bcGenAIUserDirectives,
 } from "../generative-ai/bc.generative-ai.prompt";
+import { bcResolveGenAIOption as bcResolveOption } from "../generative-ai/bc.generative-ai.entity";
 
 const JSON_ONLY_SYSTEM_SUFFIX = `
   \n\n
@@ -43,19 +51,14 @@ function formatPersona(persona: BCCasePersona): string {
   return [
     `Name: ${persona.name}`,
     `Traits: ${persona.traits || "(none)"}`,
-    `Triggers: ${persona.triggers || "(none)"}`,
-    `Preferences: ${persona.preferences || "(none)"}`,
-    `Communication style: ${persona.communicationStyle || "(none)"}`,
-    `Psychological profile: ${persona.psychologicalProfile || ""}`,
+    `Role-play instruction: ${persona.aiPrompt || "(none)"}`,
   ].join("\n");
 }
 
 function formatScenario(scenario: BCCaseScenario): string {
-  return [
-    `Title: ${scenario.title}`,
-    `Conflict: ${scenario.conflict || "(none)"}`,
-    `Objective: ${scenario.objective || "(resolve the case)"}`,
-  ].join("\n");
+  return [`Title: ${scenario.title}`, scenario.content || "(no content)"].join(
+    "\n",
+  );
 }
 
 function formatHistory(history: Array<{ role: string; external: string }>) {
@@ -65,6 +68,21 @@ function formatHistory(history: Array<{ role: string; external: string }>) {
     .join("\n");
 }
 
+/**
+ * Built-in modes ship their own prompts, so no extra directives are appended.
+ * Custom modes carry their own system/user directives which are injected here.
+ */
+function modeDirectives(aiOptions?: BCGenAIOptions) {
+  const option = bcResolveOption(aiOptions);
+  if (option.id === "custom") {
+    return {
+      system: bcGenAISystemDirectives(aiOptions),
+      user: bcGenAIUserDirectives(aiOptions),
+    };
+  }
+  return { system: "", user: "" };
+}
+
 export async function bcTrainerPersonaReply(
   input: BCTrainerContextInput & { userMsg: string },
   aiConfig?: HelixAIOption,
@@ -72,13 +90,16 @@ export async function bcTrainerPersonaReply(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcTrainerPrompt.personaReply.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcTrainerPrompt.personaReply.userPrompt(
+  const prompts = bcResolveTrainerPrompts(bcResolveOption(input.aiOptions).id);
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.personaReply.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.personaReply.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.history),
     input.userMsg,
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -121,12 +142,15 @@ export async function bcTrainerTurnGuide(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcTrainerPrompt.turnGuide.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcTrainerPrompt.turnGuide.userPrompt(
+  const prompts = bcResolveTrainerPrompts(bcResolveOption(input.aiOptions).id);
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.turnGuide.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.turnGuide.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.history),
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -171,13 +195,16 @@ export async function bcTrainerCritiqueDraft(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcTrainerPrompt.critique.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcTrainerPrompt.critique.userPrompt(
+  const prompts = bcResolveTrainerPrompts(bcResolveOption(input.aiOptions).id);
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.critique.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.critique.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.history),
     input.draft,
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -226,12 +253,15 @@ export async function bcTrainerCoachFeedback(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcTrainerPrompt.coachFeedback.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcTrainerPrompt.coachFeedback.userPrompt(
+  const prompts = bcResolveTrainerPrompts(bcResolveOption(input.aiOptions).id);
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.coachFeedback.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.coachFeedback.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     input.draft,
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -268,9 +298,8 @@ export async function bcTrainerCoachFeedback(
 }
 
 /**
- * End-of-session review (feature #10). Given the full conversation, produce a
- * final summary of the conversation, a guide, and a rating of what the
- * trainee is missing.
+ * End-of-session review. Given the full conversation, produce a final summary
+ * of the conversation, a guide, and a rating of what the trainee is missing.
  */
 export async function bcTrainerSessionSummary(
   input: BCTrainerContextInput,
@@ -279,12 +308,15 @@ export async function bcTrainerSessionSummary(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcTrainerPrompt.sessionSummary.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcTrainerPrompt.sessionSummary.userPrompt(
+  const prompts = bcResolveTrainerPrompts(bcResolveOption(input.aiOptions).id);
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.sessionSummary.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.sessionSummary.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.history),
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({

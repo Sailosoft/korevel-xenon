@@ -3,23 +3,29 @@
 // Stress-Test Gauntlet server actions:
 //  - bcGauntletPersonaReply → persona reply, optionally with a curveball.
 //  - bcGauntletEvaluate      → pass/fail certification evaluation.
+//
+// Each training mode resolves its own prompt set from ./prompts/.
 
 "use server";
 
 import type { HelixAIOption } from "@/src/modules/helix";
 import { bcContainer } from "../../container/bc.container";
-import { bcGauntletPrompt } from "./bc.gauntlet.prompt";
+import { bcResolveGauntletPrompts } from "./bc.gauntlet.prompt";
 import type {
   BCEvaluationResult,
   BCGauntletReply,
 } from "../trainer/bc.trainer.entity";
 import type { BCCasePersona } from "../persona-architect/bc.persona.entity";
 import type { BCCaseScenario } from "../case-base/bc.case.entity";
-import type { BCGenAIOptions } from "../generative-ai/bc.generative-ai.entity";
+import type {
+  BCGenAIOptions,
+  BCGenAIOptionId,
+} from "../generative-ai/bc.generative-ai.entity";
 import {
   bcGenAISystemDirectives,
   bcGenAIUserDirectives,
 } from "../generative-ai/bc.generative-ai.prompt";
+import { bcResolveGenAIOption } from "../generative-ai/bc.generative-ai.entity";
 
 const JSON_ONLY_SYSTEM_SUFFIX = `
   \n\n
@@ -40,19 +46,14 @@ function formatPersona(persona: BCCasePersona): string {
   return [
     `Name: ${persona.name}`,
     `Traits: ${persona.traits || "(none)"}`,
-    `Triggers: ${persona.triggers || "(none)"}`,
-    `Communication style: ${persona.communicationStyle || "(none)"}`,
-    `Psychological profile: ${persona.psychologicalProfile || ""}`,
+    `Role-play instruction: ${persona.aiPrompt || "(none)"}`,
   ].join("\n");
 }
 
 function formatScenario(scenario: BCCaseScenario): string {
-  return [
-    `Title: ${scenario.title}`,
-    `Conflict: ${scenario.conflict || "(none)"}`,
-    `Objective: ${scenario.objective || "(resolve the case)"}`,
-    `Escalation points: ${scenario.escalationPoints || "(none)"}`,
-  ].join("\n");
+  return [`Title: ${scenario.title}`, scenario.content || "(no content)"].join(
+    "\n",
+  );
 }
 
 function formatHistory(history: Array<{ role: string; external: string }>) {
@@ -62,6 +63,18 @@ function formatHistory(history: Array<{ role: string; external: string }>) {
     .join("\n");
 }
 
+/** Built-in modes ship their own prompts; only custom modes inject directives. */
+function modeDirectives(aiOptions?: BCGenAIOptions) {
+  const option = bcResolveGenAIOption(aiOptions);
+  if (option.id === "custom") {
+    return {
+      system: bcGenAISystemDirectives(aiOptions),
+      user: bcGenAIUserDirectives(aiOptions),
+    };
+  }
+  return { system: "", user: "" };
+}
+
 export async function bcGauntletPersonaReply(
   input: BCGauntletContextInput & { userMsg: string; curveballHint: boolean },
   aiConfig?: HelixAIOption,
@@ -69,14 +82,19 @@ export async function bcGauntletPersonaReply(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcGauntletPrompt.personaReply.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcGauntletPrompt.personaReply.userPrompt(
+  const prompts = bcResolveGauntletPrompts(
+    bcResolveGenAIOption(input.aiOptions).id as BCGenAIOptionId,
+  );
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.personaReply.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.personaReply.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.history),
     input.userMsg,
-    input.curveballHint,
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+    input.curveballHint ? "YES" : "no",
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -135,12 +153,17 @@ export async function bcGauntletEvaluate(
   const scope = bcContainer.createScope();
   const ai = scope.resolve("ai");
 
-  const systemPrompt = `${bcGauntletPrompt.evaluate.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcGauntletPrompt.evaluate.userPrompt(
+  const prompts = bcResolveGauntletPrompts(
+    bcResolveGenAIOption(input.aiOptions).id as BCGenAIOptionId,
+  );
+  const { system, user } = modeDirectives(input.aiOptions);
+
+  const systemPrompt = `${prompts.evaluate.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.evaluate.userPrompt(
     formatPersona(input.persona),
     formatScenario(input.scenario),
     formatHistory(input.transcript),
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({

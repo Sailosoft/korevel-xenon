@@ -1,8 +1,9 @@
 // bc.session-history.module.ts
 //
-// Session History — Bunny CRUD module that lists persisted trainer & gauntlet
-// sessions. Header/row actions let you resume a session (opens the trainer or
-// gauntlet with the `historyId` query parameter) or delete it (feature #7).
+// Session History — Bunny CRUD module that lists persisted trainer, gauntlet
+// and hot-seat sessions. Header/row actions let you resume a session (opens
+// the matching module with the `historyId` query parameter) or delete it
+// (feature #7).
 
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import type { BCCaseSession } from "../trainer/bc.trainer.entity";
@@ -18,7 +19,7 @@ import {
 import { bcDatabase } from "../../database/bc.database";
 import { adminPanelQueryResponseAll } from "@/src/modules/admin-panel/features/query/admin-panel-query.util";
 import React from "react";
-import { PlayCircle, Swords } from "lucide-react";
+import { Flame, PlayCircle, Swords } from "lucide-react";
 
 function formatDate(ts?: number): string {
   if (!ts) return "—";
@@ -29,7 +30,9 @@ function sessionHref(mode: string, id: number): string {
   const base =
     mode === "gauntlet"
       ? "/modules/bunny-case/gauntlet"
-      : "/modules/bunny-case/trainer";
+      : mode === "hot-seat"
+        ? "/modules/bunny-case/hot-seat"
+        : "/modules/bunny-case/trainer";
   return `${base}?historyId=${id}`;
 }
 
@@ -57,9 +60,13 @@ export const bcSessionHistoryModule: BunnyConfig<BCCaseSession, BCCaseSession> =
             ? React.createElement(Swords, {
                 className: "w-3.5 h-3.5 text-rose-500",
               })
-            : React.createElement(PlayCircle, {
-                className: "w-3.5 h-3.5 text-emerald-500",
-              }),
+            : row.mode === "hot-seat"
+              ? React.createElement(Flame, {
+                  className: "w-3.5 h-3.5 text-orange-500",
+                })
+              : React.createElement(PlayCircle, {
+                  className: "w-3.5 h-3.5 text-emerald-500",
+                }),
           " ",
           row.mode,
         ),
