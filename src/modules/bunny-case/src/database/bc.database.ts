@@ -2,7 +2,7 @@
 //
 // DexieJS database for BunnyCase. Stores personas, cases, communication
 // templates, training sessions + messages, the playbook library, simulator
-// history, agent personas, study handbooks and Helix AI settings.
+// history, study handbooks and Helix AI settings.
 // Per project rules we do NOT use live query — repositories read
 // imperatively.
 
@@ -17,7 +17,6 @@ import type {
 } from "../modules/trainer/bc.trainer.entity";
 import type { BCPlaybook } from "../modules/playbook-library/bc.playbook.entity";
 import type { BCSimulatorRecord } from "../modules/simulator/bc.simulator.entity";
-import type { BCAgentPersona } from "../modules/agent-persona/bc.agent-persona.entity";
 import type { BCStudy } from "../modules/study/bc.study.entity";
 
 export class BCDatabase extends Dexie {
@@ -28,7 +27,6 @@ export class BCDatabase extends Dexie {
   messages!: Dexie.Table<BCCaseMessage, number>;
   playbooks!: Dexie.Table<BCPlaybook, number>;
   simulators!: Dexie.Table<BCSimulatorRecord, number>;
-  agentPersonas!: Dexie.Table<BCAgentPersona, number>;
   studies!: Dexie.Table<BCStudy, number>;
   aiSettings!: Dexie.Table<HelixAISettings, string>;
 
@@ -50,6 +48,14 @@ export class BCDatabase extends Dexie {
       agentPersonas: "++id, name, createdAt",
       // Study — AI handbook / guide book generated from a case.
       studies: "++id, caseId, personaId, title, createdAt",
+    });
+    this.version(3).stores({
+      // Cases are now just Title + Content — no persona link.
+      cases: "++id, title, createdAt",
+      // Personas carry a mode (all / person / trainer / main-actor).
+      personas: "++id, name, mode, createdAt",
+      // Agent personas are gone — "main actor" personas replace them.
+      agentPersonas: null,
     });
   }
 }

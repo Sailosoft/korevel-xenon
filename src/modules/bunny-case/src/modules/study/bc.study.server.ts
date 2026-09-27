@@ -59,18 +59,11 @@ export async function bcGenerateStudy(
     {
       name: input.persona?.name ?? "",
       traits: input.persona?.traits ?? "",
-      profile:
-        input.persona?.psychologicalProfile ||
-        input.persona?.description ||
-        "",
-      triggers: input.persona?.triggers ?? "",
-      preferences: input.persona?.preferences ?? "",
+      aiPrompt: input.persona?.aiPrompt ?? "",
     },
     {
       title: input.scenario.title,
-      description: input.scenario.description || "",
-      conflict: input.scenario.conflict || "",
-      objective: input.scenario.objective || "",
+      content: input.scenario.content || "",
     },
   )}${personaNote}${bcGenAIUserDirectives(input.aiOptions)}`;
 

@@ -2,7 +2,7 @@
 //
 // Shared conversation primitives used by the Trainer, Gauntlet and Simulator.
 
-export type BCSessionMode = "trainer" | "gauntlet" | "simulator";
+export type BCSessionMode = "trainer" | "gauntlet" | "simulator" | "hot-seat";
 export type BCSessionStatus = "active" | "completed" | "failed" | "certified";
 
 /** A single training run (trainer or gauntlet) persisted to Dexie. */

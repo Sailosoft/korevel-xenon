@@ -3,22 +3,28 @@
 // Conversation Simulator server actions — generates the ideal-agent dialogue
 // with dual-view (external / internal) for every turn, honoring the requested
 // turn count and ending (resolved / unresolved), and returns a summarization
-// with tips and guides. An optional agent persona shapes the ideal agent.
+// with tips and guides. An optional "main actor" persona (mode main-actor or
+// all) shapes the ideal agent, replacing the old Agent Persona module.
+//
+// Each training mode resolves its own prompt set from ./prompts/.
 
 "use server";
 
 import type { HelixAIOption } from "@/src/modules/helix";
 import { bcContainer } from "../../container/bc.container";
-import { bcSimulatorPrompt } from "./bc.simulator.prompt";
+import { bcResolveSimulatorPrompts } from "./bc.simulator.prompt";
 import type { BCSimulationResult } from "./bc.simulator.entity";
 import type { BCCasePersona } from "../persona-architect/bc.persona.entity";
 import type { BCCaseScenario } from "../case-base/bc.case.entity";
-import type { BCAgentPersona } from "../agent-persona/bc.agent-persona.entity";
-import type { BCGenAIOptions } from "../generative-ai/bc.generative-ai.entity";
+import type {
+  BCGenAIOptions,
+  BCGenAIOptionId,
+} from "../generative-ai/bc.generative-ai.entity";
 import {
   bcGenAISystemDirectives,
   bcGenAIUserDirectives,
 } from "../generative-ai/bc.generative-ai.prompt";
+import { bcResolveGenAIOption } from "../generative-ai/bc.generative-ai.entity";
 
 const JSON_ONLY_SYSTEM_SUFFIX = `
   \n\n
@@ -30,14 +36,28 @@ const JSON_ONLY_SYSTEM_SUFFIX = `
 export interface BCSimulateInput {
   persona: BCCasePersona;
   scenario: BCCaseScenario;
-  /** Optional agent persona that shapes the ideal agent. */
-  agentPersona?: BCAgentPersona;
+  /** Optional main-actor persona that shapes the ideal agent. */
+  mainActor?: BCCasePersona;
   /** Optional number of turns (falls back to 6-10 when unset). */
   turns?: number;
   /** How the conversation should end. */
   outcome?: "resolved" | "unresolved";
   /** Optional generative AI training-mode option (default: issue handling). */
   aiOptions?: BCGenAIOptions;
+}
+
+function formatPersona(persona: BCCasePersona): string {
+  return [
+    `Name: ${persona.name}`,
+    `Traits: ${persona.traits || "(none)"}`,
+    `Role-play instruction: ${persona.aiPrompt || "(none)"}`,
+  ].join("\n");
+}
+
+function formatScenario(scenario: BCCaseScenario): string {
+  return [`Title: ${scenario.title}`, scenario.content || "(no content)"].join(
+    "\n",
+  );
 }
 
 export async function bcSimulateConversation(
@@ -48,34 +68,26 @@ export async function bcSimulateConversation(
   const ai = scope.resolve("ai");
 
   const outcome = input.outcome ?? "resolved";
+  const option = bcResolveGenAIOption(input.aiOptions);
+  const prompts = bcResolveSimulatorPrompts(option.id as BCGenAIOptionId);
 
-  const systemPrompt = `${bcSimulatorPrompt.simulate.systemPrompt}${bcGenAISystemDirectives(input.aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
-  const userPrompt = `${bcSimulatorPrompt.simulate.userPrompt(
-    {
-      name: input.persona.name,
-      traits: input.persona.traits,
-      profile: input.persona.psychologicalProfile || input.persona.description || "",
-    },
-    {
-      title: input.scenario.title,
-      conflict: input.scenario.conflict || "",
-      objective: input.scenario.objective || "",
-    },
-    {
-      turns: input.turns,
-      outcome,
-    },
-    input.agentPersona
-      ? {
-          name: input.agentPersona.name,
-          traits: input.agentPersona.traits,
-          profile:
-            input.agentPersona.psychologicalProfile ||
-            input.agentPersona.description ||
-            "",
-        }
-      : undefined,
-  )}${bcGenAIUserDirectives(input.aiOptions)}`;
+  // Built-in modes ship their own prompts; only custom modes inject directives.
+  const isCustom = option.id === "custom";
+  const system = isCustom ? bcGenAISystemDirectives(input.aiOptions) : "";
+  const user = isCustom ? bcGenAIUserDirectives(input.aiOptions) : "";
+
+  const optionsBlock = [
+    `Requested turn count: ${input.turns ? String(input.turns) : "default (6-10)"}`,
+    `Requested ending: ${outcome}`,
+  ].join("\n");
+
+  const systemPrompt = `${prompts.simulate.systemPrompt}${system}${JSON_ONLY_SYSTEM_SUFFIX}`;
+  const userPrompt = `${prompts.simulate.userPrompt(
+    formatPersona(input.persona),
+    formatScenario(input.scenario),
+    optionsBlock,
+    input.mainActor ? formatPersona(input.mainActor) : "",
+  )}${user}`;
 
   try {
     const result = await ai.doChatStructuredFallback({
@@ -84,7 +96,7 @@ export async function bcSimulateConversation(
       schema: {
         name: "simulated_conversation",
         description:
-          "A dual-view conversation between a customer persona and an ideal agent, plus its ending and coaching tips.",
+          "A dual-view conversation between a persona and an ideal agent, plus its ending and coaching tips.",
         properties: {
           summary: {
             type: "string",

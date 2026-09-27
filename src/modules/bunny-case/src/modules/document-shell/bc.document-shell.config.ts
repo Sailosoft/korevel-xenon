@@ -11,12 +11,11 @@ import {
   MessagesSquare,
   Swords,
   Library,
-  LineChart,
   Settings,
   History,
-  Bot,
   BookOpen,
   ScrollText,
+  Flame,
 } from "lucide-react";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
@@ -77,19 +76,13 @@ export const BC_SHELF_NAV_ITEMS: BCNavItem[] = [
   },
   {
     href: "/modules/bunny-case/personas",
-    label: "Persona Architect",
+    label: "Personas",
     icon: Users,
     section: "Configure",
   },
   {
-    href: "/modules/bunny-case/agent-personas",
-    label: "Agent Persona",
-    icon: Bot,
-    section: "Configure",
-  },
-  {
     href: "/modules/bunny-case/cases",
-    label: "Case Base",
+    label: "Cases",
     icon: Briefcase,
     section: "Configure",
   },
@@ -118,6 +111,12 @@ export const BC_SHELF_NAV_ITEMS: BCNavItem[] = [
     section: "Interact",
   },
   {
+    href: "/modules/bunny-case/hot-seat",
+    label: "Hot Seat",
+    icon: Flame,
+    section: "Interact",
+  },
+  {
     href: "/modules/bunny-case/gauntlet",
     label: "Stress-Test Gauntlet",
     icon: Swords,
@@ -128,12 +127,6 @@ export const BC_SHELF_NAV_ITEMS: BCNavItem[] = [
     label: "Session History",
     icon: ScrollText,
     section: "Interact",
-  },
-  {
-    href: "/modules/bunny-case/analytics",
-    label: "Sentiment Analytics",
-    icon: LineChart,
-    section: "Optimize",
   },
   {
     href: "/modules/bunny-case/playbook",

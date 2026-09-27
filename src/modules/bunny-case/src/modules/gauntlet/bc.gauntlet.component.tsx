@@ -36,7 +36,7 @@ function SpeakButton({
   role,
   text,
 }: {
-  role: "customer" | "agent";
+  role: "actor1" | "actor2";
   text: string;
 }) {
   const { ttsSupported, speakRoleText } = useBCVoice();
@@ -48,7 +48,7 @@ function SpeakButton({
         speakRoleText(role, text);
       }}
       className={`p-1.5 rounded-lg transition-colors ${
-        role === "customer"
+        role === "actor1"
           ? "text-rose-400 hover:text-rose-600 hover:bg-rose-50"
           : "text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50"
       }`}
@@ -76,7 +76,7 @@ function MessageBubble({
           <span className="text-xs font-semibold text-slate-600">
             {labels.counterpartLabel}
           </span>
-          <SpeakButton role="customer" text={message.external} />
+          <SpeakButton role="actor1" text={message.external} />
           {message.curveball && (
             <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
               <Siren className="w-3 h-3" /> CURVEBALL
@@ -107,7 +107,7 @@ function MessageBubble({
         <span className="text-xs font-semibold text-slate-500">
           {labels.participantLabel}
         </span>
-        <SpeakButton role="agent" text={message.external} />
+        <SpeakButton role="actor2" text={message.external} />
       </div>
       <p className="text-sm text-slate-800 bg-slate-700 text-white rounded-xl rounded-tr-sm p-3 max-w-[85%]">
         {message.external}

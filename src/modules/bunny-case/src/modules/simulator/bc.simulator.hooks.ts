@@ -1,18 +1,23 @@
 // bc.simulator.hooks.ts
 //
-// useBCSimulator — orchestrates the observation flow: load personas, agent
-// personas and cases; generate the ideal-agent dialogue (dual-view) with an
+// useBCSimulator — orchestrates the observation flow: load personas (filtered
+// by mode) and cases; generate the ideal-agent dialogue (dual-view) with an
 // optional turn count and ending (resolved / unresolved); persist each
 // generated run to the `simulators` table and expose history operations
 // (reload / delete). Extracted playbooks are saved to the Playbook Library
-// (feature: fix save to playbook) as well as the Communication Templates.
+// as well as the Communication Templates.
+//
+// The old Agent Persona module is gone: the "ideal agent" is now any persona
+// whose mode is "main-actor" (or "all").
 
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BCCasePersona } from "../persona-architect/bc.persona.entity";
+import type {
+  BCCasePersona,
+} from "../persona-architect/bc.persona.entity";
+import { bcPersonaMatchesMode } from "../persona-architect/bc.persona.entity";
 import type { BCCaseScenario } from "../case-base/bc.case.entity";
-import type { BCAgentPersona } from "../agent-persona/bc.agent-persona.entity";
 import type {
   BCSimulationResult,
   BCSimulationOutcome,
@@ -26,12 +31,14 @@ import type { BCGenAIOptionId } from "../generative-ai/bc.generative-ai.entity";
 import { BC_GEN_AI_DEFAULT_OPTION_ID } from "../generative-ai/bc.generative-ai.entity";
 
 export interface BCSimulatorState {
+  /** Personas usable as the conversation counterpart (mode all | person). */
   personas: BCCasePersona[];
+  /** Personas usable as the ideal agent / main actor (mode all | main-actor). */
+  mainActorPersonas: BCCasePersona[];
   cases: BCCaseScenario[];
-  agentPersonas: BCAgentPersona[];
   personaId: number | null;
   caseId: number | null;
-  agentPersonaId: number | null;
+  mainActorId: number | null;
   /** Optional requested turn count (null = let the AI decide, default 6-10). */
   turnCount: number | null;
   /** How the conversation should end. */
@@ -52,7 +59,7 @@ export interface BCSimulatorState {
   load: () => Promise<void>;
   setPersonaId: (id: number | null) => void;
   setCaseId: (id: number | null) => void;
-  setAgentPersonaId: (id: number | null) => void;
+  setMainActorId: (id: number | null) => void;
   setTurnCount: (count: number | null) => void;
   setOutcome: (outcome: BCSimulationOutcome) => void;
   setAiOption: (id: BCGenAIOptionId) => void;
@@ -66,11 +73,13 @@ export interface BCSimulatorState {
 
 export function useBCSimulator(): BCSimulatorState {
   const [personas, setPersonas] = useState<BCCasePersona[]>([]);
+  const [mainActorPersonas, setMainActorPersonas] = useState<BCCasePersona[]>(
+    [],
+  );
   const [cases, setCases] = useState<BCCaseScenario[]>([]);
-  const [agentPersonas, setAgentPersonas] = useState<BCAgentPersona[]>([]);
   const [personaId, setPersonaId] = useState<number | null>(null);
   const [caseId, setCaseId] = useState<number | null>(null);
-  const [agentPersonaId, setAgentPersonaId] = useState<number | null>(null);
+  const [mainActorId, setMainActorId] = useState<number | null>(null);
   const [turnCount, setTurnCount] = useState<number | null>(null);
   const [outcome, setOutcome] = useState<BCSimulationOutcome>("resolved");
   const [aiOption, setAiOption] = useState<BCGenAIOptionId>(
@@ -86,37 +95,42 @@ export function useBCSimulator(): BCSimulatorState {
   const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [error, setError] = useState("");
 
+  const applyRows = useCallback(
+    (personaRows: BCCasePersona[], caseRows: BCCaseScenario[]) => {
+      setPersonas(personaRows.filter((p) => bcPersonaMatchesMode(p, "person")));
+      setMainActorPersonas(
+        personaRows.filter((p) => bcPersonaMatchesMode(p, "main-actor")),
+      );
+      setCases(caseRows);
+    },
+    [],
+  );
+
   const load = useCallback(async () => {
     try {
-      const [personaRows, caseRows, agentRows, simRows] = await Promise.all([
+      const [personaRows, caseRows, simRows] = await Promise.all([
         bcDatabase.personas.toArray(),
         bcDatabase.cases.toArray(),
-        bcDatabase.agentPersonas.toArray(),
         bcDatabase.simulators.toArray(),
       ]);
-      setPersonas(personaRows);
-      setCases(caseRows);
-      setAgentPersonas(agentRows);
+      applyRows(personaRows, caseRows);
       setHistory(simRows.reverse());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     }
-  }, []);
+  }, [applyRows]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [personaRows, caseRows, agentRows, simRows] = await Promise.all([
+        const [personaRows, caseRows, simRows] = await Promise.all([
           bcDatabase.personas.toArray(),
           bcDatabase.cases.toArray(),
-          bcDatabase.agentPersonas.toArray(),
           bcDatabase.simulators.toArray(),
         ]);
         if (!cancelled) {
-          setPersonas(personaRows);
-          setCases(caseRows);
-          setAgentPersonas(agentRows);
+          applyRows(personaRows, caseRows);
           setHistory(simRows.reverse());
         }
       } catch (err) {
@@ -128,7 +142,7 @@ export function useBCSimulator(): BCSimulatorState {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyRows]);
 
   const generate = useCallback(async (): Promise<number | null> => {
     setError("");
@@ -138,10 +152,11 @@ export function useBCSimulator(): BCSimulatorState {
       setError("Select a persona and a case first.");
       return null;
     }
-    const persona = personas.find((p) => p.id === personaId);
+    const allPersonas = await bcDatabase.personas.toArray();
+    const persona = allPersonas.find((p) => p.id === personaId);
     const scenario = cases.find((c) => c.id === caseId);
-    const agentPersona = agentPersonaId
-      ? agentPersonas.find((a) => a.id === agentPersonaId)
+    const mainActor = mainActorId
+      ? allPersonas.find((p) => p.id === mainActorId)
       : undefined;
     if (!persona || !scenario) {
       setError("Could not resolve the selected persona / case.");
@@ -156,7 +171,7 @@ export function useBCSimulator(): BCSimulatorState {
         {
           persona,
           scenario,
-          agentPersona,
+          mainActor,
           turns: turnCount ?? undefined,
           outcome,
           aiOptions: aiOption,
@@ -165,16 +180,16 @@ export function useBCSimulator(): BCSimulatorState {
       );
       setResult(simulation);
 
-      // Feature #1: persist every generated run to the simulator history table
-      // and set the current simulatorId so it can be shared / reloaded via
+      // Persist every generated run to the simulator history table and set the
+      // current simulatorId so it can be shared / reloaded via
       // `?simulatorId=<id>`.
       const record: BCSimulatorRecord = {
         personaId,
         caseId,
-        agentPersonaId: agentPersona?.id,
+        agentPersonaId: mainActor?.id,
         personaName: persona.name,
         caseTitle: scenario.title,
-        agentPersonaName: agentPersona?.name,
+        agentPersonaName: mainActor?.name,
         result: simulation,
         createdAt: Date.now(),
       };
@@ -189,17 +204,7 @@ export function useBCSimulator(): BCSimulatorState {
     } finally {
       setLoading(false);
     }
-  }, [
-    personaId,
-    caseId,
-    agentPersonaId,
-    personas,
-    cases,
-    agentPersonas,
-    turnCount,
-    outcome,
-    aiOption,
-  ]);
+  }, [personaId, caseId, mainActorId, cases, turnCount, outcome, aiOption]);
 
   const loadSimulator = useCallback(async (id: number) => {
     setError("");
@@ -215,7 +220,7 @@ export function useBCSimulator(): BCSimulatorState {
       setSimulatorId(record.id ?? id);
       if (record.personaId != null) setPersonaId(record.personaId);
       if (record.caseId != null) setCaseId(record.caseId);
-      if (record.agentPersonaId != null) setAgentPersonaId(record.agentPersonaId);
+      if (record.agentPersonaId != null) setMainActorId(record.agentPersonaId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load simulator");
     }
@@ -279,8 +284,8 @@ export function useBCSimulator(): BCSimulatorState {
       });
       setSavedTemplateId(id);
 
-      // Feature #2 (fix): also save to the Playbook Library so the extracted
-      // playbook actually shows up in the library module.
+      // Also save to the Playbook Library so the extracted playbook shows up
+      // in the library module.
       const transcript = result.turns
         .map((t) => `[${t.speaker}] ${t.external}`)
         .join("\n");
@@ -306,11 +311,11 @@ export function useBCSimulator(): BCSimulatorState {
 
   return {
     personas,
+    mainActorPersonas,
     cases,
-    agentPersonas,
     personaId,
     caseId,
-    agentPersonaId,
+    mainActorId,
     turnCount,
     outcome,
     aiOption,
@@ -326,7 +331,7 @@ export function useBCSimulator(): BCSimulatorState {
     load,
     setPersonaId,
     setCaseId,
-    setAgentPersonaId,
+    setMainActorId,
     setTurnCount,
     setOutcome,
     setAiOption,

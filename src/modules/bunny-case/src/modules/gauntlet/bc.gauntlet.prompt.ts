@@ -1,61 +1,66 @@
 // bc.gauntlet.prompt.ts
 //
-// Stress-Test Gauntlet prompts. The trainer/coach is removed and the
-// persona may throw curveballs (unexpected anger, story changes).
+// Stress-Test Gauntlet prompt architecture.
+//
+// Each training mode (Issue Handling, Job Interview, Discussion, Mental
+// Health) has its OWN prompt set in `./prompts/`, all implementing the
+// `BCGauntletPromptSet` interface exported here. The gauntlet removes the
+// coach; the persona may throw curveballs and the run is evaluated at the
+// end (mental-health mode is supportive and ungraded).
 
-export const bcGauntletPrompt = {
-  personaReply: {
-    systemPrompt: `
-      You are role-playing a customer persona during a certification stress
-      test. The coach is absent — the trainee must resolve the case on their
-      own. Stay in character and react naturally.
+import type { BCGenAIOptionId } from "../generative-ai/bc.generative-ai.entity";
+import { BC_GEN_AI_DEFAULT_OPTION_ID } from "../generative-ai/bc.generative-ai.entity";
+import { bcGauntletIssueHandlingPrompt } from "./prompts/bc.gauntlet.prompt.issue-handling";
+import { bcGauntletJobInterviewPrompt } from "./prompts/bc.gauntlet.prompt.job-interview";
+import { bcGauntletDiscussionPrompt } from "./prompts/bc.gauntlet.prompt.discussion";
+import { bcGauntletMentalHealthPrompt } from "./prompts/bc.gauntlet.prompt.mental-health";
 
-      Respond with:
-      - external: what the persona says out loud.
-      - internal: the persona's hidden thought / true emotion.
-      - sentiment: -1 (very negative) to 1 (very positive).
-      - curveball: when the flag is true, invent an unexpected escalation
-        (anger, a new complaint, or a change in the story) with a short label
-        and description. When the flag is false, omit it.
+// ── Interface ──────────────────────────────────────────────────────────────────
 
-      Only introduce a curveball when explicitly flagged.
-    `,
-    userPrompt: (
+/** A single system + user prompt pair for one AI call. */
+export interface BCGauntletPromptEntry<TArgs extends string[] = string[]> {
+  systemPrompt: string;
+  userPrompt: (...args: TArgs) => string;
+}
+
+/** The prompt set one gauntlet training mode must provide. */
+export interface BCGauntletPromptSet {
+  /** personaReply(persona, scenario, history, userMsg, curveballHint) */
+  personaReply: BCGauntletPromptEntry<
+    [
       persona: string,
       scenario: string,
       history: string,
       userMsg: string,
-      curveballHint: boolean,
-    ) => `
-      Persona: ${persona}
-      Case: ${scenario}
+      curveballHint: string,
+    ]
+  >;
+  /** evaluate(persona, scenario, transcript) */
+  evaluate: BCGauntletPromptEntry<
+    [persona: string, scenario: string, transcript: string]
+  >;
+}
 
-      Conversation so far:
-      ${history || "(start of conversation)"}
+// ── Registry ───────────────────────────────────────────────────────────────────
 
-      ${userMsg ? `The trainee just said: "${userMsg}"` : "The trainee has not spoken yet — open the conversation."}
-      Curveball hint: ${curveballHint ? "YES — introduce an unexpected escalation now." : "no"}
-    `,
-  },
-  evaluate: {
-    systemPrompt: `
-      You are a certification examiner for customer-service training.
-      Review the full conversation and decide whether the trainee resolved the
-      case without coaching.
-
-      Return:
-      - passed: boolean.
-      - score: number from 0 to 100.
-      - reason: one-paragraph justification.
-      - feedback: a list of specific strengths / improvement areas.
-      - summary: a short narrative of how the case was resolved.
-    `,
-    userPrompt: (persona: string, scenario: string, transcript: string) => `
-      Persona: ${persona}
-      Case: ${scenario}
-
-      Transcript:
-      ${transcript || "(empty)"}
-    `,
-  },
+/**
+ * Gauntlet prompt sets keyed by training mode. The `custom` mode falls back
+ * to issue-handling prompts (its directives are injected at the call-site).
+ */
+export const bcGauntletPrompts: Record<BCGenAIOptionId, BCGauntletPromptSet> = {
+  "issue-handling": bcGauntletIssueHandlingPrompt,
+  "job-interview": bcGauntletJobInterviewPrompt,
+  discussion: bcGauntletDiscussionPrompt,
+  "mental-health": bcGauntletMentalHealthPrompt,
+  custom: bcGauntletIssueHandlingPrompt,
 };
+
+/** Resolve the gauntlet prompt set for a training mode (default-safe). */
+export function bcResolveGauntletPrompts(
+  mode?: BCGenAIOptionId | null,
+): BCGauntletPromptSet {
+  return (
+    (mode && bcGauntletPrompts[mode]) ||
+    bcGauntletPrompts[BC_GEN_AI_DEFAULT_OPTION_ID]
+  );
+}

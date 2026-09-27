@@ -1,6 +1,7 @@
 // bc.case.server.ts
 //
-// Case Base server actions — AI scenario generation.
+// Case Base server actions — AI scenario generation. Produces a single
+// markdown `content` body from a title + raw instructions.
 
 "use server";
 
@@ -23,9 +24,7 @@ const JSON_ONLY_SYSTEM_SUFFIX = `
 
 export async function bcCaseGenerateScenario(
   title: string,
-  personaName: string,
-  personaProfile: string,
-  conflict: string,
+  instructions: string,
   aiConfig?: HelixAIOption,
   aiOptions?: BCGenAIOptions,
 ): Promise<BCGeneratedScenario> {
@@ -35,9 +34,7 @@ export async function bcCaseGenerateScenario(
   const systemPrompt = `${bcCasePrompt.scenario.systemPrompt}${bcGenAISystemDirectives(aiOptions)}${JSON_ONLY_SYSTEM_SUFFIX}`;
   const userPrompt = `${bcCasePrompt.scenario.userPrompt(
     title,
-    personaName,
-    personaProfile,
-    conflict,
+    instructions,
   )}${bcGenAIUserDirectives(aiOptions)}`;
 
   try {
@@ -47,27 +44,12 @@ export async function bcCaseGenerateScenario(
       schema: {
         name: "case_scenario",
         description:
-          "A fleshed-out customer service training scenario from a persona and conflict.",
+          "A complete, free-form training case written as markdown content.",
         properties: {
-          description: {
+          content: {
             type: "string",
-            description: "Short narrative setting up the situation.",
-          },
-          objective: {
-            type: "string",
-            description: "What a successful agent must accomplish.",
-          },
-          conflict: {
-            type: "string",
-            description: "The core tension the agent must defuse.",
-          },
-          escalationPoints: {
-            type: "array",
-            description: "Ways the persona could escalate the conversation.",
-            items: {
-              type: "string",
-              description: "A concrete escalation behaviour.",
-            },
+            description:
+              "The full case body in markdown: situation, conflict/topic, success outcome and possible escalations.",
           },
         },
       },

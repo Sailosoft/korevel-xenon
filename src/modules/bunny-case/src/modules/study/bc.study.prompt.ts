@@ -16,15 +16,11 @@ export interface BCStudyTypePrompt {
     persona: {
       name: string;
       traits: string;
-      profile: string;
-      triggers: string;
-      preferences: string;
+      aiPrompt: string;
     },
     scenario: {
       title: string;
-      description: string;
-      conflict: string;
-      objective: string;
+      content: string;
     },
   ) => string;
 }
@@ -35,14 +31,11 @@ const baseUserPrompt: BCStudyTypePrompt["userPrompt"] = (
 ) => `
   Persona: ${persona.name}
   Persona traits: ${persona.traits || "(none)"}
-  Persona profile: ${persona.profile || "(none)"}
-  Persona triggers: ${persona.triggers || "(none)"}
-  Persona preferences: ${persona.preferences || "(none)"}
+  Persona role-play instruction: ${persona.aiPrompt || "(none)"}
 
   Case: ${scenario.title}
-  Description: ${scenario.description || "(none)"}
-  Conflict: ${scenario.conflict || "(none)"}
-  Objective: ${scenario.objective || "(resolve the case)"}
+  Case content:
+  ${scenario.content || "(none)"}
 `;
 
 const outputContract = `

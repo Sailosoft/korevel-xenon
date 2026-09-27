@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BCCasePersona } from "../persona-architect/bc.persona.entity";
+import { bcPersonaMatchesMode } from "../persona-architect/bc.persona.entity";
 import type { BCCaseScenario } from "../case-base/bc.case.entity";
 import type {
   BCCaseMessage,
@@ -78,7 +79,7 @@ export function useBCGauntlet(): BCGauntletState {
           bcDatabase.cases.toArray(),
         ]);
         if (!cancelled) {
-          setPersonas(personaRows);
+          setPersonas(personaRows.filter((p) => bcPersonaMatchesMode(p, "person")));
           setCases(caseRows);
         }
       } catch (err) {
@@ -116,7 +117,7 @@ export function useBCGauntlet(): BCGauntletState {
         );
         setPersonaId(session.personaId ?? null);
         setCaseId(session.caseId ?? null);
-        setPersonas(personaRows);
+        setPersonas(personaRows.filter((p) => bcPersonaMatchesMode(p, "person")));
         setCases(caseRows);
         setCurveballs(
           messageRows.filter((m) => m.role === "persona" && m.curveball)

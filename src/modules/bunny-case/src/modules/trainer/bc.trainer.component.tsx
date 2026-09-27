@@ -48,7 +48,7 @@ function SpeakButton({
   role,
   text,
 }: {
-  role: "customer" | "agent";
+  role: "actor1" | "actor2";
   text: string;
 }) {
   const { ttsSupported, speakRoleText } = useBCVoice();
@@ -60,7 +60,7 @@ function SpeakButton({
         speakRoleText(role, text);
       }}
       className={`p-1.5 rounded-lg transition-colors ${
-        role === "customer"
+        role === "actor1"
           ? "text-rose-400 hover:text-rose-600 hover:bg-rose-50"
           : "text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50"
       }`}
@@ -165,7 +165,7 @@ function TrainerContent() {
     if (!autoTTS || !ttsSupported) return;
     if (lastPersona && lastPersona.external !== lastPersonaRef.current) {
       lastPersonaRef.current = lastPersona.external;
-      speakRoleText("customer", lastPersona.external);
+      speakRoleText("actor1", lastPersona.external);
     }
   }, [messages, lastPersona, autoTTS, ttsSupported, speakRoleText]);
 
@@ -782,8 +782,8 @@ function TrainerContent() {
 
       {resolved && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-emerald-700 text-sm font-medium">
-          Case resolved — session completed. Review it in Sentiment Analytics
-          and archive it to the Playbook Library.
+          Case resolved — session completed. Review the session summary and
+          archive it to the Playbook Library.
         </div>
       )}
 
@@ -888,7 +888,7 @@ function MessageBubble({
           <span className="text-xs font-semibold text-slate-600">
             {labels.counterpartLabel}
           </span>
-          <SpeakButton role="customer" text={message.external} />
+          <SpeakButton role="actor1" text={message.external} />
         </div>
         <p className="text-sm text-slate-700 bg-rose-50 border border-rose-100 rounded-xl rounded-tl-sm p-3 max-w-[85%]">
           {message.external}
@@ -897,7 +897,7 @@ function MessageBubble({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            speakRoleText("customer", message.external);
+            speakRoleText("actor1", message.external);
           }}
           className="flex items-center gap-1.5 text-[11px] font-medium rounded-full border border-rose-200 bg-rose-50/60 text-rose-500 hover:bg-rose-100 px-2.5 py-1 transition-colors"
           title="Play audio"
@@ -926,7 +926,7 @@ function MessageBubble({
         <span className="text-xs font-semibold text-slate-500">
           {labels.participantLabel}
         </span>
-        <SpeakButton role="agent" text={message.external} />
+        <SpeakButton role="actor2" text={message.external} />
       </div>
       <p className="text-sm text-slate-800 bg-emerald-600 text-white rounded-xl rounded-tr-sm p-3 max-w-[85%]">
         {message.external}
@@ -935,7 +935,7 @@ function MessageBubble({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          speakRoleText("agent", message.external);
+          speakRoleText("actor2", message.external);
         }}
         className="flex items-center gap-1.5 text-[11px] font-medium rounded-full border border-emerald-200 bg-emerald-50/60 text-emerald-600 hover:bg-emerald-100 px-2.5 py-1 transition-colors"
         title="Play audio"

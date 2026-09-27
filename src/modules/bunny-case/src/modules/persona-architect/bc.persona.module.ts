@@ -2,12 +2,15 @@
 //
 // Persona Architect — Bunny CRUD module (Create / Update / Delete / Edit via
 // Bunny) with an AI "Generate Profile" header action.
+//
+// A persona is: Name + Mode (where it can be used) + Traits (filterable
+// multi-select) + AI Prompt (the role-play instruction).
 
 import { BunnyConfig } from "@/src/modules/bunny/src/Bunny.Interface";
 import {
   BCCasePersona,
-  bcPersonaJoinList,
-  bcPersonaParseList,
+  BC_PERSONA_MODE_OPTIONS,
+  type BCPersonaMode,
 } from "./bc.persona.entity";
 import {
   AdminPanelQueryOptions,
@@ -25,6 +28,8 @@ import { Sparkles } from "lucide-react";
 import { bcPersonaGenerateProfile } from "./bc.persona.server";
 import BCSettingsRepository from "../settings/bc.settings.repository";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
+import { BCGenerateAIFormDialog } from "../generative-ai/bc.generative-ai.dialog";
+import BCPersonaTraitsField from "./bc.persona.traits.field";
 
 // ── Module ─────────────────────────────────────────────────────────────────────
 
@@ -35,8 +40,8 @@ export const bcPersonaModule: BunnyConfig<BCCasePersona, BCCasePersona> = {
   onFormSuccess: { mode: "closeOnly" },
   columns: [
     { field: "name", header: "Name", isRowHeader: true, sortable: true },
+    { field: "mode", header: "Mode" },
     { field: "traits", header: "Traits" },
-    { field: "communicationStyle", header: "Communication Style" },
   ],
   formConfig: {
     gridCols: 2,
@@ -48,34 +53,30 @@ export const bcPersonaModule: BunnyConfig<BCCasePersona, BCCasePersona> = {
         rules: [{ rule: "required", message: "Name is required" }],
       },
       {
+        name: "mode",
+        label: "Mode",
+        type: "select",
+        options: BC_PERSONA_MODE_OPTIONS.map((o) => ({
+          label: o.label,
+          value: o.value,
+        })),
+        defaultValue: "person" as BCPersonaMode,
+        rules: [{ rule: "required", message: "Mode is required" }],
+      },
+      {
         name: "traits",
         label: "Traits",
-        type: "textarea",
-        rows: 2,
-        placeholder: "Comma-separated, e.g. Impatient, Confused, High-Value",
+        type: "custom",
+        component: BCPersonaTraitsField,
+        colSpan: 2,
       },
       {
-        name: "description",
-        label: "Description",
-        type: "textarea",
+        name: "aiPrompt",
+        label: "AI Prompt",
+        type: "editor",
         colSpan: 2,
-        rows: 2,
-      },
-      {
-        name: "psychologicalProfile",
-        label: "Psychological Profile (AI)",
-        type: "textarea",
-        colSpan: 2,
-        rows: 3,
-      },
-      { name: "triggers", label: "Triggers", type: "textarea", rows: 2 },
-      { name: "preferences", label: "Preferences", type: "textarea", rows: 2 },
-      {
-        name: "communicationStyle",
-        label: "Communication Style",
-        type: "textarea",
-        colSpan: 2,
-        rows: 2,
+        placeholder:
+          "Instruction the AI follows when role-playing this persona — or use 'Generate AI Profile'…",
       },
     ],
   },
@@ -91,54 +92,69 @@ export const bcPersonaModule: BunnyConfig<BCCasePersona, BCCasePersona> = {
         const action: AdminPanelDialogOption = {
           title: "Generate AI Persona Profile",
           actionId: "generate-persona-profile",
-          fields: [
-            { name: "name", label: "Persona Name", type: "text" },
-            { name: "traits", label: "Traits (comma-separated)", type: "textarea" },
-            { name: "description", label: "Description", type: "textarea" },
-          ],
-          async onConfirm({ form }) {
-            adminPanel.dialog.setLoading(true);
-            const { name, traits, description } = Object.fromEntries(
-              form,
-            ) as Record<string, string>;
-            if (!name) {
-              adminPanel.dialog.setLoading(false);
-              return { success: false, message: "Name is required." };
-            }
+          contentOnly: true,
+          hideFooter: true,
+          size: "xl",
+          fullHeight: false,
+          children: React.createElement(BCGenerateAIFormDialog, {
+            title: "Generate AI Persona Profile",
+            description:
+              "Turn a name and your instruction into a consistent role-play prompt.",
+            fields: [
+              { name: "name", label: "Persona Name", type: "text", required: true },
+              {
+                name: "instruction",
+                label: "Instruction",
+                type: "textarea",
+                placeholder:
+                  "Who is this person? How do they behave, speak, escalate?…",
+              },
+            ],
+            generateLabel: "Generate Profile",
+            onGenerate: async (values) => {
+              try {
+                const settingsRepo = new BCSettingsRepository();
+                const aiConfig = await settingsRepo.getActiveAIConfig();
+                const profile = await bcPersonaGenerateProfile(
+                  values.name ?? "",
+                  values.instruction ?? "",
+                  aiConfig,
+                );
 
-            const settingsRepo = new BCSettingsRepository();
-            const aiConfig = await settingsRepo.getActiveAIConfig();
-            const profile = await bcPersonaGenerateProfile(
-              name,
-              bcPersonaParseList(traits),
-              description ?? "",
-              aiConfig,
-            );
+                // Persist the generated persona directly so a record appears
+                // in the table immediately after generation.
+                const persona: BCCasePersona = {
+                  name: values.name ?? "",
+                  mode: "person",
+                  traits: "",
+                  aiPrompt: profile.aiPrompt,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                };
 
-            // Persist the generated persona directly so a record appears in
-            // the table immediately after generation.
-            const persona: BCCasePersona = {
-              name,
-              traits: bcPersonaJoinList(bcPersonaParseList(traits)),
-              description: description ?? "",
-              psychologicalProfile: profile.psychologicalProfile,
-              triggers: bcPersonaJoinList(profile.triggers),
-              preferences: bcPersonaJoinList(profile.preferences),
-              communicationStyle: profile.communicationStyle,
-              aiSummary: profile.aiSummary,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            };
-
-            await bcDatabase.personas.add(persona);
-            await adminPanel.table.fetchData();
-            adminPanel.notify.success(
-              `Persona "${name}" generated and saved successfully.`,
-            );
-
-            adminPanel.dialog.setLoading(false);
-            return { success: true };
-          },
+                await bcDatabase.personas.add(persona);
+                return {
+                  success: true,
+                  message: `Persona "${persona.name}" generated and saved successfully.`,
+                };
+              } catch (err) {
+                return {
+                  success: false,
+                  message:
+                    err instanceof Error ? err.message : "Generation failed.",
+                };
+              }
+            },
+            onSaved: async (result) => {
+              await adminPanel.table.fetchData();
+              adminPanel.notify.success(
+                result?.message ?? "Persona generated and saved successfully.",
+              );
+              adminPanel.dialog.closeDialog();
+            },
+            onClose: () => adminPanel.dialog.closeDialog(),
+          }),
+          onConfirm: async () => ({ success: true }),
         };
         adminPanel.dialog.openDialog(action);
       },
@@ -165,7 +181,11 @@ export const bcPersonaModule: BunnyConfig<BCCasePersona, BCCasePersona> = {
     create: async function (
       data: BCCasePersona,
     ): Promise<AdminPanelResult<BCCasePersona, unknown>> {
-      const id = await bcDatabase.personas.add(data);
+      const id = await bcDatabase.personas.add({
+        ...data,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
       return adminPanelResultSuccess<BCCasePersona>(
         (await bcDatabase.personas.get(id)) as BCCasePersona,
       );
@@ -177,7 +197,7 @@ export const bcPersonaModule: BunnyConfig<BCCasePersona, BCCasePersona> = {
       if (typeof id !== "number") {
         throw new Error("Invalid ID type. Expected a number.");
       }
-      await bcDatabase.personas.update(id, data);
+      await bcDatabase.personas.update(id, { ...data, updatedAt: Date.now() });
       return adminPanelResultSuccess<BCCasePersona>(
         (await bcDatabase.personas.get(id)) as BCCasePersona,
       );

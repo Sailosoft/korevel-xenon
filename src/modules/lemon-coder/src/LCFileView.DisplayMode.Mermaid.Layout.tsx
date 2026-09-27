@@ -13,12 +13,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ZoomIn, ZoomOut, Maximize2, MousePointer2 } from "lucide-react";
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  MousePointer2,
+  Plus,
+  Trash2,
+  Info,
+  Pencil,
+} from "lucide-react";
 import {
   type FlowDocument,
   type FlowEdgeInfo,
   type ShapeKind,
   edgeKey,
+  autoArrange,
 } from "./LCFileView.DisplayMode.Mermaid.Flow";
 
 const MIN_ZOOM = 0.25;
@@ -29,6 +39,28 @@ export const NODE_W = 170;
 export const NODE_H = 62;
 const NODE_CORNER = 10;
 
+// Mermaid "default" theme palette (classic lavender nodes on white-ish scheme).
+const MM_FILL = "#ECECFF";
+const MM_BORDER = "#9370DB";
+const MM_TEXT = "#333333";
+const MM_DIAMOND_FILL = "#ffe3a1";
+const MM_DIAMOND_BORDER = "#d19a66";
+const MM_CIRCLE_FILL = "#ffe9c9";
+const MM_EDGE = "#6b7280";
+const MM_SEL = "#e5c07b";
+
+const SHAPE_OPTIONS: ReadonlyArray<{ value: ShapeKind; label: string }> = [
+  { value: "rect", label: "Rect" },
+  { value: "round", label: "Round" },
+  { value: "diamond", label: "Decision" },
+  { value: "stadium", label: "Stadium" },
+  { value: "subroutine", label: "Subroutine" },
+  { value: "cylinder", label: "Cylinder" },
+  { value: "circle", label: "Circle" },
+  { value: "async", label: "Async" },
+  { value: "plain", label: "Plain" },
+];
+
 export interface LayoutSelection {
   type: "node" | "edge";
   key: string;
@@ -36,15 +68,20 @@ export interface LayoutSelection {
 
 export interface LayoutCanvasProps {
   doc: FlowDocument;
-  /** Positions keyed by node id. */
+  /** Positions keyed by node id. Ignored when `autoLayout` is set. */
   positions: Record<string, [number, number]>;
   readOnly?: boolean;
+  /** Auto-arrange only: positions are computed and nodes cannot be dragged.
+   *  Used by the Visual editor (no manual layout editing). */
+  autoLayout?: boolean;
   selection: LayoutSelection | null;
   onSelect: (sel: LayoutSelection | null) => void;
   /** Commit new node positions (drag end). */
   onPositionsChange?: (positions: Record<string, [number, number]>) => void;
   /** Create an edge from `from` to `to` (connect handle drag release). */
   onRequestAddEdge?: (from: string, to: string) => void;
+  /** Add a new node with the given shape. */
+  onRequestAddNode?: (shape: ShapeKind) => void;
   /** Edit an edge label. */
   onRequestEditEdge?: (edge: FlowEdgeInfo, label: string) => void;
   /** Edit a node label. */
@@ -56,10 +93,12 @@ export default function LayoutCanvas({
   doc,
   positions,
   readOnly = false,
+  autoLayout = false,
   selection,
   onSelect,
   onPositionsChange,
   onRequestAddEdge,
+  onRequestAddNode,
   onRequestEditEdge,
   onRequestEditNode,
   onRequestDeleteSelection,
@@ -100,6 +139,7 @@ export default function LayoutCanvas({
     edge: FlowEdgeInfo;
     draft: string;
   } | null>(null);
+  const [shapeSel, setShapeSel] = useState<ShapeKind>("rect");
 
   const positionsKey = useMemo(() => JSON.stringify(positions), [positions]);
   const [prevKey, setPrevKey] = useState(positionsKey);
@@ -109,7 +149,13 @@ export default function LayoutCanvas({
     setConnecting(null);
   }
 
-  const effective = draftPositions ?? positions;
+  const layoutPositions = useMemo(
+    () =>
+      autoLayout ? autoArrange(doc, NODE_W + 120, NODE_H + 110) : null,
+    [autoLayout, doc],
+  );
+
+  const effective = layoutPositions ?? draftPositions ?? positions;
 
   const nodeSize = useCallback((shape: ShapeKind): { w: number; h: number } => {
     switch (shape) {
@@ -159,6 +205,11 @@ export default function LayoutCanvas({
     (e: React.PointerEvent, id: string) => {
       e.stopPropagation();
       if (readOnly) return;
+      if (autoLayout) {
+        // Visual editor: select only — positions are arranged automatically.
+        onSelect({ type: "node", key: id });
+        return;
+      }
       const w = toWorld(e.clientX, e.clientY);
       const pos = effective[id] ?? [0, 0];
       dragRef.current = {
@@ -173,7 +224,7 @@ export default function LayoutCanvas({
       setIsPanning(false);
       onSelect({ type: "node", key: id });
     },
-    [readOnly, toWorld, effective, onSelect],
+    [readOnly, autoLayout, toWorld, effective, onSelect],
   );
 
   const handlePointerMove = useCallback(
@@ -312,6 +363,14 @@ export default function LayoutCanvas({
     });
   }, [doc, effective, nodeSize, selection]);
 
+  const selectedEdge = useMemo(
+    () =>
+      selection?.type === "edge"
+        ? doc.edges.find((e) => edgeKey(e) === selection.key)
+        : null,
+    [selection, doc],
+  );
+
   // ── Delete key ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -334,7 +393,14 @@ export default function LayoutCanvas({
     <div
       ref={viewportRef}
       className="relative flex-1 min-h-0 overflow-hidden bg-[#1e1e1e]"
-      style={{ touchAction: "none", cursor: isPanning ? "grabbing" : "grab" }}
+      style={{
+        touchAction: "none",
+        cursor: isPanning ? "grabbing" : "grab",
+        backgroundColor: "#1e1e1e",
+        backgroundImage:
+          "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+      }}
       onPointerDown={beginPan}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -377,11 +443,88 @@ export default function LayoutCanvas({
         </button>
       </div>
 
+      {/* Add-node controls */}
+      {!readOnly && (
+        <div className="absolute top-2 left-2 z-30 flex items-center gap-1 bg-[#252526] border border-[#444444] rounded-md p-1">
+          {doc.isFlowchart && (
+            <select
+              value={shapeSel}
+              onChange={(e) => setShapeSel(e.target.value as ShapeKind)}
+              title="New node shape"
+              className="text-[11px] h-6 px-1.5 rounded border border-[#444444] bg-[#2d2d2d] text-[#d4d4d4] outline-none hover:border-[#e5c07b]/50 transition-colors"
+            >
+              {SHAPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => onRequestAddNode?.(shapeSel)}
+            className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-white hover:bg-[#333333]"
+            title="Add a new node"
+          >
+            <Plus className="w-3 h-3" />
+            <span className="hidden sm:inline">Node</span>
+          </button>
+          {selection && (
+            <>
+              <div className="w-px h-5 bg-[#333333] mx-0.5" />
+              {selection?.type === "node" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingNode({
+                      id: selection.key,
+                      draft: doc.nodes.get(selection.key)?.label ?? selection.key,
+                    });
+                  }}
+                  className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#333333]"
+                  title="Rename selected node"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span className="hidden sm:inline">Rename</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onRequestDeleteSelection?.()}
+                className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e06c75] hover:bg-[#333333]"
+                title="Delete selected node/connection"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+              {selectedEdge && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingEdge({
+                      edge: selectedEdge,
+                      draft: selectedEdge.label ?? "",
+                    })
+                  }
+                  className="flex items-center gap-1 text-[11px] h-6 px-2 rounded text-[#858585] hover:text-[#e5c07b] hover:bg-[#333333]"
+                  title="Edit selected connection label"
+                >
+                  <Info className="w-3 h-3" />
+                  <span className="hidden sm:inline">Edge Label</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Hint bar */}
       {!readOnly && (
-        <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 text-[10px] text-[#858585] bg-[#252526]/90 border border-[#333333] rounded-md px-2 py-1 select-none">
+        <div className="absolute top-11 left-2 z-30 flex items-center gap-1.5 text-[10px] text-[#858585] bg-[#252526]/90 border border-[#333333] rounded-md px-2 py-1 select-none">
           <MousePointer2 className="w-3 h-3" />
-          Drag nodes · drag background to pan · wheel zoom · (+) connects
+          {autoLayout
+            ? "Auto layout · click to select · double-click to rename"
+            : "Drag nodes · drag background to pan · wheel zoom · (+) connects"}
         </div>
       )}
 
@@ -410,7 +553,7 @@ export default function LayoutCanvas({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#858585" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={MM_EDGE} />
             </marker>
             <marker
               id="lc-arrow-sel"
@@ -421,7 +564,7 @@ export default function LayoutCanvas({
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#e5c07b" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={MM_SEL} />
             </marker>
           </defs>
           {edgePaths.map((ep) => (
@@ -429,7 +572,7 @@ export default function LayoutCanvas({
               key={edgeKey(ep.edge)}
               d={ep.path}
               fill="none"
-              stroke={ep.isSel ? "#e5c07b" : "#555555"}
+              stroke={ep.isSel ? MM_SEL : MM_EDGE}
               strokeWidth={ep.width}
               strokeDasharray={ep.dash}
               markerEnd={`url(#${ep.isSel ? "lc-arrow-sel" : "lc-arrow"})`}
@@ -453,10 +596,11 @@ export default function LayoutCanvas({
           ep.edge.label ? (
             <div
               key={`lbl-${edgeKey(ep.edge)}`}
-              className="absolute z-[2] px-2 py-0.5 text-[10px] text-[#d4d4d4] bg-[#1a1a1a] border border-[#333333] rounded-full whitespace-nowrap pointer-events-none"
+              className="absolute z-[2] px-2 py-0.5 text-[10px] text-[#333333] bg-white border border-[#c9c4e8] rounded-full whitespace-nowrap pointer-events-none"
               style={{
                 left: (ep.start.x + ep.end.x) / 2 - 12,
                 top: (ep.start.y + ep.end.y) / 2 - 10,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
               }}
             >
               {ep.edge.label}
@@ -478,24 +622,23 @@ export default function LayoutCanvas({
             top: pos[1],
             width: w,
             height: h,
-            background: "#2d2d2d",
-            color: "#d4d4d4",
+            background: MM_FILL,
+            color: MM_TEXT,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontSize: 12,
             padding: "0 10px",
             textAlign: "center",
-            overflow: "hidden",
             userSelect: "none",
             cursor: readOnly ? "grab" : "move",
             position: "absolute",
             zIndex: 4,
             boxSizing: "border-box",
-            border: `1.5px solid ${isSel ? "#e5c07b" : "#555555"}`,
+            border: `1.5px solid ${isSel ? MM_SEL : MM_BORDER}`,
             boxShadow: isSel
-              ? "0 0 0 1px #e5c07b, 0 0 10px rgba(229,192,123,0.25)"
-              : "0 1px 3px rgba(0,0,0,0.4)",
+              ? "0 0 0 1px #e5c07b, 0 0 10px rgba(229,192,123,0.4)"
+              : "0 2px 5px rgba(0,0,0,0.35)",
             fontFamily: '"JetBrains Mono", "Fira Code", monospace',
             transition: "box-shadow 0.15s, border-color 0.15s",
           };
@@ -512,11 +655,13 @@ export default function LayoutCanvas({
               break;
             case "circle":
               style.borderRadius = "50%";
+              style.background = MM_CIRCLE_FILL;
+              style.borderColor = isSel ? MM_SEL : MM_DIAMOND_BORDER;
               break;
             case "subroutine":
-              style.background = "#2d2d2d";
-              style.borderLeft = `3px solid ${isSel ? "#e5c07b" : "#61afef"}`;
-              style.borderRight = `3px solid ${isSel ? "#e5c07b" : "#61afef"}`;
+              style.background = MM_FILL;
+              style.borderLeft = `3px solid ${isSel ? MM_SEL : MM_BORDER}`;
+              style.borderRight = `3px solid ${isSel ? MM_SEL : MM_BORDER}`;
               style.border = undefined;
               style.borderRadius = 6;
               break;
@@ -528,11 +673,13 @@ export default function LayoutCanvas({
               style.border = "none";
               break;
             case "async":
-              style.clipPath =
-                "polygon(0 50%, 38% 0, 100% 0, 100% 100%, 38% 100%)";
+              style.background = "transparent";
+              style.border = "none";
               break;
             case "plain":
+              style.background = "rgba(255,255,255,0.75)";
               style.borderStyle = "dashed";
+              style.borderColor = isSel ? MM_SEL : "#9aa0a6";
               break;
             default:
               break;
@@ -555,18 +702,47 @@ export default function LayoutCanvas({
               style={style}
             >
               {shape === "diamond" && (
-                <div
+                <svg
                   style={{
                     position: "absolute",
                     inset: 0,
-                    background: "#2d2d2d",
-                    transform: "rotate(45deg) scale(0.78)",
-                    borderRadius: 8,
-                    border: `1.5px solid ${isSel ? "#e5c07b" : "#555555"}`,
-                    boxShadow: isSel ? "0 0 0 1px #e5c07b" : undefined,
-                    boxSizing: "border-box",
+                    width: "100%",
+                    height: "100%",
+                    zIndex: 0,
+                    filter: isSel
+                      ? "drop-shadow(0 0 5px rgba(229,192,123,0.6))"
+                      : undefined,
                   }}
-                />
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <polygon
+                    points="50,5 95,50 50,95 5,50"
+                    fill={MM_DIAMOND_FILL}
+                    stroke={isSel ? MM_SEL : MM_DIAMOND_BORDER}
+                    strokeWidth={4.5}
+                  />
+                </svg>
+              )}
+              {shape === "async" && (
+                <svg
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    zIndex: 0,
+                  }}
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <polygon
+                    points="0,50 38,2 98,2 98,98 38,98"
+                    fill={MM_FILL}
+                    stroke={isSel ? MM_SEL : MM_BORDER}
+                    strokeWidth={3.5}
+                  />
+                </svg>
               )}
               <span
                 className="relative z-[1] max-w-full truncate"
@@ -574,7 +750,7 @@ export default function LayoutCanvas({
               >
                 {info.label}
               </span>
-              {!readOnly && (
+              {!readOnly && doc.isFlowchart && (
                 <button
                   type="button"
                   onPointerDown={(e) => {

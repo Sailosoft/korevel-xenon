@@ -3,10 +3,12 @@
 // BunnyCase Generative AI Options — an extensible registry of "training modes"
 // that shape every AI generation in BunnyCase:
 //   - AI generative case (Case Base)
-//   - Agent Persona
 //   - Simulator
 //   - Trainer
 //   - Gauntlet
+//
+// Each mode has its own prompt set in the trainer/simulator/gauntlet
+// `prompts/` folders; the `custom` mode injects directives at the call-site.
 //
 // The registry is deliberately open: add a new `BCGenAIOptionId` union member
 // and a matching entry in `BC_GEN_AI_OPTIONS` to extend the set, or pass a
