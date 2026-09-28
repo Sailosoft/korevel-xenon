@@ -149,7 +149,7 @@ export function BDSchemaBuilderComponent({
     const model = await bdSchemaModelRepository.createModel(
       projectId,
       resolvedGroupId,
-      "NewModel",
+      "",
     );
     setEditingModel(model);
   };
@@ -214,7 +214,7 @@ export function BDSchemaBuilderComponent({
           projectId,
           groupId: group.id,
           name: modelDraft.name,
-          table: modelDraft.table ?? slugifyTable(modelDraft.name),
+          table: modelDraft.table || slugifyTable(modelDraft.name),
           description: modelDraft.description,
           properties,
           relations: [],
@@ -408,7 +408,9 @@ export function BDSchemaBuilderComponent({
                   label: "Model",
                   sortable: true,
                   render: (row) => (
-                    <span className="font-medium text-slate-800">{row.name}</span>
+                    <span className="font-medium text-slate-800">
+                      {row.name || "Untitled model"}
+                    </span>
                   ),
                 },
                 { key: "table", label: "Table", sortable: true },

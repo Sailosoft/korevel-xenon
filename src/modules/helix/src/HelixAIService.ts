@@ -436,6 +436,7 @@ You are a strict JSON generator. Follow these rules exactly:
 4. COMMAS — Never add a trailing comma before \`}\` or \`]\`.
 5. COMMENTS — Never include // or /* */ comments in the output.
 6. SCHEMA — Output must conform to the schema below exactly. Do not add, remove, or reorder properties.
+7. FORMAT — Output compact JSON only, with no indentation and no newlines.
 
 Required JSON Schema:
 ${schemaString}

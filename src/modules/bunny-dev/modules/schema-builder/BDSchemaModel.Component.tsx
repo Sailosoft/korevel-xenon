@@ -38,8 +38,19 @@ export interface BDSchemaModelComponentProps {
 const CELL = "rounded border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400";
 
 const MODEL_FIELDS = [
-  { name: "name", label: "Model name", type: "text" as const, required: true },
-  { name: "table", label: "Table", type: "text" as const },
+  {
+    name: "name",
+    label: "Model name",
+    type: "text" as const,
+    required: true,
+    placeholder: "e.g. User",
+  },
+  {
+    name: "table",
+    label: "Table",
+    type: "text" as const,
+    placeholder: "e.g. users",
+  },
   { name: "description", label: "Description", type: "textarea" as const, columnSpan: "full" as const },
   { name: "timestamps", label: "Timestamps", type: "toggle" as const },
   { name: "softDeletes", label: "Soft deletes", type: "toggle" as const },
@@ -58,6 +69,9 @@ export function BDSchemaModelComponent({
   const [form, setForm] = useState<BDSchemaModelForm | null>(
     model ? toModelForm(model) : null,
   );
+  // The table name follows the model name while it is still blank; a table
+  // that already exists is never overwritten by a rename.
+  const [tableTouched, setTableTouched] = useState(!!model?.table);
 
   // Load the selected model into the local draft when the drawer opens or the
   // target changes (render-time adjustment, not a setState-in-effect).
@@ -67,6 +81,7 @@ export function BDSchemaModelComponent({
     setPrevKey(drawerKey);
     setDraft(model);
     setForm(model ? toModelForm(model) : null);
+    setTableTouched(!!model?.table);
   }
 
   if (!draft || !form) {
@@ -81,7 +96,12 @@ export function BDSchemaModelComponent({
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
   const handleFormChange = (values: Record<string, unknown>) => {
-    const next = values as unknown as BDSchemaModelForm;
+    const next = { ...(values as unknown as BDSchemaModelForm) };
+    if (next.table !== form.table) {
+      setTableTouched(true);
+    } else if (!tableTouched && next.name !== form.name) {
+      next.table = next.name.trim() ? slugifyTable(next.name) : "";
+    }
     setForm(next);
     update({
       name: next.name,
@@ -187,6 +207,7 @@ export function BDSchemaModelComponent({
                     <td className="px-2 py-1">
                       <input
                         className={CELL}
+                        placeholder="name"
                         value={property.name}
                         onChange={(e) =>
                           updateProperty(index, { name: e.target.value })
@@ -461,11 +482,6 @@ export function BDSchemaModelComponent({
             </div>
           )}
         </section>
-
-        <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-          Table name suggestion:{" "}
-          <strong>{slugifyTable(form.name || "model")}</strong>
-        </div>
       </div>
     </BDDrawer>
   );

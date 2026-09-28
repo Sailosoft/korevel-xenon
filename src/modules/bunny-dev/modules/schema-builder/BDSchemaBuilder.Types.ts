@@ -46,7 +46,7 @@ export const BD_SCHEMA_INDEX_TYPE_OPTIONS = Object.keys(BDSchemaIndexType).map(
   (key) => ({ label: key, value: key }),
 );
 
-export function createDefaultProperty(name = "column"): BDSchemaProperty {
+export function createDefaultProperty(name = ""): BDSchemaProperty {
   return {
     name,
     type: BDSchemaType.string,
@@ -57,7 +57,7 @@ export function createDefaultProperty(name = "column"): BDSchemaProperty {
 
 export function createDefaultRelation(): BDSchemaRelation {
   return {
-    name: "relation",
+    name: "",
     type: "belongsTo",
     targetModelId: "",
     nullable: true,

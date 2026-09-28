@@ -29,9 +29,25 @@ function BDProjectShell({
 }) {
   const project = useBDProject(projectId);
 
-  const config: BDShellConfig = {
-    title: project ? project.name : "Project workspace",
-    brand: project ? project.key : "Bunny Dev",
+  // const config: BDShellConfig = {
+  //   title: project ? project.name : "Project workspace",
+  //   brand: project ? project.key : "Bunny Dev",
+  //   logoutHref: "/modules/bunny-dev",
+  //   profile: {
+  //     initials: "BD",
+  //     name: project?.name ?? "Project",
+  //     subtitle: "Local-first workspace",
+  //   },
+  //   wizard: {
+  //     label: "Back to projects",
+  //     href: "/modules/bunny-dev",
+  //   },
+  //   navItems: buildProjectNavItems(projectId),
+  // };
+
+    const config: BDShellConfig = {
+    title: "Bunny Developer - Workspace",
+    brand: "Bunny Dev",
     logoutHref: "/modules/bunny-dev",
     profile: {
       initials: "BD",

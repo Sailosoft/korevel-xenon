@@ -65,7 +65,7 @@ export class BDSchemaModelRepository extends BDRepository<BDSchemaModel> {
       projectId,
       groupId,
       name,
-      table: slugifyTable(name),
+      table: name.trim() ? slugifyTable(name) : "",
       properties: [idProperty],
       relations: [],
       indexes: [],

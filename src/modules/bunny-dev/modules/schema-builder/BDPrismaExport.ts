@@ -9,6 +9,12 @@ import type {
   BDSchemaRelation,
 } from "../../BDDomain.Types";
 import { BDSchemaIndexType, BDSchemaRelationType, BDSchemaType } from "../../BDDomain.Types";
+import { slugifyTable } from "./BDSchemaBuilder.Types";
+
+/** Export name for a model — falls back so an unnamed draft still exports. */
+function modelName(model: BDSchemaModel): string {
+  return model.name.trim() || "Model";
+}
 
 const PRISMA_SCALAR: Record<string, string> = {
   [BDSchemaType.string]: "String",
@@ -92,6 +98,7 @@ function prismaRelation(
   relation: BDSchemaRelation,
   models: BDSchemaModel[],
 ): string | null {
+  if (!relation.name.trim()) return null;
   const target = models.find((m) => m.id === relation.targetModelId);
   if (!target) return null;
   const targetName = target.name;
@@ -123,9 +130,11 @@ export function toPrismaModel(
   model: BDSchemaModel,
   allModels: BDSchemaModel[],
 ): string {
-  const lines: string[] = [`model ${model.name} {`];
+  const name = modelName(model);
+  const lines: string[] = [`model ${name} {`];
 
   for (const property of model.properties) {
+    if (!property.name.trim()) continue;
     lines.push(prismaProperty(property));
   }
 
@@ -154,7 +163,7 @@ export function toPrismaModel(
     lines.push("  deletedAt DateTime?");
   }
 
-  lines.push(`  @@map("${model.table}")`);
+  lines.push(`  @@map("${model.table.trim() || slugifyTable(name)}")`);
   lines.push("}");
   return lines.join("\n");
 }
@@ -188,8 +197,9 @@ export function toPrismaSchema(
 /** Build a plain TypeScript interface file ("model builder") from models. */
 export function toModelBuilderFile(models: BDSchemaModel[]): string {
   const blocks = models.map((model) => {
-    const lines = [`export interface ${model.name} {`];
+    const lines = [`export interface ${modelName(model)} {`];
     for (const property of model.properties) {
+      if (!property.name.trim()) continue;
       const optional = property.nullable ? "?" : "";
       const type = TS_SCALAR[property.type] ?? "unknown";
       lines.push(`  ${property.name}${optional}: ${type};`);
