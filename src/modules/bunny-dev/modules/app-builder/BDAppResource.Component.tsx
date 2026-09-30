@@ -1,6 +1,6 @@
 "use client";
 
-// BDAppResource.Component — drawer editor for one app resource: identity,
+// BDAppResource.Component — modal editor for one app resource: identity,
 // form fields, and table columns.
 
 import { useState } from "react";
@@ -15,7 +15,7 @@ import type {
 import { collectAppFields, createAppConnection } from "./BDApp.Types";
 import BDAppFormComponent from "./BDAppForm.Component";
 import BDAppTableComponent from "./BDAppTable.Component";
-import BDDrawer from "../../components/BDDrawer";
+import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 
 export interface BDAppResourceComponentProps {
@@ -60,9 +60,9 @@ export function BDAppResourceComponent({
 
   if (!draft) {
     return (
-      <BDDrawer open={open} onClose={onClose} title="Resource">
+      <BDModal open={open} onClose={onClose} title="Resource">
         <p className="text-sm text-slate-500">Select a resource to edit.</p>
-      </BDDrawer>
+      </BDModal>
     );
   }
 
@@ -104,10 +104,10 @@ export function BDAppResourceComponent({
   );
 
   return (
-    <BDDrawer
+    <BDModal
       open={open}
       onClose={onClose}
-      width="48rem"
+      size="lg"
       title={draft.label ?? draft.name}
       description={draft.slug}
       footer={
@@ -305,7 +305,7 @@ export function BDAppResourceComponent({
           }
         />
       </div>
-    </BDDrawer>
+    </BDModal>
   );
 }
 

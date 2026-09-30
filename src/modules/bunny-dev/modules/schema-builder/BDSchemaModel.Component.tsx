@@ -1,6 +1,6 @@
 "use client";
 
-// BDSchemaModel.Component — drawer editor for one schema model: columns,
+// BDSchemaModel.Component — modal editor for one schema model: columns,
 // relations, and indexes. Edits a local draft and saves the whole model.
 
 import { useState } from "react";
@@ -12,7 +12,7 @@ import type {
   BDSchemaIndex,
 } from "../../BDDomain.Types";
 import { slugifyTable } from "./BDSchemaBuilder.Types";
-import BDDrawer from "../../components/BDDrawer";
+import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 import BDForm from "../../components/BDForm";
 import {
@@ -86,9 +86,9 @@ export function BDSchemaModelComponent({
 
   if (!draft || !form) {
     return (
-      <BDDrawer open={open} onClose={onClose} title="Model">
+      <BDModal open={open} onClose={onClose} title="Model">
         <p className="text-sm text-slate-500">Select a model to edit.</p>
-      </BDDrawer>
+      </BDModal>
     );
   }
 
@@ -139,10 +139,10 @@ export function BDSchemaModelComponent({
   const relationTargets = allModels.filter((m) => m.id !== draft.id);
 
   return (
-    <BDDrawer
+    <BDModal
       open={open}
       onClose={onClose}
-      width="46rem"
+      size="lg"
       title={draft.name || "Model"}
       description={draft.table}
       footer={
@@ -483,7 +483,7 @@ export function BDSchemaModelComponent({
           )}
         </section>
       </div>
-    </BDDrawer>
+    </BDModal>
   );
 }
 

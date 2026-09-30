@@ -16,6 +16,7 @@ import type {
   BDSubsystem,
 } from "../../BDDomain.Types";
 import { useBDAISettings } from "../ai-settings/BDAISettings.Context";
+import { useBDProject } from "../core/BDProject.Hooks";
 import BDButton from "../../components/BDButton";
 import BDModal from "../../components/BDModal";
 import { useBDToast } from "../../components/BDToast";
@@ -74,9 +75,13 @@ export function BDGenerationPanel<TArtifact>({
 }: BDGenerationPanelProps<TArtifact>) {
   const { aiConfig } = useBDAISettings();
   const { toast } = useBDToast();
+  const project = useBDProject(projectId);
+  const projectDescription = project?.description?.trim() || "";
 
   const [mode, setMode] = useState<BDGenerationMode>(defaultMode);
   const [instruction, setInstruction] = useState("");
+  const [includeProjectDescription, setIncludeProjectDescription] =
+    useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +94,14 @@ export function BDGenerationPanel<TArtifact>({
     onOpenChange(false);
   };
 
+  const buildInstruction = () => {
+    if (!includeProjectDescription || !projectDescription) return instruction;
+    const heading = project?.name
+      ? `Project "${project.name}" description:\n${projectDescription}`
+      : `Project description:\n${projectDescription}`;
+    return `${heading}\n\nUser instruction:\n${instruction}`;
+  };
+
   const handleGenerate = async () => {
     if (!instruction.trim()) {
       toast({ title: "Add an instruction first", status: "warning" });
@@ -97,11 +110,13 @@ export function BDGenerationPanel<TArtifact>({
     setIsGenerating(true);
     setError(null);
 
+    const effectiveInstruction = buildInstruction();
+
     const run = await createGenerationRun({
       projectId,
       subsystem,
       mode,
-      instruction,
+      instruction: effectiveInstruction,
       provider: aiConfig.provider,
       model: aiConfig.model,
     });
@@ -110,7 +125,7 @@ export function BDGenerationPanel<TArtifact>({
       const result = await generate({
         projectId,
         mode,
-        instruction,
+        instruction: effectiveInstruction,
         aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
       });
       const created = await createBatchProposal({
@@ -223,6 +238,28 @@ export function BDGenerationPanel<TArtifact>({
               rows={5}
               className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
+          </label>
+
+          <label className="flex items-start gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={includeProjectDescription && !!projectDescription}
+              disabled={!projectDescription}
+              onChange={(e) => setIncludeProjectDescription(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span>Include project description in the instruction</span>
+              {projectDescription ? (
+                <span className="line-clamp-2 text-slate-400">
+                  {projectDescription}
+                </span>
+              ) : (
+                <span className="text-slate-400">
+                  This project has no description yet.
+                </span>
+              )}
+            </span>
           </label>
 
           {error && (

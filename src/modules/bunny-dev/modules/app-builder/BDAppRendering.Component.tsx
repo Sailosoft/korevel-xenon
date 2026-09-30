@@ -41,7 +41,6 @@ import {
 import BDSchemaForm from "../../components/BDSchemaForm";
 import BDButton from "../../components/BDButton";
 import BDModal from "../../components/BDModal";
-import BDDrawer from "../../components/BDDrawer";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDEmptyState from "../../components/BDEmptyState";
 import BDBadge from "../../components/BDBadge";
@@ -614,10 +613,11 @@ export function BDAppRenderingComponent({
       </BDModal>
 
       {/* View */}
-      <BDDrawer
+      <BDModal
         open={viewing !== null}
         onClose={() => setViewing(null)}
         title={activeResource?.label ?? "Record"}
+        size="md"
         closeOnEscape={childEditing === null}
       >
         <div className="flex flex-col gap-3">
@@ -640,7 +640,7 @@ export function BDAppRenderingComponent({
             )
             .map((connection) => renderConnectionSection(connection))}
         </div>
-      </BDDrawer>
+      </BDModal>
 
       {/* Related-record editor (one-to-many / many-to-many) */}
       <BDModal

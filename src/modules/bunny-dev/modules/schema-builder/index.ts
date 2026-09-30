@@ -17,6 +17,8 @@ export {
   toPrismaSchema,
   toModelBuilderFile,
 } from "./BDPrismaExport";
+export { toErdMermaid, buildErdDiagramRecord } from "./BDErdExport";
 export { BDSchemaGroupComponent } from "./BDSchemaGroup.Component";
 export { BDSchemaModelComponent } from "./BDSchemaModel.Component";
+export { BDSchemaErdComponent } from "./BDSchemaErd.Component";
 export { BDSchemaBuilderComponent } from "./BDSchemaBuilder.Component";

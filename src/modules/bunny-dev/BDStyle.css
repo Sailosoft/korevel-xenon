@@ -132,3 +132,15 @@
   padding: 0.4rem 0.6rem;
   text-align: left;
 }
+
+/* MDXEditor content min-height, driven by the editor wrapper variant. */
+.mdx-editor-wrapper .bd-markdown {
+  min-height: var(--mdx-min-height, 160px);
+}
+
+/* Compact MDXEditor variant used by comment composers. */
+.mdx-editor-compact .bd-markdown {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+

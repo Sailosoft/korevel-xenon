@@ -53,6 +53,7 @@ export type BDAPIAuthType = (typeof BDAPIAuthType)[keyof typeof BDAPIAuthType];
 export const BDAPIReturnKind = {
   object: "object",
   array: "array",
+  any: "any",
   scalar: "scalar",
   enum: "enum",
   union: "union",
@@ -122,9 +123,18 @@ export interface BDAPIExample {
   language?: string;
 }
 
+/** A group of API operations — enables holding variants of an API design. */
+export interface BDApiGroup extends BDEntity {
+  projectId: string;
+  name: string;
+  description?: string;
+  position: number;
+}
+
 /** Aggregate root: a documented + mockable API operation. */
 export interface BDAPI extends BDEntity {
   projectId: string;
+  groupId?: string;
   name: string;
   operationId?: string;
   group?: string;

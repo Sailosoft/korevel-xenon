@@ -72,10 +72,11 @@ export default function BDProjectLayout({
   const pathname = usePathname();
 
   // Deep sub-entity routes are owned by their own `BDModuleLayout`
-  // (schema/[groupId], app/[appId], architecture/[architectureId]); return a
-  // bare wrapper here so the project shell is not nested inside it.
+  // (schema/[groupId], app/[appId], architecture/[architectureId],
+  // api/[groupId]); return a bare wrapper here so the project shell is not
+  // nested inside it.
   const isDeepModuleRoute =
-    /^\/modules\/bunny-dev\/projects\/[^/]+\/(schema|app|architecture)\/[^/]+(\/|$)/.test(
+    /^\/modules\/bunny-dev\/projects\/[^/]+\/(schema|app|architecture|api)\/[^/]+(\/|$)/.test(
       pathname,
     );
 

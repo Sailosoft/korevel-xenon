@@ -16,7 +16,7 @@ import {
   buildProjectNavItems,
 } from "../core/BDProject.Module";
 
-export type BDModuleFeature = "schema" | "app" | "architecture";
+export type BDModuleFeature = "schema" | "app" | "architecture" | "api";
 
 export interface BDModuleLayoutProps {
   projectId: string;

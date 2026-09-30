@@ -1,6 +1,7 @@
 // BDApiExport.ts — render API docs to a standalone HTML document.
 
-import type { BDAPI } from "../../BDDomain.Types";
+import type { BDAPI, BDAPIProperty } from "../../BDDomain.Types";
+import { BDAPIReturnKind } from "../../BDDomain.Types";
 
 function escapeHtml(value: string): string {
   return value
@@ -22,6 +23,35 @@ function propertyRows(api: BDAPI): string {
         }</td><td>${escapeHtml(p.description ?? "")}</td></tr>`,
     )
     .join("")}</tbody></table>`;
+}
+
+function fieldRows(fields: BDAPIProperty[]): string {
+  return `<table><thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead><tbody>${fields
+    .map(
+      (p) =>
+        `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(
+          p.type,
+        )}</td><td>${p.required ? "yes" : "no"}</td><td>${escapeHtml(
+          p.description ?? "",
+        )}</td></tr>`,
+    )
+    .join("")}</tbody></table>`;
+}
+
+function returnRows(api: BDAPI): string {
+  const parts: string[] = [];
+  const fields = api.returns.properties ?? [];
+  if (fields.length > 0) {
+    parts.push(`<h4>Response fields</h4>${fieldRows(fields)}`);
+  }
+  const item = api.returns.item;
+  if (
+    item?.kind === BDAPIReturnKind.object &&
+    (item.properties ?? []).length > 0
+  ) {
+    parts.push(`<h4>Response item</h4>${fieldRows(item.properties ?? [])}`);
+  }
+  return parts.join("");
 }
 
 function errorRows(api: BDAPI): string {
@@ -53,6 +83,7 @@ export function toApiDocumentHtml(apis: BDAPI[], title = "API Reference"): strin
   <p><code>${escapeHtml(api.returns.type)}</code> (${escapeHtml(
     api.returns.kind,
   )})</p>
+  ${returnRows(api)}
   ${errorRows(api)}
 </section>`,
     )

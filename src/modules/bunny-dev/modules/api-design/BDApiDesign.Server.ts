@@ -13,12 +13,27 @@ import type {
   BDApiDraft,
   BDApiErrorDraft,
   BDApiPropertyDraft,
+  BDApiReturnItemDraft,
 } from "./BDApi.Types";
+
+export interface BDApiSchemaColumn {
+  name: string;
+  type: string;
+  primary?: boolean;
+}
+
+export interface BDApiSchemaModelContext {
+  name: string;
+  table?: string;
+  columns: BDApiSchemaColumn[];
+  relations?: string[];
+}
 
 export interface BDApiGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
-  models?: string[];
+  schemaGroupName?: string;
+  schemaModels?: BDApiSchemaModelContext[];
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -83,7 +98,57 @@ const API_DSL: HelixAISchemaOptions = {
           returnKind: {
             type: "string",
             description:
-              "object, array, scalar, enum, union, void, stream, file or reference.",
+              "object, array, any, scalar, enum, union, void, stream, file or reference.",
+          },
+          returnProperties: {
+            type: "array",
+            description:
+              "Response fields when returnKind is object. Each field's own type may be 'object' or 'any'.",
+            items: {
+              type: "object",
+              description: "A response field.",
+              properties: {
+                name: { type: "string", description: "Field name." },
+                type: { type: "string", description: "Data type." },
+                required: {
+                  type: "boolean",
+                  description: "Whether the field is always present.",
+                },
+                description: {
+                  type: "string",
+                  description: "Field description.",
+                },
+              },
+            },
+          },
+          returnItem: {
+            type: "object",
+            description:
+              "Item shape when returnKind is array. Set kind to object, scalar or any; for object include its fields in properties.",
+            properties: {
+              kind: { type: "string", description: "object, scalar or any." },
+              type: { type: "string", description: "Item type name." },
+              properties: {
+                type: "array",
+                description: "Item fields when kind is object.",
+                items: {
+                  type: "object",
+                  description: "An item field.",
+                  properties: {
+                    name: { type: "string", description: "Field name." },
+                    type: { type: "string", description: "Data type." },
+                    required: {
+                      type: "boolean",
+                      description: "Whether the field is always present.",
+                    },
+                    description: {
+                      type: "string",
+                      description: "Field description.",
+                    },
+                  },
+                },
+              },
+            },
           },
           errors: {
             type: "array",
@@ -136,6 +201,24 @@ function normalizeError(raw: unknown): BDApiErrorDraft | null {
   };
 }
 
+function normalizePropertyList(raw: unknown): BDApiPropertyDraft[] {
+  return Array.isArray(raw)
+    ? raw
+        .map(normalizeProperty)
+        .filter((p): p is BDApiPropertyDraft => p !== null)
+    : [];
+}
+
+function normalizeReturnItem(raw: unknown): BDApiReturnItemDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const item = raw as Record<string, unknown>;
+  return {
+    kind: asString(item.kind) || undefined,
+    type: asString(item.type) || undefined,
+    properties: normalizePropertyList(item.properties),
+  };
+}
+
 function normalizeApi(raw: unknown): BDApiDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const a = raw as Record<string, unknown>;
@@ -151,19 +234,43 @@ function normalizeApi(raw: unknown): BDApiDraft | null {
     summary: asString(a.summary) || undefined,
     description: asString(a.description),
     auth: asString(a.auth) || "none",
-    properties: Array.isArray(a.properties)
-      ? a.properties
-          .map(normalizeProperty)
-          .filter((p): p is BDApiPropertyDraft => p !== null)
-      : [],
+    properties: normalizePropertyList(a.properties),
     returnType: asString(a.returnType) || undefined,
     returnKind: asString(a.returnKind) || "object",
+    returnProperties: normalizePropertyList(a.returnProperties),
+    returnItem: normalizeReturnItem(a.returnItem),
     errors: Array.isArray(a.errors)
       ? a.errors
           .map(normalizeError)
           .filter((e): e is BDApiErrorDraft => e !== null)
       : [],
   };
+}
+
+function buildSchemaBasis(params: BDApiGenerateParams): string {
+  const models = params.schemaModels ?? [];
+  if (models.length === 0) return "";
+
+  const lines = models.map((m) => {
+    const columns = m.columns
+      .map((c) => `${c.name}: ${c.type}${c.primary ? " (primary)" : ""}`)
+      .join(", ");
+    const relations =
+      m.relations && m.relations.length > 0
+        ? `; relations: ${m.relations.join(", ")}`
+        : "";
+    const table = m.table ? ` (table ${m.table})` : "";
+    return `- Model ${m.name}${table}: ${columns || "no columns"}${relations}`;
+  });
+
+  const groupLabel = params.schemaGroupName
+    ? ` (group "${params.schemaGroupName}")`
+    : "";
+  return (
+    `\n\nSchema basis${groupLabel}: generate CRUD-style endpoints for these ` +
+    `models. Set each operation's group to the resource/model name.\n` +
+    lines.join("\n")
+  );
 }
 
 export async function bdGenerateApi(
@@ -174,12 +281,7 @@ export async function bdGenerateApi(
     "typed parameters and error responses. Return only the structured JSON " +
     "requested.";
 
-  const context =
-    params.models && params.models.length > 0
-      ? `\nSchema models available: ${params.models.join(", ")}.`
-      : "";
-
-  const user = `Mode: ${params.mode}.${context}\n\nInstruction: ${params.instruction}`;
+  const user = `Mode: ${params.mode}.${buildSchemaBasis(params)}\n\nInstruction: ${params.instruction}`;
 
   const raw = await bdGenerateStructured({
     system,

@@ -78,7 +78,7 @@ export const BD_PROJECT_MODULES: BDProjectModuleDef[] = [
     label: "Files",
     path: "/files",
     icon: FolderTree,
-    description: "Virtual project file system with an inline editor.",
+    description: "Virtual project file system with a dedicated editor page.",
   },
   {
     key: "architecture",

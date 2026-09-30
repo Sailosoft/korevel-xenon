@@ -17,6 +17,8 @@ import type {
 export interface BDArchitectureGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
+  /** Requested document type (architecture, plan, design, spec, adr, …). */
+  type?: string;
   /** Return 2-3 alternative variants instead of one. */
   variants?: number;
   aiConfig?: BDAIConfigOverride;
@@ -86,14 +88,17 @@ function normalizeSection(raw: unknown): BDArchitectureSectionDraft | null {
   };
 }
 
-function normalizeArchitecture(raw: unknown): BDArchitectureDraft | null {
+function normalizeArchitecture(
+  raw: unknown,
+  defaultType: string,
+): BDArchitectureDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const a = raw as Record<string, unknown>;
   const name = asString(a.name);
   if (!name) return null;
   return {
     name,
-    type: asString(a.type) || "architecture",
+    type: asString(a.type) || defaultType,
     status: asString(a.status) || "draft",
     summary: asString(a.summary) || undefined,
     variantLabel: asString(a.variantLabel) || undefined,
@@ -113,12 +118,14 @@ export async function bdGenerateArchitecture(
       ? ` Return ${params.variants} distinct alternatives, each with a variantLabel.`
       : "";
 
+  const documentType = params.type?.trim() || "architecture";
+
   const system =
     "You are a software architect. Produce clear, decision-oriented " +
     "architecture documents with concrete sections and trade-offs. Return " +
     "only the structured JSON requested.";
 
-  const user = `Mode: ${params.mode}.${variantHint}\n\nInstruction: ${params.instruction}`;
+  const user = `Mode: ${params.mode}. Document type: ${documentType}. Produce each document as that type and set its "type" field to "${documentType}".${variantHint}\n\nInstruction: ${params.instruction}`;
 
   const raw = await bdGenerateStructured({
     system,
@@ -130,7 +137,7 @@ export async function bdGenerateArchitecture(
 
   const rawList = Array.isArray(raw.architectures) ? raw.architectures : [];
   const architectures = rawList
-    .map(normalizeArchitecture)
+    .map((entry) => normalizeArchitecture(entry, documentType))
     .filter((a): a is BDArchitectureDraft => a !== null);
 
   return { architectures };

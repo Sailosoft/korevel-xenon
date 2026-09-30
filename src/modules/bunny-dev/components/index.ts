@@ -25,6 +25,12 @@ export type { BDDrawerProps } from "./BDDrawer";
 export { BDConfirmDialog } from "./BDConfirmDialog";
 export type { BDConfirmDialogProps } from "./BDConfirmDialog";
 
+export { BDContextMenu } from "./BDContextMenu";
+export type {
+  BDContextMenuProps,
+  BDContextMenuAction,
+} from "./BDContextMenu";
+
 export { BDToastProvider, useBDToast } from "./BDToast";
 export type {
   BDToastStatus,

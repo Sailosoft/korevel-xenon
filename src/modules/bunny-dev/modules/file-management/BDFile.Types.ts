@@ -123,6 +123,95 @@ export function buildPath(parentPath: string, name: string): string {
   return `${base}/${name}`;
 }
 
+/** Ancestor chain for a folder, ordered root → the folder itself. */
+export function breadcrumbOf(
+  folderId: string | null,
+  folders: BDProjectFolder[],
+): BDProjectFolder[] {
+  if (!folderId) return [];
+  const chain: BDProjectFolder[] = [];
+  const seen = new Set<string>();
+  let current = folders.find((folder) => folder.id === folderId);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    chain.unshift(current);
+    current = current.parentId
+      ? folders.find((folder) => folder.id === current?.parentId)
+      : undefined;
+  }
+  return chain;
+}
+
+/** Rewrite a path that equals or lives under `oldPrefix`. */
+export function replacePathPrefix(
+  path: string,
+  oldPrefix: string,
+  newPrefix: string,
+): string {
+  const from = oldPrefix.replace(/\/$/, "");
+  const to = newPrefix.replace(/\/$/, "");
+  if (path === from) return to;
+  if (from && path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+  return path;
+}
+
+/** Case-insensitive duplicate-name check for a sibling list. */
+export function nameTaken(names: string[], name: string): boolean {
+  const target = name.trim().toLowerCase();
+  return names.some((existing) => existing.toLowerCase() === target);
+}
+
+/** Build the patch that renames a file in place under the same parent. */
+export function applyRenameFile(
+  file: BDProjectFile,
+  nextName: string,
+  parentPath: string,
+): Partial<BDProjectFile> {
+  const name = nextName.trim();
+  const patch: Partial<BDProjectFile> = {
+    name,
+    extension: extensionOf(name),
+    kind: detectKind(name),
+    path: buildPath(parentPath, name),
+  };
+  if (file.content) {
+    patch.content = {
+      ...file.content,
+      language: languageFor(name),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  return patch;
+}
+
+/** Rewrite a folder and every descendant folder/file path during a rename. */
+export function applyRenameFolder(
+  folders: BDProjectFolder[],
+  files: BDProjectFile[],
+  folderId: string,
+  nextName: string,
+  parentPath: string,
+): { folders: BDProjectFolder[]; files: BDProjectFile[] } {
+  const target = folders.find((folder) => folder.id === folderId);
+  if (!target) return { folders, files };
+  const name = nextName.trim();
+  const oldPrefix = target.path;
+  const newPrefix = buildPath(parentPath, name);
+  return {
+    folders: folders.map((folder) => {
+      if (folder.id === folderId) {
+        return { ...folder, name, path: newPrefix };
+      }
+      const path = replacePathPrefix(folder.path, oldPrefix, newPrefix);
+      return path === folder.path ? folder : { ...folder, path };
+    }),
+    files: files.map((file) => {
+      const path = replacePathPrefix(file.path, oldPrefix, newPrefix);
+      return path === file.path ? file : { ...file, path };
+    }),
+  };
+}
+
 export function createFolder(
   projectId: string,
   parentId: string | null,

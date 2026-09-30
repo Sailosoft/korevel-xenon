@@ -6,6 +6,7 @@ import type {
   BDAPIExample,
   BDAPIProperty,
   BDAPIReturn,
+  BDApiGroup,
 } from "./BDApi.Domain";
 import {
   BDAPIAuthType,
@@ -40,6 +41,20 @@ export const BD_API_EMPTY_FORM: BDApiForm = {
   version: "",
 };
 
+export interface BDApiGroupForm {
+  name: string;
+  description: string;
+}
+
+export const BD_API_GROUP_EMPTY: BDApiGroupForm = {
+  name: "",
+  description: "",
+};
+
+export function toGroupForm(group: BDApiGroup): BDApiGroupForm {
+  return { name: group.name, description: group.description ?? "" };
+}
+
 const toOptions = (record: Record<string, string>) =>
   Object.keys(record).map((key) => ({ label: key, value: key }));
 
@@ -50,11 +65,61 @@ export const BD_API_LOCATION_OPTIONS = toOptions(BDAPIParamLocation);
 export const BD_API_RETURN_KIND_OPTIONS = toOptions(BDAPIReturnKind);
 export const BD_API_VERSION_STRATEGY_OPTIONS = toOptions(BDAPIVersionStrategy);
 
+/** Shape shown by the Return toggle: a plain object, an array, or any. */
+export type BDApiReturnShape = "object" | "array" | "any";
+/** Shape of an array return's item. */
+export type BDApiItemShape = "object" | "scalar" | "any";
+
+export const BD_API_RETURN_SHAPE_OPTIONS: {
+  label: string;
+  value: BDApiReturnShape;
+}[] = [
+  { label: "Object", value: "object" },
+  { label: "Array", value: "array" },
+  { label: "Any", value: "any" },
+];
+
+export const BD_API_ITEM_SHAPE_OPTIONS: {
+  label: string;
+  value: BDApiItemShape;
+}[] = [
+  { label: "Object", value: "object" },
+  { label: "Scalar", value: "scalar" },
+  { label: "Any", value: "any" },
+];
+
+/**
+ * Map a stored return kind to the toggle shape. Structural kinds collapse to
+ * `object`; legacy scalar/enum/union/... are bucketed there too and normalize
+ * to a concrete kind on first edit.
+ */
+export function returnShapeOf(returns: BDAPIReturn): BDApiReturnShape {
+  if (returns.kind === BDAPIReturnKind.array) return "array";
+  if (returns.kind === BDAPIReturnKind.any) return "any";
+  return "object";
+}
+
+export function itemShapeOf(item?: BDAPIReturn): BDApiItemShape {
+  if (item?.kind === BDAPIReturnKind.any) return "any";
+  if (item?.kind === BDAPIReturnKind.object) return "object";
+  return "scalar";
+}
+
 export function createProperty(): BDAPIProperty {
   return {
     name: "param",
     type: "string",
     location: BDAPIParamLocation.query,
+    required: false,
+  };
+}
+
+/** A return field row — `location` is unused for returns but kept for shape. */
+export function createReturnProperty(): BDAPIProperty {
+  return {
+    name: "field",
+    type: "string",
+    location: BDAPIParamLocation.body,
     required: false,
   };
 }
@@ -72,16 +137,17 @@ export function createReturn(): BDAPIReturn {
     kind: BDAPIReturnKind.object,
     type: "object",
     properties: [],
-    example: {},
   };
 }
 
 export function createApi(
   projectId: string,
   form: BDApiForm,
+  groupId?: string,
 ): Omit<BDAPI, "id"> {
   return {
     projectId,
+    groupId,
     name: form.name,
     group: form.group || undefined,
     protocol: form.protocol,
@@ -119,6 +185,7 @@ function sampleForType(type: string): unknown {
   if (t.includes("bool")) return true;
   if (t.includes("date")) return new Date().toISOString();
   if (t.includes("array")) return [];
+  if (t.includes("any")) return null;
   return "string";
 }
 
@@ -134,26 +201,42 @@ export function buildMockRequest(api: BDAPI): Record<string, unknown> {
   return out;
 }
 
+/** Build a mock value for one return definition (recursive over arrays). */
+export function buildReturnSample(ret: BDAPIReturn | undefined): unknown {
+  if (!ret) return null;
+  if (ret.example !== undefined && ret.example !== null) {
+    const ex = ret.example;
+    const isEmptyObject =
+      typeof ex === "object" &&
+      !Array.isArray(ex) &&
+      Object.keys(ex as Record<string, unknown>).length === 0;
+    if (!isEmptyObject) return ex;
+  }
+  const { kind } = ret;
+  if (kind === BDAPIReturnKind.any || kind === BDAPIReturnKind.void) return null;
+  if (
+    kind === BDAPIReturnKind.scalar ||
+    kind === BDAPIReturnKind.enum ||
+    kind === BDAPIReturnKind.union ||
+    kind === BDAPIReturnKind.stream ||
+    kind === BDAPIReturnKind.file
+  ) {
+    return sampleForType(ret.type);
+  }
+  if (kind === BDAPIReturnKind.array) {
+    return [buildReturnSample(ret.item)];
+  }
+  // object / reference → build from the declared fields.
+  const out: Record<string, unknown> = {};
+  for (const property of ret.properties ?? []) {
+    out[property.name] = property.example ?? sampleForType(property.type);
+  }
+  return out;
+}
+
 /** Build a mock JSON response from the API's return definition. */
 export function buildMockResponse(api: BDAPI): unknown {
-  const { returns } = api;
-  if (returns.example !== undefined && returns.example !== null) {
-    return returns.example;
-  }
-  if (returns.kind === BDAPIReturnKind.array) {
-    return [returns.item ? returns.item.example ?? "string" : {}];
-  }
-  if (
-    returns.kind === BDAPIReturnKind.object ||
-    returns.kind === BDAPIReturnKind.reference
-  ) {
-    const out: Record<string, unknown> = {};
-    for (const property of returns.properties ?? []) {
-      out[property.name] = property.example ?? sampleForType(property.type);
-    }
-    return out;
-  }
-  return { status: returns.status ?? 200, data: returns.type };
+  return buildReturnSample(api.returns);
 }
 
 // ── AI artifact drafts ─────────────────────────────────────────────────────
@@ -172,6 +255,12 @@ export interface BDApiErrorDraft {
   description?: string;
 }
 
+export interface BDApiReturnItemDraft {
+  kind?: string;
+  type?: string;
+  properties?: BDApiPropertyDraft[];
+}
+
 export interface BDApiDraft {
   name: string;
   group?: string;
@@ -183,6 +272,8 @@ export interface BDApiDraft {
   properties?: BDApiPropertyDraft[];
   returnType?: string;
   returnKind?: string;
+  returnProperties?: BDApiPropertyDraft[];
+  returnItem?: BDApiReturnItemDraft;
   auth?: string;
   errors?: BDApiErrorDraft[];
 }

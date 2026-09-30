@@ -12,6 +12,7 @@ import Dexie, { type Table } from "dexie";
 import type { HelixAISettings } from "@/src/modules/helix";
 import type {
   BDAPI,
+  BDApiGroup,
   BDApp,
   BDAppRecord,
   BDAttachment,
@@ -78,6 +79,7 @@ export class BDDatabase extends Dexie {
   public schemaModels!: Table<BDSchemaModel, string>;
   public apps!: Table<BDApp, string>;
   public appRecords!: Table<BDAppRecord, string>;
+  public apiGroups!: Table<BDApiGroup, string>;
   public apiSpecs!: Table<BDAPI, string>;
   public diagrams!: Table<BDDiagramRecord, string>;
   public outlines!: Table<BDOutline, string>;
@@ -111,6 +113,7 @@ export class BDDatabase extends Dexie {
   public schemaModelsRepo: BDRepository<BDSchemaModel>;
   public appsRepo: BDRepository<BDApp>;
   public appRecordsRepo: BDRepository<BDAppRecord>;
+  public apiGroupsRepo: BDRepository<BDApiGroup>;
   public apiSpecsRepo: BDRepository<BDAPI>;
   public diagramsRepo: BDRepository<BDDiagramRecord>;
   public outlinesRepo: BDRepository<BDOutline>;
@@ -147,6 +150,7 @@ export class BDDatabase extends Dexie {
     this.schemaModels = this.table("schemaModels");
     this.apps = this.table("apps");
     this.appRecords = this.table("appRecords");
+    this.apiGroups = this.table("apiGroups");
     this.apiSpecs = this.table("apiSpecs");
     this.diagrams = this.table("diagrams");
     this.outlines = this.table("outlines");
@@ -177,6 +181,7 @@ export class BDDatabase extends Dexie {
     this.schemaModelsRepo = new BDRepository(this.schemaModels);
     this.appsRepo = new BDRepository(this.apps);
     this.appRecordsRepo = new BDRepository(this.appRecords);
+    this.apiGroupsRepo = new BDRepository(this.apiGroups);
     this.apiSpecsRepo = new BDRepository(this.apiSpecs);
     this.diagramsRepo = new BDRepository(this.diagrams);
     this.outlinesRepo = new BDRepository(this.outlines);
@@ -211,6 +216,7 @@ export class BDDatabase extends Dexie {
     "schemaModels",
     "apps",
     "appRecords",
+    "apiGroups",
     "apiSpecs",
     "diagrams",
     "outlines",
@@ -242,6 +248,11 @@ export class BDDatabase extends Dexie {
     // Schema group → its models.
     this.schemaGroups.hook("deleting", (pk) => {
       void this.schemaModels.where("groupId").equals(pk).delete();
+    });
+
+    // API group → its operations.
+    this.apiGroups.hook("deleting", (pk) => {
+      void this.apiSpecs.where("groupId").equals(pk).delete();
     });
 
     // Folder → child folders and files.

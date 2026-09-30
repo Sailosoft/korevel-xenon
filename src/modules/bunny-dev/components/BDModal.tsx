@@ -17,6 +17,15 @@ export interface BDModalProps {
   footer?: ReactNode;
   size?: BDModalSize;
   className?: string;
+  /** Extra classes applied to the scrollable body container. */
+  bodyClassName?: string;
+  /**
+   * When false the body does not scroll on its own. Use this when the body
+   * manages its own height (e.g. a two-column layout with a virtualized list).
+   */
+  bodyScroll?: boolean;
+  /** When false, Escape does not close the modal (e.g. a nested modal is open). */
+  closeOnEscape?: boolean;
 }
 
 const SIZE_CLASSES: Record<BDModalSize, string> = {
@@ -36,15 +45,18 @@ export function BDModal({
   footer,
   size = "md",
   className,
+  bodyClassName,
+  bodyScroll = true,
+  closeOnEscape = true,
 }: BDModalProps) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !closeOnEscape) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, closeOnEscape, onClose]);
 
   if (!open) return null;
 
@@ -59,7 +71,7 @@ export function BDModal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative z-10 flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl",
+          "relative z-10 flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl",
           SIZE_CLASSES[size],
           className,
         )}
@@ -87,7 +99,13 @@ export function BDModal({
           </div>
         )}
 
-        <div className="bd-scroll flex-1 overflow-y-auto px-5 py-4">
+        <div
+          className={cn(
+            "flex-1 min-h-0 px-5 py-4",
+            bodyScroll ? "bd-scroll overflow-y-auto" : "overflow-hidden",
+            bodyClassName,
+          )}
+        >
           {children}
         </div>
 

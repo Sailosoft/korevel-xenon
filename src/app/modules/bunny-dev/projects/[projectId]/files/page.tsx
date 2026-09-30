@@ -1,7 +1,12 @@
 "use client";
 
-import BDFileBuilderComponent from "@/src/modules/bunny-dev/modules/file-management/BDFileBuilder.Component";
+import { Suspense } from "react";
+import BDFileManagerComponent from "@/src/modules/bunny-dev/modules/file-management/BDFile.Manager.Component";
 
 export default function FilesPage() {
-  return <BDFileBuilderComponent />;
+  return (
+    <Suspense fallback={null}>
+      <BDFileManagerComponent />
+    </Suspense>
+  );
 }

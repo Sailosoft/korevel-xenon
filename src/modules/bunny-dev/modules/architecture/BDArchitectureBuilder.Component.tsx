@@ -11,13 +11,19 @@ import {
   Save,
   Sparkles,
   ExternalLink,
+  FileDown,
+  Copy,
 } from "lucide-react";
-import type { BDArchitectureRecord } from "../../BDDomain.Types";
+import type {
+  BDArchitectureRecord,
+  BDArchitectureType,
+} from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDArchitectures } from "./BDArchitecture.Hooks";
 import { bdArchitectureRepository } from "./BDArchitecture.Repository";
 import {
   BD_ARCHITECTURE_EMPTY_FORM,
+  BD_ARCHITECTURE_TYPE_OPTIONS,
   createArchitecture,
   createSection,
   slugify,
@@ -41,7 +47,7 @@ import BDEmptyState from "../../components/BDEmptyState";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
-import { downloadText } from "../../BDDownload";
+import { downloadText, copyText } from "../../BDDownload";
 
 const ARCH_FIELDS = [
   { name: "name", label: "Name", type: "text" as const, required: true },
@@ -76,6 +82,7 @@ export function BDArchitectureBuilderComponent({
   const [saving, setSaving] = useState(false);
   const [compare, setCompare] = useState<BDArchitectureRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiType, setAiType] = useState<BDArchitectureType>("architecture");
   const [initialPending, setInitialPending] = useState(Boolean(initialId));
 
   // Preselect the deep-linked document once its live query arrives (render-time
@@ -124,6 +131,24 @@ export function BDArchitectureBuilderComponent({
     if (draft?.id === deleting.id) setDraft(null);
     setDeleting(null);
     toast({ title: "Deleted", status: "success" });
+  };
+
+  const handleHandoff = () => {
+    if (!draft) return;
+    downloadText(
+      "Architecture.md",
+      toArchitectureMarkdown(draft),
+      "text/markdown",
+    );
+  };
+
+  const handleCopyHandoff = async () => {
+    if (!draft) return;
+    const ok = await copyText(toArchitectureMarkdown(draft));
+    toast({
+      title: ok ? "Architecture.md copied" : "Copy failed",
+      status: ok ? "success" : "error",
+    });
   };
 
   const createVariant = async () => {
@@ -181,7 +206,10 @@ export function BDArchitectureBuilderComponent({
             <BDButton
               variant="secondary"
               icon={Sparkles}
-              onClick={() => setAiOpen(true)}
+              onClick={() => {
+                setAiType("architecture");
+                setAiOpen(true);
+              }}
             >
               AI Generate
             </BDButton>
@@ -210,12 +238,31 @@ export function BDArchitectureBuilderComponent({
           bdGenerateArchitecture({
             instruction,
             mode,
+            type: aiType,
             variants: mode === "create" ? 1 : 2,
             aiConfig,
           })
         }
         onApply={applyArtifact}
         defaultMode="create"
+        extraFields={
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-slate-500">
+              Type
+            </span>
+            <select
+              value={aiType}
+              onChange={(e) => setAiType(e.target.value as BDArchitectureType)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+            >
+              {BD_ARCHITECTURE_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        }
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-2">
             {artifact.architectures.map((a, i) => (
@@ -317,6 +364,22 @@ export function BDArchitectureBuilderComponent({
                     }
                   >
                     HTML
+                  </BDButton>
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={FileDown}
+                    onClick={handleHandoff}
+                  >
+                    AI Handoff
+                  </BDButton>
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={Copy}
+                    onClick={handleCopyHandoff}
+                  >
+                    Copy
                   </BDButton>
                   <BDButton size="sm" icon={Save} isLoading={saving} onClick={handleSave}>
                     Save

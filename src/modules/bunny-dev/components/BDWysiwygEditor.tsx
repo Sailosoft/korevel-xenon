@@ -4,11 +4,17 @@
 
 import dynamic from "next/dynamic";
 
+export type BDWysiwygEditorVariant = "full" | "compact";
+
 export interface BDWysiwygEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Editor variant: "full" for descriptions, "compact" for comment composers. */
+  variant?: BDWysiwygEditorVariant;
+  /** Minimum content height in pixels. Defaults to 160 (full) / 96 (compact). */
+  minHeight?: number;
 }
 
 const BDWysiwygEditorImpl = dynamic(

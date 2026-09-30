@@ -19,6 +19,7 @@ import {
   FileCode2,
   Sparkles,
   ExternalLink,
+  Network,
 } from "lucide-react";
 import { bdDB } from "../../BDDatabase";
 import type {
@@ -36,6 +37,7 @@ import { bdGenerateSchema } from "./BDSchemaBuilder.Server";
 import { generatePrismaExport } from "./BDPrismaExport.Server";
 import BDSchemaGroupComponent from "./BDSchemaGroup.Component";
 import BDSchemaModelComponent from "./BDSchemaModel.Component";
+import BDSchemaErdComponent from "./BDSchemaErd.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
@@ -81,6 +83,7 @@ export function BDSchemaBuilderComponent({
   const [exportTab, setExportTab] = useState<"prisma" | "builder">("prisma");
   const [exportText, setExportText] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
+  const [erdOpen, setErdOpen] = useState(false);
 
   // Adopt a new `initialGroupId` from the deep route (render-time adjustment).
   const [prevInitialGroupId, setPrevInitialGroupId] = useState(initialGroupId);
@@ -266,6 +269,13 @@ export function BDSchemaBuilderComponent({
             </BDButton>
             <BDButton variant="secondary" icon={FileCode2} onClick={openExport}>
               Export
+            </BDButton>
+            <BDButton
+              variant="secondary"
+              icon={Network}
+              onClick={() => setErdOpen(true)}
+            >
+              ER Diagram
             </BDButton>
             <BDButton
               icon={Plus}
@@ -467,6 +477,13 @@ export function BDSchemaBuilderComponent({
         isLoading={groupModal.busy}
         onClose={() => setGroupModal({ open: false, group: null, busy: false })}
         onSubmit={handleGroupSubmit}
+      />
+
+      <BDSchemaErdComponent
+        open={erdOpen}
+        onClose={() => setErdOpen(false)}
+        group={activeGroup ?? null}
+        models={models ?? []}
       />
 
       <BDSchemaModelComponent

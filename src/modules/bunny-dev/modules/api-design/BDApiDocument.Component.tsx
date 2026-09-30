@@ -3,13 +3,57 @@
 // BDApiDocument.Component — document-style API reference with HTML export.
 
 import { Download } from "lucide-react";
-import type { BDAPI } from "../../BDDomain.Types";
+import type { BDAPI, BDAPIProperty } from "../../BDDomain.Types";
+import { BDAPIReturnKind } from "../../BDDomain.Types";
 import { toApiDocumentHtml } from "./BDApiExport";
 import BDBadge from "../../components/BDBadge";
 import BDButton from "../../components/BDButton";
 import BDEmptyState from "../../components/BDEmptyState";
 import { downloadText, openTextTab } from "../../BDDownload";
 import { BookText } from "lucide-react";
+
+function ResponseFields({
+  fields,
+  label,
+}: {
+  fields: BDAPIProperty[];
+  label: string;
+}) {
+  if (fields.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <h4 className="mb-1 text-xs font-semibold uppercase text-slate-400">
+        {label}
+      </h4>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-xs">
+          <thead className="text-left text-slate-400">
+            <tr>
+              <th className="py-1 pr-3">Name</th>
+              <th className="py-1 pr-3">Type</th>
+              <th className="py-1 pr-3">Required</th>
+              <th className="py-1">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((p) => (
+              <tr key={p.name} className="border-t border-slate-100">
+                <td className="py-1 pr-3 font-medium text-slate-700">
+                  {p.name}
+                </td>
+                <td className="py-1 pr-3 text-slate-500">{p.type}</td>
+                <td className="py-1 pr-3 text-slate-500">
+                  {p.required ? "yes" : "no"}
+                </td>
+                <td className="py-1 text-slate-500">{p.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export interface BDApiDocumentComponentProps {
   apis: BDAPI[];
@@ -137,6 +181,17 @@ export function BDApiDocumentComponent({
                     </code>{" "}
                     ({api.returns.kind})
                   </p>
+
+                  <ResponseFields
+                    fields={api.returns.properties ?? []}
+                    label="Response fields"
+                  />
+                  {api.returns.item?.kind === BDAPIReturnKind.object && (
+                    <ResponseFields
+                      fields={api.returns.item.properties ?? []}
+                      label="Response item"
+                    />
+                  )}
 
                   {api.errors && api.errors.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">

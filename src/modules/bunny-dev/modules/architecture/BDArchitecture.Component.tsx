@@ -10,7 +10,9 @@ import {
   BD_ARCHITECTURE_STATUS_OPTIONS,
   BD_ARCHITECTURE_TYPE_OPTIONS,
   createSection,
+  sectionMarkdown,
 } from "./BDArchitecture.Types";
+import { toArchitectureMarkdown } from "./BDArchitectureExport";
 import BDButton from "../../components/BDButton";
 import BDWysiwygEditor from "../../components/BDWysiwygEditor";
 import BDMarkdownView from "../../components/BDMarkdownView";
@@ -33,6 +35,7 @@ export function BDArchitectureComponent({
   onDelete,
 }: BDArchitectureComponentProps) {
   const [preview, setPreview] = useState(false);
+  const [viewSections, setViewSections] = useState<Set<string>>(new Set());
 
   const updateSection = (
     index: number,
@@ -44,6 +47,23 @@ export function BDArchitectureComponent({
       ),
     });
   };
+
+  const setSectionView = (id: string, view: boolean) =>
+    setViewSections((prev) => {
+      const next = new Set(prev);
+      if (view) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const allInView =
+    record.sections.length > 0 &&
+    record.sections.every((s) => viewSections.has(s.id));
+
+  const toggleAllSections = () =>
+    setViewSections(
+      allInView ? new Set() : new Set(record.sections.map((s) => s.id)),
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,7 +140,7 @@ export function BDArchitectureComponent({
         </div>
         {preview ? (
           <div className="min-h-[200px] rounded-lg border border-slate-200 p-4">
-            <BDMarkdownView content={record.content ?? ""} />
+            <BDMarkdownView content={toArchitectureMarkdown(record)} />
           </div>
         ) : (
           <BDWysiwygEditor
@@ -136,21 +156,38 @@ export function BDArchitectureComponent({
           <h3 className="text-sm font-semibold text-slate-700">
             Sections ({record.sections.length})
           </h3>
-          <BDButton
-            size="sm"
-            variant="secondary"
-            icon={Plus}
-            onClick={() =>
-              onChange({
-                sections: [
-                  ...record.sections,
-                  createSection("New section", 2, record.sections.length),
-                ],
-              })
-            }
-          >
-            Add section
-          </BDButton>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleAllSections}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
+            >
+              {allInView ? (
+                <>
+                  <PenLine className="h-3.5 w-3.5" /> Edit all
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3.5 w-3.5" /> View all
+                </>
+              )}
+            </button>
+            <BDButton
+              size="sm"
+              variant="secondary"
+              icon={Plus}
+              onClick={() =>
+                onChange({
+                  sections: [
+                    ...record.sections,
+                    createSection("New section", 2, record.sections.length),
+                  ],
+                })
+              }
+            >
+              Add section
+            </BDButton>
+          </div>
         </div>
         <div className="flex flex-col gap-3">
           {record.sections.map((section, index) => (
@@ -183,26 +220,45 @@ export function BDArchitectureComponent({
                 />
                 <button
                   type="button"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => setSectionView(section.id, !viewSections.has(section.id))}
+                  aria-label={viewSections.has(section.id) ? "Edit section" : "View section"}
+                >
+                  {viewSections.has(section.id) ? (
+                    <PenLine className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
                   className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                  onClick={() =>
+                  onClick={() => {
+                    setSectionView(section.id, false);
                     onChange({
                       sections: record.sections.filter((_, i) => i !== index),
-                    })
-                  }
+                    });
+                  }}
                   aria-label="Remove section"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <textarea
-                className={`${CELL} mt-2`}
-                rows={3}
-                placeholder="Section content (markdown)"
-                value={section.content}
-                onChange={(e) =>
-                  updateSection(index, { content: e.target.value })
-                }
-              />
+              {viewSections.has(section.id) ? (
+                <div className="mt-2 rounded-lg border border-slate-200 p-3">
+                  <BDMarkdownView content={sectionMarkdown(section)} />
+                </div>
+              ) : (
+                <textarea
+                  className={`${CELL} mt-2`}
+                  rows={3}
+                  placeholder="Section content (markdown)"
+                  value={section.content}
+                  onChange={(e) =>
+                    updateSection(index, { content: e.target.value })
+                  }
+                />
+              )}
             </div>
           ))}
         </div>
