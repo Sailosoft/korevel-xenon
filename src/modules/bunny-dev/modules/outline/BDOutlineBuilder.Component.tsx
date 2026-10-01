@@ -274,6 +274,8 @@ export function BDOutlineBuilderComponent() {
               label: "Delete",
               icon: Trash2,
               variant: "danger",
+              iconOnly: true,
+              tooltip: "Delete outline",
               onSelect: ([row]) => setDeleting(row),
             },
           ]}

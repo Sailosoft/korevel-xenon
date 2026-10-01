@@ -4,28 +4,44 @@
 //
 // Lists only the open folder's contents (grid or list), keeps the open folder
 // in the URL (?folder=<id>&view=grid|list), and opens files in the dedicated
-// editor route. Editing happens on the editor page, never here.
+// editor route. Media files preview in a modal viewer. A selection mode adds
+// bulk move / copy / download / delete, and password protection gates the
+// view / edit / download actions until the file is unlocked for the session.
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
   ChevronRight,
+  Copy,
   Download,
+  Eye,
+  FileArchive,
   FileCode,
   FileImage,
   FileJson,
+  FileMusic,
   FilePlus2,
   FileSpreadsheet,
   FileText,
+  FileType,
+  FileVideoCamera,
   Folder,
+  FolderInput,
   FolderOpen,
   FolderPlus,
   FolderTree,
+  KeyRound,
   LayoutGrid,
   List,
+  Lock,
   Pencil,
   Plus,
   Search,
+  ShieldCheck,
+  ShieldOff,
+  Square,
+  SquareCheck,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -39,14 +55,30 @@ import {
   applyRenameFile,
   applyRenameFolder,
   breadcrumbOf,
+  collectDescendantFolderIds,
+  collectFilesInFolders,
   createFolder,
   createTextFile,
   createUploadedFile,
-  detectKind,
   formatSize,
-  isTextKind,
+  hashPassword,
+  isMediaKind,
+  isPasswordProtected,
+  isPdfFile,
+  isTextUpload,
+  makeSalt,
   nameTaken,
+  planCopy,
+  planMove,
+  topLevelFolderIds,
+  verifyPassword,
+  type BDCopyTarget,
 } from "./BDFile.Types";
+import {
+  isFileLocked,
+  markFileUnlocked,
+  forgetFileUnlocked,
+} from "./BDFile.Lock";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
 import BDModal from "../../components/BDModal";
@@ -55,6 +87,11 @@ import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDContextMenu, {
   type BDContextMenuAction,
 } from "../../components/BDContextMenu";
+import BDFileViewerModal from "./BDFileViewerModal.Component";
+import BDFileTargetFolderModal from "./BDFileTargetFolderModal.Component";
+import BDFilePasswordDialog, {
+  type BDFilePasswordMode,
+} from "./BDFilePasswordDialog.Component";
 import { useBDToast } from "../../components/BDToast";
 import { downloadBlob, downloadText } from "../../BDDownload";
 
@@ -75,8 +112,18 @@ type MenuTarget =
   | { type: "file"; file: BDProjectFile }
   | { type: "empty" };
 
-function fileIcon(kind: BDProjectFileKind) {
-  switch (kind) {
+type PasswordDialogState = {
+  mode: BDFilePasswordMode;
+  file: BDProjectFile;
+  next?: "open" | "preview" | "download";
+} | null;
+
+const FILE_PREFIX = "file:";
+const FOLDER_PREFIX = "folder:";
+
+function fileIcon(file: BDProjectFile) {
+  if (isPdfFile(file)) return FileType;
+  switch (file.kind) {
     case BDProjectFileKind.code:
       return FileCode;
     case BDProjectFileKind.json:
@@ -85,9 +132,20 @@ function fileIcon(kind: BDProjectFileKind) {
       return FileSpreadsheet;
     case BDProjectFileKind.image:
       return FileImage;
+    case BDProjectFileKind.video:
+      return FileVideoCamera;
+    case BDProjectFileKind.audio:
+      return FileMusic;
+    case BDProjectFileKind.archive:
+      return FileArchive;
     default:
       return FileText;
   }
+}
+
+/** Media and PDFs open in the modal viewer; everything else opens in the editor. */
+function opensInViewer(file: BDProjectFile): boolean {
+  return isMediaKind(file.kind) || isPdfFile(file);
 }
 
 function formatDate(iso?: string): string {
@@ -139,6 +197,19 @@ export function BDFileManagerComponent() {
     target: MenuTarget;
   } | null>(null);
 
+  // ── T2 selection ──────────────────────────────────────────────────────────
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [movingOpen, setMovingOpen] = useState(false);
+  const [copyingOpen, setCopyingOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // ── T1 viewer + T3 password gate ─────────────────────────────────────────
+  const [viewerFile, setViewerFile] = useState<BDProjectFile | null>(null);
+  const [passwordDialog, setPasswordDialog] = useState<PasswordDialogState>(null);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+
   // Drop a stale ?folder=<id> once folders have loaded.
   useEffect(() => {
     if (rawFolderId && folders && !folderExists) {
@@ -184,6 +255,125 @@ export function BDFileManagerComponent() {
   const breadcrumb = breadcrumbOf(currentFolderId, folderList);
   const isEmpty = childFolders.length === 0 && childFiles.length === 0;
 
+  // ── Selection helpers ─────────────────────────────────────────────────────
+  const selectionKey = (type: "folder" | "file", id: string) =>
+    `${type}:${id}`;
+  const isSelected = (type: "folder" | "file", id: string) =>
+    selected.has(selectionKey(type, id));
+  const toggleSelected = (type: "folder" | "file", id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const key = selectionKey(type, id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const selectedFolderIds = () =>
+    [...selected]
+      .filter((key) => key.startsWith(FOLDER_PREFIX))
+      .map((key) => key.slice(FOLDER_PREFIX.length));
+  const selectedFileIds = () =>
+    [...selected]
+      .filter((key) => key.startsWith(FILE_PREFIX))
+      .map((key) => key.slice(FILE_PREFIX.length));
+
+  const clearSelection = () => setSelected(new Set());
+  const endSelection = () => {
+    setSelected(new Set());
+    setSelectionMode(false);
+  };
+  const toggleSelectionMode = () => {
+    if (selectionMode) endSelection();
+    else setSelectionMode(true);
+  };
+
+  // ── File actions ──────────────────────────────────────────────────────────
+  const performDownload = (file: BDProjectFile) => {
+    if (file.blob) downloadBlob(file.name, file.blob);
+    else downloadText(file.name, file.content?.data ?? "");
+  };
+
+  const openPasswordDialog = (state: NonNullable<PasswordDialogState>) => {
+    setPasswordError("");
+    setPasswordDialog(state);
+  };
+
+  const openFile = (file: BDProjectFile) => {
+    if (isFileLocked(file)) {
+      openPasswordDialog({ mode: "unlock", file, next: "open" });
+      return;
+    }
+    router.push(editorHref(file.id));
+  };
+
+  const previewFile = (file: BDProjectFile) => {
+    if (isFileLocked(file)) {
+      openPasswordDialog({ mode: "unlock", file, next: "preview" });
+      return;
+    }
+    setViewerFile(file);
+  };
+
+  const defaultOpen = (file: BDProjectFile) =>
+    opensInViewer(file) ? previewFile(file) : openFile(file);
+
+  const handleDownload = (file: BDProjectFile) => {
+    if (isFileLocked(file)) {
+      openPasswordDialog({ mode: "unlock", file, next: "download" });
+      return;
+    }
+    performDownload(file);
+  };
+
+  const submitPassword = async (password: string) => {
+    const state = passwordDialog;
+    if (!state) return;
+    const fresh = fileList.find((f) => f.id === state.file.id) ?? state.file;
+    setPasswordBusy(true);
+    setPasswordError("");
+
+    if (state.mode === "protect") {
+      const salt = makeSalt();
+      await bdFileRepository.update(fresh.id, {
+        passwordProtected: true,
+        passwordSalt: salt,
+        passwordHash: hashPassword(password, salt),
+      });
+      markFileUnlocked(fresh.id);
+      toast({ title: "File protected", status: "success" });
+      setPasswordBusy(false);
+      setPasswordDialog(null);
+      return;
+    }
+
+    if (!verifyPassword(fresh, password)) {
+      setPasswordError("Incorrect password.");
+      setPasswordBusy(false);
+      return;
+    }
+
+    if (state.mode === "remove") {
+      await bdFileRepository.update(fresh.id, {
+        passwordProtected: false,
+        passwordHash: undefined,
+        passwordSalt: undefined,
+      });
+      forgetFileUnlocked(fresh.id);
+      toast({ title: "Password removed", status: "success" });
+      setPasswordBusy(false);
+      setPasswordDialog(null);
+      return;
+    }
+
+    markFileUnlocked(fresh.id);
+    setPasswordBusy(false);
+    setPasswordDialog(null);
+    if (state.next === "download") performDownload(fresh);
+    else if (state.next === "open") router.push(editorHref(fresh.id));
+    else previewFile(fresh);
+  };
+
+  // ── Create / rename ───────────────────────────────────────────────────────
   const openCreate = (kind: "folder" | "file", parentId: string | null) => {
     setPromptValue("");
     setCreatePrompt({ kind, parentId });
@@ -285,6 +475,7 @@ export function BDFileManagerComponent() {
     setPromptValue("");
   };
 
+  // ── Upload ────────────────────────────────────────────────────────────────
   const readUpload = (
     file: File,
   ): Promise<{
@@ -292,8 +483,7 @@ export function BDFileManagerComponent() {
     blob?: Blob;
   }> =>
     new Promise((resolve) => {
-      const kind = detectKind(file.name);
-      if (isTextKind(kind)) {
+      if (isTextUpload(file.name, file.type)) {
         const reader = new FileReader();
         reader.onload = () =>
           resolve({
@@ -322,14 +512,17 @@ export function BDFileManagerComponent() {
           file.size,
           content,
           blob,
+          file.type,
         ),
       );
     }
     toast({ title: "Upload complete", status: "success" });
   };
 
+  // ── Single deletes ────────────────────────────────────────────────────────
   const handleDeleteFile = async () => {
     if (!deletingFile) return;
+    forgetFileUnlocked(deletingFile.id);
     await bdFileRepository.delete(deletingFile.id);
     setDeletingFile(null);
     toast({ title: "File deleted", status: "success" });
@@ -345,36 +538,183 @@ export function BDFileManagerComponent() {
     toast({ title: "Folder deleted", status: "success" });
   };
 
-  const handleDownload = (file: BDProjectFile) => {
-    if (file.blob) downloadBlob(file.name, file.blob);
-    else downloadText(file.name, file.content?.data ?? "");
+  // ── Bulk actions ──────────────────────────────────────────────────────────
+  const handleBulkMove = async (target: BDCopyTarget) => {
+    setMovingOpen(false);
+    const targetFolderId = target.mode === "folder" ? target.folderId : null;
+    const plan = planMove(
+      selectedFolderIds(),
+      selectedFileIds(),
+      targetFolderId,
+      folderList,
+      fileList,
+    );
+    if (plan.error) {
+      toast({ title: plan.error, status: "error" });
+      return;
+    }
+    const changedFolders = plan.folders.filter((f, i) => f !== folderList[i]);
+    const changedFiles = plan.files.filter((f, i) => f !== fileList[i]);
+    if (changedFolders.length) await bdFolderRepository.bulkPut(changedFolders);
+    if (changedFiles.length) await bdFileRepository.bulkPut(changedFiles);
+    toast({
+      title: `Moved ${changedFolders.length + changedFiles.length} item(s)`,
+      status: "success",
+    });
+    endSelection();
   };
 
+  const handleBulkCopy = async (target: BDCopyTarget) => {
+    setCopyingOpen(false);
+    const originalFolderIds = new Set(folderList.map((f) => f.id));
+    const originalFileIds = new Set(fileList.map((f) => f.id));
+    const plan = planCopy(
+      selectedFolderIds(),
+      selectedFileIds(),
+      target,
+      folderList,
+      fileList,
+    );
+    const addedFolders = plan.folders.filter((f) => !originalFolderIds.has(f.id));
+    const addedFiles = plan.files.filter((f) => !originalFileIds.has(f.id));
+    if (addedFolders.length) await bdFolderRepository.bulkPut(addedFolders);
+    if (addedFiles.length) await bdFileRepository.bulkPut(addedFiles);
+    toast({
+      title: `Copied ${addedFolders.length + addedFiles.length} item(s)`,
+      status: "success",
+    });
+    endSelection();
+  };
+
+  const handleBulkDownload = () => {
+    const ids = new Set(selectedFileIds());
+    for (const file of collectFilesInFolders(
+      selectedFolderIds(),
+      folderList,
+      fileList,
+    )) {
+      ids.add(file.id);
+    }
+    const targets = fileList.filter((f) => ids.has(f.id));
+    let skipped = 0;
+    for (const file of targets) {
+      if (isFileLocked(file)) {
+        skipped += 1;
+        continue;
+      }
+      performDownload(file);
+    }
+    if (skipped) {
+      toast({
+        title: `Downloaded ${targets.length - skipped} file(s); ${skipped} locked file(s) skipped.`,
+        status: "error",
+      });
+    } else {
+      toast({ title: `Downloaded ${targets.length} file(s)`, status: "success" });
+    }
+    endSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    const folderIds = topLevelFolderIds(selectedFolderIds(), folderList);
+    const fileIds = selectedFileIds();
+    for (const id of folderIds) await bdFolderRepository.delete(id);
+    for (const id of fileIds) {
+      forgetFileUnlocked(id);
+      await bdFileRepository.delete(id);
+    }
+    if (currentFolderId && folderIds.includes(currentFolderId)) {
+      goToFolder(null);
+    }
+    setBulkDeleting(false);
+    toast({
+      title: `Deleted ${folderIds.length + fileIds.length} item(s)`,
+      status: "success",
+    });
+    endSelection();
+  };
+
+  // Folders that cannot be a move target (the selection and its descendants).
+  const moveDisabledFolderIds = new Set<string>();
+  for (const id of selectedFolderIds()) {
+    moveDisabledFolderIds.add(id);
+    for (const descendant of collectDescendantFolderIds(id, folderList)) {
+      moveDisabledFolderIds.add(descendant);
+    }
+  }
+
+  // ── Context menu ──────────────────────────────────────────────────────────
   const buildMenuActions = (target: MenuTarget): BDContextMenuAction[] => {
     if (target.type === "file") {
       const file = target.file;
-      return [
+      const locked = isFileLocked(file);
+      const lockedHint = locked ? "Password required" : undefined;
+      const actions: BDContextMenuAction[] = [
+        {
+          id: "preview",
+          label: "Preview",
+          icon: Eye,
+          disabled: locked,
+          tooltip: lockedHint,
+          onClick: () => previewFile(file),
+        },
         {
           id: "open",
           label: "Open in editor",
           icon: FileCode,
-          onClick: () => router.push(editorHref(file.id)),
+          disabled: locked,
+          tooltip: lockedHint,
+          onClick: () => openFile(file),
         },
-        { id: "rename", label: "Rename", icon: Pencil, onClick: () => openRenameFile(file) },
+      ];
+      if (locked) {
+        actions.push({
+          id: "unlock",
+          label: "Unlock with password",
+          icon: KeyRound,
+          onClick: () =>
+            openPasswordDialog({ mode: "unlock", file, next: "preview" }),
+        });
+      }
+      actions.push(
+        {
+          id: "rename",
+          label: "Rename",
+          icon: Pencil,
+          onClick: () => openRenameFile(file),
+        },
         {
           id: "download",
           label: "Download",
           icon: Download,
+          disabled: locked,
+          tooltip: lockedHint,
           onClick: () => handleDownload(file),
         },
-        {
-          id: "delete",
-          label: "Delete",
-          icon: Trash2,
-          danger: true,
-          onClick: () => setDeletingFile(file),
-        },
-      ];
+      );
+      if (isPasswordProtected(file)) {
+        actions.push({
+          id: "remove-password",
+          label: "Remove password",
+          icon: ShieldOff,
+          onClick: () => openPasswordDialog({ mode: "remove", file }),
+        });
+      } else {
+        actions.push({
+          id: "protect",
+          label: "Protect with password",
+          icon: ShieldCheck,
+          onClick: () => openPasswordDialog({ mode: "protect", file }),
+        });
+      }
+      actions.push({
+        id: "delete",
+        label: "Delete",
+        icon: Trash2,
+        danger: true,
+        onClick: () => setDeletingFile(file),
+      });
+      return actions;
     }
     if (target.type === "folder") {
       const folder = target.folder;
@@ -445,6 +785,13 @@ export function BDFileManagerComponent() {
         description="A virtual project file system — organize folders, upload files, and open files in the dedicated editor."
         actions={
           <>
+            <BDButton
+              variant={selectionMode ? "primary" : "secondary"}
+              icon={SquareCheck}
+              onClick={toggleSelectionMode}
+            >
+              {selectionMode ? "Selecting" : "Select"}
+            </BDButton>
             <BDButton
               variant="secondary"
               icon={FolderPlus}
@@ -548,6 +895,56 @@ export function BDFileManagerComponent() {
         </div>
       </div>
 
+      {selectionMode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
+          <span className="mr-1 text-sm font-medium text-blue-700">
+            {selected.size} selected
+          </span>
+          <BDButton
+            size="sm"
+            variant="secondary"
+            icon={FolderInput}
+            disabled={selected.size === 0}
+            onClick={() => setMovingOpen(true)}
+          >
+            Move
+          </BDButton>
+          <BDButton
+            size="sm"
+            variant="secondary"
+            icon={Copy}
+            disabled={selected.size === 0}
+            onClick={() => setCopyingOpen(true)}
+          >
+            Copy
+          </BDButton>
+          <BDButton
+            size="sm"
+            variant="secondary"
+            icon={Download}
+            disabled={selected.size === 0}
+            onClick={handleBulkDownload}
+          >
+            Download
+          </BDButton>
+          <BDButton
+            size="sm"
+            variant="danger"
+            icon={Trash2}
+            disabled={selected.size === 0}
+            onClick={() => setBulkDeleting(true)}
+          >
+            Delete
+          </BDButton>
+          <BDButton size="sm" variant="ghost" onClick={clearSelection}>
+            Clear
+          </BDButton>
+          <BDButton size="sm" variant="ghost" onClick={endSelection}>
+            Done
+          </BDButton>
+        </div>
+      )}
+
       <div
         className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white p-4"
         onContextMenu={(event) => openMenu(event, { type: "empty" })}
@@ -570,15 +967,26 @@ export function BDFileManagerComponent() {
                 key={folder.id}
                 type="button"
                 {...itemContextProps({ type: "folder", folder })}
-                onClick={() => setSelectedKey(`folder:${folder.id}`)}
-                onDoubleClick={() => goToFolder(folder.id)}
+                onClick={() =>
+                  selectionMode
+                    ? toggleSelected("folder", folder.id)
+                    : setSelectedKey(`folder:${folder.id}`)
+                }
+                onDoubleClick={() => !selectionMode && goToFolder(folder.id)}
                 className={cn(
-                  "flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-colors",
-                  selectedKey === `folder:${folder.id}`
+                  "relative flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-colors",
+                  (selectionMode && isSelected("folder", folder.id)) ||
+                    selectedKey === `folder:${folder.id}`
                     ? "border-blue-300 bg-blue-50"
                     : "border-slate-200 hover:border-blue-200 hover:bg-slate-50",
                 )}
               >
+                {selectionMode && (
+                  <SelectionCheck
+                    checked={isSelected("folder", folder.id)}
+                    className="absolute left-2 top-2"
+                  />
+                )}
                 <Folder className="h-10 w-10 text-blue-500" />
                 <span className="w-full truncate text-sm font-medium text-slate-700">
                   {folder.name}
@@ -586,23 +994,37 @@ export function BDFileManagerComponent() {
               </button>
             ))}
             {childFiles.map((file) => {
-              const Icon = fileIcon(file.kind);
+              const Icon = fileIcon(file);
               return (
                 <button
                   key={file.id}
                   type="button"
                   {...itemContextProps({ type: "file", file })}
-                  onClick={() => router.push(editorHref(file.id))}
+                  onClick={() =>
+                    selectionMode
+                      ? toggleSelected("file", file.id)
+                      : defaultOpen(file)
+                  }
                   className={cn(
-                    "flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-colors",
-                    selectedKey === `file:${file.id}`
+                    "relative flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-colors",
+                    (selectionMode && isSelected("file", file.id)) ||
+                      selectedKey === `file:${file.id}`
                       ? "border-blue-300 bg-blue-50"
                       : "border-slate-200 hover:border-blue-200 hover:bg-slate-50",
                   )}
                 >
+                  {selectionMode && (
+                    <SelectionCheck
+                      checked={isSelected("file", file.id)}
+                      className="absolute left-2 top-2"
+                    />
+                  )}
                   <Icon className="h-10 w-10 text-slate-400" />
-                  <span className="w-full truncate text-sm font-medium text-slate-700">
-                    {file.name}
+                  <span className="flex w-full items-center justify-center gap-1 text-sm font-medium text-slate-700">
+                    {isPasswordProtected(file) && (
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    )}
+                    <span className="truncate">{file.name}</span>
                   </span>
                   <span className="text-xs text-slate-400">
                     {formatSize(file.size)}
@@ -615,6 +1037,7 @@ export function BDFileManagerComponent() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                {selectionMode && <th className="w-8 px-3 py-2" />}
                 <th className="px-3 py-2 font-medium">Name</th>
                 <th className="px-3 py-2 font-medium">Kind</th>
                 <th className="px-3 py-2 font-medium">Size</th>
@@ -626,15 +1049,25 @@ export function BDFileManagerComponent() {
                 <tr
                   key={folder.id}
                   {...itemContextProps({ type: "folder", folder })}
-                  onClick={() => setSelectedKey(`folder:${folder.id}`)}
-                  onDoubleClick={() => goToFolder(folder.id)}
+                  onClick={() =>
+                    selectionMode
+                      ? toggleSelected("folder", folder.id)
+                      : setSelectedKey(`folder:${folder.id}`)
+                  }
+                  onDoubleClick={() => !selectionMode && goToFolder(folder.id)}
                   className={cn(
                     "cursor-default border-b border-slate-50 last:border-0",
-                    selectedKey === `folder:${folder.id}`
+                    (selectionMode && isSelected("folder", folder.id)) ||
+                      selectedKey === `folder:${folder.id}`
                       ? "bg-blue-50"
                       : "hover:bg-slate-50",
                   )}
                 >
+                  {selectionMode && (
+                    <td className="px-3 py-2">
+                      <SelectionCheck checked={isSelected("folder", folder.id)} />
+                    </td>
+                  )}
                   <td className="flex items-center gap-2 px-3 py-2 font-medium text-slate-700">
                     <Folder className="h-4 w-4 text-blue-500" />
                     {folder.name}
@@ -647,21 +1080,34 @@ export function BDFileManagerComponent() {
                 </tr>
               ))}
               {childFiles.map((file) => {
-                const Icon = fileIcon(file.kind);
+                const Icon = fileIcon(file);
                 return (
                   <tr
                     key={file.id}
                     {...itemContextProps({ type: "file", file })}
-                    onClick={() => router.push(editorHref(file.id))}
+                    onClick={() =>
+                      selectionMode
+                        ? toggleSelected("file", file.id)
+                        : defaultOpen(file)
+                    }
                     className={cn(
                       "cursor-default border-b border-slate-50 last:border-0",
-                      selectedKey === `file:${file.id}`
+                      (selectionMode && isSelected("file", file.id)) ||
+                        selectedKey === `file:${file.id}`
                         ? "bg-blue-50"
                         : "hover:bg-slate-50",
                     )}
                   >
+                    {selectionMode && (
+                      <td className="px-3 py-2">
+                        <SelectionCheck checked={isSelected("file", file.id)} />
+                      </td>
+                    )}
                     <td className="flex items-center gap-2 px-3 py-2 font-medium text-slate-700">
                       <Icon className="h-4 w-4 text-slate-400" />
+                      {isPasswordProtected(file) && (
+                        <Lock className="h-3.5 w-3.5 text-amber-500" />
+                      )}
                       {file.name}
                     </td>
                     <td className="px-3 py-2 text-slate-400">{file.kind}</td>
@@ -687,6 +1133,56 @@ export function BDFileManagerComponent() {
           onClose={() => setMenu(null)}
         />
       )}
+
+      <BDFileViewerModal
+        file={viewerFile}
+        onClose={() => setViewerFile(null)}
+        onDownload={handleDownload}
+      />
+
+      <BDFileTargetFolderModal
+        open={movingOpen}
+        title="Move selection"
+        description="Choose the destination folder."
+        confirmLabel="Move here"
+        folders={folderList}
+        disabledFolderIds={moveDisabledFolderIds}
+        onConfirm={handleBulkMove}
+        onClose={() => setMovingOpen(false)}
+      />
+
+      <BDFileTargetFolderModal
+        open={copyingOpen}
+        title="Copy selection"
+        description="Choose where to place the copies."
+        confirmLabel="Copy here"
+        folders={folderList}
+        allowSameLocation
+        onConfirm={handleBulkCopy}
+        onClose={() => setCopyingOpen(false)}
+      />
+
+      <BDFilePasswordDialog
+        open={passwordDialog !== null}
+        mode={passwordDialog?.mode ?? "unlock"}
+        fileName={passwordDialog?.file.name}
+        error={passwordError}
+        isLoading={passwordBusy}
+        onSubmit={submitPassword}
+        onClose={() => {
+          setPasswordDialog(null);
+          setPasswordError("");
+        }}
+      />
+
+      <BDConfirmDialog
+        open={bulkDeleting}
+        title={`Delete ${selected.size} selected item(s)?`}
+        description="Selected folders and all of their contents will be removed."
+        confirmLabel="Delete selection"
+        onConfirm={handleBulkDelete}
+        onCancel={() => setBulkDeleting(false)}
+      />
 
       <BDModal
         open={createPrompt !== null}
@@ -759,6 +1255,33 @@ export function BDFileManagerComponent() {
         onCancel={() => setDeletingFolder(null)}
       />
     </div>
+  );
+}
+
+function SelectionCheck({
+  checked,
+  className,
+}: {
+  checked: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex h-5 w-5 items-center justify-center rounded border transition-colors",
+        checked
+          ? "border-blue-500 bg-blue-500 text-white"
+          : "border-slate-300 bg-white",
+        className,
+      )}
+    >
+      {checked ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <Square className="h-3.5 w-3.5 text-transparent" />
+      )}
+    </span>
   );
 }
 

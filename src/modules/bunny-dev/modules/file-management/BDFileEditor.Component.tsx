@@ -15,6 +15,8 @@ export interface BDFileEditorComponentProps {
   onSave: (file: BDProjectFile) => void;
   onDelete: (file: BDProjectFile) => void;
   onDownload: (file: BDProjectFile) => void;
+  /** When true the file is password-locked, so editing is disabled. */
+  locked?: boolean;
 }
 
 export function BDFileEditorComponent({
@@ -22,6 +24,7 @@ export function BDFileEditorComponent({
   onSave,
   onDelete,
   onDownload,
+  locked = false,
 }: BDFileEditorComponentProps) {
   const [data, setData] = useState(file.content?.data ?? "");
 
@@ -45,7 +48,7 @@ export function BDFileEditorComponent({
 
   const isMarkdown = file.kind === BDProjectFileKind.markdown;
   const isImage = file.kind === BDProjectFileKind.image;
-  const canEdit = isTextKind(file.kind);
+  const canEdit = isTextKind(file.kind) && !locked;
 
   const handleSave = () => {
     onSave({

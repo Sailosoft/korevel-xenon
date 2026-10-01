@@ -5,6 +5,7 @@
 import { ChevronRight, FileText, Plus, Trash2 } from "lucide-react";
 import type { BDOutlineTopic } from "../../BDDomain.Types";
 import { cn } from "@heroui/react";
+import BDIconButton from "../../components/BDIconButton";
 
 export interface BDOutlineComponentProps {
   topics: BDOutlineTopic[];
@@ -46,22 +47,18 @@ export function BDOutlineComponent({
               <span className="truncate">{topic.title}</span>
             </button>
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                type="button"
-                className="rounded p-1 text-slate-400 hover:text-blue-600"
+              <BDIconButton
+                icon={Plus}
+                label="Add child topic"
+                size="sm"
                 onClick={() => onAdd(topic.id)}
-                aria-label="Add child topic"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className="rounded p-1 text-slate-400 hover:text-red-500"
+              />
+              <BDIconButton
+                icon={Trash2}
+                label="Delete topic"
+                size="sm"
                 onClick={() => onDelete(topic)}
-                aria-label="Delete topic"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              />
             </div>
           </div>
           {topic.children && topic.children.length > 0 && (

@@ -35,10 +35,10 @@ const TYPE_MAP: Record<BDAppFieldType, BDFormFieldType> = {
   slug: "text",
   hidden: "hidden",
   select: "select",
-  multiSelect: "tags",
+  multiSelect: "multiSelect",
   radio: "select",
   checkbox: "toggle",
-  checkboxList: "tags",
+  checkboxList: "multiSelect",
   toggle: "toggle",
   toggleButtons: "select",
   date: "date",
@@ -78,12 +78,19 @@ export function BDSchemaForm({
     .map((field) => {
       const isRelation = field.type === "relationSelect";
       const relationMultiple = isRelation && field.relation?.multiple === true;
+      // Free-form `tags` becomes a constrained multi-select when the field
+      // defines options, so authored option lists are honored.
+      const tagsWithOptions =
+        field.type === "tags" &&
+        !!field.options &&
+        Object.keys(field.options).length > 0;
       return {
         name: field.name,
         label: field.label ?? field.name,
-        type: relationMultiple
-          ? "multiSelect"
-          : (TYPE_MAP[field.type] ?? "text"),
+        type:
+          relationMultiple || tagsWithOptions
+            ? "multiSelect"
+            : (TYPE_MAP[field.type] ?? "text"),
         placeholder: field.placeholder,
         helperText: field.helperText,
         required: field.required,
@@ -97,6 +104,7 @@ export function BDSchemaForm({
         options: isRelation
           ? relationOptions?.[field.name]
           : toOptions(field.options),
+        searchable: isRelation && field.relation?.searchable === true,
       };
     });
 

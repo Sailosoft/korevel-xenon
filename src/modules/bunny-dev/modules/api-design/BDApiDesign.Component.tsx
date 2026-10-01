@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Webhook,
@@ -59,6 +58,7 @@ import BDApiDocumentComponent from "./BDApiDocument.Component";
 import BDApiGroupComponent from "./BDApiGroup.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
+import BDIconButton from "../../components/BDIconButton";
 import BDList from "../../components/BDList";
 import BDModal from "../../components/BDModal";
 import BDForm from "../../components/BDForm";
@@ -78,6 +78,7 @@ function draftField(p: BDApiPropertyDraft, index: number): BDAPIProperty {
     location: "body",
     required: p.required,
     description: p.description,
+    fakeType: p.fakeType,
   };
 }
 
@@ -92,6 +93,7 @@ function draftReturn(draft: BDApiDraft): BDAPIReturn {
       ? {
           kind: (item.kind ?? "scalar") as BDAPIReturn["kind"],
           type: item.type ?? "string",
+          fakeType: item.fakeType,
           properties: (item.properties ?? []).map(draftField),
         }
       : undefined,
@@ -339,6 +341,7 @@ export function BDApiDesignComponent({
         kind: BDAPIReturnKind.object,
         type: "object",
         item: undefined,
+        fakeType: undefined,
       });
     } else if (shape === "any") {
       updateReturns({
@@ -346,10 +349,12 @@ export function BDApiDesignComponent({
         type: "any",
         properties: [],
         item: undefined,
+        fakeType: undefined,
       });
     } else {
       updateReturns({
         kind: BDAPIReturnKind.array,
+        fakeType: undefined,
         item: returns.item ?? {
           kind: BDAPIReturnKind.scalar,
           type: "string",
@@ -367,6 +372,8 @@ export function BDApiDesignComponent({
           kind: BDAPIReturnKind.object,
           type: item?.type || "object",
           properties: item?.properties ?? [],
+          fakeType: item?.fakeType,
+          example: item?.example,
         },
       });
     } else if (shape === "any") {
@@ -379,6 +386,8 @@ export function BDApiDesignComponent({
           kind: BDAPIReturnKind.scalar,
           type: item?.type || "string",
           properties: [],
+          fakeType: item?.fakeType,
+          example: item?.example,
         },
       });
     }
@@ -518,6 +527,7 @@ export function BDApiDesignComponent({
           location: (p.location ?? "query") as BDAPIProperty["location"],
           required: p.required,
           description: p.description,
+          fakeType: p.fakeType,
         })),
         returns: draftReturn(apiDraft),
         errors: (apiDraft.errors ?? []).map((e) => ({
@@ -700,32 +710,26 @@ export function BDApiDesignComponent({
                   {group.name}
                 </button>
                 <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Link
+                  <BDIconButton
                     href={`/modules/bunny-dev/projects/${projectId}/api/${group.id}`}
-                    className="rounded p-1 text-slate-400 hover:text-blue-600"
-                    aria-label="Open group"
-                    title="Open group"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Link>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-slate-400 hover:text-blue-600"
+                    icon={ExternalLink}
+                    label="Open group"
+                    size="sm"
+                  />
+                  <BDIconButton
+                    icon={Pencil}
+                    label="Rename group"
+                    size="sm"
                     onClick={() =>
                       setGroupModal({ open: true, group, busy: false })
                     }
-                    aria-label="Rename group"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-slate-400 hover:text-red-500"
+                  />
+                  <BDIconButton
+                    icon={Trash2}
+                    label="Delete group"
+                    size="sm"
                     onClick={() => setDeletingGroup(group)}
-                    aria-label="Delete group"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  />
                 </div>
               </div>
             ))}
@@ -748,6 +752,8 @@ export function BDApiDesignComponent({
 
           <BDList<BDAPI>
             title="Operations"
+            className="max-h-[34rem]"
+            virtual={{ height: 480 }}
             data={groupApis}
             isLoading={apis === undefined}
             getRowId={(row) => row.id}
@@ -784,6 +790,8 @@ export function BDApiDesignComponent({
                 label: "Delete",
                 icon: Trash2,
                 variant: "danger",
+                iconOnly: true,
+                tooltip: "Delete operation",
                 onSelect: ([row]) => setDeleting(row),
               },
             ]}
@@ -792,7 +800,22 @@ export function BDApiDesignComponent({
           <div className="flex flex-col gap-4">
             {draft && form ? (
               tab === "mock" ? (
-                <BDApiMockComponent api={draft} />
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <h3 className="text-sm font-semibold text-slate-700">
+                      {draft.name} · Mock
+                    </h3>
+                    <BDButton
+                      size="sm"
+                      icon={Save}
+                      isLoading={saving}
+                      onClick={handleSave}
+                    >
+                      Save
+                    </BDButton>
+                  </div>
+                  <BDApiMockComponent api={draft} onUpdate={update} />
+                </div>
               ) : (
                 <>
                   <div className="rounded-xl border border-slate-200 bg-white p-4">

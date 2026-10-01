@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AppWindow,
@@ -23,6 +23,11 @@ import type {
 import { useBDApps } from "./BDApp.Hooks";
 import { bdAppRepository, bdAppRecordRepository } from "./BDApp.Repository";
 import {
+  deleteAppRecordsByApp,
+  migrateLegacyAppRecords,
+} from "../../BDAppDatabase";
+import {
+  BD_APP_EMPTY_FORM,
   collectAppFields,
   createApp,
   createAppResource,
@@ -36,6 +41,7 @@ import BDAppResourceComponent from "./BDAppResource.Component";
 import BDAppRenderingComponent from "./BDAppRendering.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
+import BDIconButton from "../../components/BDIconButton";
 import BDList from "../../components/BDList";
 import BDBadge from "../../components/BDBadge";
 import BDEmptyState from "../../components/BDEmptyState";
@@ -51,13 +57,19 @@ function toAppField(draft: {
   label?: string;
   type: string;
   required?: boolean;
+  options?: { value: string; label: string }[];
 }): BDAppField {
+  const options =
+    draft.options && draft.options.length > 0
+      ? Object.fromEntries(draft.options.map((o) => [o.value, o.label]))
+      : undefined;
   return {
     kind: "field",
     name: draft.name,
     label: draft.label ?? draft.name,
     type: draft.type as BDAppField["type"],
     required: draft.required,
+    options,
   };
 }
 
@@ -87,6 +99,11 @@ export function BDAppBuilderComponent({
     Boolean(initialAppId),
   );
 
+  // Copy any pre-existing records from the legacy table once.
+  useEffect(() => {
+    void migrateLegacyAppRecords();
+  }, []);
+
   // Preselect the deep-linked app once its live query arrives (render-time
   // adjustment, not an effect).
   if (initialAppPending && initialAppId && apps) {
@@ -112,7 +129,12 @@ export function BDAppBuilderComponent({
 
   const handleCreateApp = async () => {
     const created = await bdAppRepository.create(
-      createApp(projectId, { name: "New App", slug: "new-app", path: "/" }),
+      createApp(projectId, {
+        ...BD_APP_EMPTY_FORM,
+        name: "New App",
+        slug: "new-app",
+        path: "/",
+      }),
     );
     loadApp(created);
   };
@@ -128,6 +150,26 @@ export function BDAppBuilderComponent({
     }
   };
 
+  const updateMeta = (patch: Partial<BDAppForm>) => {
+    if (!form || !draft) return;
+    const next = { ...form, ...patch };
+    setForm(next);
+    update({
+      description: next.description || undefined,
+      brand:
+        next.brandName || next.logoUrl
+          ? {
+              name: next.brandName || next.name,
+              logo: next.logoUrl || undefined,
+            }
+          : undefined,
+      theme:
+        next.themeMode !== "system" || next.primaryColor
+          ? { mode: next.themeMode, primary: next.primaryColor || undefined }
+          : undefined,
+    });
+  };
+
   const handleDeleteApp = async () => {
     if (!deletingApp) return;
     await Promise.all(
@@ -135,6 +177,7 @@ export function BDAppBuilderComponent({
         bdAppRecordRepository.deleteByResource(deletingApp.id, r.slug),
       ),
     );
+    await deleteAppRecordsByApp(deletingApp.id);
     await bdAppRepository.delete(deletingApp.id);
     if (draft?.id === deletingApp.id) {
       setDraft(null);
@@ -180,6 +223,7 @@ export function BDAppBuilderComponent({
     for (const appDraft of artifact.apps) {
       const created = await bdAppRepository.create(
         createApp(projectId, {
+          ...BD_APP_EMPTY_FORM,
           name: appDraft.name,
           slug: appDraft.slug ?? appDraft.name.toLowerCase().replace(/\s+/g, "-"),
           path: appDraft.path ?? "/",
@@ -323,6 +367,8 @@ export function BDAppBuilderComponent({
             {
               label: "Open",
               icon: ExternalLink,
+              iconOnly: true,
+              tooltip: "Open app",
               onSelect: ([row]) =>
                 router.push(
                   `/modules/bunny-dev/projects/${projectId}/app/${row.id}`,
@@ -332,6 +378,8 @@ export function BDAppBuilderComponent({
               label: "Delete",
               icon: Trash2,
               variant: "danger",
+              iconOnly: true,
+              tooltip: "Delete app",
               onSelect: ([row]) => setDeletingApp(row),
             },
           ]}
@@ -366,9 +414,26 @@ export function BDAppBuilderComponent({
                       <Eye className="h-3.5 w-3.5" /> Render
                     </button>
                   </div>
-                  <BDButton size="sm" icon={Save} isLoading={saving} onClick={handleSaveApp}>
-                    Save app
-                  </BDButton>
+                  <div className="flex items-center gap-2">
+                    <BDButton
+                      size="sm"
+                      variant="secondary"
+                      icon={ExternalLink}
+                      onClick={() =>
+                        router.push(`/modules/bunny-dev/render/${draft.id}`)
+                      }
+                    >
+                      Open as application
+                    </BDButton>
+                    <BDButton
+                      size="sm"
+                      icon={Save}
+                      isLoading={saving}
+                      onClick={handleSaveApp}
+                    >
+                      Save app
+                    </BDButton>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -409,6 +474,77 @@ export function BDAppBuilderComponent({
                         setForm({ ...form, path: e.target.value });
                         update({ path: e.target.value });
                       }}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <label className="flex flex-col gap-1 md:col-span-3">
+                    <span className="text-xs font-medium text-slate-600">
+                      Description
+                    </span>
+                    <input
+                      className={CELL}
+                      value={form.description}
+                      onChange={(e) =>
+                        updateMeta({ description: e.target.value })
+                      }
+                      placeholder="Shown in the standalone application header."
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-600">
+                      Brand name
+                    </span>
+                    <input
+                      className={CELL}
+                      value={form.brandName}
+                      onChange={(e) =>
+                        updateMeta({ brandName: e.target.value })
+                      }
+                      placeholder={form.name || "App title"}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-600">
+                      Logo URL
+                    </span>
+                    <input
+                      className={CELL}
+                      value={form.logoUrl}
+                      onChange={(e) => updateMeta({ logoUrl: e.target.value })}
+                      placeholder="https://…"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-600">
+                      Theme mode
+                    </span>
+                    <select
+                      className={CELL}
+                      value={form.themeMode}
+                      onChange={(e) =>
+                        updateMeta({
+                          themeMode: e.target.value as BDAppForm["themeMode"],
+                        })
+                      }
+                    >
+                      <option value="system">system</option>
+                      <option value="light">light</option>
+                      <option value="dark">dark</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-600">
+                      Primary color
+                    </span>
+                    <input
+                      className={CELL}
+                      value={form.primaryColor}
+                      onChange={(e) =>
+                        updateMeta({ primaryColor: e.target.value })
+                      }
+                      placeholder="#1976d2"
                     />
                   </label>
                 </div>
@@ -464,22 +600,18 @@ export function BDAppBuilderComponent({
                             </p>
                           </button>
                           <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className="rounded p-1 text-slate-400 hover:text-blue-600"
+                            <BDIconButton
+                              icon={Pencil}
+                              label="Edit resource"
+                              size="sm"
                               onClick={() => setResourceIndex(index)}
-                              aria-label="Edit resource"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded p-1 text-slate-400 hover:text-red-500"
+                            />
+                            <BDIconButton
+                              icon={Trash2}
+                              label="Delete resource"
+                              size="sm"
                               onClick={() => setDeletingResource(index)}
-                              aria-label="Delete resource"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            />
                           </div>
                         </div>
                       ))}

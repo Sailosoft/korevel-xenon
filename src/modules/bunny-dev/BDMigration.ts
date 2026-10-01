@@ -9,7 +9,7 @@
 
 import type Dexie from "dexie";
 import { v7 as uuidv7 } from "uuid";
-import type { BDAPI, BDApiGroup } from "./BDDomain.Types";
+import type { BDAPI, BDApiGroup, BDBoard } from "./BDDomain.Types";
 
 /**
  * Register every schema version on the given Dexie instance.
@@ -99,4 +99,36 @@ export function configureBDMigrations(db: Dexie): void {
         .bulkPut(rows.map((r) => ({ ...r, groupId: group.id })));
     }
   });
+
+  // ── Version 3 — Board ordering ─────────────────────────────────────────────
+  // Adds a `position` index to boards so project-wide ordering is queryable.
+  // Pre-existing rows are backfilled deterministically (per project, append
+  // after the highest existing position, alphabetical for ties).
+  db.version(3)
+    .stores({
+      boards: "id, projectId, sprintId, position",
+    })
+    .upgrade(async (tx) => {
+      const table = tx.table("boards");
+      const boards = (await table.toArray()) as BDBoard[];
+      const byProject = new Map<string, BDBoard[]>();
+      for (const board of boards) {
+        const list = byProject.get(board.projectId);
+        if (list) list.push(board);
+        else byProject.set(board.projectId, [board]);
+      }
+      for (const list of byProject.values()) {
+        const max = list.reduce(
+          (acc, b) => (typeof b.position === "number" ? Math.max(acc, b.position) : acc),
+          -1,
+        );
+        const missing = list
+          .filter((b) => typeof b.position !== "number")
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (missing.length === 0) continue;
+        await table.bulkPut(
+          missing.map((b, i) => ({ ...b, position: max + 1 + i })),
+        );
+      }
+    });
 }

@@ -14,6 +14,8 @@ export interface BDContextMenuAction {
   label: string;
   icon?: LucideIcon;
   shortcut?: string;
+  /** Native tooltip, e.g. to explain why a disabled action is unavailable. */
+  tooltip?: string;
   onClick?: () => void;
   /** Danger/delete actions get red styling. */
   danger?: boolean;
@@ -78,6 +80,7 @@ export function BDContextMenu({ x, y, actions, onClose }: BDContextMenuProps) {
             type="button"
             role="menuitem"
             disabled={action.disabled}
+            title={action.tooltip}
             className={cn(
               "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors",
               action.danger

@@ -6,7 +6,7 @@
 // composer. Replies always attach to the thread root so rendering stays flat
 // and virtual-scroll friendly.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   CornerDownRight,
   MessageSquare,
@@ -14,7 +14,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { BDTaskComment } from "../../BDDomain.Types";
 import { useBDTaskComments } from "./BDTask.Hooks";
 import { bdTaskCommentRepository } from "./BDTask.Repository";
@@ -82,6 +82,7 @@ export function BDTaskCommentsComponent({
 }: BDTaskCommentsComponentProps) {
   const comments = useBDTaskComments(taskId);
   const { toast } = useBDToast();
+  const virtRef = useRef<VirtuosoHandle>(null);
 
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<BDTaskComment | null>(null);
@@ -134,6 +135,15 @@ export function BDTaskCommentsComponent({
       });
       setDraft("");
       setReplyTo(null);
+      // Rows sort ascending, so the new comment is the last index. Wait a tick
+      // so the live query re-render has data before scrolling.
+      window.setTimeout(() => {
+        virtRef.current?.scrollToIndex({
+          index: total,
+          behavior: "smooth",
+          align: "end",
+        });
+      }, 0);
     } catch {
       toast({ title: "Could not post comment", status: "error" });
     } finally {
@@ -177,9 +187,11 @@ export function BDTaskCommentsComponent({
           </div>
         ) : (
           <Virtuoso
+            ref={virtRef}
             className="bd-scroll"
             style={{ height: "100%" }}
             data={rows}
+            followOutput="smooth"
             computeItemKey={(_, row) => row.comment.id}
             itemContent={(_, row) => (
               <BDCommentItem

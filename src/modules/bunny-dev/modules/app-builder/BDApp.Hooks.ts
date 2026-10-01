@@ -4,6 +4,7 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { bdDB } from "../../BDDatabase";
+import { bdAppDB } from "../../BDAppDatabase";
 import type { BDApp, BDAppRecord, BDSchemaModel } from "../../BDDomain.Types";
 
 export function useBDApps(projectId: string): BDApp[] | undefined {
@@ -25,7 +26,10 @@ export function useBDAppRecords(
   resourceSlug: string,
 ): BDAppRecord[] | undefined {
   return useLiveQuery(async () => {
-    const rows = await bdDB.appRecords.where("appId").equals(appId).toArray();
+    const rows = await bdAppDB.appRecords
+      .where("appId")
+      .equals(appId)
+      .toArray();
     return rows.filter((row) => row.resourceSlug === resourceSlug);
   }, [appId, resourceSlug]);
 }

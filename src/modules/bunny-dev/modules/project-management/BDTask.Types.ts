@@ -137,7 +137,8 @@ export function createBoardTask(
     status: column.status.name,
     priority: Priority.medium,
     resolution: BDResolution.unresolved,
-    rank: Date.now(),
+    // Deterministic default; callers append using the column's current max rank.
+    rank: 0,
     subtaskIds: [],
     fixVersionIds: [],
     labelIds: [],

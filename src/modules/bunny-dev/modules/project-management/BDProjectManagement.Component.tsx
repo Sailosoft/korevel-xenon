@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { KanbanSquare, Plus, Trash2, LayoutDashboard, Sparkles } from "lucide-react";
+import {
+  KanbanSquare,
+  Plus,
+  Trash2,
+  LayoutDashboard,
+  Sparkles,
+  Settings2,
+} from "lucide-react";
 import type { BDBoard, BDBoardColumn, BDBoardTask } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDBoardColumns, useBDBoardTasks, useBDBoards } from "./BDTask.Hooks";
@@ -17,9 +24,11 @@ import {
 } from "./BDTask.Types";
 import { bdGenerateTasks } from "./BDTaskBuilder.Server";
 import BDBoardComponent from "./BDBoard.Component";
+import BDBoardSettingsComponent from "./BDBoardSettings.Component";
 import BDTaskDrawerComponent from "./BDTaskDrawer.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
+import BDIconButton from "../../components/BDIconButton";
 import BDEmptyState from "../../components/BDEmptyState";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
@@ -42,10 +51,15 @@ export function BDProjectManagementComponent() {
   const tasks = useBDBoardTasks(projectId, resolvedBoardId);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>();
+  const [newTaskDraft, setNewTaskDraft] = useState<
+    Omit<BDBoardTask, "id"> | null
+  >(null);
   const [deletingTask, setDeletingTask] = useState<BDBoardTask | null>(null);
   const [deletingBoard, setDeletingBoard] = useState<BDBoard | null>(null);
+  const [settingsBoardId, setSettingsBoardId] = useState<string | undefined>();
   const [aiOpen, setAiOpen] = useState(false);
 
+  const activeBoard = (boards ?? []).find((b) => b.id === resolvedBoardId);
   const selectedTask = (tasks ?? []).find((t) => t.id === selectedTaskId);
 
   const createBoard = async () => {
@@ -57,23 +71,33 @@ export function BDProjectManagementComponent() {
     toast({ title: "Board created", status: "success" });
   };
 
-  const addTask = async (column: BDBoardColumn) => {
+  /** Open the drawer in create mode without touching the database. */
+  const addTask = (column: BDBoardColumn) => {
     if (!resolvedBoardId) return;
-    const key = nextTaskKey(project?.key ?? "TASK", tasks?.length ?? 0);
-    const created = await bdBoardTaskRepository.create(
-      createBoardTask(projectId, resolvedBoardId, column, key),
-    );
-    setSelectedTaskId(created.id);
-  };
-
-  const moveTask = async (task: BDBoardTask, column: BDBoardColumn) => {
-    await bdBoardTaskRepository.moveToColumn(task, column);
-  };
-
-  const saveTask = async (task: BDBoardTask) => {
-    await bdBoardTaskRepository.update(task.id, task);
+    setNewTaskDraft(createBoardTask(projectId, resolvedBoardId, column, ""));
     setSelectedTaskId(undefined);
-    toast({ title: "Task saved", status: "success" });
+  };
+
+  /** Persist a create-mode draft with a fresh key + deterministic rank. */
+  const createTask = async (draft: Omit<BDBoardTask, "id">) => {
+    const key = nextTaskKey(project?.key ?? "TASK", tasks?.length ?? 0);
+    const maxRank = (tasks ?? []).reduce((max, t) => Math.max(max, t.rank), 0);
+    const created = await bdBoardTaskRepository.create({
+      ...draft,
+      key,
+      rank: maxRank + 1,
+    });
+    setNewTaskDraft(null);
+    setSelectedTaskId(created.id);
+    toast({ title: "Task created", status: "success" });
+  };
+
+  const moveTask = async (
+    task: BDBoardTask,
+    column: BDBoardColumn,
+    beforeTaskId?: string,
+  ) => {
+    await bdBoardTaskRepository.moveToColumn(task, column, beforeTaskId);
   };
 
   const deleteTask = async () => {
@@ -101,6 +125,7 @@ export function BDProjectManagementComponent() {
       const boardColumns = await bdBoardColumnRepository.listByBoard(board.id);
       const existing = await bdBoardTaskRepository.listByBoard(board.id);
       let counter = existing.length;
+      let rank = existing.reduce((max, t) => Math.max(max, t.rank), 0) + 1;
       for (const taskDraft of boardDraft.tasks) {
         const column =
           boardColumns.find((c) => c.status.name === taskDraft.status) ??
@@ -120,6 +145,7 @@ export function BDProjectManagementComponent() {
           priority: (taskDraft.priority ?? "medium") as BDBoardTask["priority"],
           status: column.status.name,
           storyPoints: taskDraft.storyPoints,
+          rank: rank++,
         });
       }
       setActiveBoardId(board.id);
@@ -134,6 +160,15 @@ export function BDProjectManagementComponent() {
         description="A JIRA-style kanban board with tasks, comments, and drag-and-drop status changes."
         actions={
           <>
+            {activeBoard && (
+              <BDButton
+                variant="secondary"
+                icon={Settings2}
+                onClick={() => setSettingsBoardId(activeBoard.id)}
+              >
+                Board settings
+              </BDButton>
+            )}
             <BDButton
               variant="secondary"
               icon={Sparkles}
@@ -214,14 +249,13 @@ export function BDProjectManagementComponent() {
                 >
                   {board.name}
                 </button>
-                <button
-                  type="button"
-                  className="rounded p-0.5 text-slate-300 opacity-0 group-hover:opacity-100 hover:text-red-500"
+                <BDIconButton
+                  icon={Trash2}
+                  label="Delete board"
+                  size="sm"
+                  className="h-6 px-1 py-0.5 text-slate-300 group-hover:opacity-100 hover:text-red-500"
                   onClick={() => setDeletingBoard(board)}
-                  aria-label="Delete board"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                />
               </div>
             ))}
           </div>
@@ -237,12 +271,25 @@ export function BDProjectManagementComponent() {
       )}
 
       <BDTaskDrawerComponent
-        open={!!selectedTask}
+        open={!!selectedTask || !!newTaskDraft}
+        mode={newTaskDraft ? "create" : "update"}
         task={selectedTask ?? null}
+        newTask={newTaskDraft}
         columns={columns ?? []}
-        onClose={() => setSelectedTaskId(undefined)}
-        onSave={saveTask}
+        projectId={projectId}
+        customFields={activeBoard?.customFields}
+        onClose={() => {
+          setNewTaskDraft(null);
+          setSelectedTaskId(undefined);
+        }}
+        onCreate={createTask}
         onDelete={(task) => setDeletingTask(task)}
+      />
+
+      <BDBoardSettingsComponent
+        open={!!settingsBoardId}
+        boardId={settingsBoardId}
+        onClose={() => setSettingsBoardId(undefined)}
       />
 
       <BDConfirmDialog

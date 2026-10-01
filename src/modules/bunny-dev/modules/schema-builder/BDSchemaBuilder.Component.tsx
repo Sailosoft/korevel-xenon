@@ -7,7 +7,6 @@
 // happens in a drawer (BDSchemaModel.Component).
 
 import { useState } from "react";
-import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Database,
@@ -40,6 +39,7 @@ import BDSchemaModelComponent from "./BDSchemaModel.Component";
 import BDSchemaErdComponent from "./BDSchemaErd.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
+import BDIconButton from "../../components/BDIconButton";
 import BDList from "../../components/BDList";
 import BDModal from "../../components/BDModal";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
@@ -348,32 +348,26 @@ export function BDSchemaBuilderComponent({
                 {group.name}
               </button>
               <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <Link
+                <BDIconButton
                   href={`/modules/bunny-dev/projects/${projectId}/schema/${group.id}`}
-                  className="rounded p-1 text-slate-400 hover:text-blue-600"
-                  aria-label="Open group"
-                  title="Open group"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
-                <button
-                  type="button"
-                  className="rounded p-1 text-slate-400 hover:text-blue-600"
+                  icon={ExternalLink}
+                  label="Open group"
+                  size="sm"
+                />
+                <BDIconButton
+                  icon={Pencil}
+                  label="Rename group"
+                  size="sm"
                   onClick={() =>
                     setGroupModal({ open: true, group, busy: false })
                   }
-                  aria-label="Rename group"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-1 text-slate-400 hover:text-red-500"
+                />
+                <BDIconButton
+                  icon={Trash2}
+                  label="Delete group"
+                  size="sm"
                   onClick={() => setDeletingGroup(group)}
-                  aria-label="Delete group"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                />
               </div>
             </div>
           ))}
@@ -441,12 +435,16 @@ export function BDSchemaBuilderComponent({
                 {
                   label: "Edit",
                   icon: Pencil,
+                  iconOnly: true,
+                  tooltip: "Edit model",
                   onSelect: ([row]) => setEditingModel(row),
                 },
                 {
                   label: "Delete",
                   icon: Trash2,
                   variant: "danger",
+                  iconOnly: true,
+                  tooltip: "Delete model",
                   onSelect: ([row]) => setDeletingModel(row),
                 },
               ]}

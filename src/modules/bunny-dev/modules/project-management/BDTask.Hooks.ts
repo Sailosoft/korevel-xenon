@@ -8,14 +8,30 @@ import type {
   BDBoard,
   BDBoardColumn,
   BDBoardTask,
+  BDProjectMember,
   BDTaskComment,
 } from "../../BDDomain.Types";
 
 export function useBDBoards(projectId: string): BDBoard[] | undefined {
-  return useLiveQuery(
-    () => bdDB.boards.where("projectId").equals(projectId).toArray(),
-    [projectId],
-  );
+  return useLiveQuery(async () => {
+    const rows = await bdDB.boards.where("projectId").equals(projectId).toArray();
+    return rows.sort(
+      (a, b) =>
+        (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name),
+    );
+  }, [projectId]);
+}
+
+export function useBDProjectMembers(
+  projectId: string,
+): BDProjectMember[] | undefined {
+  return useLiveQuery(async () => {
+    const rows = await bdDB.projectMembers
+      .where("projectId")
+      .equals(projectId)
+      .toArray();
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [projectId]);
 }
 
 export function useBDBoardColumns(

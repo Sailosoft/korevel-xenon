@@ -81,6 +81,8 @@ export interface BDAPIProperty {
   description?: string;
   default?: unknown;
   example?: unknown;
+  /** Selected faker generator for mock values (see BD_API_FAKE_TYPES). */
+  fakeType?: string;
   enum?: string[];
   modelId?: string;
   properties?: BDAPIProperty[];
@@ -102,6 +104,8 @@ export interface BDAPIReturn {
   description?: string;
   status?: number;
   modelId?: string;
+  /** Selected faker generator for scalar returns (see BD_API_FAKE_TYPES). */
+  fakeType?: string;
   properties?: BDAPIProperty[];
   item?: BDAPIReturn;
   headers?: BDAPIHeader[];

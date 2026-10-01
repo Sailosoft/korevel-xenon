@@ -57,11 +57,20 @@ const ARCHITECTURE_DSL: HelixAISchemaOptions = {
                 title: { type: "string", description: "Section title." },
                 level: {
                   type: "number",
-                  description: "Heading level 1-6.",
+                  description: "Heading level 1-6, reflecting the section hierarchy.",
+                },
+                summary: {
+                  type: "string",
+                  description:
+                    "One-sentence TL;DR of this section (max ~25 words).",
                 },
                 content: {
                   type: "string",
-                  description: "Section body in markdown.",
+                  description:
+                    "Section body in markdown, 300-500 words. Must be information-dense with no filler. " +
+                    "Structure: a short lead paragraph stating the point; bullet or numbered sub-points for " +
+                    "details; explicit trade-offs/decisions; and a markdown table when comparing options, " +
+                    "components, or criteria. Use headings, bold, and code formatting where they aid clarity.",
                 },
               },
             },
@@ -84,6 +93,7 @@ function normalizeSection(raw: unknown): BDArchitectureSectionDraft | null {
   return {
     title,
     level: typeof s.level === "number" ? s.level : 2,
+    summary: asString(s.summary) || undefined,
     content: asString(s.content) || undefined,
   };
 }
@@ -122,10 +132,17 @@ export async function bdGenerateArchitecture(
 
   const system =
     "You are a software architect. Produce clear, decision-oriented " +
-    "architecture documents with concrete sections and trade-offs. Return " +
-    "only the structured JSON requested.";
+    "architecture documents with concrete sections and trade-offs. Every " +
+    "section body must be information-dense, roughly 300-500 words, with no " +
+    "filler: open with a short lead paragraph, expand with sub-points/lists, " +
+    "state the trade-offs and decisions explicitly, and use a markdown table " +
+    "when comparing options or criteria. Assign heading levels (1-3) that " +
+    "reflect a well-defined document hierarchy for the requested type, and " +
+    "give each section a one-sentence summary. When producing multiple " +
+    "variants, keep each document fully self-contained. Return only the " +
+    "structured JSON requested.";
 
-  const user = `Mode: ${params.mode}. Document type: ${documentType}. Produce each document as that type and set its "type" field to "${documentType}".${variantHint}\n\nInstruction: ${params.instruction}`;
+  const user = `Mode: ${params.mode}. Document type: ${documentType}. Produce each document as that type and set its "type" field to "${documentType}". Organize sections into a clear hierarchy appropriate to a ${documentType} (levels 1-3). Each section must have a 300-500 word information-dense "content" body and a one-sentence "summary".${variantHint}\n\nInstruction: ${params.instruction}`;
 
   const raw = await bdGenerateStructured({
     system,
@@ -133,6 +150,9 @@ export async function bdGenerateArchitecture(
     schema: ARCHITECTURE_DSL,
     aiConfig: params.aiConfig,
     temperature: 0.4,
+    // Long, multi-section documents (and variants) exceed Helix's 8000-token
+    // default, which would truncate content; request a larger budget.
+    maxToken: params.variants && params.variants > 1 ? 32000 : 16000,
   });
 
   const rawList = Array.isArray(raw.architectures) ? raw.architectures : [];

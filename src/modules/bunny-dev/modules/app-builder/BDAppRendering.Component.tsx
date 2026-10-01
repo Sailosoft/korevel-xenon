@@ -4,10 +4,11 @@
 //
 // Renders a generated Filament-style app from its BDApp config: resource nav,
 // list/create/edit/view pages, full CRUD, and relation selection across schema
-// models. Rows live in the `appRecords` table namespaced by appId + resourceSlug
-// (no per-app database).
+// models. Rows live in the dedicated `BunnyDevAppDB` database, namespaced by
+// appId + resourceSlug.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Plus,
@@ -17,10 +18,8 @@ import {
   Search,
   ArrowLeft,
   LayoutGrid,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
-import { bdDB } from "../../BDDatabase";
+import { bdAppDB, migrateLegacyAppRecords } from "../../BDAppDatabase";
 import type {
   BDAppColumn,
   BDAppConnection,
@@ -31,6 +30,7 @@ import type {
 import { useBDApp, useBDProjectSchemaModels } from "./BDApp.Hooks";
 import { bdAppRecordRepository } from "./BDApp.Repository";
 import {
+  collectAppEntries,
   collectAppFields,
   connectionKey,
   deriveConnectionColumns,
@@ -38,6 +38,7 @@ import {
   formFromModel,
   tableFromModel,
 } from "./BDApp.Types";
+import BDAppRelationManager from "./BDAppRelationManager.Component";
 import BDSchemaForm from "../../components/BDSchemaForm";
 import BDButton from "../../components/BDButton";
 import BDModal from "../../components/BDModal";
@@ -47,22 +48,41 @@ import BDBadge from "../../components/BDBadge";
 import { useBDToast } from "../../components/BDToast";
 import type { BDFormOption, BDFormValues } from "../../components/BDForm";
 
+// Palette tokens resolve to concrete colors; raw CSS colors pass through.
+const BD_APP_COLOR_HEX: Record<string, string> = {
+  primary: "#1976d2",
+  success: "#16a34a",
+  warning: "#d97706",
+  danger: "#dc2626",
+  info: "#0288d1",
+  gray: "#64748b",
+};
+
+function resolveAppColor(value?: string): string {
+  if (!value) return BD_APP_COLOR_HEX.primary;
+  return BD_APP_COLOR_HEX[value] ?? value;
+}
+
 export interface BDAppRenderingComponentProps {
   appId: string;
   /** Hide the resource nav (used when embedded in the designer preview). */
   embedded?: boolean;
+  /** Standalone app chrome (no designer footer, back-to-metadata control). */
+  standalone?: boolean;
 }
 
 export function BDAppRenderingComponent({
   appId,
   embedded = false,
+  standalone = false,
 }: BDAppRenderingComponentProps) {
   const app = useBDApp(appId);
+  const router = useRouter();
   const { toast } = useBDToast();
   const models = useBDProjectSchemaModels(app?.projectId ?? "");
 
   const liveRecords = useLiveQuery(
-    () => bdDB.appRecords.where("appId").equals(appId).toArray(),
+    () => bdAppDB.appRecords.where("appId").equals(appId).toArray(),
     [appId],
   );
   const allRecords = useMemo(() => liveRecords ?? [], [liveRecords]);
@@ -74,7 +94,7 @@ export function BDAppRenderingComponent({
     row?: BDAppRecord;
   } | null>(null);
   const [formValues, setFormValues] = useState<BDFormValues>({});
-  const [viewing, setViewing] = useState<BDAppRecord | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<BDAppRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [childEditing, setChildEditing] = useState<{
@@ -84,9 +104,26 @@ export function BDAppRenderingComponent({
   } | null>(null);
   const [childValues, setChildValues] = useState<BDFormValues>({});
   const [childSaving, setChildSaving] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<
-    Record<string, boolean>
-  >({});
+
+  const viewing = useMemo(
+    () => allRecords.find((row) => row.id === viewingId) ?? null,
+    [allRecords, viewingId],
+  );
+
+  // Copy any pre-existing records from the legacy table once.
+  useEffect(() => {
+    void migrateLegacyAppRecords();
+  }, []);
+
+  // Standalone apps own the browser tab title.
+  useEffect(() => {
+    if (!standalone) return;
+    const previous = document.title;
+    document.title = app?.brand?.name || app?.name || "Application";
+    return () => {
+      document.title = previous;
+    };
+  }, [standalone, app?.brand?.name, app?.name]);
 
   const resources = useMemo(() => app?.resources ?? [], [app]);
   const resolvedSlug =
@@ -312,137 +349,102 @@ export function BDAppRenderingComponent({
     return String(value);
   };
 
+  const openLinkedRecord = (row: BDAppRecord) => {
+    const owner = resources.find((r) => r.slug === row.resourceSlug);
+    if (owner) setActiveSlug(owner.slug);
+    setViewingId(row.id);
+  };
+
   const renderConnectionSection = (connection: BDAppConnection) => {
     if (!viewing || !activeResource) return null;
     const target = resources.find((r) => r.slug === connection.targetSlug);
     if (!target) return null;
-    const key = connectionKey(connection, activeResource.slug);
-
-    let linkedRows: BDAppRecord[] = [];
-    if (connection.type === "oneToMany") {
-      linkedRows = allRecords.filter(
-        (r) => r.resourceSlug === target.slug && r.data[key] === viewing.id,
-      );
-    } else if (connection.type === "manyToMany") {
-      const ids = Array.isArray(viewing.data[key])
-        ? (viewing.data[key] as string[])
-        : [];
-      linkedRows = ids
-        .map((id) => allRecords.find((r) => r.id === id))
-        .filter((r): r is BDAppRecord => Boolean(r));
-    } else {
-      return null;
-    }
-
-    const targetColumnsRaw = columnsForResource(target).slice(0, 5);
-    const targetColumns: { name: string; label?: string }[] =
-      targetColumnsRaw.length > 0
-        ? targetColumnsRaw
-        : fieldsForResource(target)
-            .slice(0, 4)
-            .map((f) => ({ name: f.name, label: f.label }));
-    const collapsed = collapsedSections[connection.name];
-    const title =
-      connection.label ?? target.pluralLabel ?? target.label ?? target.name;
-    const editable = connection.type === "oneToMany" && !connection.readOnly;
-
     return (
-      <div key={connection.name} className="rounded-lg border border-slate-200">
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-sm font-medium text-slate-700"
-            onClick={() =>
-              setCollapsedSections((prev) => ({
-                ...prev,
-                [connection.name]: !prev[connection.name],
-              }))
-            }
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-            {title}
-            <span className="text-xs text-slate-400">({linkedRows.length})</span>
-          </button>
-          {editable && (
-            <button
-              type="button"
-              className="rounded p-1 text-slate-400 hover:text-blue-600"
-              onClick={() => openChildCreate(connection)}
-              aria-label="Add record"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        {!collapsed &&
-          (linkedRows.length === 0 ? (
-            <p className="px-3 pb-3 text-xs text-slate-400">
-              No linked records.
-            </p>
-          ) : (
-            <div className="bd-scroll overflow-x-auto border-t border-slate-100">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                  <tr>
-                    {targetColumns.map((col) => (
-                      <th key={col.name} className="px-3 py-2 font-medium">
-                        {col.label ?? col.name}
-                      </th>
-                    ))}
-                    {editable && <th className="w-px px-3 py-2" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {linkedRows.map((row) => (
-                    <tr key={row.id} className="border-t border-slate-100">
-                      {targetColumns.map((col) => (
-                        <td
-                          key={col.name}
-                          className="px-3 py-2 text-slate-700"
-                        >
-                          {renderCell(col.name, row, target)}
-                        </td>
-                      ))}
-                      {editable && (
-                        <td className="px-3 py-2">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              className="rounded p-1 text-slate-400 hover:text-blue-600"
-                              onClick={() => openChildEdit(connection, row)}
-                              aria-label="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded p-1 text-slate-400 hover:text-red-500"
-                              onClick={() => handleChildDelete(row)}
-                              aria-label="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-      </div>
+      <BDAppRelationManager
+        key={connection.name}
+        connection={connection}
+        ownerResource={activeResource}
+        viewing={viewing}
+        target={target}
+        allRecords={allRecords}
+        fieldsForResource={fieldsForResource}
+        columnsForResource={columnsForResource}
+        renderCell={renderCell}
+        onCreateChild={openChildCreate}
+        onEditChild={openChildEdit}
+        onDeleteChild={handleChildDelete}
+        onViewRecord={openLinkedRecord}
+      />
     );
   };
 
+  const infolistEntries = activeResource?.infolist
+    ? collectAppEntries(activeResource.infolist.components)
+    : [];
+
+  const themeColors = {
+    ...app.colors,
+    ...app.brand?.colors,
+    ...app.theme?.colors,
+  };
+  const standaloneStyle = standalone
+    ? ({
+        "--bd-primary": resolveAppColor(app.theme?.primary),
+        ...Object.fromEntries(
+          Object.entries(themeColors)
+            .filter(([, value]) => typeof value === "string" && value)
+            .map(([key, value]) => [`--bd-color-${key}`, value]),
+        ),
+        ...(app.theme?.mode === "dark"
+          ? { backgroundColor: "#0f172a", color: "#e2e8f0" }
+          : {}),
+      } as unknown as CSSProperties)
+    : undefined;
 
   return (
-    <div className="flex flex-col gap-4">
-      {!embedded && (
+    <div
+      className="flex flex-col gap-4"
+      style={standaloneStyle}
+      data-bd-theme={standalone ? app.theme?.mode ?? "system" : undefined}
+    >
+      {standalone && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-center gap-3">
+            {app.brand?.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={app.brand.logo}
+                alt=""
+                className="h-8 w-8 rounded object-contain"
+              />
+            ) : (
+              <LayoutGrid className="h-5 w-5 text-blue-600" />
+            )}
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                {app.brand?.name || app.name}
+              </p>
+              <p className="text-xs text-slate-500">
+                {app.description || `${app.path} · ${resources.length} resources`}
+              </p>
+            </div>
+          </div>
+          <BDButton
+            size="sm"
+            variant="secondary"
+            icon={ArrowLeft}
+            onClick={() =>
+              router.push(
+                `/modules/bunny-dev/projects/${app.projectId}/app/${appId}`,
+              )
+            }
+          >
+            Back to metadata
+          </BDButton>
+        </div>
+      )}
+
+      {!embedded && !standalone && (
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
           <LayoutGrid className="h-4 w-4 text-blue-600" />
           <div>
@@ -549,7 +551,7 @@ export function BDAppRenderingComponent({
                               <button
                                 type="button"
                                 className="rounded p-1 text-slate-400 hover:text-blue-600"
-                                onClick={() => setViewing(row)}
+                                onClick={() => setViewingId(row.id)}
                                 aria-label="View"
                               >
                                 <Eye className="h-4 w-4" />
@@ -615,30 +617,37 @@ export function BDAppRenderingComponent({
       {/* View */}
       <BDModal
         open={viewing !== null}
-        onClose={() => setViewing(null)}
+        onClose={() => setViewingId(null)}
         title={activeResource?.label ?? "Record"}
         size="md"
         closeOnEscape={childEditing === null}
       >
         <div className="flex flex-col gap-3">
-          {fields.map((field) => (
-            <div key={field.name} className="flex flex-col gap-0.5">
-              <span className="text-xs text-slate-400">
-                {fieldLabel(field.name)}
-              </span>
-              <span className="text-sm text-slate-800">
-                {viewing ? renderCell(field.name, viewing) : "—"}
-              </span>
-            </div>
-          ))}
+          {infolistEntries.length > 0
+            ? infolistEntries.map((entry) => (
+                <div key={entry.name} className="flex flex-col gap-0.5">
+                  <span className="text-xs text-slate-400">
+                    {entry.label ?? entry.name}
+                  </span>
+                  <span className="text-sm text-slate-800">
+                    {viewing ? renderCell(entry.name, viewing) : "—"}
+                  </span>
+                </div>
+              ))
+            : fields.map((field) => (
+                <div key={field.name} className="flex flex-col gap-0.5">
+                  <span className="text-xs text-slate-400">
+                    {fieldLabel(field.name)}
+                  </span>
+                  <span className="text-sm text-slate-800">
+                    {viewing ? renderCell(field.name, viewing) : "—"}
+                  </span>
+                </div>
+              ))}
 
-          {(activeResource?.connections ?? [])
-            .filter(
-              (connection) =>
-                connection.type === "oneToMany" ||
-                connection.type === "manyToMany",
-            )
-            .map((connection) => renderConnectionSection(connection))}
+          {(activeResource?.connections ?? []).map((connection) =>
+            renderConnectionSection(connection),
+          )}
         </div>
       </BDModal>
 
@@ -679,7 +688,7 @@ export function BDAppRenderingComponent({
         onCancel={() => setDeleting(null)}
       />
 
-      {embedded && (
+      {embedded && !standalone && (
         <p className="flex items-center gap-1 text-[11px] text-slate-400">
           <ArrowLeft className="h-3 w-3" /> Preview uses live app records.
         </p>

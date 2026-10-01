@@ -48,9 +48,11 @@ export default function BunnyDevLayout({
 }) {
   const pathname = usePathname();
 
-  const isInnerRoute = /^\/modules\/bunny-dev\/projects\/[^/]+(\/|$)/.test(
-    pathname,
-  );
+  // Inner project routes own their shell; standalone render routes are fully
+  // bare (no BDShell) so the generated app is the only chrome on screen.
+  const isBareRoute =
+    /^\/modules\/bunny-dev\/projects\/[^/]+(\/|$)/.test(pathname) ||
+    /^\/modules\/bunny-dev\/render\/[^/]+(\/|$)/.test(pathname);
 
   const content = (
     <BDAISettingsProvider>
@@ -58,7 +60,7 @@ export default function BunnyDevLayout({
     </BDAISettingsProvider>
   );
 
-  if (isInnerRoute) {
+  if (isBareRoute) {
     return <Suspense fallback={null}>{content}</Suspense>;
   }
 

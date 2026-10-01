@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileDown,
   Copy,
+  Globe,
 } from "lucide-react";
 import type {
   BDArchitectureRecord,
@@ -47,7 +48,7 @@ import BDEmptyState from "../../components/BDEmptyState";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
-import { downloadText, copyText } from "../../BDDownload";
+import { downloadText, copyText, openTextTab } from "../../BDDownload";
 
 const ARCH_FIELDS = [
   { name: "name", label: "Name", type: "text" as const, required: true },
@@ -185,7 +186,12 @@ export function BDArchitectureBuilderComponent({
           summary: draftArch.summary ?? "",
         }),
         sections: (draftArch.sections ?? []).map((s, i) => ({
-          ...createSection(s.title, (s.level ?? 2) as 1 | 2 | 3 | 4 | 5 | 6, i),
+          ...createSection(
+            s.title,
+            (s.level ?? 2) as 1 | 2 | 3 | 4 | 5 | 6,
+            i,
+            s.summary,
+          ),
           content: s.content ?? "",
         })),
         variantOfId: index === 0 ? undefined : baseId,
@@ -314,6 +320,8 @@ export function BDArchitectureBuilderComponent({
             {
               label: "Open",
               icon: ExternalLink,
+              iconOnly: true,
+              tooltip: "Open document",
               onSelect: ([row]) =>
                 router.push(
                   `/modules/bunny-dev/projects/${projectId}/architecture/${row.id}`,
@@ -323,6 +331,8 @@ export function BDArchitectureBuilderComponent({
               label: "Delete",
               icon: Trash2,
               variant: "danger",
+              iconOnly: true,
+              tooltip: "Delete document",
               onSelect: ([row]) => setDeleting(row),
             },
           ]}
@@ -350,6 +360,14 @@ export function BDArchitectureBuilderComponent({
                     }
                   >
                     Export markdown
+                  </BDButton>
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={Globe}
+                    onClick={() => openTextTab(toArchitectureHtml(draft))}
+                  >
+                    View
                   </BDButton>
                   <BDButton
                     size="sm"

@@ -113,12 +113,14 @@ export function createSection(
   title = "New section",
   level: BDArchitectureSection["level"] = 2,
   position = 0,
+  summary?: string,
 ): BDArchitectureSection {
   return {
     id: crypto.randomUUID(),
     title,
     level,
     anchor: slugify(title),
+    summary: summary || undefined,
     content: "",
     position,
   };
@@ -127,6 +129,7 @@ export function createSection(
 export function sectionMarkdown(section: BDArchitectureSection, depth = 0): string {
   const hashes = "#".repeat(Math.min(section.level + depth, 6));
   const lines = [`${hashes} ${section.title}`];
+  if (section.summary) lines.push("", `_${section.summary}_`);
   if (section.content) lines.push("", section.content);
   for (const child of section.children ?? []) {
     lines.push("", sectionMarkdown(child, 1));
@@ -139,6 +142,8 @@ export function sectionMarkdown(section: BDArchitectureSection, depth = 0): stri
 export interface BDArchitectureSectionDraft {
   title: string;
   level?: number;
+  /** Optional one-line TL;DR for the section. */
+  summary?: string;
   content?: string;
 }
 

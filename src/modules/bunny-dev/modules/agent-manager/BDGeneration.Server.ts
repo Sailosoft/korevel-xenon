@@ -28,6 +28,8 @@ export interface BDStructuredGenerateParams {
   schema: HelixAISchemaOptions;
   aiConfig?: BDAIConfigOverride;
   temperature?: number;
+  /** Max output tokens. Defaults to Helix's 8000 when omitted. */
+  maxToken?: number;
 }
 
 function resolveHelixService(aiConfig?: BDAIConfigOverride): HelixAIService {
@@ -60,7 +62,7 @@ function resolveHelixService(aiConfig?: BDAIConfigOverride): HelixAIService {
 export async function bdGenerateStructured(
   params: BDStructuredGenerateParams,
 ): Promise<Record<string, unknown>> {
-  const { system, user, schema, aiConfig, temperature } = params;
+  const { system, user, schema, aiConfig, temperature, maxToken } = params;
 
   try {
     const ai = resolveHelixService(aiConfig);
@@ -69,6 +71,7 @@ export async function bdGenerateStructured(
       user,
       schema,
       temperature,
+      maxToken,
     });
 
     if (!result || typeof result !== "object") {

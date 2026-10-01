@@ -45,6 +45,8 @@ export interface BDFormField {
   accept?: string;
   columnSpan?: 1 | 2 | 3 | 4 | 6 | 12 | "full";
   multiple?: boolean;
+  /** Render select/relationSelect as a type-ahead input (large option sets). */
+  searchable?: boolean;
 }
 
 export type BDFormValues = Record<string, unknown>;
@@ -188,7 +190,25 @@ export function BDForm({
 
             case "select":
             case "relationSelect":
-              control = (
+              control = field.searchable ? (
+                <>
+                  <input
+                    list={`bd-${field.name}-options`}
+                    value={typeof raw === "string" ? raw : ""}
+                    onChange={(e) => setField(field.name, e.target.value)}
+                    placeholder={field.placeholder ?? "Search…"}
+                    disabled={field.disabled}
+                    className={INPUT_CLASS}
+                  />
+                  <datalist id={`bd-${field.name}-options`}>
+                    {field.options?.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </datalist>
+                </>
+              ) : (
                 <select
                   value={typeof raw === "string" ? raw : ""}
                   onChange={(e) => setField(field.name, e.target.value)}

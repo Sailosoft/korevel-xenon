@@ -1,6 +1,7 @@
 // BDApp.Repository.ts — repositories for generated apps and their rendered rows.
 
 import { bdDB } from "../../BDDatabase";
+import { bdAppDB } from "../../BDAppDatabase";
 import type { BDApp, BDAppRecord } from "../../BDDomain.Types";
 import { BDRepository, type BDCreateInput } from "../../BDRepository";
 import {
@@ -20,7 +21,7 @@ export class BDAppRepository extends BDRepository<BDApp> {
 
 export class BDAppRecordRepository extends BDRepository<BDAppRecord> {
   constructor() {
-    super(bdDB.appRecords);
+    super(bdAppDB.appRecords);
   }
 
   /** Rows for one resource of one app. */

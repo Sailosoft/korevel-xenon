@@ -6,7 +6,14 @@
 // search, pagination, row actions, and bulk actions. No external table library
 // so it stays themeable and serializable-config friendly.
 
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   ArrowUpDown,
   ChevronLeft,
@@ -14,9 +21,11 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
+import { TableVirtuoso, type ItemProps } from "react-virtuoso";
 import { cn } from "@heroui/react";
 import BDEmptyState, { type BDEmptyStateProps } from "./BDEmptyState";
 import BDButton, { type BDButtonVariant } from "./BDButton";
+import BDIconButton from "./BDIconButton";
 
 export interface BDListColumn<T> {
   key: string;
@@ -35,6 +44,10 @@ export interface BDListAction<T> {
   onSelect: (rows: T[]) => void;
   variant?: BDButtonVariant;
   isDisabled?: (rows: T[]) => boolean;
+  /** Render only the icon (with a tooltip) instead of icon + label. */
+  iconOnly?: boolean;
+  /** Tooltip text for icon-only actions. Falls back to `label`. */
+  tooltip?: string;
 }
 
 export interface BDListProps<T> {
@@ -54,6 +67,11 @@ export interface BDListProps<T> {
   title?: string;
   toolbar?: ReactNode;
   className?: string;
+  /**
+   * Opt-in virtual scrolling. When set, rows render in a fixed-height
+   * `TableVirtuoso` scroller and pagination is disabled.
+   */
+  virtual?: { height: number };
 }
 
 type SortState = { key: string; direction: "asc" | "desc" } | null;
@@ -75,6 +93,7 @@ export function BDList<T>({
   title,
   toolbar,
   className,
+  virtual,
 }: BDListProps<T>) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(null);
@@ -119,9 +138,55 @@ export function BDList<T>({
     currentPage * pageSize,
     currentPage * pageSize + pageSize,
   );
+  const displayRows = virtual ? sorted : paged;
 
   const hasBulk = !!bulkActions && bulkActions.length > 0;
   const selectedRows = data.filter((row) => selected.includes(getRowId(row)));
+
+  // Latest-ref so the memoized virtual row component stays stable while still
+  // seeing the current click handler.
+  const onRowClickRef = useRef(onRowClick);
+  useEffect(() => {
+    onRowClickRef.current = onRowClick;
+  }, [onRowClick]);
+
+  const virtualComponents = useMemo(() => {
+    function Row({
+      item,
+      children,
+      context,
+      ...props
+    }: ItemProps<T> & { context?: unknown }) {
+      void context;
+      const clickable = onRowClickRef.current;
+      return (
+        <tr
+          {...props}
+          className={cn(
+            "border-t border-slate-100",
+            clickable && "cursor-pointer hover:bg-blue-50/40",
+          )}
+          onClick={clickable ? () => clickable(item) : undefined}
+        >
+          {children}
+        </tr>
+      );
+    }
+    return {
+      Table: ({
+        children,
+        style,
+      }: {
+        children?: ReactNode;
+        style?: CSSProperties;
+      }) => (
+        <table className="w-full border-collapse text-sm" style={style}>
+          {children}
+        </table>
+      ),
+      TableRow: Row,
+    };
+  }, []);
 
   const toggleSort = (key: string) => {
     setSort((prev) => {
@@ -138,7 +203,7 @@ export function BDList<T>({
   };
 
   const toggleAll = () => {
-    const ids = paged.map(getRowId);
+    const ids = displayRows.map(getRowId);
     const allSelected = ids.every((id) => selected.includes(id));
     setSelected((prev) =>
       allSelected
@@ -146,6 +211,116 @@ export function BDList<T>({
         : Array.from(new Set([...prev, ...ids])),
     );
   };
+
+  const renderRowAction = (action: BDListAction<T>, row: T) =>
+    action.iconOnly ? (
+      <BDIconButton
+        key={action.label}
+        label={action.label}
+        tooltip={action.tooltip}
+        size="sm"
+        variant={action.variant ?? "ghost"}
+        icon={action.icon}
+        disabled={action.isDisabled?.([row])}
+        onClick={() => action.onSelect([row])}
+      />
+    ) : (
+      <BDButton
+        key={action.label}
+        size="sm"
+        variant={action.variant ?? "ghost"}
+        icon={action.icon}
+        disabled={action.isDisabled?.([row])}
+        onClick={() => action.onSelect([row])}
+      >
+        {action.label}
+      </BDButton>
+    );
+
+  const renderCells = (row: T) => {
+    const id = getRowId(row);
+    return (
+      <>
+        {hasBulk && (
+          <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              aria-label="Select row"
+              checked={selected.includes(id)}
+              onChange={() => toggleRow(id)}
+            />
+          </td>
+        )}
+        {columns.map((col) => (
+          <td
+            key={col.key}
+            className={cn(
+              "px-3 py-2 text-slate-700",
+              col.align === "center" && "text-center",
+              col.align === "right" && "text-right",
+              col.className,
+            )}
+          >
+            {col.render
+              ? col.render(row)
+              : String((row as Record<string, unknown>)[col.key] ?? "")}
+          </td>
+        ))}
+        {rowActions && rowActions.length > 0 && (
+          <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-end gap-1">
+              {rowActions.map((action) => renderRowAction(action, row))}
+            </div>
+          </td>
+        )}
+      </>
+    );
+  };
+
+  const headerRow = (
+    <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      {hasBulk && (
+        <th className="w-10 px-3 py-2">
+          <input
+            type="checkbox"
+            aria-label="Select all"
+            checked={
+              displayRows.length > 0 &&
+              displayRows.every((row) => selected.includes(getRowId(row)))
+            }
+            onChange={toggleAll}
+          />
+        </th>
+      )}
+      {columns.map((col) => (
+        <th
+          key={col.key}
+          className={cn(
+            "px-3 py-2 font-medium",
+            col.align === "center" && "text-center",
+            col.align === "right" && "text-right",
+          )}
+          style={{ width: col.width }}
+        >
+          {col.sortable ? (
+            <button
+              type="button"
+              onClick={() => toggleSort(col.key)}
+              className="inline-flex items-center gap-1 hover:text-slate-700"
+            >
+              {col.label}
+              <ArrowUpDown className="h-3 w-3" />
+            </button>
+          ) : (
+            col.label
+          )}
+        </th>
+      ))}
+      {rowActions && rowActions.length > 0 && (
+        <th className="w-px px-3 py-2 text-right font-medium">Actions</th>
+      )}
+    </tr>
+  );
 
   return (
     <div
@@ -170,18 +345,31 @@ export function BDList<T>({
           <div className="flex items-center gap-2">
             {hasBulk && selected.length > 0 && (
               <div className="flex items-center gap-1.5">
-                {bulkActions?.map((action) => (
-                  <BDButton
-                    key={action.label}
-                    size="sm"
-                    variant={action.variant ?? "secondary"}
-                    icon={action.icon}
-                    disabled={action.isDisabled?.(selectedRows)}
-                    onClick={() => action.onSelect(selectedRows)}
-                  >
-                    {action.label}
-                  </BDButton>
-                ))}
+                {bulkActions?.map((action) =>
+                  action.iconOnly ? (
+                    <BDIconButton
+                      key={action.label}
+                      label={action.label}
+                      tooltip={action.tooltip}
+                      size="sm"
+                      variant={action.variant ?? "secondary"}
+                      icon={action.icon}
+                      disabled={action.isDisabled?.(selectedRows)}
+                      onClick={() => action.onSelect(selectedRows)}
+                    />
+                  ) : (
+                    <BDButton
+                      key={action.label}
+                      size="sm"
+                      variant={action.variant ?? "secondary"}
+                      icon={action.icon}
+                      disabled={action.isDisabled?.(selectedRows)}
+                      onClick={() => action.onSelect(selectedRows)}
+                    >
+                      {action.label}
+                    </BDButton>
+                  ),
+                )}
               </div>
             )}
             {searchable && (
@@ -211,7 +399,7 @@ export function BDList<T>({
         <div className="flex items-center justify-center py-16 text-sm text-red-600">
           {error}
         </div>
-      ) : paged.length === 0 ? (
+      ) : displayRows.length === 0 ? (
         <div className="p-4">
           <BDEmptyState
             title={emptyState?.title ?? "Nothing here yet"}
@@ -220,127 +408,38 @@ export function BDList<T>({
             action={emptyState?.action}
           />
         </div>
+      ) : virtual ? (
+        <TableVirtuoso
+          data={displayRows}
+          style={{ height: virtual.height }}
+          fixedHeaderContent={() => headerRow}
+          itemContent={(_index, row) => renderCells(row)}
+          computeItemKey={(_index, row) => getRowId(row)}
+          components={virtualComponents}
+        />
       ) : (
         <div className="bd-scroll overflow-x-auto">
           <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                {hasBulk && (
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all"
-                      checked={
-                        paged.length > 0 &&
-                        paged.every((row) => selected.includes(getRowId(row)))
-                      }
-                      onChange={toggleAll}
-                    />
-                  </th>
-                )}
-                {columns.map((col) => (
-                  <th
-                    key={col.key}
-                    className={cn(
-                      "px-3 py-2 font-medium",
-                      col.align === "center" && "text-center",
-                      col.align === "right" && "text-right",
-                    )}
-                    style={{ width: col.width }}
-                  >
-                    {col.sortable ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(col.key)}
-                        className="inline-flex items-center gap-1 hover:text-slate-700"
-                      >
-                        {col.label}
-                        <ArrowUpDown className="h-3 w-3" />
-                      </button>
-                    ) : (
-                      col.label
-                    )}
-                  </th>
-                ))}
-                {rowActions && rowActions.length > 0 && (
-                  <th className="w-px px-3 py-2 text-right font-medium">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
+            <thead>{headerRow}</thead>
             <tbody>
-              {paged.map((row) => {
-                const id = getRowId(row);
-                return (
-                  <tr
-                    key={id}
-                    className={cn(
-                      "border-t border-slate-100",
-                      onRowClick && "cursor-pointer hover:bg-blue-50/40",
-                    )}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  >
-                    {hasBulk && (
-                      <td
-                        className="px-3 py-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          aria-label="Select row"
-                          checked={selected.includes(id)}
-                          onChange={() => toggleRow(id)}
-                        />
-                      </td>
-                    )}
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          "px-3 py-2 text-slate-700",
-                          col.align === "center" && "text-center",
-                          col.align === "right" && "text-right",
-                          col.className,
-                        )}
-                      >
-                        {col.render
-                          ? col.render(row)
-                          : String(
-                              (row as Record<string, unknown>)[col.key] ?? "",
-                            )}
-                      </td>
-                    ))}
-                    {rowActions && rowActions.length > 0 && (
-                      <td
-                        className="px-3 py-2 text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          {rowActions.map((action) => (
-                            <BDButton
-                              key={action.label}
-                              size="sm"
-                              variant={action.variant ?? "ghost"}
-                              icon={action.icon}
-                              disabled={action.isDisabled?.([row])}
-                              onClick={() => action.onSelect([row])}
-                            >
-                              {action.label}
-                            </BDButton>
-                          ))}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+              {paged.map((row) => (
+                <tr
+                  key={getRowId(row)}
+                  className={cn(
+                    "border-t border-slate-100",
+                    onRowClick && "cursor-pointer hover:bg-blue-50/40",
+                  )}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
+                  {renderCells(row)}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {!isLoading && !error && sorted.length > pageSize && (
+      {!virtual && !isLoading && !error && sorted.length > pageSize && (
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
           <span>
             {currentPage * pageSize + 1}–

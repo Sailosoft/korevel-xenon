@@ -66,11 +66,30 @@ const APP_DSL: HelixAISchemaOptions = {
                       type: {
                         type: "string",
                         description:
-                          "One of: text, textarea, richEditor, markdown, code, slug, select, multiSelect, radio, checkbox, toggle, date, time, dateTime, color, tags, keyValue, fileUpload, image, repeater, relationSelect.",
+                          "One of: text, textarea, richEditor, markdown, code, slug, select, multiSelect, radio, checkbox, checkboxList, toggle, toggleButtons, date, time, dateTime, color, tags, keyValue, fileUpload, image, repeater, builder, relationSelect. Types select, multiSelect, radio, checkboxList and toggleButtons must supply options.",
                       },
                       required: {
                         type: "boolean",
                         description: "Whether the field is required.",
+                      },
+                      options: {
+                        type: "array",
+                        description:
+                          "Allowed options; required when type is select, multiSelect, radio, checkboxList or toggleButtons.",
+                        items: {
+                          type: "object",
+                          description: "One allowed option.",
+                          properties: {
+                            value: {
+                              type: "string",
+                              description: "Stored option value.",
+                            },
+                            label: {
+                              type: "string",
+                              description: "Displayed option label.",
+                            },
+                          },
+                        },
                       },
                     },
                   },
@@ -143,11 +162,23 @@ function normalizeField(raw: unknown): BDAppFieldDraft | null {
   const f = raw as Record<string, unknown>;
   const name = asString(f.name);
   if (!name) return null;
+  const options = Array.isArray(f.options)
+    ? f.options
+        .map((opt) => {
+          if (!opt || typeof opt !== "object") return null;
+          const o = opt as Record<string, unknown>;
+          const value = asString(o.value);
+          if (!value) return null;
+          return { value, label: asString(o.label) || value };
+        })
+        .filter((o): o is { value: string; label: string } => o !== null)
+    : [];
   return {
     name,
     label: asString(f.label) || undefined,
     type: asString(f.type) || "text",
     required: f.required === true,
+    options: options.length > 0 ? options : undefined,
   };
 }
 
@@ -239,7 +270,9 @@ export async function bdGenerateApp(
 ): Promise<BDAppArtifact> {
   const system =
     "You are a product engineer designing an admin panel (Filament-style). " +
-    "Define resources with forms and tables. Return only the structured JSON " +
+    "Define resources with forms and tables. For select, multiSelect, radio, " +
+    "checkboxList and toggleButtons fields you must supply a populated options " +
+    "array of { value, label } pairs. Return only the structured JSON " +
     "requested.";
 
   const context =

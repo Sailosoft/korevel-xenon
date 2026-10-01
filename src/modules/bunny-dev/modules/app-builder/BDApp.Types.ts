@@ -7,6 +7,7 @@ import type {
   BDAppComponent,
   BDAppConnection,
   BDAppConnectionType,
+  BDAppEntry,
   BDAppField,
   BDAppFieldType,
   BDAppResource,
@@ -23,12 +24,22 @@ export interface BDAppForm {
   name: string;
   slug: string;
   path: string;
+  description: string;
+  brandName: string;
+  logoUrl: string;
+  themeMode: "light" | "dark" | "system";
+  primaryColor: string;
 }
 
 export const BD_APP_EMPTY_FORM: BDAppForm = {
   name: "",
   slug: "",
   path: "/",
+  description: "",
+  brandName: "",
+  logoUrl: "",
+  themeMode: "system",
+  primaryColor: "",
 };
 
 const FIELD_TYPES: BDAppFieldType[] = [
@@ -205,6 +216,48 @@ export function collectAppFields(
   return out;
 }
 
+/** Flatten a (possibly nested) App schema into its entry list. */
+export function collectAppEntries(
+  components: BDAppComponent[] | undefined,
+): BDAppEntry[] {
+  if (!components) return [];
+  const out: BDAppEntry[] = [];
+  for (const component of components) {
+    if (component.kind === "entry") {
+      out.push(component);
+    } else if (component.kind === "layout") {
+      out.push(...collectAppEntries(component.components));
+      for (const tab of component.tabs ?? []) {
+        out.push(...collectAppEntries(tab.components));
+      }
+      for (const step of component.steps ?? []) {
+        out.push(...collectAppEntries(step.components));
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve the connection on `target` that points back at `ownerSlug` — used to
+ * render inverse one-to-one sections. Matches `connection.inverseName` when set,
+ * otherwise the first connection targeting the owner.
+ */
+export function findInverseConnection(
+  target: BDAppResource,
+  ownerSlug: string,
+  connection: BDAppConnection,
+): BDAppConnection | undefined {
+  const candidates = (target.connections ?? []).filter(
+    (c) => c.targetSlug === ownerSlug,
+  );
+  if (connection.inverseName) {
+    const named = candidates.find((c) => c.name === connection.inverseName);
+    if (named) return named;
+  }
+  return candidates[0];
+}
+
 export function createAppResource(name = "NewResource"): BDAppResource {
   const slug = slugify(name);
   return {
@@ -230,6 +283,9 @@ export function createAppConnection(
     foreignKey: partial.foreignKey,
     titleAttribute: partial.titleAttribute ?? "name",
     label: partial.label,
+    inverseName: partial.inverseName,
+    pivotAttributes: partial.pivotAttributes,
+    relationManager: partial.relationManager,
   };
 }
 
@@ -263,6 +319,7 @@ export function deriveConnectionFields(resource: BDAppResource): BDAppField[] {
         titleAttribute: connection.titleAttribute ?? "name",
         multiple: connection.type === "manyToMany",
         targetSlug: connection.targetSlug,
+        searchable: connection.relationManager?.searchable,
       },
     });
   }
@@ -334,12 +391,37 @@ export function createApp(projectId: string, form: BDAppForm): Omit<BDApp, "id">
     name: form.name,
     slug: form.slug || slugify(form.name),
     path: form.path || "/",
+    description: form.description || undefined,
+    brand:
+      form.brandName || form.logoUrl
+        ? {
+            name: form.brandName || form.name,
+            logo: form.logoUrl || undefined,
+          }
+        : undefined,
+    theme:
+      form.themeMode !== "system" || form.primaryColor
+        ? {
+            mode: form.themeMode,
+            primary: form.primaryColor || undefined,
+          }
+        : undefined,
     resources: [],
   };
 }
 
 export function toAppForm(app: BDApp): BDAppForm {
-  return { name: app.name, slug: app.slug, path: app.path };
+  return {
+    name: app.name,
+    slug: app.slug,
+    path: app.path,
+    description: app.description ?? "",
+    brandName: app.brand?.name ?? "",
+    logoUrl: app.brand?.logo ?? "",
+    themeMode: app.theme?.mode ?? "system",
+    primaryColor:
+      typeof app.theme?.primary === "string" ? app.theme.primary : "",
+  };
 }
 
 // ── AI artifact drafts ─────────────────────────────────────────────────────
@@ -349,6 +431,7 @@ export interface BDAppFieldDraft {
   label?: string;
   type: string;
   required?: boolean;
+  options?: { value: string; label: string }[];
 }
 
 export interface BDAppColumnDraft {

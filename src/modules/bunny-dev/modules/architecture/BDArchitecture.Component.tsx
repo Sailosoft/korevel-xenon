@@ -14,6 +14,7 @@ import {
 } from "./BDArchitecture.Types";
 import { toArchitectureMarkdown } from "./BDArchitectureExport";
 import BDButton from "../../components/BDButton";
+import BDIconButton from "../../components/BDIconButton";
 import BDWysiwygEditor from "../../components/BDWysiwygEditor";
 import BDMarkdownView from "../../components/BDMarkdownView";
 import BDBadge from "../../components/BDBadge";
@@ -110,13 +111,15 @@ export function BDArchitectureComponent({
             Delete
           </BDButton>
         </div>
-        <textarea
-          className={`${CELL} mt-3`}
-          rows={2}
-          placeholder="Summary"
-          value={record.summary ?? ""}
-          onChange={(e) => onChange({ summary: e.target.value })}
-        />
+        <div className="mt-3">
+          <BDWysiwygEditor
+            value={record.summary ?? ""}
+            onChange={(value) => onChange({ summary: value })}
+            placeholder="Summary"
+            variant="compact"
+            minHeight={96}
+          />
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -218,46 +221,53 @@ export function BDArchitectureComponent({
                     updateSection(index, { title: e.target.value })
                   }
                 />
-                <button
-                  type="button"
-                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  onClick={() => setSectionView(section.id, !viewSections.has(section.id))}
-                  aria-label={viewSections.has(section.id) ? "Edit section" : "View section"}
-                >
-                  {viewSections.has(section.id) ? (
-                    <PenLine className="h-3.5 w-3.5" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                <BDIconButton
+                  icon={viewSections.has(section.id) ? PenLine : Eye}
+                  label={
+                    viewSections.has(section.id) ? "Edit section" : "View section"
+                  }
+                  size="sm"
+                  onClick={() =>
+                    setSectionView(section.id, !viewSections.has(section.id))
+                  }
+                />
+                <BDIconButton
+                  icon={Trash2}
+                  label="Remove section"
+                  size="sm"
+                  className="hover:bg-red-50 hover:text-red-500"
                   onClick={() => {
                     setSectionView(section.id, false);
                     onChange({
                       sections: record.sections.filter((_, i) => i !== index),
                     });
                   }}
-                  aria-label="Remove section"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                />
               </div>
               {viewSections.has(section.id) ? (
                 <div className="mt-2 rounded-lg border border-slate-200 p-3">
                   <BDMarkdownView content={sectionMarkdown(section)} />
                 </div>
               ) : (
-                <textarea
-                  className={`${CELL} mt-2`}
-                  rows={3}
-                  placeholder="Section content (markdown)"
-                  value={section.content}
-                  onChange={(e) =>
-                    updateSection(index, { content: e.target.value })
-                  }
-                />
+                <div className="mt-2 flex flex-col gap-2">
+                  <input
+                    className={CELL}
+                    placeholder="Section summary (one line)"
+                    value={section.summary ?? ""}
+                    onChange={(e) =>
+                      updateSection(index, {
+                        summary: e.target.value || undefined,
+                      })
+                    }
+                  />
+                  <BDWysiwygEditor
+                    value={section.content}
+                    onChange={(value) =>
+                      updateSection(index, { content: value })
+                    }
+                    placeholder="Section content (markdown)"
+                  />
+                </div>
               )}
             </div>
           ))}

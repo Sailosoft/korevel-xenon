@@ -1,5 +1,6 @@
 // BDApi.Types.ts — API Design form shapes, defaults, and mock builders.
 
+import { faker } from "@faker-js/faker";
 import type {
   BDAPI,
   BDAPIError,
@@ -64,6 +65,75 @@ export const BD_API_AUTH_OPTIONS = toOptions(BDAPIAuthType);
 export const BD_API_LOCATION_OPTIONS = toOptions(BDAPIParamLocation);
 export const BD_API_RETURN_KIND_OPTIONS = toOptions(BDAPIReturnKind);
 export const BD_API_VERSION_STRATEGY_OPTIONS = toOptions(BDAPIVersionStrategy);
+
+/** Selectable faker generators used to fake a mock value. */
+export const BD_API_FAKE_TYPES = [
+  "name",
+  "firstName",
+  "email",
+  "uuid",
+  "url",
+  "phone",
+  "company",
+  "date",
+  "number",
+  "boolean",
+] as const;
+export type BDApiFakeType = (typeof BD_API_FAKE_TYPES)[number];
+
+export const BD_API_FAKE_TYPE_OPTIONS: { label: string; value: string }[] = [
+  { label: "auto", value: "" },
+  ...BD_API_FAKE_TYPES.map((value) => ({ label: value, value })),
+];
+
+export function isValidFakeType(value: string): value is BDApiFakeType {
+  return (BD_API_FAKE_TYPES as readonly string[]).includes(value);
+}
+
+/** Whether a declared type can carry a faker fake value. */
+export function isFakeableType(type: string): boolean {
+  const t = type.toLowerCase();
+  return (
+    t.includes("string") ||
+    t.includes("str") ||
+    t.includes("char") ||
+    t.includes("int") ||
+    t.includes("number") ||
+    t.includes("float") ||
+    t.includes("double") ||
+    t.includes("decimal") ||
+    t.includes("bool") ||
+    t.includes("date") ||
+    t.includes("time")
+  );
+}
+
+/** Generate a mock value for a selected fake type. */
+export function fakeValue(fakeType?: string): unknown {
+  if (!fakeType || !isValidFakeType(fakeType)) return undefined;
+  switch (fakeType) {
+    case "name":
+      return faker.person.fullName();
+    case "firstName":
+      return faker.person.firstName();
+    case "email":
+      return faker.internet.email();
+    case "uuid":
+      return faker.string.uuid();
+    case "url":
+      return faker.internet.url();
+    case "phone":
+      return faker.phone.number();
+    case "company":
+      return faker.company.name();
+    case "date":
+      return faker.date.recent().toISOString();
+    case "number":
+      return faker.number.int({ min: 1, max: 1000 });
+    case "boolean":
+      return faker.datatype.boolean();
+  }
+}
 
 /** Shape shown by the Return toggle: a plain object, an array, or any. */
 export type BDApiReturnShape = "object" | "array" | "any";
@@ -189,14 +259,21 @@ function sampleForType(type: string): unknown {
   return "string";
 }
 
-/** Build a mock JSON request body from the API's body properties. */
+/** Build a mock JSON request from the API's input properties. */
 export function buildMockRequest(api: BDAPI): Record<string, unknown> {
   const body = api.properties.filter(
-    (p) => p.location === BDAPIParamLocation.body || p.location === BDAPIParamLocation.formData,
+    (p) =>
+      p.location === BDAPIParamLocation.body ||
+      p.location === BDAPIParamLocation.formData ||
+      p.location === BDAPIParamLocation.query ||
+      p.location === BDAPIParamLocation.path ||
+      p.location === BDAPIParamLocation.field,
   );
   const out: Record<string, unknown> = {};
   for (const property of body) {
-    out[property.name] = property.example ?? sampleForType(property.type);
+    out[property.name] = property.fakeType
+      ? fakeValue(property.fakeType)
+      : (property.example ?? sampleForType(property.type));
   }
   return out;
 }
@@ -204,6 +281,19 @@ export function buildMockRequest(api: BDAPI): Record<string, unknown> {
 /** Build a mock value for one return definition (recursive over arrays). */
 export function buildReturnSample(ret: BDAPIReturn | undefined): unknown {
   if (!ret) return null;
+  const { kind } = ret;
+  if (kind === BDAPIReturnKind.any || kind === BDAPIReturnKind.void) return null;
+
+  const isScalar =
+    kind === BDAPIReturnKind.scalar ||
+    kind === BDAPIReturnKind.enum ||
+    kind === BDAPIReturnKind.union ||
+    kind === BDAPIReturnKind.stream ||
+    kind === BDAPIReturnKind.file;
+
+  // A selected fake type takes precedence over explicit examples.
+  if (isScalar && ret.fakeType) return fakeValue(ret.fakeType);
+
   if (ret.example !== undefined && ret.example !== null) {
     const ex = ret.example;
     const isEmptyObject =
@@ -212,24 +302,17 @@ export function buildReturnSample(ret: BDAPIReturn | undefined): unknown {
       Object.keys(ex as Record<string, unknown>).length === 0;
     if (!isEmptyObject) return ex;
   }
-  const { kind } = ret;
-  if (kind === BDAPIReturnKind.any || kind === BDAPIReturnKind.void) return null;
-  if (
-    kind === BDAPIReturnKind.scalar ||
-    kind === BDAPIReturnKind.enum ||
-    kind === BDAPIReturnKind.union ||
-    kind === BDAPIReturnKind.stream ||
-    kind === BDAPIReturnKind.file
-  ) {
-    return sampleForType(ret.type);
-  }
+
+  if (isScalar) return sampleForType(ret.type);
   if (kind === BDAPIReturnKind.array) {
     return [buildReturnSample(ret.item)];
   }
   // object / reference → build from the declared fields.
   const out: Record<string, unknown> = {};
   for (const property of ret.properties ?? []) {
-    out[property.name] = property.example ?? sampleForType(property.type);
+    out[property.name] = property.fakeType
+      ? fakeValue(property.fakeType)
+      : (property.example ?? sampleForType(property.type));
   }
   return out;
 }
@@ -247,6 +330,7 @@ export interface BDApiPropertyDraft {
   location?: string;
   required?: boolean;
   description?: string;
+  fakeType?: string;
 }
 
 export interface BDApiErrorDraft {
@@ -258,6 +342,7 @@ export interface BDApiErrorDraft {
 export interface BDApiReturnItemDraft {
   kind?: string;
   type?: string;
+  fakeType?: string;
   properties?: BDApiPropertyDraft[];
 }
 

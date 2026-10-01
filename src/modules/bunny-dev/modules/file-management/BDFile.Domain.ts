@@ -94,4 +94,10 @@ export interface BDProjectFile extends BDEntity {
   updatedById?: string;
   accessedAt?: string;
   archivedAt?: string;
+  /** Whether a password gate is applied to view/edit/download. */
+  passwordProtected?: boolean;
+  /** Salted SHA-256 hash of the gate password (obfuscation, not encryption). */
+  passwordHash?: string;
+  /** Per-file salt mixed into `passwordHash`. */
+  passwordSalt?: string;
 }

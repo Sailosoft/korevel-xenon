@@ -18,11 +18,28 @@ let initialized = false;
 function ensureInit() {
   if (typeof window === "undefined") return;
   if (!initialized) {
+    // `base` plus explicit tokens replaces Mermaid's lavender default theme
+    // with the bunny-dev blue/grey palette (module-scoped, not global).
     mermaid.initialize({
       startOnLoad: false,
-      theme: "default",
+      theme: "base",
       securityLevel: "loose",
       suppressErrorRendering: true,
+      fontFamily: "inherit",
+      themeVariables: {
+        primaryColor: "#e3f2fd",
+        primaryBorderColor: "#1976d2",
+        primaryTextColor: "#0f172a",
+        secondaryColor: "#f1f5f9",
+        secondaryBorderColor: "#cbd5e1",
+        secondaryTextColor: "#0f172a",
+        tertiaryColor: "#ffffff",
+        tertiaryBorderColor: "#e2e8f0",
+        tertiaryTextColor: "#0f172a",
+        lineColor: "#64748b",
+        textColor: "#0f172a",
+        fontSize: "14px",
+      },
     });
     initialized = true;
   }

@@ -46,6 +46,36 @@
   background: #94a3b8;
 }
 
+/* Diagram Builder surface: soft dot-grid behind rendered Mermaid. */
+.bd-diagram-surface {
+  background-color: var(--bd-surface);
+  background-image: radial-gradient(
+    circle,
+    rgba(100, 116, 139, 0.16) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+  background-position: -1px -1px;
+  border: 1px solid var(--bd-border);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+/* Diagram Builder section shell (headers + consistent card spacing). */
+.bd-diagram-section {
+  border: 1px solid var(--bd-border);
+  border-radius: 12px;
+  background: var(--bd-surface);
+  padding: 1rem;
+}
+
+.bd-diagram-section-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--bd-text);
+}
+
 /* Simple markdown view styling (no typography plugin dependency). */
 .bd-markdown {
   color: var(--bd-text);
@@ -131,6 +161,49 @@
   border: 1px solid var(--bd-border);
   padding: 0.4rem 0.6rem;
   text-align: left;
+}
+
+/* Standalone rendered-app theme. Scoped to the standalone root only: the
+   `data-bd-theme` attribute is set exclusively by the render engine. */
+[data-bd-theme] {
+  --bd-primary-light: color-mix(in srgb, var(--bd-primary) 60%, #ffffff);
+}
+
+[data-bd-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-bd-theme="dark"] .bg-white {
+  background-color: #1e293b;
+}
+
+[data-bd-theme="dark"] .bg-slate-50 {
+  background-color: #172033;
+}
+
+[data-bd-theme="dark"] .bg-blue-50\/40 {
+  background-color: rgba(30, 58, 138, 0.25);
+}
+
+[data-bd-theme="dark"] .border-slate-200 {
+  border-color: #334155;
+}
+
+[data-bd-theme="dark"] .border-slate-100 {
+  border-color: #1e293b;
+}
+
+[data-bd-theme="dark"] .text-slate-800 {
+  color: #e2e8f0;
+}
+
+[data-bd-theme="dark"] .text-slate-700 {
+  color: #cbd5e1;
+}
+
+[data-bd-theme="dark"] .text-slate-500,
+[data-bd-theme="dark"] .text-slate-400 {
+  color: #94a3b8;
 }
 
 /* MDXEditor content min-height, driven by the editor wrapper variant. */

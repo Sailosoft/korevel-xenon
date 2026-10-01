@@ -13,6 +13,7 @@ import {
 } from "../agent-manager/BDAgent.Types";
 import { useBDAgents } from "../agent-manager/BDAgent.Hooks";
 import { useBDAISettings } from "../ai-settings/BDAISettings.Context";
+import BDProjectManagementSettingsComponent from "../project-management/BDProjectManagementSettings.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
 import BDBadge from "../../components/BDBadge";
@@ -223,6 +224,9 @@ export function BDProjectSettingsComponent() {
           Save agent settings
         </BDButton>
       </div>
+
+      {/* Project Management (board ordering + rename) */}
+      <BDProjectManagementSettingsComponent />
     </div>
   );
 }

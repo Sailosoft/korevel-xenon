@@ -25,7 +25,7 @@ export interface BDButtonProps
   children?: ReactNode;
 }
 
-const VARIANT_CLASSES: Record<BDButtonVariant, string> = {
+export const BD_BUTTON_VARIANT_CLASSES: Record<BDButtonVariant, string> = {
   primary: "bg-[#1976d2] text-white hover:bg-[#1565c0] border-transparent",
   secondary:
     "bg-[#e3f2fd] text-[#1565c0] hover:bg-[#bbdefb] border-transparent",
@@ -36,7 +36,7 @@ const VARIANT_CLASSES: Record<BDButtonVariant, string> = {
   danger: "bg-[#dc2626] text-white hover:bg-[#b91c1c] border-transparent",
 };
 
-const SIZE_CLASSES: Record<BDButtonSize, string> = {
+export const BD_BUTTON_SIZE_CLASSES: Record<BDButtonSize, string> = {
   sm: "text-xs px-2.5 py-1.5 gap-1.5",
   md: "text-sm px-4 py-2 gap-2",
   lg: "text-base px-5 py-2.5 gap-2",
@@ -58,8 +58,8 @@ export function BDButton({
       disabled={disabled || isLoading}
       className={cn(
         "inline-flex items-center justify-center rounded-lg border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-        VARIANT_CLASSES[variant],
-        SIZE_CLASSES[size],
+        BD_BUTTON_VARIANT_CLASSES[variant],
+        BD_BUTTON_SIZE_CLASSES[size],
         className,
       )}
       {...rest}

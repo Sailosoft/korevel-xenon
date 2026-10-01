@@ -102,6 +102,7 @@ export interface BDBoard extends BDEntity {
   name: string;
   type: BDBoardType;
   sprintId?: string;
+  position?: number;
   swimlanes?: BDSwimlane[];
   customFields?: BDBoardCustomField[];
   quickFilters?: BDBoardQuickFilter[];
@@ -152,6 +153,8 @@ export interface BDBoardTask extends BDEntity {
   startDate?: string;
   resolvedAt?: string;
   timeTracking: BDTimeTracking;
+  /** Values for the owning board's custom fields, keyed by field slug. */
+  customFields?: Record<string, string>;
 }
 
 export interface BDTaskComment extends BDEntity {

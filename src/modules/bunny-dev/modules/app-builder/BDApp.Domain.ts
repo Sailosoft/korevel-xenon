@@ -207,6 +207,15 @@ export interface BDAppConnection {
   /** oneToMany only: optional column override for the child table. */
   table?: BDAppTable;
   readOnly?: boolean;
+  /** Name of the target's connection back to the owner (inverse sections). */
+  inverseName?: string;
+  /** manyToMany only: attribute names carried on the (virtual) pivot. */
+  pivotAttributes?: string[];
+  /** Filament-style relation-manager options (view modal sections). */
+  relationManager?: {
+    searchable?: boolean;
+    perPage?: number;
+  };
 }
 
 export interface BDAppFieldBlock {
@@ -599,6 +608,7 @@ export interface BDApp extends BDEntity {
   name: string;
   slug: string;
   path: string;
+  description?: string;
   domain?: string;
   theme?: BDAppTheme;
   brand?: BDAppBrand;
@@ -620,8 +630,8 @@ export interface BDApp extends BDEntity {
 /**
  * A rendered row produced by the App Rendering engine.
  *
- * Generated apps reuse `BunnyDevDB` (no per-app database), namespaced by
- * `appId` + `resourceSlug`; each row keeps its field values in `data`.
+ * Generated app rows live in the dedicated `BunnyDevAppDB` database, namespaced
+ * by `appId` + `resourceSlug`; each row keeps its field values in `data`.
  */
 export interface BDAppRecord extends BDEntity {
   projectId: string;

@@ -67,6 +67,8 @@ export interface BDArchitectureSection {
   title: string;
   level: 1 | 2 | 3 | 4 | 5 | 6;
   anchor: string;
+  /** Optional one-line TL;DR shown under the section heading. */
+  summary?: string;
   content: string;
   position: number;
   children?: BDArchitectureSection[];

@@ -50,10 +50,106 @@ const DIAGRAM_DSL: HelixAISchemaOptions = {
             description: "Nodes/participants/entities.",
             items: {
               type: "object",
-              description: "A node.",
+              description:
+                "A node. Populate the fields that match the diagram type " +
+                "(e.g. flowchart: kind/shape; er: fields; gantt: start/duration).",
               properties: {
                 id: { type: "string", description: "Stable id." },
                 label: { type: "string", description: "Display label." },
+                kind: {
+                  type: "string",
+                  description:
+                    "Type-specific node kind (process, participant, entity, slice, task, commit, system, block, requirement, …).",
+                },
+                shape: {
+                  type: "string",
+                  description:
+                    "Flowchart/mindmap shape (rectangle, rounded, stadium, rhombus, hexagon, cylinder, …).",
+                },
+                link: { type: "string", description: "Flowchart click URL." },
+                alias: { type: "string", description: "Sequence participant alias." },
+                order: { type: "number", description: "Sequence order." },
+                value: { type: "number", description: "Pie slice value." },
+                start: { type: "string", description: "Gantt start (YYYY-MM-DD)." },
+                duration: { type: "string", description: "Gantt duration (e.g. 7d)." },
+                end: { type: "string", description: "Gantt end (YYYY-MM-DD)." },
+                status: { type: "string", description: "Gantt status (done, active, crit, milestone)." },
+                dependsOn: {
+                  type: "array",
+                  description: "Gantt task ids this task depends on.",
+                  items: { type: "string", description: "Task id." },
+                },
+                section: { type: "string", description: "Gantt/journey section." },
+                period: { type: "string", description: "Timeline period." },
+                events: {
+                  type: "array",
+                  description: "Timeline period events.",
+                  items: { type: "string", description: "Event." },
+                },
+                score: { type: "number", description: "Journey score (1-5)." },
+                actors: {
+                  type: "array",
+                  description: "Journey actors.",
+                  items: { type: "string", description: "Actor." },
+                },
+                branch: { type: "string", description: "Git branch." },
+                tag: { type: "string", description: "Git tag." },
+                commitId: { type: "string", description: "Git commit id." },
+                parent: { type: "string", description: "Git parent commit id." },
+                technology: { type: "string", description: "C4 technology." },
+                description: { type: "string", description: "C4 description." },
+                external: { type: "boolean", description: "C4 external system." },
+                boundary: { type: "string", description: "C4 boundary." },
+                columns: { type: "number", description: "Block columns." },
+                width: { type: "number", description: "Block width." },
+                requirementId: { type: "string", description: "Requirement id." },
+                text: { type: "string", description: "Requirement text." },
+                risk: { type: "string", description: "Requirement risk (low, medium, high)." },
+                verifyMethod: {
+                  type: "string",
+                  description: "Requirement verify method (analysis, demonstration, inspection, test).",
+                },
+                fields: {
+                  type: "array",
+                  description: "ER entity fields.",
+                  items: {
+                    type: "object",
+                    description: "An ER field.",
+                    properties: {
+                      name: { type: "string", description: "Field name." },
+                      type: { type: "string", description: "Field type." },
+                      key: { type: "string", description: "PK, FK or UK." },
+                      nullable: { type: "boolean", description: "Nullable." },
+                      comment: { type: "string", description: "Comment." },
+                    },
+                  },
+                },
+                attributes: {
+                  type: "array",
+                  description: "Class attributes.",
+                  items: {
+                    type: "object",
+                    description: "A class member.",
+                    properties: {
+                      name: { type: "string", description: "Member name." },
+                      type: { type: "string", description: "Member type." },
+                      visibility: { type: "string", description: "+, -, # or ~." },
+                    },
+                  },
+                },
+                methods: {
+                  type: "array",
+                  description: "Class methods.",
+                  items: {
+                    type: "object",
+                    description: "A class member.",
+                    properties: {
+                      name: { type: "string", description: "Member name." },
+                      type: { type: "string", description: "Return type." },
+                      visibility: { type: "string", description: "+, -, # or ~." },
+                    },
+                  },
+                },
               },
             },
           },
@@ -88,7 +184,17 @@ function normalizeNode(raw: unknown, index: number): BDDiagramNodeDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const n = raw as Record<string, unknown>;
   const label = asString(n.label) || asString(n.id) || `node${index + 1}`;
-  return { id: asString(n.id) || `n${index + 1}`, label };
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(n)) {
+    if (key === "id" || key === "label") continue;
+    if (value === undefined || value === "") continue;
+    data[key] = value;
+  }
+  return {
+    id: asString(n.id) || `n${index + 1}`,
+    label,
+    data: Object.keys(data).length > 0 ? data : undefined,
+  };
 }
 
 function normalizeEdge(raw: unknown): BDDiagramEdgeDraft | null {

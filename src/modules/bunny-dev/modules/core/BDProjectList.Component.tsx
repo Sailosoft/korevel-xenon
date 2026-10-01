@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { FolderKanban, Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { useBDProjects } from "./BDProject.Hooks";
 import { bdProjectRepository } from "./BDProject.Repository";
+import { deleteAppRecordsByProject } from "../../BDAppDatabase";
 import {
   BD_PROJECT_EMPTY_FORM,
   toProjectForm,
@@ -102,6 +103,7 @@ export function BDProjectListComponent() {
     if (!deleting) return;
     setBusy(true);
     try {
+      await deleteAppRecordsByProject(deleting.id);
       await bdProjectRepository.delete(deleting.id);
       setDeleting(null);
       toast({
@@ -198,12 +200,16 @@ export function BDProjectListComponent() {
           {
             label: "Open",
             icon: ExternalLink,
+            iconOnly: true,
+            tooltip: "Open project",
             onSelect: ([row]) =>
               router.push(`/modules/bunny-dev/projects/${row.id}`),
           },
           {
             label: "Edit",
             icon: Pencil,
+            iconOnly: true,
+            tooltip: "Edit project",
             onSelect: ([row]) => {
               setEditForm(toProjectForm(row));
               setEditing(row);
@@ -213,6 +219,8 @@ export function BDProjectListComponent() {
             label: "Delete",
             icon: Trash2,
             variant: "danger",
+            iconOnly: true,
+            tooltip: "Delete project",
             onSelect: ([row]) => setDeleting(row),
           },
         ]}

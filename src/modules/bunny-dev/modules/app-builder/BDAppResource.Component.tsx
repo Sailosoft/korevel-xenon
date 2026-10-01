@@ -274,6 +274,49 @@ export function BDAppResourceComponent({
                       }
                     />
                   )}
+                  {connection.type === "oneToOne" && (
+                    <input
+                      className={`${CELL} w-28`}
+                      placeholder="inverse"
+                      value={connection.inverseName ?? ""}
+                      onChange={(e) =>
+                        updateConnection(index, {
+                          inverseName: e.target.value || undefined,
+                        })
+                      }
+                    />
+                  )}
+                  <label className="flex items-center gap-1 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={connection.relationManager?.searchable ?? true}
+                      onChange={(e) =>
+                        updateConnection(index, {
+                          relationManager: {
+                            ...connection.relationManager,
+                            searchable: e.target.checked,
+                          },
+                        })
+                      }
+                    />
+                    search
+                  </label>
+                  <input
+                    type="number"
+                    className={`${CELL} w-20`}
+                    placeholder="per page"
+                    value={connection.relationManager?.perPage ?? ""}
+                    onChange={(e) =>
+                      updateConnection(index, {
+                        relationManager: {
+                          ...connection.relationManager,
+                          perPage: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        },
+                      })
+                    }
+                  />
                   <button
                     type="button"
                     className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"

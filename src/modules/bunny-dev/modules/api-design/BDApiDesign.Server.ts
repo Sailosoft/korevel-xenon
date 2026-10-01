@@ -8,6 +8,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { isValidFakeType } from "./BDApi.Types";
 import type {
   BDApiArtifact,
   BDApiDraft,
@@ -15,6 +16,11 @@ import type {
   BDApiPropertyDraft,
   BDApiReturnItemDraft,
 } from "./BDApi.Types";
+
+const FAKE_TYPE_DSL_DESCRIPTION =
+  "Optional mock generator used by the mock view when the type is a " +
+  "string, number, boolean or date. One of: name, firstName, email, uuid, " +
+  "url, phone, company, date, number, boolean.";
 
 export interface BDApiSchemaColumn {
   name: string;
@@ -88,6 +94,10 @@ const API_DSL: HelixAISchemaOptions = {
                   type: "string",
                   description: "Parameter description.",
                 },
+                fakeType: {
+                  type: "string",
+                  description: FAKE_TYPE_DSL_DESCRIPTION,
+                },
               },
             },
           },
@@ -118,6 +128,10 @@ const API_DSL: HelixAISchemaOptions = {
                   type: "string",
                   description: "Field description.",
                 },
+                fakeType: {
+                  type: "string",
+                  description: FAKE_TYPE_DSL_DESCRIPTION,
+                },
               },
             },
           },
@@ -128,6 +142,10 @@ const API_DSL: HelixAISchemaOptions = {
             properties: {
               kind: { type: "string", description: "object, scalar or any." },
               type: { type: "string", description: "Item type name." },
+              fakeType: {
+                type: "string",
+                description: FAKE_TYPE_DSL_DESCRIPTION,
+              },
               properties: {
                 type: "array",
                 description: "Item fields when kind is object.",
@@ -144,6 +162,10 @@ const API_DSL: HelixAISchemaOptions = {
                     description: {
                       type: "string",
                       description: "Field description.",
+                    },
+                    fakeType: {
+                      type: "string",
+                      description: FAKE_TYPE_DSL_DESCRIPTION,
                     },
                   },
                 },
@@ -176,6 +198,12 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Keep only known faker generators so the DSL cannot inject arbitrary values. */
+function normalizeFakeType(value: unknown): string | undefined {
+  const v = asString(value);
+  return v && isValidFakeType(v) ? v : undefined;
+}
+
 function normalizeProperty(raw: unknown): BDApiPropertyDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Record<string, unknown>;
@@ -187,6 +215,7 @@ function normalizeProperty(raw: unknown): BDApiPropertyDraft | null {
     location: asString(p.location) || "query",
     required: p.required === true,
     description: asString(p.description) || undefined,
+    fakeType: normalizeFakeType(p.fakeType),
   };
 }
 
@@ -215,6 +244,7 @@ function normalizeReturnItem(raw: unknown): BDApiReturnItemDraft | undefined {
   return {
     kind: asString(item.kind) || undefined,
     type: asString(item.type) || undefined,
+    fakeType: normalizeFakeType(item.fakeType),
     properties: normalizePropertyList(item.properties),
   };
 }

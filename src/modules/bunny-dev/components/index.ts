@@ -7,6 +7,9 @@ export type {
   BDButtonSize,
 } from "./BDButton";
 
+export { BDIconButton } from "./BDIconButton";
+export type { BDIconButtonProps } from "./BDIconButton";
+
 export { BDBadge } from "./BDBadge";
 export type { BDBadgeProps } from "./BDBadge";
 

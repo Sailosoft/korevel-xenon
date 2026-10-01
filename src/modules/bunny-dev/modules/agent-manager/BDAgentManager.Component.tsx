@@ -297,12 +297,16 @@ export function BDAgentManagerComponent() {
               {
                 label: "Edit",
                 icon: Pencil,
+                iconOnly: true,
+                tooltip: "Edit agent",
                 onSelect: ([row]) => setEditingAgent(row),
               },
               {
                 label: "Delete",
                 icon: Trash2,
                 variant: "danger",
+                iconOnly: true,
+                tooltip: "Delete agent",
                 onSelect: ([row]) => setDeletingAgent(row),
               },
             ]}

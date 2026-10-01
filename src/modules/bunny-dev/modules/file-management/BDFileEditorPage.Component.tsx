@@ -6,14 +6,21 @@
 // experience (Save / Download / Delete) and a Back action that returns to the
 // file manager with the source folder and view restored.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileWarning } from "lucide-react";
+import { ArrowLeft, FileWarning, KeyRound, Lock } from "lucide-react";
 import type { BDProjectFile } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDFiles } from "./BDFile.Hooks";
 import { bdFileRepository } from "./BDFile.Repository";
+import { isPasswordProtected, verifyPassword } from "./BDFile.Types";
+import {
+  isFileUnlocked,
+  markFileUnlocked,
+  useFileUnlocked,
+} from "./BDFile.Lock";
 import BDFileEditorComponent from "./BDFileEditor.Component";
+import BDFilePasswordDialog from "./BDFilePasswordDialog.Component";
 import BDButton from "../../components/BDButton";
 import BDEmptyState from "../../components/BDEmptyState";
 import { useBDToast } from "../../components/BDToast";
@@ -33,6 +40,13 @@ export function BDFileEditorPageComponent({
 
   const files = useBDFiles(projectId);
   const file = (files ?? []).find((f) => f.id === fileId);
+
+  const unlocked = useFileUnlocked(fileId);
+  const locked = !!file && isPasswordProtected(file) && !unlocked;
+
+  const [askPassword, setAskPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const paramsFolderId = searchParams.get("folder");
   const view = searchParams.get("view") === "list" ? "list" : "grid";
@@ -54,8 +68,27 @@ export function BDFileEditorPageComponent({
   };
 
   const handleDownload = (target: BDProjectFile) => {
+    if (isPasswordProtected(target) && !isFileUnlocked(target.id)) {
+      setPasswordError("");
+      setAskPassword(true);
+      return;
+    }
     if (target.blob) downloadBlob(target.name, target.blob);
     else downloadText(target.name, target.content?.data ?? "");
+  };
+
+  const submitUnlock = async (password: string) => {
+    if (!file) return;
+    setPasswordBusy(true);
+    if (!verifyPassword(file, password)) {
+      setPasswordError("Incorrect password.");
+      setPasswordBusy(false);
+      return;
+    }
+    markFileUnlocked(file.id);
+    setPasswordBusy(false);
+    setPasswordError("");
+    setAskPassword(false);
   };
 
   const handleDelete = async (target: BDProjectFile) => {
@@ -77,12 +110,30 @@ export function BDFileEditorPageComponent({
         </div>
       </div>
 
-      {file ? (
+      {file && locked ? (
+        <BDEmptyState
+          icon={Lock}
+          title="Password protected"
+          description="Enter the password to view, edit, or download this file."
+          action={
+            <BDButton
+              icon={KeyRound}
+              onClick={() => {
+                setPasswordError("");
+                setAskPassword(true);
+              }}
+            >
+              Enter password
+            </BDButton>
+          }
+        />
+      ) : file ? (
         <BDFileEditorComponent
           file={file}
           onSave={handleSave}
           onDelete={handleDelete}
           onDownload={handleDownload}
+          locked={false}
         />
       ) : files === undefined ? (
         <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
@@ -100,6 +151,19 @@ export function BDFileEditorPageComponent({
           }
         />
       )}
+
+      <BDFilePasswordDialog
+        open={askPassword}
+        mode="unlock"
+        fileName={file?.name}
+        error={passwordError}
+        isLoading={passwordBusy}
+        onSubmit={submitUnlock}
+        onClose={() => {
+          setAskPassword(false);
+          setPasswordError("");
+        }}
+      />
     </div>
   );
 }
