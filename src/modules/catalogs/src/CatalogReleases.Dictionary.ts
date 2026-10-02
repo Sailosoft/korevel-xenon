@@ -7,6 +7,32 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v5.0.0",
+    title: "Version 5.0.0: Bunny Developer Launch — Local-First Workspace for Schemas, Apps, APIs, Diagrams, Files, and Projects",
+    content: [
+      "Bunny Developer: Launched the new Bunny Developer module — a local-first (Dexie) developer decision workspace with project management, module shell, shared BD component kit, AI settings, and Helix-backed server actions.",
+      "Bunny Developer: Added the Schema Builder with model/property/relation editing, schema groups, Prisma export, and a read-only Mermaid ERD viewer with zoom/pan and SVG/PNG/Mermaid export.",
+      "Bunny Developer: Added the App Builder with Filament-style resources, forms, tables, relation manager (one-to-one, one-to-many, many-to-many attach/detach/reorder), and a standalone render route that runs generated CRUD apps.",
+      "Bunny Developer: Added API Design with document and Postman-like mock layouts, API groups, faker-powered response mocking, AI generation, and HTML export.",
+      "Bunny Developer: Added the Diagram Builder with type-specific node/edge editors, locked diagram types, raw Mermaid source override, live preview, AI generation, and .mmd/.md/.svg export.",
+      "Bunny Developer: Added virtual File Management with a Google Drive-style manager, code and WYSIWYG editors, media viewer modal, bulk selection (move/copy/download/delete), and password-protected files with session unlock.",
+      "Bunny Developer: Added JIRA-style Project Management with kanban boards, threaded task comments, board settings (sections and custom fields), and project-wide board settings.",
+      "Bunny Developer: Added the Outline and Architecture builders with AI generation and Markdown/HTML export, plus the Agent Manager for handing work off to agents.",
+      "Bunny Developer: Added the Bunny Developer agent (ai/agents) and a YAML task backlog (ai/tasks) for driving module work.",
+      "Catalog: Added the Bunny Developer card to the application catalog.",
+    ],
+    apps: [
+      CatalogApp.BunnyDeveloper,
+      CatalogApp.Catalog
+    ],
+    dates: [
+      "2026-09-28",
+      "2026-09-29",
+      "2026-10-01",
+      "2026-10-02"
+    ]
+  },
+  {
     version: "v4.6.3",
     title: "Version 4.6.3: BunnyCase Hot Seat & Refactor, LemonCoder Mermaid Editor, and BunnyBook Skills Patterns",
     content: [
