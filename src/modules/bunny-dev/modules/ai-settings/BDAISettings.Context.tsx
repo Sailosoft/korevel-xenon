@@ -1,16 +1,18 @@
 "use client";
 
 // BDAISettings.Context — provides the global AI provider/model to every
-// BunnyDev sub-module. Falls back to defaults until a row is persisted.
+// BunnyDev sub-module. Reads the `aiSettings` singleton reactively via
+// `useLiveQuery` so selections made with HelixAIProviderSelector (which writes
+// straight to IndexedDB) propagate to every generation panel immediately.
+// Falls back to defaults until a row is persisted.
 
 import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
   type ReactNode,
 } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import type { HelixAIProvider } from "@/src/modules/helix";
 import { bdDB } from "../../BDDatabase";
 import {
@@ -31,31 +33,18 @@ const BDAISettingsContext = createContext<BDAISettingsContextValue | null>(
 );
 
 export function BDAISettingsProvider({ children }: { children: ReactNode }) {
-  const [aiConfig, setAiConfig] = useState<BDAIOption>(BD_AI_SETTINGS_DEFAULTS);
-  const [loading, setLoading] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  // Reactive read — updates whenever the singleton row changes (including
+  // writes from HelixAIProviderSelector elsewhere in the app).
+  const row = useLiveQuery(
+    () => bdDB.aiSettings.get(BD_AI_SETTINGS_KEY),
+    [],
+  );
 
-  const load = useCallback(async () => {
-    try {
-      const row = await bdDB.aiSettings.get(BD_AI_SETTINGS_KEY);
-      if (row) {
-        setAiConfig({ provider: row.provider, model: row.model });
-      }
-    } catch (err) {
-      console.error("[BDAISettings] Failed to load settings:", err);
-    } finally {
-      setLoading(false);
-      setHasLoaded(true);
-    }
-  }, []);
+  const aiConfig: BDAIOption = row
+    ? { provider: row.provider, model: row.model }
+    : BD_AI_SETTINGS_DEFAULTS;
 
-  useEffect(() => {
-    if (hasLoaded) return;
-    // Async IndexedDB read — setState happens after `await`.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loading = row === undefined;
 
   const saveAISettings = useCallback(async (ai: BDAIOption) => {
     await bdDB.aiSettings.put({
@@ -63,13 +52,10 @@ export function BDAISettingsProvider({ children }: { children: ReactNode }) {
       provider: ai.provider as HelixAIProvider,
       model: ai.model,
     });
-    setAiConfig(ai);
   }, []);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    await load();
-  }, [load]);
+  // Retained for API compatibility; `useLiveQuery` re-reads automatically.
+  const reload = useCallback(() => Promise.resolve(), []);
 
   return (
     <BDAISettingsContext.Provider

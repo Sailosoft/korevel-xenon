@@ -9,12 +9,14 @@
 // batchProposal → review preview → Apply (all-or-nothing) or Reject.
 
 import { useState, type ReactNode } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { Sparkles, Check, X } from "lucide-react";
 import type {
   BDBatchProposal,
   BDGenerationMode,
   BDSubsystem,
 } from "../../BDDomain.Types";
+import { bdDB } from "../../BDDatabase";
 import { useBDAISettings } from "../ai-settings/BDAISettings.Context";
 import { useBDProject } from "../core/BDProject.Hooks";
 import BDButton from "../../components/BDButton";
@@ -73,10 +75,21 @@ export function BDGenerationPanel<TArtifact>({
   extraFields,
   onApplied,
 }: BDGenerationPanelProps<TArtifact>) {
-  const { aiConfig } = useBDAISettings();
+  const { aiConfig: globalAiConfig } = useBDAISettings();
   const { toast } = useBDToast();
   const project = useBDProject(projectId);
   const projectDescription = project?.description?.trim() || "";
+
+  // Per-project override (project-{id}) takes precedence over the global
+  // singleton, matching Project Settings. Reactive so a change applies here too.
+  const overrideKey = `project-${projectId}`;
+  const projectOverride = useLiveQuery(
+    () => bdDB.aiSettings.get(overrideKey),
+    [overrideKey],
+  );
+  const aiConfig = projectOverride
+    ? { provider: projectOverride.provider, model: projectOverride.model }
+    : globalAiConfig;
 
   const [mode, setMode] = useState<BDGenerationMode>(defaultMode);
   const [instruction, setInstruction] = useState("");
