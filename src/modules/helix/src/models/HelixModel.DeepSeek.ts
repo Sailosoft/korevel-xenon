@@ -7,6 +7,6 @@
  */
 
 export const DEEPSEEK_MODELS = [
-  "deepseek-v4-flash",
+  "deepseek-flash",
   "deepseek-v4-pro",
 ] as const;
