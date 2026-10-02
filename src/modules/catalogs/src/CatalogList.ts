@@ -103,4 +103,15 @@ export const catalogApps: CatalogApp[] = [
     gradientFrom: "#6366f1",
     gradientTo: "#a855f7",
   },
+  {
+    id: 13,
+    name: "Bunny Developer",
+    url: "/modules/bunny-dev",
+    description: "Local-first developer decision workspace — schema builder, Filament-style app builder with rendering, API design, diagrams, outlines, architecture docs, files, kanban, and AI agents.",
+    category: "code-editor",
+    status: "Active",
+    iconColor: "from-blue-400 to-sky-300",
+    gradientFrom: "#1976d2",
+    gradientTo: "#42a5f5",
+  },
 ];
