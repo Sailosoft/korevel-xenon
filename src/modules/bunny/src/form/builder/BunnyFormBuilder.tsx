@@ -456,7 +456,16 @@ const FieldRenderer = memo(function FieldRenderer({
                 ? String(value)
                 : ""
             }
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              handleChange(
+                field.type === "number"
+                  ? raw === ""
+                    ? ""
+                    : Number(raw)
+                  : raw,
+              );
+            }}
           />
           {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
         </div>

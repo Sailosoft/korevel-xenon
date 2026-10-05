@@ -64,7 +64,7 @@ export class BUIBookExportService {
 
     // Map database domain records cleanly into structured properties
     const mappedChapters: BUIBookChapterEntity[] = sourceChapters.map((ch: BUIBookChapterEntity) => ({ //
-      number: typeof ch.number === 'number' ? ch.number : 0, //
+      number: Number.isFinite(Number(ch.number)) ? Number(ch.number) : 0, //
       title: ch.title || `Chapter ${ch.number}`, //
       content: ch.content || "_Content not generated yet._", //
     }));

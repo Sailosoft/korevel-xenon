@@ -1,0 +1,40 @@
+services:
+  # Production image: standalone Next.js server on container port 3000.
+  web:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_BUNNY_STUDIO_API_TOKEN: ${NEXT_PUBLIC_BUNNY_STUDIO_API_TOKEN:-}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "3052:3000"
+    restart: unless-stopped
+
+  # Development image with bind-mounted source and hot reload.
+  # Start with: docker compose --profile dev up web-dev
+  web-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3050:3000"
+    command: ["bun", "x", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+    restart: unless-stopped
