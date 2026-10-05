@@ -3,10 +3,14 @@
 // Shared by the Image Generator results grid and the Image Library grid so a
 // freshly generated image and a library image behave identically:
 //  - Preview — clicking the image (or the expand icon) opens the full-screen
-//    cover modal with zoom in / zoom out / pan (BSImagePreviewModal).
+//    cover modal with zoom in / zoom out / pan (BSImagePreviewModal). When the
+//    parent supplies `onPreview`, it owns the modal instead (used by the
+//    library so it can add previous/next navigation across the collection).
 //  - Download — saves the data URL to disk as a PNG (always available).
 //  - Delete — removes from the library (only shown when an `onDeleted`
 //    callback is provided, i.e. in the Library).
+//  - Select — when `selectable`, the card shows a selection checkbox and
+//    clicking toggles selection instead of opening the preview.
 
 "use client";
 
@@ -35,6 +39,26 @@ export function downloadDataUrl(url: string, filename: string) {
   a.remove();
 }
 
+/**
+ * Build a collision-free download filename for an image.
+ *
+ * The full asset id is included, so two images created in the same second (or
+ * even the same millisecond) can never share a name. The leading local
+ * timestamp is purely for human readability. Never slice the id — UUIDv7's
+ * first 8 hex chars only change roughly every 65 seconds, which is what caused
+ * same-minute downloads to overwrite each other.
+ */
+export function buildImageDownloadName(asset: BSImageAsset): string {
+  const parsed = new Date(asset.createdDate);
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp =
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  const safeId = asset.id.replace(/[^a-zA-Z0-9-]/g, "");
+  return `bunny-ai-${stamp}-${safeId}.png`;
+}
+
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString(undefined, {
@@ -58,12 +82,28 @@ export interface BSImageCardProps {
    *  - "always" → always visible (used in the generator results).
    */
   reveal?: "hover" | "always";
+  /**
+   * When provided, clicking the image asks the parent to open its own preview
+   * modal (used by the library to add previous/next navigation). When omitted,
+   * the card renders its own self-contained preview modal.
+   */
+  onPreview?: () => void;
+  /** Enables selection mode UI for this card. */
+  selectable?: boolean;
+  /** Whether this card is currently selected. */
+  selected?: boolean;
+  /** Called when the user toggles selection (only in selectable mode). */
+  onToggleSelect?: () => void;
 }
 
 export function BSImageCard({
   asset,
   onDeleted,
   reveal = "hover",
+  onPreview,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: BSImageCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -71,8 +111,20 @@ export function BSImageCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  const openPreview = () => {
+    if (selectable) {
+      onToggleSelect?.();
+      return;
+    }
+    if (onPreview) {
+      onPreview();
+      return;
+    }
+    setPreviewOpen(true);
+  };
+
   const handleDownload = () => {
-    downloadDataUrl(asset.url, `bunny-ai-${asset.id.slice(0, 8)}.png`);
+    downloadDataUrl(asset.url, buildImageDownloadName(asset));
     setDownloaded(true);
     setTimeout(() => setDownloaded(false), 1500);
   };
@@ -104,18 +156,19 @@ export function BSImageCard({
   return (
     <>
       <figure className="bs-img-card group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-lg transition-shadow">
-        {/* Clickable image — opens the full-screen preview modal */}
+        {/* Clickable image — opens the preview (or toggles selection) */}
         <div
           role="button"
           tabIndex={0}
-          onClick={() => setPreviewOpen(true)}
+          aria-pressed={selectable ? selected : undefined}
+          onClick={openPreview}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setPreviewOpen(true);
+              openPreview();
             }
           }}
-          title="Preview image"
+          title={selectable ? (selected ? "Deselect" : "Select") : "Preview image"}
           className="relative aspect-square overflow-hidden bg-gray-100 cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-red-400"
         >
           {/* Data-URL images — next/image can't optimize these */}
@@ -127,51 +180,70 @@ export function BSImageCard({
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
 
+          {/* Selection checkbox — top-left, only in selection mode */}
+          {selectable && (
+            <span
+              aria-hidden="true"
+              className={`absolute top-2 left-2 z-10 flex items-center justify-center w-6 h-6 rounded-md border-2 shadow-sm transition-colors ${
+                selected
+                  ? "bg-red-600 border-red-600 text-white"
+                  : "bg-white/80 border-white text-transparent"
+              }`}
+            >
+              <Check className="w-4 h-4" />
+            </span>
+          )}
+
           {/* Expand hint — top-right, visible on hover */}
-          <span className="absolute top-2 right-2 flex items-center justify-center w-8 h-8 rounded-lg bg-black/50 text-white opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
-            <Maximize2 className="w-4 h-4" />
-          </span>
+          {!selectable && (
+            <span className="absolute top-2 right-2 flex items-center justify-center w-8 h-8 rounded-lg bg-black/50 text-white opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+              <Maximize2 className="w-4 h-4" />
+            </span>
+          )}
 
           {/* Action bar — download + (optional) delete. stopPropagation keeps
-              these buttons from also opening the preview. */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`absolute inset-x-0 bottom-0 flex items-center justify-end gap-2 p-2 bg-gradient-to-t from-black/60 to-transparent transition-all duration-200 ${
-              reveal === "always"
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={handleDownload}
-              title="Download image"
-              className="flex items-center gap-1 rounded-lg bg-white/90 hover:bg-white text-gray-800 text-xs font-medium px-2.5 py-1.5 transition-colors"
+              these buttons from also opening the preview. Hidden while
+              selecting so the card stays a single toggle target. */}
+          {!selectable && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`absolute inset-x-0 bottom-0 flex items-center justify-end gap-2 p-2 bg-gradient-to-t from-black/60 to-transparent transition-all duration-200 ${
+                reveal === "always"
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
+              }`}
             >
-              {downloaded ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Download className="w-3.5 h-3.5" />
-              )}
-              {downloaded ? "Saved" : "Download"}
-            </button>
-            {onDeleted && (
               <button
                 type="button"
-                onClick={handleDeleteRequest}
-                disabled={deleting}
-                title="Delete from library"
-                className="flex items-center gap-1 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-medium px-2.5 py-1.5 transition-colors disabled:opacity-60"
+                onClick={handleDownload}
+                title="Download image"
+                className="flex items-center gap-1 rounded-lg bg-white/90 hover:bg-white text-gray-800 text-xs font-medium px-2.5 py-1.5 transition-colors"
               >
-                {deleting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {downloaded ? (
+                  <Check className="w-3.5 h-3.5" />
                 ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5" />
                 )}
-                Delete
+                {downloaded ? "Saved" : "Download"}
               </button>
-            )}
-          </div>
+              {onDeleted && (
+                <button
+                  type="button"
+                  onClick={handleDeleteRequest}
+                  disabled={deleting}
+                  title="Delete from library"
+                  className="flex items-center gap-1 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-medium px-2.5 py-1.5 transition-colors disabled:opacity-60"
+                >
+                  {deleting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <figcaption className="p-3">
@@ -190,7 +262,8 @@ export function BSImageCard({
         </figcaption>
       </figure>
 
-      {previewOpen && (
+      {/* Self-contained preview only when the parent does not own it. */}
+      {!onPreview && previewOpen && (
         <BSImagePreviewModal
           key={asset.id}
           asset={asset}

@@ -23,9 +23,11 @@ import {
   Download,
   Loader2,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { BSImageAsset } from "./BSImageGenerator.Types";
-import { downloadDataUrl } from "./BSImageCard";
+import { buildImageDownloadName, downloadDataUrl } from "./BSImageCard";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
@@ -44,12 +46,21 @@ export interface BSImagePreviewModalProps {
   onClose: () => void;
   /** When provided, a Delete button is shown in the header bar. */
   onDeleteRequest?: () => void;
+  /** When provided, a left arrow is shown to navigate to the previous image. */
+  onPrev?: () => void;
+  /** When provided, a right arrow is shown to navigate to the next image. */
+  onNext?: () => void;
+  /** Optional 1-based position within the collection (e.g. 3 of 12). */
+  position?: { index: number; total: number };
 }
 
 export function BSImagePreviewModal({
   asset,
   onClose,
   onDeleteRequest,
+  onPrev,
+  onNext,
+  position,
 }: BSImagePreviewModalProps) {
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
@@ -61,14 +72,20 @@ export function BSImagePreviewModal({
   const clamp = (v: number, min: number, max: number) =>
     Math.min(Math.max(v, min), max);
 
-  // Close on Escape.
+  // Close on Escape; navigate with the arrow keys when available.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowLeft" && onPrev) {
+        onPrev();
+      } else if (e.key === "ArrowRight" && onNext) {
+        onNext();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext]);
 
   // Lock body scroll while the cover modal is open.
   useEffect(() => {
@@ -146,7 +163,7 @@ export function BSImagePreviewModal({
   };
 
   const handleDownload = () => {
-    downloadDataUrl(asset.url, `bunny-ai-${asset.id.slice(0, 8)}.png`);
+    downloadDataUrl(asset.url, buildImageDownloadName(asset));
   };
 
   const zoomed = scale > 1;
@@ -165,6 +182,11 @@ export function BSImagePreviewModal({
           <p className="text-[11px] text-white/50 truncate">
             {asset.model.split("/").pop()} · {asset.size} ·{" "}
             {new Date(asset.createdDate).toLocaleString()}
+            {position && (
+              <span className="ml-2 text-white/70 tabular-nums">
+                {position.index} / {position.total}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -232,6 +254,30 @@ export function BSImagePreviewModal({
           }}
         />
       </div>
+
+      {/* Previous / next navigation (gallery-style, wraps at the ends) */}
+      {onPrev && (
+        <button
+          type="button"
+          onClick={onPrev}
+          title="Previous image (←)"
+          aria-label="Previous image"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+      {onNext && (
+        <button
+          type="button"
+          onClick={onNext}
+          title="Next image (→)"
+          aria-label="Next image"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Zoom controls */}
       <div className="flex items-center justify-center gap-2 py-3 shrink-0">

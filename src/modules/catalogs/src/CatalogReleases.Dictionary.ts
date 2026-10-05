@@ -7,6 +7,19 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v5.1.0",
+    title: "Version 5.1.0",
+    content: [
+      "BunnyStudio: Improve Image Library and Download Mechanism"
+    ],
+    apps: [
+      CatalogApp.BunnyStudio
+    ],
+    dates: [
+      "2026-10-06"
+    ]
+  },
+  {
     version: "v5.0.0",
     title: "Version 5.0.0: Bunny Developer Launch — Local-First Workspace for Schemas, Apps, APIs, Diagrams, Files, and Projects",
     content: [

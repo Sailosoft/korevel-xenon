@@ -31,6 +31,7 @@ import { useBSAISettings } from "../ai-settings/BSAISettings.Context";
 import { useBSImageGenerator } from "./BSImageGenerator.Hooks";
 import { BSImageLibrary } from "./BSImageLibrary.Component";
 import { BSImageCard } from "./BSImageCard";
+import { BSImagePreviewModal } from "./BSImagePreviewModal";
 import { BS_IMAGE_SIZES } from "./BSImageGenerator.Types";
 import type { BSImageSize } from "./BSImageGenerator.Types";
 
@@ -60,6 +61,8 @@ export function BSImageGeneratorComponent() {
   const [size, setSize] = useState<BSImageSize>("1024x1024");
   // Bumped after each successful generation so the Image Library grid reloads.
   const [libraryRefreshKey, setLibraryRefreshKey] = useState(0);
+  // Index of the result image currently open in the gallery preview (null = closed).
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // Rotating status phrase index + a local "tick" to re-trigger animations.
   const [phraseIdx, setPhraseIdx] = useState(0);
@@ -105,6 +108,7 @@ export function BSImageGeneratorComponent() {
 
   const handleGenerate = async () => {
     if (!prompt.trim() || state.status === "generating") return;
+    setPreviewIndex(null);
     const assets = await generate({
       prompt: prompt.trim(),
       provider,
@@ -119,6 +123,18 @@ export function BSImageGeneratorComponent() {
   };
 
   const generating = state.status === "generating";
+
+  // Gallery navigation for the generated batch (wraps at the ends).
+  const resultImages = state.images;
+  const resultCount = resultImages.length;
+  const previewAsset =
+    previewIndex !== null ? resultImages[previewIndex] ?? null : null;
+  const goPrevResult = () =>
+    setPreviewIndex((i) =>
+      i === null ? i : (i - 1 + resultCount) % resultCount,
+    );
+  const goNextResult = () =>
+    setPreviewIndex((i) => (i === null ? i : (i + 1) % resultCount));
 
   return (
     <div className="h-full overflow-y-auto">
@@ -294,9 +310,13 @@ export function BSImageGeneratorComponent() {
                   </h3>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {state.images.map((img) => (
+                  {state.images.map((img, idx) => (
                     <div key={img.id} className="bs-img-reveal">
-                      <BSImageCard asset={img} reveal="always" />
+                      <BSImageCard
+                        asset={img}
+                        reveal="always"
+                        onPreview={() => setPreviewIndex(idx)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -315,6 +335,18 @@ export function BSImageGeneratorComponent() {
         {/* Library — compact preview of the newest 4 images on the generator */}
         <BSImageLibrary refreshKey={libraryRefreshKey} limit={4} />
       </div>
+
+      {/* Gallery preview for the generated batch, with previous/next navigation */}
+      {previewAsset && (
+        <BSImagePreviewModal
+          key={previewAsset.id}
+          asset={previewAsset}
+          position={{ index: (previewIndex ?? 0) + 1, total: resultCount }}
+          onClose={() => setPreviewIndex(null)}
+          onPrev={resultCount > 1 ? goPrevResult : undefined}
+          onNext={resultCount > 1 ? goNextResult : undefined}
+        />
+      )}
     </div>
   );
 }

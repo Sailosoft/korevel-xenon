@@ -28,4 +28,10 @@ export class BSImageRepository extends PhazeRepository<
       b.createdDate.localeCompare(a.createdDate),
     );
   }
+
+  /** Delete several library images in a single IndexedDB operation. */
+  public async deleteMany(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.set.bulkDelete(ids);
+  }
 }
