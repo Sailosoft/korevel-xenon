@@ -12,10 +12,13 @@ export const catalogReleases: CatalogRelease[] = [
     content: [
       "BunnyStudio: Improve Image Library and Download Mechanism",
       "BunnyBook: Added and Remove New Export HTML Template",
-      "BunnyBook: Improve rendering and export markdown content"
+      "BunnyBook: Improve rendering and export markdown content",
+      "BunnyBook: Fix manual numbering of chapter",
+      "Add Docker Support"
     ],
     apps: [
-      CatalogApp.BunnyStudio
+      CatalogApp.BunnyStudio,
+      CatalogApp.BunnyBook
     ],
     dates: [
       "2026-10-06"
