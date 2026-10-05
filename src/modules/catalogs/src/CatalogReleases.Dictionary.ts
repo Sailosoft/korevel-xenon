@@ -10,7 +10,9 @@ export const catalogReleases: CatalogRelease[] = [
     version: "v5.1.0",
     title: "Version 5.1.0",
     content: [
-      "BunnyStudio: Improve Image Library and Download Mechanism"
+      "BunnyStudio: Improve Image Library and Download Mechanism",
+      "BunnyBook: Added and Remove New Export HTML Template",
+      "BunnyBook: Improve rendering and export markdown content"
     ],
     apps: [
       CatalogApp.BunnyStudio

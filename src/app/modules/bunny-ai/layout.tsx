@@ -1,6 +1,7 @@
 "use client";
 
 import "./layout.css";
+import "katex/dist/katex.min.css";
 import { Suspense } from "react";
 import {
   LayoutDashboard,
