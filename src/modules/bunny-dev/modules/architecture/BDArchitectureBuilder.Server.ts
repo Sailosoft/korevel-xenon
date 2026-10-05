@@ -8,6 +8,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDArchitectureArtifact,
   BDArchitectureDraft,
@@ -21,6 +22,7 @@ export interface BDArchitectureGenerateParams {
   type?: string;
   /** Return 2-3 alternative variants instead of one. */
   variants?: number;
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -142,7 +144,19 @@ export async function bdGenerateArchitecture(
     "variants, keep each document fully self-contained. Return only the " +
     "structured JSON requested.";
 
-  const user = `Mode: ${params.mode}. Document type: ${documentType}. Produce each document as that type and set its "type" field to "${documentType}". Organize sections into a clear hierarchy appropriate to a ${documentType} (levels 1-3). Each section must have a 300-500 word information-dense "content" body and a one-sentence "summary".${variantHint}\n\nInstruction: ${params.instruction}`;
+  const context =
+    `Document type: ${documentType}. Produce each document as that type and ` +
+    `set its "type" field to "${documentType}". Organize sections into a clear ` +
+    `hierarchy appropriate to a ${documentType} (levels 1-3). Each section ` +
+    `must have a 300-500 word information-dense "content" body and a ` +
+    `one-sentence "summary".${variantHint}`;
+
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+    context,
+  });
 
   const raw = await bdGenerateStructured({
     system,

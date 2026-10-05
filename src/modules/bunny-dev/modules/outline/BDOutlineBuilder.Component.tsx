@@ -12,7 +12,11 @@ import {
   Globe,
   Sparkles,
 } from "lucide-react";
-import type { BDOutline, BDOutlineTopic } from "../../BDDomain.Types";
+import type {
+  BDGenerationMode,
+  BDOutline,
+  BDOutlineTopic,
+} from "../../BDDomain.Types";
 import { BDOutlineContentType } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDOutlines } from "./BDOutline.Hooks";
@@ -31,6 +35,7 @@ import {
   type BDOutlineTopicDraft,
 } from "./BDOutline.Types";
 import { bdGenerateOutline } from "./BDOutlineBuilder.Server";
+import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
 import {
   toOutlineHtml,
   toOutlineJson,
@@ -84,6 +89,23 @@ function draftToTopics(drafts: BDOutlineTopicDraft[]): BDOutlineTopic[] {
       children: draftToTopics(draft.children ?? []),
     };
   });
+}
+
+/** Merge generated top-level topics into existing ones, matched by title. */
+function mergeTopicsByTitle(
+  existing: BDOutlineTopic[],
+  incoming: BDOutlineTopic[],
+): BDOutlineTopic[] {
+  const result = [...existing];
+  for (const topic of incoming) {
+    const index = result.findIndex((t) => t.title === topic.title);
+    if (index >= 0) {
+      result[index] = { ...topic, id: result[index].id };
+    } else {
+      result.push(topic);
+    }
+  }
+  return result;
 }
 
 export function BDOutlineBuilderComponent() {
@@ -169,7 +191,33 @@ export function BDOutlineBuilderComponent() {
     });
   };
 
-  const applyArtifact = async (artifact: BDOutlineArtifact) => {
+  const applyArtifact = async (
+    artifact: BDOutlineArtifact,
+    mode: BDGenerationMode,
+    targetId?: string,
+  ) => {
+    if (mode !== "create") {
+      if (!targetId) throw new Error("Select an outline first.");
+      const target = await bdOutlineRepository.get(targetId);
+      if (!target) throw new Error("The selected outline no longer exists.");
+      const generated = artifact.outlines[0];
+      const newTopics = generated ? draftToTopics(generated.topics) : [];
+      const topics =
+        mode === "append"
+          ? [...target.topics, ...newTopics]
+          : mode === "update"
+            ? mergeTopicsByTitle(target.topics, newTopics)
+            : newTopics;
+      await bdOutlineRepository.update(targetId, {
+        topics,
+        name: generated?.name ?? target.name,
+        title: generated?.title ?? target.title,
+        description: generated?.description ?? target.description,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
     for (const outlineDraft of artifact.outlines) {
       await bdOutlineRepository.create({
         ...createOutline(projectId, {
@@ -220,11 +268,17 @@ export function BDOutlineBuilderComponent() {
         onOpenChange={setAiOpen}
         title="AI Outline Generation"
         placeholder="e.g. A developer onboarding guide for this project"
-        generate={({ instruction, mode, aiConfig }) =>
-          bdGenerateOutline({ instruction, mode, aiConfig })
+        generate={({ instruction, mode, aiConfig, targetContext }) =>
+          bdGenerateOutline({ instruction, mode, targetContext, aiConfig })
         }
         onApply={applyArtifact}
         defaultMode="create"
+        targets={(outlines ?? []).map((o) => ({ id: o.id, label: o.name }))}
+        targetLabel="Outline"
+        buildTargetContext={(id) => {
+          const record = (outlines ?? []).find((o) => o.id === id);
+          return record ? bdSerializeTarget(record) : undefined;
+        }}
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-2">
             {artifact.outlines.map((outline, index) => (

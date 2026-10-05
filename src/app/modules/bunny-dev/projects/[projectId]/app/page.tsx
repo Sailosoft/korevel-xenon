@@ -1,7 +1,7 @@
 "use client";
 
-import BDAppBuilderComponent from "@/src/modules/bunny-dev/modules/app-builder/BDAppBuilder.Component";
+import BDAppListComponent from "@/src/modules/bunny-dev/modules/app-builder/BDAppList.Component";
 
 export default function AppBuilderPage() {
-  return <BDAppBuilderComponent />;
+  return <BDAppListComponent />;
 }

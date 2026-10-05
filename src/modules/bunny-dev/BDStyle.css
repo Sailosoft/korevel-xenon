@@ -24,6 +24,46 @@
   border-bottom: 1px solid rgba(226, 232, 240, 0.8);
 }
 
+/* BDShell sidebar: deep-navy gradient with a faint dot grid. */
+.bd-shell-sidebar {
+  background-color: #0b2545;
+  background-image:
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.14) 1px,
+      transparent 1.5px
+    ),
+    linear-gradient(160deg, #1976d2 0%, #0f3d75 55%, #0b2545 100%);
+  background-size:
+    18px 18px,
+    100% 100%;
+  background-position:
+    0 0,
+    0 0;
+}
+
+/* BDShell header: blue gradient with a soft glow + faint dot texture. */
+.bd-shell-header {
+  background-image:
+    radial-gradient(
+      140px 64px at 82% 50%,
+      rgba(255, 255, 255, 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 1.5px
+    ),
+    linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  background-size:
+    auto,
+    16px 16px,
+    100% 100%;
+  color: #ffffff;
+  box-shadow: 0 6px 20px -8px rgba(21, 101, 192, 0.6);
+}
+
 .bd-sidebar-transition {
   transition:
     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),

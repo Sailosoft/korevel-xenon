@@ -8,6 +8,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import { isValidFakeType } from "./BDApi.Types";
 import type {
   BDApiArtifact,
@@ -40,6 +41,7 @@ export interface BDApiGenerateParams {
   mode: BDGenerationMode;
   schemaGroupName?: string;
   schemaModels?: BDApiSchemaModelContext[];
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -297,7 +299,7 @@ function buildSchemaBasis(params: BDApiGenerateParams): string {
     ? ` (group "${params.schemaGroupName}")`
     : "";
   return (
-    `\n\nSchema basis${groupLabel}: generate CRUD-style endpoints for these ` +
+    `Schema basis${groupLabel}: generate CRUD-style endpoints for these ` +
     `models. Set each operation's group to the resource/model name.\n` +
     lines.join("\n")
   );
@@ -311,7 +313,12 @@ export async function bdGenerateApi(
     "typed parameters and error responses. Return only the structured JSON " +
     "requested.";
 
-  const user = `Mode: ${params.mode}.${buildSchemaBasis(params)}\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+    context: buildSchemaBasis(params) || undefined,
+  });
 
   const raw = await bdGenerateStructured({
     system,

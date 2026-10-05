@@ -3,6 +3,14 @@
 
 import type { BDAppColor, BDEntity } from "../core/BDShared.Types";
 
+/** A group of diagrams — enables organising diagrams into sets. */
+export interface BDDiagramGroup extends BDEntity {
+  projectId: string;
+  name: string;
+  description?: string;
+  position: number;
+}
+
 export type BDDiagramType =
   | "flowchart"
   | "sequence"
@@ -356,6 +364,7 @@ export type BDDiagram =
  */
 export interface BDDiagramRecord extends BDEntity {
   projectId: string;
+  groupId?: string;
   name: string;
   title?: string;
   type: BDDiagramType;

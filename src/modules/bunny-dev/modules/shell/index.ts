@@ -3,12 +3,6 @@
 export { BDShell } from "./BDShell";
 export type { BDShellProps } from "./BDShell";
 
-export { BDModuleLayout } from "./BDModuleLayout";
-export type {
-  BDModuleLayoutProps,
-  BDModuleFeature,
-} from "./BDModuleLayout";
-
 export { BDShellSidebar } from "./BDShell.sidebar";
 export type { BDShellSidebarProps } from "./BDShell.sidebar";
 

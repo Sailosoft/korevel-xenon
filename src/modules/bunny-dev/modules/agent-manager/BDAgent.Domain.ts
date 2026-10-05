@@ -100,7 +100,7 @@ export interface BDAgentTask extends BDEntity {
 
 // ── AI generation pipeline (Agent Manager / one-shot batch) ────────────────
 
-export type BDGenerationMode = "create" | "append" | "replace";
+export type BDGenerationMode = "create" | "append" | "update" | "replace";
 export type BDGenerationStatus = "pending" | "running" | "finished" | "failed";
 export type BDBatchStatus = "pending" | "applied" | "rejected";
 
@@ -120,6 +120,8 @@ export interface BDGenerationRun extends BDEntity {
   subsystem: BDSubsystem;
   mode: BDGenerationMode;
   status: BDGenerationStatus;
+  /** Existing target record selected for append/update/replace. */
+  targetId?: string;
   instruction?: string;
   provider?: string;
   model?: string;
@@ -136,6 +138,8 @@ export interface BDBatchProposal extends BDEntity {
   status: BDBatchStatus;
   summary?: string;
   runId?: string;
+  /** Existing target record selected for append/update/replace. */
+  targetId?: string;
   /** Full serializable artifact set — shape depends on `subsystem`. */
   artifact: unknown;
   resolvedAt?: string;

@@ -1,7 +1,7 @@
 "use client";
 
-import BDArchitectureBuilderComponent from "@/src/modules/bunny-dev/modules/architecture/BDArchitectureBuilder.Component";
+import BDArchitectureGroupListComponent from "@/src/modules/bunny-dev/modules/architecture/BDArchitectureGroups.Component";
 
 export default function ArchitecturePage() {
-  return <BDArchitectureBuilderComponent />;
+  return <BDArchitectureGroupListComponent />;
 }

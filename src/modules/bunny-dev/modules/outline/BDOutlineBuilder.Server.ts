@@ -8,6 +8,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDOutlineArtifact,
   BDOutlineDraft,
@@ -17,6 +18,7 @@ import type {
 export interface BDOutlineGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -128,7 +130,11 @@ export async function bdGenerateOutline(
     "concrete, useful topics and brief markdown content where asked. Return " +
     "only the structured JSON requested.";
 
-  const user = `Mode: ${params.mode}.\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+  });
 
   const raw = await bdGenerateStructured({
     system,

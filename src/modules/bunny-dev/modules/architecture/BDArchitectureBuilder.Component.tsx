@@ -1,7 +1,10 @@
 "use client";
 
+// BDArchitectureBuilder.Component — Architecture page 2: the documents inside
+// one architecture group. Group management lives on page 1
+// (BDArchitectureGroupListComponent).
+
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Building2,
   Plus,
@@ -10,17 +13,21 @@ import {
   GitCompare,
   Save,
   Sparkles,
-  ExternalLink,
   FileDown,
   Copy,
   Globe,
 } from "lucide-react";
 import type {
   BDArchitectureRecord,
+  BDArchitectureSection,
   BDArchitectureType,
+  BDGenerationMode,
 } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
-import { useBDArchitectures } from "./BDArchitecture.Hooks";
+import {
+  useBDArchitectureGroups,
+  useBDArchitectures,
+} from "./BDArchitecture.Hooks";
 import { bdArchitectureRepository } from "./BDArchitecture.Repository";
 import {
   BD_ARCHITECTURE_EMPTY_FORM,
@@ -30,14 +37,17 @@ import {
   slugify,
   type BDArchitectureArtifact,
   type BDArchitectureForm,
+  type BDArchitectureSectionDraft,
 } from "./BDArchitecture.Types";
 import { bdGenerateArchitecture } from "./BDArchitectureBuilder.Server";
+import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
 import {
   toArchitectureHtml,
   toArchitectureMarkdown,
 } from "./BDArchitectureExport";
 import BDArchitectureComponent from "./BDArchitecture.Component";
 import BDPageHeader from "../../components/BDPageHeader";
+import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
 import BDModal from "../../components/BDModal";
@@ -61,18 +71,57 @@ const ARCH_FIELDS = [
   },
 ];
 
+function draftSectionsToRecords(
+  drafts: BDArchitectureSectionDraft[] | undefined,
+): BDArchitectureSection[] {
+  return (drafts ?? []).map((s, i) => ({
+    ...createSection(
+      s.title,
+      (s.level ?? 2) as 1 | 2 | 3 | 4 | 5 | 6,
+      i,
+      s.summary,
+    ),
+    content: s.content ?? "",
+  }));
+}
+
+/** Merge generated sections into existing ones, matched by title. */
+function mergeSectionsByTitle(
+  existing: BDArchitectureSection[],
+  incoming: BDArchitectureSection[],
+): BDArchitectureSection[] {
+  const result = [...existing];
+  for (const section of incoming) {
+    const index = result.findIndex((s) => s.title === section.title);
+    if (index >= 0) {
+      result[index] = {
+        ...section,
+        id: result[index].id,
+        position: result[index].position,
+      };
+    } else {
+      result.push(section);
+    }
+  }
+  return result;
+}
+
 export interface BDArchitectureBuilderComponentProps {
-  /** Preselect a document (deep-route `[architectureId]`). */
-  initialId?: string;
+  /** The architecture group whose documents are shown. */
+  initialGroupId?: string;
 }
 
 export function BDArchitectureBuilderComponent({
-  initialId,
+  initialGroupId,
 }: BDArchitectureBuilderComponentProps = {}) {
   const { projectId } = useBDProjectContext();
   const { toast } = useBDToast();
-  const router = useRouter();
+  const groups = useBDArchitectureGroups(projectId);
   const records = useBDArchitectures(projectId);
+
+  const groupId = initialGroupId;
+  const activeGroup = groups?.find((g) => g.id === groupId);
+  const groupRecords = (records ?? []).filter((r) => r.groupId === groupId);
 
   const [draft, setDraft] = useState<BDArchitectureRecord | null>(null);
   const [creating, setCreating] = useState(false);
@@ -84,28 +133,25 @@ export function BDArchitectureBuilderComponent({
   const [compare, setCompare] = useState<BDArchitectureRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiType, setAiType] = useState<BDArchitectureType>("architecture");
-  const [initialPending, setInitialPending] = useState(Boolean(initialId));
-
-  // Preselect the deep-linked document once its live query arrives (render-time
-  // adjustment, not an effect).
-  if (initialPending && initialId && records) {
-    const target = records.find((r) => r.id === initialId);
-    if (target) {
-      setInitialPending(false);
-      setDraft(target);
-    }
-  }
 
   const update = (patch: Partial<BDArchitectureRecord>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
-  const variants = (records ?? []).filter(
+  const variants = groupRecords.filter(
     (r) => r.variantOfId && r.variantOfId === draft?.id,
   );
 
   const handleCreate = async (values: Record<string, unknown>) => {
+    if (!groupId) {
+      toast({ title: "Group not found", status: "warning" });
+      return;
+    }
     const created = await bdArchitectureRepository.create(
-      createArchitecture(projectId, values as unknown as BDArchitectureForm),
+      createArchitecture(
+        projectId,
+        values as unknown as BDArchitectureForm,
+        groupId,
+      ),
     );
     setCreating(false);
     setDraft(created);
@@ -157,6 +203,7 @@ export function BDArchitectureBuilderComponent({
     const label = `Variant ${variants.length + 1}`;
     const variant = await bdArchitectureRepository.create({
       projectId: draft.projectId,
+      groupId: draft.groupId,
       name: `${draft.name} — ${label}`,
       slug: `${draft.slug}-${slugify(label)}`,
       type: draft.type,
@@ -173,27 +220,59 @@ export function BDArchitectureBuilderComponent({
     toast({ title: "Variant created", status: "success" });
   };
 
-  const applyArtifact = async (artifact: BDArchitectureArtifact) => {
+  const applyArtifact = async (
+    artifact: BDArchitectureArtifact,
+    mode: BDGenerationMode,
+    targetId?: string,
+  ) => {
+    if (mode !== "create") {
+      if (!targetId) throw new Error("Select a document first.");
+      const target = await bdArchitectureRepository.get(targetId);
+      if (!target) throw new Error("The selected document no longer exists.");
+      const generated = artifact.architectures[0];
+      const incoming = draftSectionsToRecords(generated?.sections);
+      const sections =
+        mode === "append"
+          ? [...target.sections, ...incoming]
+          : mode === "update"
+            ? mergeSectionsByTitle(target.sections, incoming)
+            : incoming;
+
+      const patch: Partial<BDArchitectureRecord> = { sections };
+      if (mode === "replace") {
+        patch.name = generated?.name ?? target.name;
+        patch.summary = generated?.summary ?? target.summary;
+        patch.status = (generated?.status as BDArchitectureRecord["status"]) ??
+          target.status;
+        patch.type = (generated?.type as BDArchitectureRecord["type"]) ??
+          target.type;
+      } else if (mode === "update") {
+        patch.summary = generated?.summary ?? target.summary;
+        patch.status = (generated?.status as BDArchitectureRecord["status"]) ??
+          target.status;
+        patch.type = (generated?.type as BDArchitectureRecord["type"]) ??
+          target.type;
+      }
+      await bdArchitectureRepository.update(targetId, patch);
+      return;
+    }
+
     let baseId: string | undefined;
     for (let index = 0; index < artifact.architectures.length; index++) {
       const draftArch = artifact.architectures[index];
       const created = await bdArchitectureRepository.create({
-        ...createArchitecture(projectId, {
-          name: draftArch.name,
-          slug: "",
-          type: (draftArch.type ?? "architecture") as BDArchitectureRecord["type"],
-          status: (draftArch.status ?? "draft") as BDArchitectureRecord["status"],
-          summary: draftArch.summary ?? "",
-        }),
-        sections: (draftArch.sections ?? []).map((s, i) => ({
-          ...createSection(
-            s.title,
-            (s.level ?? 2) as 1 | 2 | 3 | 4 | 5 | 6,
-            i,
-            s.summary,
-          ),
-          content: s.content ?? "",
-        })),
+        ...createArchitecture(
+          projectId,
+          {
+            name: draftArch.name,
+            slug: "",
+            type: (draftArch.type ?? "architecture") as BDArchitectureRecord["type"],
+            status: (draftArch.status ?? "draft") as BDArchitectureRecord["status"],
+            summary: draftArch.summary ?? "",
+          },
+          groupId,
+        ),
+        sections: draftSectionsToRecords(draftArch.sections),
         variantOfId: index === 0 ? undefined : baseId,
         variantLabel: index === 0 ? undefined : draftArch.variantLabel ?? `Variant ${index}`,
       });
@@ -201,12 +280,35 @@ export function BDArchitectureBuilderComponent({
     }
   };
 
+  if (groups && !activeGroup) {
+    return (
+      <div className="flex flex-col gap-5">
+        <BDBackLink
+          href={`/modules/bunny-dev/projects/${projectId}/architecture`}
+          label="Back to Architecture"
+        />
+        <BDEmptyState
+          icon={Building2}
+          title="Group not found"
+          description="This architecture group may have been deleted."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
+      <BDBackLink
+        href={`/modules/bunny-dev/projects/${projectId}/architecture`}
+        label="Back to Architecture"
+      />
       <BDPageHeader
         icon={Building2}
-        title="Architecture Design"
-        description="Author architecture docs, ADRs, RFCs, plans, and variants — with markdown export and side-by-side comparison."
+        title={activeGroup?.name ?? "Architecture Design"}
+        description={
+          activeGroup?.description ||
+          "Author architecture docs, ADRs, RFCs, plans, and variants — with markdown export and side-by-side comparison."
+        }
         actions={
           <>
             <BDButton
@@ -240,17 +342,24 @@ export function BDArchitectureBuilderComponent({
         title="AI Architecture Generation"
         description="Generate an architecture document or several alternative variants to compare."
         placeholder="e.g. Propose two architectures for a multi-tenant SaaS"
-        generate={({ instruction, mode, aiConfig }) =>
+        generate={({ instruction, mode, aiConfig, targetContext }) =>
           bdGenerateArchitecture({
             instruction,
             mode,
             type: aiType,
-            variants: mode === "create" ? 1 : 2,
+            variants: 1,
+            targetContext,
             aiConfig,
           })
         }
         onApply={applyArtifact}
         defaultMode="create"
+        targets={groupRecords.map((r) => ({ id: r.id, label: r.name }))}
+        targetLabel="Document"
+        buildTargetContext={(id) => {
+          const record = groupRecords.find((r) => r.id === id);
+          return record ? bdSerializeTarget(record) : undefined;
+        }}
         extraFields={
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-medium text-slate-500">
@@ -287,7 +396,7 @@ export function BDArchitectureBuilderComponent({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_1fr]">
         <BDList<BDArchitectureRecord>
           title="Documents"
-          data={records ?? []}
+          data={groupRecords}
           isLoading={records === undefined}
           getRowId={(row) => row.id}
           searchable
@@ -317,16 +426,6 @@ export function BDArchitectureBuilderComponent({
             { key: "type", label: "Type", width: 100 },
           ]}
           rowActions={[
-            {
-              label: "Open",
-              icon: ExternalLink,
-              iconOnly: true,
-              tooltip: "Open document",
-              onSelect: ([row]) =>
-                router.push(
-                  `/modules/bunny-dev/projects/${projectId}/architecture/${row.id}`,
-                ),
-            },
             {
               label: "Delete",
               icon: Trash2,

@@ -19,26 +19,35 @@ export interface BDShellTheme {
   navHover: string;
   avatarBg: string;
   avatarText: string;
+  headerSurface: string;
+  headerText: string;
+  headerMuted: string;
+  headerBtn: string;
 }
 
 /** Default bluish / MUI-inspired theme (locked decision #10). */
 export const BD_SHELL_THEME: BDShellTheme = {
   bgWindow: "bg-[#f4f7fb]",
-  bgSidebar: "bg-white",
-  border: "border-slate-200",
-  textPrimary: "text-[#1976d2]",
-  textMuted: "text-slate-400",
-  gradient: "from-[#1976d2] to-[#42a5f5]",
-  shadow: "shadow-blue-100",
+  bgSidebar: "bd-shell-sidebar",
+  border: "border-white/10",
+  textPrimary: "text-white",
+  textMuted: "text-blue-200/80",
+  gradient: "from-white to-blue-200",
+  shadow: "shadow-blue-900/30",
   btnPrimary:
-    "bg-[#1976d2] text-white hover:bg-[#1565c0] transition-colors",
+    "bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur-sm transition-colors",
   btnSecondary:
-    "text-[#1565c0] bg-blue-50 hover:bg-blue-100 transition-colors",
-  navActive: "text-[#1565c0] bg-blue-50 font-semibold",
+    "text-white bg-white/15 hover:bg-white/25 backdrop-blur-sm transition-colors",
+  navActive: "bg-white/15 text-white font-semibold ring-1 ring-white/20 shadow-sm",
   navHover:
-    "text-slate-600 hover:bg-slate-50 hover:text-[#1976d2] transition-colors",
-  avatarBg: "bg-blue-100",
-  avatarText: "text-[#1565c0]",
+    "text-blue-100 hover:bg-white/10 hover:text-white transition-colors",
+  avatarBg: "bg-white/15",
+  avatarText: "text-white",
+  headerSurface: "bd-shell-header",
+  headerText: "text-white",
+  headerMuted: "text-blue-100",
+  headerBtn:
+    "bg-white/15 text-white hover:bg-white/25 backdrop-blur-sm transition-colors",
 };
 
 export interface BDNavItem {
