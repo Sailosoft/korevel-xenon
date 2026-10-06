@@ -1,7 +1,7 @@
 "use client";
 
-import BDDiagramBuilderComponent from "@/src/modules/bunny-dev/modules/diagram-builder/BDDiagramBuilder.Component";
+import BDDiagramGroupListComponent from "@/src/modules/bunny-dev/modules/diagram-builder/BDDiagramGroups.Component";
 
 export default function DiagramPage() {
-  return <BDDiagramBuilderComponent />;
+  return <BDDiagramGroupListComponent />;
 }

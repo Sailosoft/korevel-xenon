@@ -9,7 +9,15 @@
 
 import type Dexie from "dexie";
 import { v7 as uuidv7 } from "uuid";
-import type { BDAPI, BDApiGroup, BDBoard } from "./BDDomain.Types";
+import type {
+  BDAPI,
+  BDApiGroup,
+  BDArchitectureGroup,
+  BDArchitectureRecord,
+  BDBoard,
+  BDDiagramGroup,
+  BDDiagramRecord,
+} from "./BDDomain.Types";
 
 /**
  * Register every schema version on the given Dexie instance.
@@ -129,6 +137,82 @@ export function configureBDMigrations(db: Dexie): void {
         await table.bulkPut(
           missing.map((b, i) => ({ ...b, position: max + 1 + i })),
         );
+      }
+    });
+
+  // ── Version 4 — Diagram groups ─────────────────────────────────────────────
+  // Adds the diagramGroups aggregate and moves existing diagrams under a
+  // per-project "Default" group so every diagram always lives in a group.
+  db.version(4)
+    .stores({
+      diagramGroups: "id, projectId, position",
+      diagrams: "id, projectId, type, groupId",
+    })
+    .upgrade(async (tx) => {
+      const diagrams = (await tx.table("diagrams").toArray()) as BDDiagramRecord[];
+      if (diagrams.length === 0) return;
+
+      const now = new Date().toISOString();
+      const byProject = new Map<string, BDDiagramRecord[]>();
+      for (const diagram of diagrams) {
+        if (diagram.groupId) continue;
+        const list = byProject.get(diagram.projectId);
+        if (list) list.push(diagram);
+        else byProject.set(diagram.projectId, [diagram]);
+      }
+
+      for (const [projectId, rows] of byProject) {
+        const group: BDDiagramGroup = {
+          id: uuidv7(),
+          projectId,
+          name: "Default",
+          description: "",
+          position: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await tx.table("diagramGroups").add(group);
+        await tx
+          .table("diagrams")
+          .bulkPut(rows.map((r) => ({ ...r, groupId: group.id })));
+      }
+    });
+
+  // ── Version 5 — Architecture groups ────────────────────────────────────────
+  // Adds the architectureGroups aggregate and moves existing documents under a
+  // per-project "Default" group so every document always lives in a group.
+  db.version(5)
+    .stores({
+      architectureGroups: "id, projectId, position",
+      architectures: "id, projectId, slug, type, status, groupId",
+    })
+    .upgrade(async (tx) => {
+      const records = (await tx.table("architectures").toArray()) as BDArchitectureRecord[];
+      if (records.length === 0) return;
+
+      const now = new Date().toISOString();
+      const byProject = new Map<string, BDArchitectureRecord[]>();
+      for (const record of records) {
+        if (record.groupId) continue;
+        const list = byProject.get(record.projectId);
+        if (list) list.push(record);
+        else byProject.set(record.projectId, [record]);
+      }
+
+      for (const [projectId, rows] of byProject) {
+        const group: BDArchitectureGroup = {
+          id: uuidv7(),
+          projectId,
+          name: "Default",
+          description: "",
+          position: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await tx.table("architectureGroups").add(group);
+        await tx
+          .table("architectures")
+          .bulkPut(rows.map((r) => ({ ...r, groupId: group.id })));
       }
     });
 }

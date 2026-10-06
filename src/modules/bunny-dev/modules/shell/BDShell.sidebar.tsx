@@ -87,7 +87,7 @@ export function BDShellSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 md:hidden"
+            className="rounded-lg p-2 text-blue-100 hover:bg-white/10 hover:text-white md:hidden"
             aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
@@ -152,14 +152,14 @@ export function BDShellSidebar({
                           isActive
                             ? theme.navActive
                             : item.variant === "danger"
-                              ? "text-slate-600 hover:bg-red-50 hover:text-red-500"
+                              ? "text-blue-100 hover:bg-red-500/20 hover:text-red-200"
                               : theme.navHover,
                         )}
                       >
                         <item.icon className="h-5 w-5" />
                         <span className="flex-1 font-medium">{item.label}</span>
                         {item.badge !== undefined && (
-                          <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-500">
+                          <span className="rounded-full bg-white/15 px-1.5 text-xs text-blue-50">
                             {item.badge}
                           </span>
                         )}
@@ -174,7 +174,7 @@ export function BDShellSidebar({
         {/* Profile */}
         {profile && (
           <div className={cn("border-t p-4", theme.border)}>
-            <div className="flex items-center space-x-3 rounded-2xl bg-slate-50 p-3">
+            <div className="flex items-center space-x-3 rounded-2xl bg-white/10 p-3">
               <div
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-xl font-bold",
@@ -185,10 +185,10 @@ export function BDShellSidebar({
                 {profile.initials}
               </div>
               <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-semibold text-slate-800">
+                <p className="truncate text-sm font-semibold text-white">
                   {profile.name}
                 </p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-xs text-blue-100/80">
                   {profile.subtitle}
                 </p>
               </div>

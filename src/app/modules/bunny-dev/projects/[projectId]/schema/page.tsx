@@ -1,7 +1,7 @@
 "use client";
 
-import BDSchemaBuilderComponent from "@/src/modules/bunny-dev/modules/schema-builder/BDSchemaBuilder.Component";
+import BDSchemaGroupListComponent from "@/src/modules/bunny-dev/modules/schema-builder/BDSchemaGroups.Component";
 
 export default function SchemaPage() {
-  return <BDSchemaBuilderComponent />;
+  return <BDSchemaGroupListComponent />;
 }

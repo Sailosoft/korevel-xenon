@@ -21,6 +21,7 @@ export interface BDCreateRunInput {
   projectId: string;
   subsystem: BDSubsystem;
   mode: BDGenerationMode;
+  targetId?: string;
   instruction?: string;
   provider?: string;
   model?: string;
@@ -33,6 +34,7 @@ export async function createGenerationRun(
     projectId: input.projectId,
     subsystem: input.subsystem,
     mode: input.mode,
+    targetId: input.targetId,
     status: "running",
     instruction: input.instruction,
     provider: input.provider,
@@ -57,6 +59,7 @@ export interface BDCreateProposalInput {
   projectId: string;
   subsystem: BDSubsystem;
   mode: BDGenerationMode;
+  targetId?: string;
   artifact: unknown;
   summary?: string;
   runId?: string;
@@ -70,6 +73,7 @@ export async function createBatchProposal(
     subsystem: input.subsystem,
     mode: input.mode,
     status: "pending",
+    targetId: input.targetId,
     artifact: input.artifact,
     summary: input.summary,
     runId: input.runId,

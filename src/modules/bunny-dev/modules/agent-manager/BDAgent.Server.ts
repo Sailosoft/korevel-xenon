@@ -8,11 +8,13 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "./BDGeneration.Server";
+import { bdBuildModeUser } from "./BDGeneration.Mode";
 import type { BDAgentArtifact, BDAgentDraft } from "./BDAgent.Types";
 
 export interface BDAgentGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -100,7 +102,11 @@ export async function bdGenerateAgents(
     "system prompts and explicit capabilities. Return only the structured " +
     "JSON requested.";
 
-  const user = `Mode: ${params.mode}.\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+  });
 
   const raw = await bdGenerateStructured({
     system,

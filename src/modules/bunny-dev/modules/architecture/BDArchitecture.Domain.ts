@@ -4,6 +4,14 @@
 
 import type { BDArchitectureFormat, BDEntity } from "../core/BDShared.Types";
 
+/** A group of architecture documents — enables organising documents into sets. */
+export interface BDArchitectureGroup extends BDEntity {
+  projectId: string;
+  name: string;
+  description?: string;
+  position: number;
+}
+
 export type BDArchitectureType =
   | "architecture"
   | "plan"
@@ -116,6 +124,7 @@ export interface BDChangelogEntry {
 
 export interface BDArchitectureBase<T extends BDArchitectureType> extends BDEntity {
   projectId: string;
+  groupId?: string;
   name: string;
   slug: string;
   type: T;

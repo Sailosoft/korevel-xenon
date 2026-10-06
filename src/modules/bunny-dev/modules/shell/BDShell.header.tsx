@@ -21,33 +21,32 @@ export function BDShellHeader({
   logoutHref,
 }: BDShellHeaderProps) {
   return (
-    <header className="bd-glass-header sticky top-0 z-10 flex h-16 flex-shrink-0 items-center justify-between px-4 md:px-8">
+    <header
+      className={cn(
+        theme.headerSurface,
+        "sticky top-0 z-10 flex h-16 flex-shrink-0 items-center justify-between px-4 md:px-8",
+      )}
+    >
       <div className="flex items-center space-x-3">
         <button
           type="button"
           onClick={onToggleSidebar}
           className={cn(
             "rounded-xl p-2 transition-colors",
-            theme.btnSecondary,
+            theme.headerBtn,
           )}
           aria-label="Toggle sidebar"
         >
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center space-x-3">
-          <div
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br shadow",
-              theme.gradient,
-              theme.shadow,
-            )}
-          >
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 shadow-inner ring-1 ring-white/25 backdrop-blur-sm">
             <Rabbit className="h-5 w-5 text-white" />
           </div>
           <span
             className={cn(
-              "bg-gradient-to-r bg-clip-text text-lg font-bold text-transparent",
-              theme.gradient,
+              "text-lg font-bold tracking-wide",
+              theme.headerText,
             )}
           >
             {title}
@@ -60,7 +59,7 @@ export function BDShellHeader({
           href={logoutHref}
           className={cn(
             "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-            theme.btnSecondary,
+            theme.headerBtn,
           )}
           title="Back to catalog"
         >

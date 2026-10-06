@@ -17,4 +17,5 @@ export { BDAppFormComponent } from "./BDAppForm.Component";
 export { BDAppTableComponent } from "./BDAppTable.Component";
 export { BDAppResourceComponent } from "./BDAppResource.Component";
 export { BDAppRenderingComponent } from "./BDAppRendering.Component";
+export { BDAppListComponent } from "./BDAppList.Component";
 export { BDAppBuilderComponent } from "./BDAppBuilder.Component";

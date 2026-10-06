@@ -9,7 +9,12 @@ import {
   Sparkles,
   Settings2,
 } from "lucide-react";
-import type { BDBoard, BDBoardColumn, BDBoardTask } from "../../BDDomain.Types";
+import type {
+  BDBoard,
+  BDBoardColumn,
+  BDBoardTask,
+  BDGenerationMode,
+} from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDBoardColumns, useBDBoardTasks, useBDBoards } from "./BDTask.Hooks";
 import {
@@ -23,6 +28,7 @@ import {
   type BDTaskArtifact,
 } from "./BDTask.Types";
 import { bdGenerateTasks } from "./BDTaskBuilder.Server";
+import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
 import BDBoardComponent from "./BDBoard.Component";
 import BDBoardSettingsComponent from "./BDBoardSettings.Component";
 import BDTaskDrawerComponent from "./BDTaskDrawer.Component";
@@ -49,6 +55,7 @@ export function BDProjectManagementComponent() {
 
   const columns = useBDBoardColumns(resolvedBoardId);
   const tasks = useBDBoardTasks(projectId, resolvedBoardId);
+  const allTasks = useBDBoardTasks(projectId, undefined);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>();
   const [newTaskDraft, setNewTaskDraft] = useState<
@@ -115,15 +122,25 @@ export function BDProjectManagementComponent() {
     toast({ title: "Board deleted", status: "success" });
   };
 
-  const applyArtifact = async (artifact: BDTaskArtifact) => {
-    for (const boardDraft of artifact.boards) {
-      const board =
-        resolvedBoardId && boards && boards.length > 0
-          ? boards[0]
-          : (await bdBoardRepository.createWithDefaultColumns(projectId, boardDraft.name))
-              .board;
-      const boardColumns = await bdBoardColumnRepository.listByBoard(board.id);
-      const existing = await bdBoardTaskRepository.listByBoard(board.id);
+  const applyArtifact = async (
+    artifact: BDTaskArtifact,
+    mode: BDGenerationMode,
+    targetId?: string,
+  ) => {
+    const taskFields = (taskDraft: BDTaskArtifact["boards"][number]["tasks"][number]) => ({
+      name: taskDraft.name,
+      description: taskDraft.description ?? "",
+      type: (taskDraft.type ?? "task") as BDBoardTask["type"],
+      priority: (taskDraft.priority ?? "medium") as BDBoardTask["priority"],
+      storyPoints: taskDraft.storyPoints,
+    });
+
+    const addTasks = async (
+      boardId: string,
+      boardDraft: BDTaskArtifact["boards"][number],
+    ) => {
+      const boardColumns = await bdBoardColumnRepository.listByBoard(boardId);
+      const existing = await bdBoardTaskRepository.listByBoard(boardId);
       let counter = existing.length;
       let rank = existing.reduce((max, t) => Math.max(max, t.rank), 0) + 1;
       for (const taskDraft of boardDraft.tasks) {
@@ -133,21 +150,75 @@ export function BDProjectManagementComponent() {
         if (!column) continue;
         const task = createBoardTask(
           projectId,
-          board.id,
+          boardId,
           column,
           nextTaskKey(project?.key ?? "TASK", counter++),
         );
         await bdBoardTaskRepository.create({
           ...task,
-          name: taskDraft.name,
-          description: taskDraft.description ?? "",
-          type: (taskDraft.type ?? "task") as BDBoardTask["type"],
-          priority: (taskDraft.priority ?? "medium") as BDBoardTask["priority"],
+          ...taskFields(taskDraft),
           status: column.status.name,
-          storyPoints: taskDraft.storyPoints,
           rank: rank++,
         });
       }
+    };
+
+    if (mode !== "create") {
+      if (!targetId) throw new Error("Select a board first.");
+      const board = await bdBoardRepository.get(targetId);
+      if (!board) throw new Error("The selected board no longer exists.");
+      const boardDraft = artifact.boards[0];
+
+      if (mode === "append") {
+        if (boardDraft) await addTasks(targetId, boardDraft);
+      } else if (mode === "update") {
+        const boardColumns = await bdBoardColumnRepository.listByBoard(targetId);
+        const existing = await bdBoardTaskRepository.listByBoard(targetId);
+        const byName = new Map(existing.map((t) => [t.name, t]));
+        let counter = existing.length;
+        let rank = existing.reduce((max, t) => Math.max(max, t.rank), 0) + 1;
+        for (const taskDraft of boardDraft?.tasks ?? []) {
+          const match = byName.get(taskDraft.name);
+          const column =
+            boardColumns.find((c) => c.status.name === taskDraft.status) ??
+            boardColumns.find((c) => c.id === match?.columnId) ??
+            boardColumns[0];
+          if (match) {
+            await bdBoardTaskRepository.update(match.id, {
+              ...taskFields(taskDraft),
+              status: column?.status.name ?? match.status,
+              columnId: column?.id ?? match.columnId,
+            });
+          } else {
+            if (!column) continue;
+            const task = createBoardTask(
+              projectId,
+              targetId,
+              column,
+              nextTaskKey(project?.key ?? "TASK", counter++),
+            );
+            await bdBoardTaskRepository.create({
+              ...task,
+              ...taskFields(taskDraft),
+              status: column.status.name,
+              rank: rank++,
+            });
+          }
+        }
+      } else {
+        await bdBoardTaskRepository.deleteWhere("boardId", targetId);
+        if (boardDraft) await addTasks(targetId, boardDraft);
+      }
+      setActiveBoardId(targetId);
+      return;
+    }
+
+    for (const boardDraft of artifact.boards) {
+      const { board } = await bdBoardRepository.createWithDefaultColumns(
+        projectId,
+        boardDraft.name,
+      );
+      await addTasks(board.id, boardDraft);
       setActiveBoardId(board.id);
     }
   };
@@ -190,17 +261,25 @@ export function BDProjectManagementComponent() {
         onOpenChange={setAiOpen}
         title="AI Task Generation"
         placeholder="e.g. A backlog for building user authentication"
-        generate={({ instruction, mode, aiConfig }) =>
+        generate={({ instruction, mode, aiConfig, targetContext }) =>
           bdGenerateTasks({
             instruction,
             mode,
             statuses: columns?.map((c) => c.status.name),
+            targetContext,
             aiConfig,
           })
         }
         onApply={applyArtifact}
         defaultMode="append"
-        modes={["create", "append"]}
+        targets={(boards ?? []).map((b) => ({ id: b.id, label: b.name }))}
+        targetLabel="Board"
+        buildTargetContext={(id) => {
+          const board = (boards ?? []).find((b) => b.id === id);
+          if (!board) return undefined;
+          const boardTasks = (allTasks ?? []).filter((t) => t.boardId === id);
+          return bdSerializeTarget({ board, tasks: boardTasks });
+        }}
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-2">
             {artifact.boards.map((b, i) => (

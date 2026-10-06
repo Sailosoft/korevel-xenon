@@ -20,6 +20,7 @@ import type {
   BDAgent,
   BDAgentHandoff,
   BDBatchProposal,
+  BDGenerationMode,
 } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import {
@@ -42,6 +43,7 @@ import {
   type BDAgentForm,
 } from "./BDAgent.Types";
 import { bdGenerateAgents } from "./BDAgent.Server";
+import { bdSerializeTarget } from "./BDGeneration.Mode";
 import {
   createGenerationRun,
   finishGenerationRun,
@@ -145,7 +147,43 @@ export function BDAgentManagerComponent() {
     await bdAgentHandoffRepository.setState(handoff.id, state);
   };
 
-  const applyAgentsArtifact = async (artifact: BDAgentArtifact) => {
+  const applyAgentsArtifact = async (
+    artifact: BDAgentArtifact,
+    mode: BDGenerationMode,
+    targetId?: string,
+  ) => {
+    if (mode === "update" || mode === "replace") {
+      if (!targetId) throw new Error("Select an agent first.");
+      const target = await bdAgentRepository.get(targetId);
+      if (!target) throw new Error("The selected agent no longer exists.");
+      const generated = artifact.agents[0];
+      if (!generated) return;
+
+      if (mode === "replace") {
+        await bdAgentRepository.update(targetId, {
+          name: generated.name,
+          prompt: generated.prompt,
+          description: generated.description,
+          capabilities: generated.capabilities ?? [],
+        });
+        return;
+      }
+
+      const capabilities = [...(target.capabilities ?? [])];
+      for (const capability of generated.capabilities ?? []) {
+        const index = capabilities.findIndex((c) => c.name === capability.name);
+        if (index >= 0) capabilities[index] = capability;
+        else capabilities.push(capability);
+      }
+      await bdAgentRepository.update(targetId, {
+        name: generated.name,
+        prompt: generated.prompt,
+        description: generated.description ?? target.description,
+        capabilities,
+      });
+      return;
+    }
+
     for (const draft of artifact.agents) {
       await bdAgentRepository.create({
         projectId,
@@ -159,9 +197,10 @@ export function BDAgentManagerComponent() {
   };
 
   const generateAgents = async (args: {
-    mode: "create" | "append" | "replace";
+    mode: BDGenerationMode;
     instruction: string;
     aiConfig: { provider: string; model: string };
+    targetContext?: string;
   }): Promise<BDAgentArtifact> => {
     const run = await createGenerationRun({
       projectId,
@@ -175,6 +214,7 @@ export function BDAgentManagerComponent() {
       const artifact = await bdGenerateAgents({
         instruction: args.instruction,
         mode: args.mode,
+        targetContext: args.targetContext,
         aiConfig: args.aiConfig,
       });
       await finishGenerationRun(run.id, "finished");
@@ -252,6 +292,13 @@ export function BDAgentManagerComponent() {
         generate={generateAgents}
         onApply={applyAgentsArtifact}
         defaultMode="append"
+        targets={(agents ?? []).map((a) => ({ id: a.id, label: a.name }))}
+        targetLabel="Agent"
+        targetModes={["update", "replace"]}
+        buildTargetContext={(id) => {
+          const record = (agents ?? []).find((a) => a.id === id);
+          return record ? bdSerializeTarget(record) : undefined;
+        }}
       />
 
       {tab === "agents" && (

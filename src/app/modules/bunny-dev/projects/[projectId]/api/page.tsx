@@ -1,7 +1,7 @@
 "use client";
 
-import BDApiDesignComponent from "@/src/modules/bunny-dev/modules/api-design/BDApiDesign.Component";
+import BDApiGroupListComponent from "@/src/modules/bunny-dev/modules/api-design/BDApiGroups.Component";
 
 export default function ApiDesignPage() {
-  return <BDApiDesignComponent />;
+  return <BDApiGroupListComponent />;
 }

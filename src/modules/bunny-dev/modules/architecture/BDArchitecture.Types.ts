@@ -2,12 +2,29 @@
 // section helpers.
 
 import type {
+  BDArchitectureGroup,
   BDArchitectureRecord,
   BDArchitectureSection,
   BDArchitectureStatus,
   BDArchitectureType,
 } from "./BDArchitecture.Domain";
 import type { BDArchitectureFormat } from "../core/BDShared.Types";
+
+export interface BDArchitectureGroupForm {
+  name: string;
+  description: string;
+}
+
+export const BD_ARCHITECTURE_GROUP_EMPTY: BDArchitectureGroupForm = {
+  name: "",
+  description: "",
+};
+
+export function toArchitectureGroupForm(
+  group: BDArchitectureGroup,
+): BDArchitectureGroupForm {
+  return { name: group.name, description: group.description ?? "" };
+}
 
 export interface BDArchitectureForm {
   name: string;
@@ -80,10 +97,12 @@ export const BD_ARCHITECTURE_EMPTY_FORM = EMPTY_FORM;
 export function createArchitecture(
   projectId: string,
   form: BDArchitectureForm,
+  groupId?: string,
 ): Omit<BDArchitectureRecord, "id"> {
   const now = new Date().toISOString();
   return {
     projectId,
+    groupId,
     name: form.name,
     slug: form.slug || slugify(form.name),
     type: form.type,

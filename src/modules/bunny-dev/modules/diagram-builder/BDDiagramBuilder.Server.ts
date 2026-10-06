@@ -11,6 +11,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDDiagramArtifact,
   BDDiagramDraft,
@@ -21,6 +22,7 @@ import type {
 export interface BDDiagramGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -238,7 +240,11 @@ export async function bdGenerateDiagram(
     "diagrams. Prefer concise node ids and readable labels. Return only the " +
     "structured JSON requested.";
 
-  const user = `Mode: ${params.mode}.\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+  });
 
   const raw = await bdGenerateStructured({
     system,

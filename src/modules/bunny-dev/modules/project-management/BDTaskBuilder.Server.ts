@@ -8,6 +8,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDBoardDraft,
   BDTaskArtifact,
@@ -19,6 +20,7 @@ export interface BDTaskGenerateParams {
   mode: BDGenerationMode;
   /** Existing column status names the AI should use. */
   statuses?: string[];
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -109,15 +111,20 @@ export async function bdGenerateTasks(
 ): Promise<BDTaskArtifact> {
   const statusHint =
     params.statuses && params.statuses.length > 0
-      ? `\nUse only these column statuses: ${params.statuses.join(", ")}.`
-      : "";
+      ? `Use only these column statuses: ${params.statuses.join(", ")}.`
+      : undefined;
 
   const system =
     "You are a product/project manager. Break work into clear, actionable " +
     "tasks with sensible types and priorities. Return only the structured " +
     "JSON requested.";
 
-  const user = `Mode: ${params.mode}.${statusHint}\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+    context: statusHint,
+  });
 
   const raw = await bdGenerateStructured({
     system,

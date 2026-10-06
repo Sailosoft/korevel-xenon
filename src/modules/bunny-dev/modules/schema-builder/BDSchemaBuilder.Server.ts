@@ -12,6 +12,7 @@ import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
+import { bdBuildModeUser } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDSchemaArtifact,
   BDSchemaGroupDraft,
@@ -26,6 +27,7 @@ export interface BDSchemaGenerateParams {
   mode: BDGenerationMode;
   /** Short context of models already in the project. */
   existingModels?: string[];
+  targetContext?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -267,12 +269,17 @@ export async function bdGenerateSchema(
 
   const context =
     params.existingModels && params.existingModels.length > 0
-      ? `\nExisting models (do not duplicate unless asked): ${params.existingModels.join(
+      ? `Existing models (do not duplicate unless asked): ${params.existingModels.join(
           ", ",
         )}.`
       : "";
 
-  const user = `Mode: ${params.mode}.${context}\n\nInstruction: ${params.instruction}`;
+  const user = bdBuildModeUser({
+    mode: params.mode,
+    instruction: params.instruction,
+    targetContext: params.targetContext,
+    context,
+  });
 
   const raw = await bdGenerateStructured({
     system,

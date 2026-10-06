@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+// BDApiDesign.Component — API Design page 2: the operations inside one API
+// group. Group management lives on page 1 (BDApiGroupListComponent).
+
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Webhook,
@@ -11,13 +14,11 @@ import {
   BookText,
   Send,
   Sparkles,
-  ExternalLink,
 } from "lucide-react";
 import type {
   BDAPI,
   BDAPIProperty,
   BDAPIReturn,
-  BDApiGroup,
   BDGenerationMode,
 } from "../../BDDomain.Types";
 import { BDAPIReturnKind } from "../../BDDomain.Types";
@@ -28,7 +29,7 @@ import {
   useBDSchemaModels,
 } from "../schema-builder/BDSchemaBuilder.Hooks";
 import { useBDApis, useBDApiGroups } from "./BDApi.Hooks";
-import { bdApiRepository, bdApiGroupRepository } from "./BDApi.Repository";
+import { bdApiRepository } from "./BDApi.Repository";
 import {
   BD_API_AUTH_OPTIONS,
   BD_API_ITEM_SHAPE_OPTIONS,
@@ -47,7 +48,6 @@ import {
   type BDApiArtifact,
   type BDApiDraft,
   type BDApiForm,
-  type BDApiGroupForm,
   type BDApiItemShape,
   type BDApiPropertyDraft,
   type BDApiReturnShape,
@@ -55,10 +55,9 @@ import {
 import { bdGenerateApi } from "./BDApiDesign.Server";
 import BDApiMockComponent from "./BDApiMock.Component";
 import BDApiDocumentComponent from "./BDApiDocument.Component";
-import BDApiGroupComponent from "./BDApiGroup.Component";
 import BDPageHeader from "../../components/BDPageHeader";
+import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
-import BDIconButton from "../../components/BDIconButton";
 import BDList from "../../components/BDList";
 import BDModal from "../../components/BDModal";
 import BDForm from "../../components/BDForm";
@@ -135,7 +134,7 @@ const API_FIELDS = [
 ];
 
 export interface BDApiDesignComponentProps {
-  /** Preselect an API group (deep-route `[groupId]`). */
+  /** The API group whose operations are shown. */
   initialGroupId?: string;
 }
 
@@ -155,19 +154,13 @@ export function BDApiDesignComponent({
   const [deleting, setDeleting] = useState<BDAPI | null>(null);
   const [saving, setSaving] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [activeGroupId, setActiveGroupId] = useState<string | undefined>(
-    initialGroupId,
-  );
-  const [groupModal, setGroupModal] = useState<{
-    open: boolean;
-    group: BDApiGroup | null;
-    busy: boolean;
-  }>({ open: false, group: null, busy: false });
-  const [deletingGroup, setDeletingGroup] = useState<BDApiGroup | null>(null);
 
-  // AI generation pickers: schema group (generation basis) + target API group.
+  const resolvedGroupId = initialGroupId;
+  const activeGroup = groups?.find((g) => g.id === resolvedGroupId);
+  const groupApis = (apis ?? []).filter((a) => a.groupId === resolvedGroupId);
+
+  // AI generation picker: schema group used as the generation basis.
   const [aiSchemaGroupId, setAiSchemaGroupId] = useState<string>("none");
-  const [aiTargetGroupId, setAiTargetGroupId] = useState<string | null>(null);
   const schemaGroups = useBDSchemaGroups(projectId);
   const aiSchemaModels = useBDSchemaModels(
     aiSchemaGroupId === "none" ? undefined : aiSchemaGroupId,
@@ -177,100 +170,18 @@ export function BDApiDesignComponent({
     [projectId],
   );
 
-  // Reset the pickers each time the panel opens ("target" defaults to the
-  // active group) — render-time adjustment instead of a setState-in-effect.
+  // Reset the picker each time the panel opens (render-time adjustment).
   const [prevAiOpen, setPrevAiOpen] = useState(aiOpen);
   if (aiOpen !== prevAiOpen) {
     setPrevAiOpen(aiOpen);
-    if (aiOpen) {
-      setAiSchemaGroupId("none");
-      setAiTargetGroupId(null);
-    }
+    if (aiOpen) setAiSchemaGroupId("none");
   }
-
-  // Adopt a new `initialGroupId` from the deep route (render-time adjustment).
-  const [prevInitialGroupId, setPrevInitialGroupId] = useState(initialGroupId);
-  if (initialGroupId !== prevInitialGroupId) {
-    setPrevInitialGroupId(initialGroupId);
-    if (initialGroupId) setActiveGroupId(initialGroupId);
-  }
-
-  // Keep a valid active group selected (render-time adjustment). While the
-  // groups query is still loading, keep the requested id so a deep-linked
-  // group is not cleared before it arrives.
-  const resolvedGroupId =
-    activeGroupId && groups?.some((g) => g.id === activeGroupId)
-      ? activeGroupId
-      : groups === undefined
-        ? activeGroupId
-        : groups[0]?.id;
-  if (resolvedGroupId !== activeGroupId) {
-    setActiveGroupId(resolvedGroupId);
-  }
-
-  const activeGroup = groups?.find((g) => g.id === resolvedGroupId);
-  const groupApis = (apis ?? []).filter((a) => a.groupId === resolvedGroupId);
 
   // A selected operation from another group must not stay open in the editor.
   if (draft && draft.groupId !== resolvedGroupId) {
     setDraft(null);
     setForm(null);
   }
-
-  // Every project always has at least one group (mirrors the v2 migration's
-  // "Default" group for projects that already had operations).
-  const ensuredDefaultRef = useRef(false);
-  useEffect(() => {
-    if (groups === undefined) return;
-    if (groups.length > 0) {
-      ensuredDefaultRef.current = false;
-      return;
-    }
-    if (ensuredDefaultRef.current) return;
-    ensuredDefaultRef.current = true;
-    bdApiGroupRepository
-      .createGroup(projectId, "Default", "Default API design group.")
-      .then((group) => setActiveGroupId((prev) => prev ?? group.id))
-      .catch(() => {
-        ensuredDefaultRef.current = false;
-      });
-  }, [groups, projectId]);
-
-  const handleGroupSubmit = async (groupForm: BDApiGroupForm) => {
-    setGroupModal((prev) => ({ ...prev, busy: true }));
-    try {
-      if (groupModal.group) {
-        await bdApiGroupRepository.update(groupModal.group.id, {
-          name: groupForm.name,
-          description: groupForm.description,
-        });
-      } else {
-        const created = await bdApiGroupRepository.createGroup(
-          projectId,
-          groupForm.name,
-          groupForm.description,
-        );
-        setActiveGroupId(created.id);
-      }
-      setGroupModal({ open: false, group: null, busy: false });
-      toast({ title: "Group saved", status: "success" });
-    } catch (err) {
-      setGroupModal((prev) => ({ ...prev, busy: false }));
-      toast({
-        title: "Could not save group",
-        description: err instanceof Error ? err.message : undefined,
-        status: "error",
-      });
-    }
-  };
-
-  const handleDeleteGroup = async () => {
-    if (!deletingGroup) return;
-    await bdApiGroupRepository.delete(deletingGroup.id);
-    setDeletingGroup(null);
-    setActiveGroupId(undefined);
-    toast({ title: "Group deleted", status: "success" });
-  };
 
   const loadApi = (api: BDAPI) => {
     setDraft(api);
@@ -282,15 +193,11 @@ export function BDApiDesignComponent({
 
   const handleCreate = async (values: Record<string, unknown>) => {
     if (!resolvedGroupId) {
-      toast({ title: "Create an API group first", status: "warning" });
+      toast({ title: "Group not found", status: "warning" });
       return;
     }
     const created = await bdApiRepository.create(
-      createApi(
-        projectId,
-        values as unknown as BDApiForm,
-        resolvedGroupId,
-      ),
+      createApi(projectId, values as unknown as BDApiForm, resolvedGroupId),
     );
     setCreating(false);
     loadApi(created);
@@ -492,12 +399,9 @@ export function BDApiDesignComponent({
     artifact: BDApiArtifact,
     mode: BDGenerationMode,
   ) => {
-    const targetGroupId = aiTargetGroupId ?? resolvedGroupId;
+    const targetGroupId = resolvedGroupId;
     if (!targetGroupId || !(groups ?? []).some((g) => g.id === targetGroupId)) {
-      toast({
-        title: "Target API group no longer exists",
-        status: "error",
-      });
+      toast({ title: "Group no longer exists", status: "error" });
       return;
     }
 
@@ -539,12 +443,35 @@ export function BDApiDesignComponent({
     }
   };
 
+  if (groups && !activeGroup) {
+    return (
+      <div className="flex flex-col gap-5">
+        <BDBackLink
+          href={`/modules/bunny-dev/projects/${projectId}/api`}
+          label="Back to API Design"
+        />
+        <BDEmptyState
+          icon={Webhook}
+          title="Group not found"
+          description="This API group may have been deleted."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
+      <BDBackLink
+        href={`/modules/bunny-dev/projects/${projectId}/api`}
+        label="Back to API Design"
+      />
       <BDPageHeader
         icon={Webhook}
-        title="API Design"
-        description="Document and mock API operations in a Postman-like view and an exportable document view."
+        title={activeGroup?.name ?? "API Design"}
+        description={
+          activeGroup?.description ||
+          "Document and mock API operations in a Postman-like view and an exportable document view."
+        }
         actions={
           <>
             <BDButton
@@ -598,41 +525,23 @@ export function BDApiDesignComponent({
         defaultMode="append"
         modes={["create", "append", "replace"]}
         extraFields={
-          <>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-slate-500">
-                Based on schema group
-              </span>
-              <select
-                value={aiSchemaGroupId}
-                onChange={(e) => setAiSchemaGroupId(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
-              >
-                <option value="none">— none —</option>
-                {(schemaGroups ?? []).map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-slate-500">
-                Save into group
-              </span>
-              <select
-                value={aiTargetGroupId ?? resolvedGroupId ?? ""}
-                onChange={(e) => setAiTargetGroupId(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
-              >
-                {(groups ?? []).map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-slate-500">
+              Based on schema group
+            </span>
+            <select
+              value={aiSchemaGroupId}
+              onChange={(e) => setAiSchemaGroupId(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+            >
+              <option value="none">— none —</option>
+              {(schemaGroups ?? []).map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </label>
         }
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-2">
@@ -682,74 +591,10 @@ export function BDApiDesignComponent({
       {tab === "document" ? (
         <BDApiDocumentComponent
           apis={groupApis}
-          title={
-            activeGroup ? `${activeGroup.name} — API Reference` : undefined
-          }
+          title={activeGroup ? `${activeGroup.name} — API Reference` : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[13rem_20rem_1fr]">
-          {/* API groups */}
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3">
-            <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              API groups
-            </h3>
-            {(groups ?? []).map((group) => (
-              <div
-                key={group.id}
-                className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
-                  group.id === resolvedGroupId
-                    ? "bg-blue-50 font-semibold text-blue-700"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <button
-                  type="button"
-                  className="flex-1 text-left"
-                  onClick={() => setActiveGroupId(group.id)}
-                >
-                  {group.name}
-                </button>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <BDIconButton
-                    href={`/modules/bunny-dev/projects/${projectId}/api/${group.id}`}
-                    icon={ExternalLink}
-                    label="Open group"
-                    size="sm"
-                  />
-                  <BDIconButton
-                    icon={Pencil}
-                    label="Rename group"
-                    size="sm"
-                    onClick={() =>
-                      setGroupModal({ open: true, group, busy: false })
-                    }
-                  />
-                  <BDIconButton
-                    icon={Trash2}
-                    label="Delete group"
-                    size="sm"
-                    onClick={() => setDeletingGroup(group)}
-                  />
-                </div>
-              </div>
-            ))}
-            {groups && groups.length === 0 && (
-              <p className="px-2 py-3 text-xs text-slate-400">
-                No groups yet. Create one to start.
-              </p>
-            )}
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Plus}
-              onClick={() =>
-                setGroupModal({ open: true, group: null, busy: false })
-              }
-            >
-              Add group
-            </BDButton>
-          </div>
-
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_1fr]">
           <BDList<BDAPI>
             title="Operations"
             className="max-h-[34rem]"
@@ -1255,23 +1100,6 @@ export function BDApiDesignComponent({
         confirmLabel="Delete API"
         onConfirm={handleDelete}
         onCancel={() => setDeleting(null)}
-      />
-
-      <BDApiGroupComponent
-        open={groupModal.open}
-        group={groupModal.group}
-        isLoading={groupModal.busy}
-        onClose={() => setGroupModal({ open: false, group: null, busy: false })}
-        onSubmit={handleGroupSubmit}
-      />
-
-      <BDConfirmDialog
-        open={!!deletingGroup}
-        title={`Delete ${deletingGroup?.name ?? "group"}?`}
-        description="All operations in this group will be deleted."
-        confirmLabel="Delete group"
-        onConfirm={handleDeleteGroup}
-        onCancel={() => setDeletingGroup(null)}
       />
     </div>
   );

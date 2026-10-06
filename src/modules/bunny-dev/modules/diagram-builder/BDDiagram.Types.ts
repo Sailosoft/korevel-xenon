@@ -7,6 +7,7 @@ import type {
   BDClassNode,
   BDDiagramDirection,
   BDDiagramEdge,
+  BDDiagramGroup,
   BDDiagramNode,
   BDDiagramRecord,
   BDDiagramType,
@@ -28,6 +29,20 @@ export interface BDDiagramForm {
   name: string;
   type: BDDiagramType;
   direction: BDDiagramDirection;
+}
+
+export interface BDDiagramGroupForm {
+  name: string;
+  description: string;
+}
+
+export const BD_DIAGRAM_GROUP_EMPTY: BDDiagramGroupForm = {
+  name: "",
+  description: "",
+};
+
+export function toDiagramGroupForm(group: BDDiagramGroup): BDDiagramGroupForm {
+  return { name: group.name, description: group.description ?? "" };
 }
 
 /** The full set of diagram types supported by the builder. */
