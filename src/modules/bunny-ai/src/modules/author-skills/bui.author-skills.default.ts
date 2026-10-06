@@ -18,7 +18,7 @@ import { BUIAuthorSkill } from "./bui.author-skills.entity";
  * - DescribePlanExecuteSkill: This skill focuses on describe, planning and
  *   execution content.
  * - TopicFocusSkill: This skill is to enable focus on a lenient topic focus approach.
- * - SubOutlineSkill: This writing skill is for making a suboutline per outline
+ * - ItemSkill: This writing skill is for making an item per outline
  *   in each chapter.
  * - SummarizationSkill: This skill makes each chapter writing end with a summary
  *   part of it.
@@ -39,10 +39,10 @@ export const BUI_DEFAULT_AUTHOR_SKILLS = {
     description:
       "This skill enables focus on a lenient topic-focus approach while writing.",
   },
-  SubOutlineSkill: {
-    name: "Sub Outline Skill",
+  ItemSkill: {
+    name: "Item Skill",
     description:
-      "This writing skill focuses on making a suboutline per outline in each chapter.",
+      "This writing skill focuses on making an item per outline in each chapter.",
   },
   SummarizationSkill: {
     name: "Summarization Skill",

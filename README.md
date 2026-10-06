@@ -26,13 +26,34 @@ Production and development images are provided via `Dockerfile` and
 `docker-compose.yml`. The container always listens on port `3000`.
 
 ```bash
-# Production: builds the standalone image and serves on http://localhost:3052
+# Production: build the standalone image and run it on http://localhost:3052.
+# --build is required whenever the code changes: without it, `up` reuses the
+# existing image and your new code is never compiled.
+docker compose up -d --build web
+
+# Or explicitly, if you prefer separate steps
 docker compose build web
-docker compose up web
+docker compose up -d web
+
+# Start in the background, or run in the foreground to follow logs
+docker compose up --build            # foreground
+docker compose up -d --build         # detached (all services)
 
 # Development: bind-mounted source with hot reload on http://localhost:3050
 docker compose --profile dev up web-dev
 ```
+
+Useful follow-ups:
+
+```bash
+docker compose logs -f web           # follow logs
+docker compose down                  # stop and remove containers
+docker compose build --no-cache web  # rebuild ignoring the layer cache
+```
+
+> `docker compose up -d` alone does not pick up code changes. Always add
+> `--build` after editing source, or the running container keeps serving the
+> previously built image.
 
 Runtime environment variables are read from `.env` (optional). Because
 `NEXT_PUBLIC_*` variables are inlined at build time,

@@ -60,6 +60,39 @@ export interface HelixAIServiceType {
   }): Promise<HelixInferSchemaProps<S>>;
 
   /**
+   * Send a chat completion with a raw messages array, preserving conversation
+   * history in OpenAI's natural format. Roles are "system", "user", and
+   * "assistant" — use this instead of `doChat` whenever the model must see
+   * prior assistant turns.
+   *
+   * @example
+   * ```ts
+   * const response = await helix.doChatWithHistory({
+   *   messages: [
+   *     { role: "system", content: "You are an expert." },
+   *     { role: "user", content: "Write section 1." },
+   *     { role: "assistant", content: "# Section 1 ..." },
+   *     { role: "user", content: "Now write section 2." },
+   *   ],
+   *   temperature: 0.7,
+   * });
+   * ```
+   */
+  doChatWithHistory(option: {
+    messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }>;
+    model?: string;
+    provider?: string;
+    /** Override the default provider+model with a custom DTO */
+    aiConfig?: HelixAIOption;
+    temperature?: number;
+    type?: HelixTemperaturePreset;
+    maxToken?: number;
+  }): Promise<string>;
+
+  /**
    * Send a chat completion request with a raw messages array, returning the
    * full OpenAI ChatCompletion response object.
    *

@@ -7,6 +7,7 @@ import {
 import { BUISetting } from "../modules/settings/bui.settings.entity";
 import { BUIAuthorSkill } from "../modules/author-skills/bui.author-skills.entity";
 import { BUIAuthorSkillRelation } from "../modules/author-skills/bui.author-skills.relation.entity";
+import { BUITopicEntity } from "../modules/topics/bui.topic.entity";
 
 export class BUIDatabase extends Dexie {
   authors!: Dexie.Table<BUIAuthor, number>;
@@ -15,6 +16,7 @@ export class BUIDatabase extends Dexie {
   settings!: Dexie.Table<BUISetting, string>;
   authorSkills!: Dexie.Table<BUIAuthorSkill, number>;
   authorSkillRelations!: Dexie.Table<BUIAuthorSkillRelation, number>;
+  topics!: Dexie.Table<BUITopicEntity, number>;
 
   constructor(databaseName: string) {
     super(databaseName);
@@ -45,6 +47,10 @@ export class BUIDatabase extends Dexie {
 
     this.version(7).stores({
       authorSkillRelations: "++id, authorId, skillId",
+    });
+
+    this.version(8).stores({
+      topics: "++id, title",
     });
   }
 }

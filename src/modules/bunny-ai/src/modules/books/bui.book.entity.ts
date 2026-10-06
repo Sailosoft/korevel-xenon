@@ -9,6 +9,26 @@ export interface BUIBookEntity {
   chapters?: BUIBookChapterEntity[];
   authorId?: number;
   author?: BUIAuthor;
+  /** Discriminator. Legacy and new books leave this undefined; outlines store "outline". */
+  kind?: "book" | "outline";
+  /** Optional single seed Topic referenced by an outline. */
+  topicId?: number;
+  /** One of the 11 generation type keys. */
+  generationType?: string;
+  /** One of the 7 generation mode keys (default for item content writing). */
+  generationMode?: string;
+  /** Outline-level AI instruction. */
+  additionalPrompt?: string;
+  /** User-editable markdown summary; topics may be inserted here. */
+  summary?: string;
+  /** Optional requested minimum number of items for structure generation. */
+  minItems?: number;
+  /** Optional requested maximum number of items for structure generation. */
+  maxItems?: number;
+  /** Optional requested minimum number of words per generated item. */
+  minWords?: number;
+  /** Optional requested maximum number of words per generated item. */
+  maxWords?: number;
 }
 
 export interface BUIBookChapterEntity {

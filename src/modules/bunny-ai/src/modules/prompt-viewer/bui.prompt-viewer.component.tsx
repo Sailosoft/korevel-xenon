@@ -332,7 +332,7 @@ export default function BUIPromptViewerComponent() {
           {filteredRegistry.reduce((acc, e) => acc + e.prompts.length, 0) !== 1
             ? "s"
             : ""}{" "}
-          matching "{searchQuery}"
+          matching &quot;{searchQuery}&quot;
         </p>
       )}
 
