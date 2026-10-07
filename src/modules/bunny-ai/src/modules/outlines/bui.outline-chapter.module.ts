@@ -11,8 +11,11 @@ import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialo
 import BUIOutlineComponentMobileView from "./bui.outline-chapter.component.mobile-view";
 import BUIOutlineChapterReadContentModule from "./bui.outline-chapter.read-content";
 import BUIOutlineChapterComponentPipeline from "./bui.outline-chapter.component.pipeline";
+import BUIOutlineChapterRefine from "./bui.outline-chapter.component.refine";
+import BUIOutlineChapterReferenceField from "./bui.outline-chapter.component.reference";
 import BUIOutlineComponentGenerate from "./bui.outline.component.generate";
 import { openItemGenerateDialog } from "./bui.outline-chapter.component.generate";
+import BUIOutlineComponentExportPreview from "./bui.outline.export.component.chapter";
 
 const repository = new BUIOutlineChapterRepository();
 
@@ -76,6 +79,14 @@ export const buiOutlineChapterModule = (
       { name: "description", label: "Summary/Goal", type: "textarea" },
       { name: "content", label: "Content", type: "editor" },
       { name: "additionalPrompt", label: "AI Instructions", type: "text" },
+      {
+        // Control mode only: the component itself decides whether to render.
+        name: "referenceIds",
+        label: "",
+        type: "custom",
+        colSpan: 12,
+        component: BUIOutlineChapterReferenceField,
+      },
     ],
   },
   defaultHeaderActions: true,
@@ -93,6 +104,21 @@ export const buiOutlineChapterModule = (
           outlineId,
           context: context!,
         }),
+    },
+    {
+      id: "refine_outline",
+      label: "Refine Outline",
+      render: (context) =>
+        React.createElement(BUIOutlineChapterRefine, {
+          outlineId,
+          context: context!,
+        }),
+    },
+    {
+      id: "export_preview_modal_trigger",
+      label: "Export Preview",
+      render: () =>
+        React.createElement(BUIOutlineComponentExportPreview, { outlineId }),
     },
     {
       id: "delete_item_contents",

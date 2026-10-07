@@ -17,7 +17,7 @@ export interface BUIOutlineChatMessage {
   content: string;
 }
 
-export const BUI_OUTLINE_BASE_SYSTEM = `You are an expert outline content writer. You write a single item as clean, engaging Markdown. The artifact you are contributing to is: {{typeFraming}} ({{typeName}}). Never describe your output as a book. Honour the outline's AI instruction and the item's additional instruction.`;
+export const BUI_OUTLINE_BASE_SYSTEM = `You are an expert outline content writer. You write a single item as clean, engaging Markdown. The artifact you are contributing to is: {{typeFraming}} ({{typeName}}). Never describe your output as a book. Honour the outline's AI instruction, its minimum/maximum word target, and the item's additional instruction. Always write the target length: never fall short of the minimum and never exceed the maximum.`;
 
 export function resolveOutlineGenerationType(
   generationType: string,
@@ -40,8 +40,45 @@ type MapItem = NonNullable<BUIOutlineParams["items"]>[number];
 type PriorTurn = NonNullable<BUIOutlineParams["priorResponses"]>[number];
 type ReferenceItem = NonNullable<BUIOutlineParams["siblingContext"]>[number];
 
-function formatMapItem(item: MapItem): string {
-  return `${item.number}. ${item.title}${
+/**
+ * The outline's requested word bounds as a single instruction line, or `""`
+ * when neither bound is set. Shared by the artifact frame and the final task
+ * turn so every mode both describes and enforces the target length.
+ */
+function targetLengthLine(params: BUIOutlineParams): string {
+  const minWords = Number(params.outline.minWords);
+  const maxWords = Number(params.outline.maxWords);
+  const hasMinWords = Number.isFinite(minWords) && minWords > 0;
+  const hasMaxWords = Number.isFinite(maxWords) && maxWords > 0;
+  if (!hasMinWords && !hasMaxWords) return "";
+
+  const target =
+    hasMinWords && hasMaxWords
+      ? `between ${minWords} and ${maxWords} words`
+      : hasMinWords
+        ? `at least ${minWords} words`
+        : `at most ${maxWords} words`;
+
+  return `Target length: write ${target}.`;
+}
+
+/** Per-item content cap when a mode receives sibling content. */
+const MAX_MAP_CONTENT_ITEM_CHARS = 1500;
+/** Global content cap across the whole map. */
+const MAX_MAP_CONTENT_TOTAL_CHARS = 16000;
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max))}…`;
+}
+
+function formatMapItem(
+  item: MapItem,
+  options?: { includeId?: boolean },
+): string {
+  const prefix =
+    options?.includeId && item.id != null ? `[item ${item.id}] ` : "";
+  return `${prefix}${item.number}. ${item.title}${
     item.description ? ` — ${item.description}` : ""
   }`;
 }
@@ -64,19 +101,8 @@ function artifactContext(
     lines.push(`Outline AI Instruction: ${outline.additionalPrompt}`);
   }
 
-  const minWords = Number(outline.minWords);
-  const maxWords = Number(outline.maxWords);
-  const hasMinWords = Number.isFinite(minWords) && minWords > 0;
-  const hasMaxWords = Number.isFinite(maxWords) && maxWords > 0;
-  if (hasMinWords || hasMaxWords) {
-    const target =
-      hasMinWords && hasMaxWords
-        ? `between ${minWords} and ${maxWords} words`
-        : hasMinWords
-          ? `at least ${minWords} words`
-          : `at most ${maxWords} words`;
-    lines.push(`Target length: write ${target}.`);
-  }
+  const targetLength = targetLengthLine(params);
+  if (targetLength) lines.push(targetLength);
 
   if (outline.summary) lines.push(`Outline Summary:\n${outline.summary}`);
   if (topic) {
@@ -84,6 +110,9 @@ function artifactContext(
       `Topic: ${topic.title}${
         topic.description ? `\nContent: ${topic.description}` : ""
       }`,
+    );
+    lines.push(
+      "Ground this item in the Topic above; its title and content are the subject matter.",
     );
   }
   if (author?.name) {
@@ -105,12 +134,64 @@ function artifactContext(
 }
 
 /** Every item in reading order (number, title, goal). No content. */
-function fullMapContext(params: BUIOutlineParams): string {
+function fullMapContext(
+  params: BUIOutlineParams,
+  options?: { includeContent?: boolean },
+): string {
   const map = params.items ?? [];
   if (map.length === 0) return "";
-  return ["### FULL MAP (all items)", ...map.map(formatMapItem)].join(
-    "\n",
-  );
+
+  const includeContent = options?.includeContent === true;
+  const lines: string[] = ["### FULL MAP (all items)"];
+  let budget = MAX_MAP_CONTENT_TOTAL_CHARS;
+
+  for (const item of map) {
+    lines.push(formatMapItem(item, { includeId: includeContent }));
+    if (!includeContent) continue;
+
+    const content = item.content?.trim();
+    if (!content) {
+      lines.push("Content: (no content)");
+      continue;
+    }
+
+    const allowed = Math.min(MAX_MAP_CONTENT_ITEM_CHARS, budget);
+    const shown = truncate(content, allowed);
+    lines.push(`Content:\n${shown}`);
+    budget -= shown.length;
+  }
+
+  return lines.join("\n");
+}
+
+/** The content of a single merge group, for the consolidate call. */
+function mergeGroupContext(params: BUIOutlineParams): string {
+  const group = params.mergeGroup;
+  if (!group) return fullMapContext(params, { includeContent: true });
+
+  const map = params.items ?? [];
+  const ids = new Set([group.anchorId, ...group.sourceIds]);
+  const selected = map.filter((item) => item.id != null && ids.has(item.id));
+
+  const lines: string[] = [
+    "### MERGE GROUP",
+    `Anchor item id: ${group.anchorId}`,
+    `Source item ids: ${group.sourceIds.join(", ")}`,
+  ];
+
+  for (const item of selected) {
+    lines.push("");
+    lines.push(formatMapItem(item, { includeId: true }));
+    if (item.description) lines.push(`Goal: ${item.description}`);
+    const content = item.content?.trim();
+    lines.push(
+      content
+        ? `Content:\n${truncate(content, MAX_MAP_CONTENT_ITEM_CHARS)}`
+        : "Content: (no content)",
+    );
+  }
+
+  return lines.join("\n");
 }
 
 /** The item currently being written. */
@@ -171,6 +252,13 @@ export interface BUIOutlineGenerateMode {
   systemInstruction: string;
   /** Final task instruction (no data). */
   taskInstruction: string;
+  /** The kind of artifact this mode returns. */
+  output: "markdown" | "json";
+  /**
+   * Plan-only modes never persist their raw output as item content; they feed
+   * the Refine wizard instead.
+   */
+  planOnly?: boolean;
   /** The mode's context algorithm. */
   build: (
     params: BUIOutlineParams,
@@ -190,12 +278,16 @@ function defineMode(def: {
   contextInjection: string;
   systemInstruction: string;
   taskInstruction: string;
+  output?: "markdown" | "json";
+  planOnly?: boolean;
   context: ModeContextPlan;
 }): BUIOutlineGenerateMode {
   const { context, ...meta } = def;
 
   return {
     ...meta,
+    output: meta.output ?? "markdown",
+    planOnly: meta.planOnly ?? false,
     build: (params, type) => {
       const raw = context(params, type);
       const plan: BUIOutlineChatMessage[] =
@@ -220,6 +312,7 @@ function defineMode(def: {
           content: [
             currentItemContext(params),
             applyType(meta.taskInstruction, type),
+            targetLengthLine(params),
           ]
             .filter(Boolean)
             .join("\n\n"),
@@ -293,15 +386,19 @@ const iterativeRefine = defineMode({
   name: "Iterative Refine",
   label: "Iterative Refine",
   contextInjection:
-    "Outline artifact + the current item's existing content, then the refine task. Siblings are never loaded.",
+    "Outline artifact + the current item's existing content (and any refinement directive), then the refine task. Siblings are never loaded.",
   systemInstruction: `You refine and expand ONE item against the outline summary. Leave siblings untouched.`,
-  taskInstruction: `Regenerate and expand ONLY the current item so it better matches the outline summary. Do not reference or modify other items. Return ONLY the refined markdown content.`,
-  // Only this row's existing content.
+  taskInstruction: `Regenerate and expand ONLY the current item so it better matches the outline summary and, when a refinement directive is provided, satisfies it. Do not reference or modify other items. Return ONLY the refined markdown content.`,
+  output: "markdown",
+  // Only this row's existing content (plus any wizard directive).
   context: (params) => {
+    const parts: string[] = [];
     const existing = params.currentItem?.content?.trim();
-    return existing
-      ? `### EXISTING CONTENT (refine this)\n${existing}`
-      : null;
+    if (existing) parts.push(`### EXISTING CONTENT (refine this)\n${existing}`);
+    if (params.refineDirective?.trim()) {
+      parts.push(`### REFINEMENT DIRECTIVE\n${params.refineDirective.trim()}`);
+    }
+    return parts.length > 0 ? parts.join("\n\n") : null;
   },
 });
 
@@ -310,16 +407,22 @@ const critique = defineMode({
   name: "Critique / Gap review",
   label: "Critique / Gap review",
   contextInjection:
-    "Outline artifact + the full map, then the audit task. The model audits; it never rewrites existing content.",
-  systemInstruction: `You are auditing, not rewriting. Identify gaps, overlaps, and ordering problems, and propose insertions. Do not rewrite existing item content.`,
-  taskInstruction: `Audit the full map above. Produce a markdown report that lists:
-- Gaps: missing coverage.
-- Overlaps: duplicated or conflicting items.
-- Ordering: suggested reordering.
-- Proposed insertions: new items (title + description), without rewriting existing ones.
-Return ONLY the markdown report.`,
-  // Full map for the audit.
-  context: (params) => fullMapContext(params),
+    "Outline artifact + the full map with capped sibling content, then the audit task. The model returns a structured, actionable plan and never rewrites content.",
+  systemInstruction: `You are auditing, not rewriting. Identify gaps, overlaps, ordering problems, and refinement needs, and return a single actionable plan. Do not rewrite existing item content.`,
+  taskInstruction: `Audit the full map above and return ONLY a JSON object with this exact shape:
+{
+  "findings": [
+    { "id": "f1", "type": "insert", "title": "...", "description": "...", "rationale": "..." },
+    { "id": "f2", "type": "merge", "anchorId": 3, "sourceIds": [4, 5], "rationale": "..." },
+    { "id": "f3", "type": "reorder", "order": [1, 3, 2], "rationale": "..." },
+    { "id": "f4", "type": "refine", "itemId": 2, "directive": "...", "rationale": "..." }
+  ]
+}
+Use the bracketed [item <id>] ids from the map for anchorId, sourceIds, order and itemId. "insert" adds missing coverage; "merge" consolidates overlapping/duplicate items; "reorder" gives the full desired order of item ids; "refine" asks an existing item to be improved for a stated gap. Return ONLY the JSON object, with no prose.`,
+  output: "json",
+  planOnly: true,
+  // Full map with capped content so gaps and overlaps are real.
+  context: (params) => fullMapContext(params, { includeContent: true }),
 });
 
 const consolidate = defineMode({
@@ -327,11 +430,15 @@ const consolidate = defineMode({
   name: "Consolidate / Merge",
   label: "Consolidate / Merge",
   contextInjection:
-    "Outline artifact + the full map, then the merge task. The model merges overlapping items into one coherent unit.",
-  systemInstruction: `You detect overlapping or duplicate items and merge them into a single, coherent unit with no duplicated coverage.`,
-  taskInstruction: `Merge the overlapping/duplicate items among the map above (starting from the current item) into one coherent markdown unit. Remove redundancy while preserving all unique coverage. Return ONLY the merged markdown content.`,
-  // Full map for the merge.
-  context: (params) => fullMapContext(params),
+    "Outline artifact + the merge group (or the full map with capped content), then the merge task. Returns the merged anchor content as structured JSON.",
+  systemInstruction: `You merge overlapping or duplicate items into a single, coherent unit with no duplicated coverage.`,
+  taskInstruction: `Merge the items in the MERGE GROUP above into one coherent markdown unit anchored on the anchor item. Remove redundancy while preserving all unique coverage. Return ONLY a JSON object with this exact shape:
+{ "anchorId": <number>, "sourceIds": [<number>, ...], "mergedContent": "<markdown>" }
+"mergedContent" is the full merged markdown for the anchor item. Return ONLY the JSON object, with no prose.`,
+  output: "json",
+  planOnly: true,
+  // The merge group when scoped; otherwise the full map with content.
+  context: (params) => mergeGroupContext(params),
 });
 
 export const BUI_OUTLINE_GENERATE_MODES: BUIOutlineGenerateMode[] = [

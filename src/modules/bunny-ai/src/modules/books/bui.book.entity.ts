@@ -44,6 +44,11 @@ export interface BUIBookChapterEntity {
   authorId?: number;
   wordCount?: number;
   status?: "done" | "empty" | "being_generated" | "pending"; // Added status
+  /**
+   * Control-mode references: ids of sibling items whose written content is read
+   * and injected into this item's input context during generation.
+   */
+  referenceIds?: number[];
 }
 
 export interface BUIBookChapterParams {

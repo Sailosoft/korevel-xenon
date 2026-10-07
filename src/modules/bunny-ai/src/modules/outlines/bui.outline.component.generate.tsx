@@ -84,13 +84,6 @@ export default function BUIOutlineComponentGenerate({
           defaultValue: "true",
         },
         {
-          name: "insertTopic",
-          label: "Insert the Topic title/content into the summary",
-          type: "checkbox",
-          defaultValue: "true",
-          showIf: { field: "includeTopic" },
-        },
-        {
           name: "summaryMode",
           label: "Summary behaviour",
           type: "select",
@@ -154,7 +147,6 @@ export default function BUIOutlineComponentGenerate({
               "overwrite",
             includeTopic: data.includeTopic !== "false",
             summaryMode: data.summaryMode === "append" ? "append" : "replace",
-            insertTopic: data.insertTopic !== "false",
             generationType,
             useAuthorProfile: data.useAuthorProfile !== "false",
             useAuthorSkills: data.useAuthorSkills === "true",

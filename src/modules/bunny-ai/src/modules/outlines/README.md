@@ -3,10 +3,16 @@
 An **Outline** is a `books` row discriminated by `kind: "outline"`. It carries an
 outline-level AI instruction (`additionalPrompt`), a selectable Generation Type
 and Generation Mode, an optional selected Topic (`topicId`), optional
-`minItems` / `maxItems` bounds for structure generation, and an
-AI-generated markdown `summary` (not user-editable — the **description** is the
-user-authored field). Its **items** are ordinary `chapters` rows scoped to
-the outline's book id (flat, like chapters).
+`minItems` / `maxItems` bounds for structure generation, and a markdown
+`summary` (AI-generated, but editable from the detail card). Its **items** are
+ordinary `chapters` rows scoped to the outline's book id (flat, like chapters).
+
+All of these meta records — including the `authorId` / `topicId` relations — can
+be edited inline from the detail card (`bui.outline.component.card.tsx`); saving
+writes through `panelUpdate` and refreshes the card. A structured
+`refinementPlan` (+ `refinementPlanUpdatedAt`) produced by the Refine wizard is
+also stored on the outline; both are non-indexed, so no Dexie schema bump is
+needed.
 
 ## Files
 
@@ -24,8 +30,12 @@ the outline's book id (flat, like chapters).
 | `src/app/api/bunny-ai/outlines/item-content/route.ts` | Route Handler powering the 3-wide parallel pool (not serialized) |
 | `bui.outline.action.content.ts` | Structure generation + item content orchestration |
 | `bui.outline.module.ts` / `bui.outline.component.tsx` | Outlines list |
-| `bui.outline.component.card.tsx` | Detail header (type/mode badges, topic, author, summary) |
+| `bui.outline.component.card.tsx` | Detail header + inline meta editor (title, type/mode, topic, author, limits, description, instruction, summary) |
 | `bui.outline.component.generate.tsx` | Structure-generation dialog |
+| `bui.outline-chapter.component.pipeline.tsx` | Batch writing pipeline (modes, parallel pool) |
+| `bui.outline-chapter.component.refine.tsx` | Guided Refine wizard (critique → apply → iterative refine) |
+| `bui.outline.export.*` | HTML export reusing the Books engine + `books/html-templates/*` (types/template/service/download) |
+| `bui.outline.export.component.chapter.tsx` | Export preview modal (template picker + live iframe + download) |
 | `bui.outline-chapter.*` | Item table, pipeline, per-row dialog, read modal |
 
 ## Generation Types (11)
@@ -239,32 +249,52 @@ mode-specific `context` between the artifact and the task turn.
 
 ### 5. `iterative_refine` — Iterative Refine
 
-- **Context**: the current item's **existing content**. Siblings are never
-  loaded.
+- **Context**: the current item's **existing content** plus an optional
+  `refineDirective` (supplied by the Refine wizard from an approved `refine`
+  finding). Siblings are never loaded.
 - **Algorithm**: regenerate and expand ONLY the current item so it better
-  matches the outline summary; explicitly do not reference or modify siblings.
-- **Best for**: polishing a single row after a summary change; idempotent to
+  matches the outline summary and, when present, the directive.
+- **Loop**: driven by the Refine wizard — bounded (default 2, max 3 passes),
+  targeted at approved `refine` findings + merged anchors, and stopped early
+  when the `diff` word change ratio drops below 5%.
+- **Best for**: polishing a single row after a summary change; also idempotent to
   re-run since it only reads/writes the same row.
 
-### 6. `critique` — Critique / Gap review (propose only)
+### 6. `critique` — Critique / Gap review (structured plan)
 
-- **Context**: the full map.
-- **Algorithm**: an audit, not a rewrite. Produces a markdown report listing
-  Gaps, Overlaps, Ordering suggestions, and Proposed insertions (title +
-  description) — explicitly without rewriting existing content.
-- **Output handling**: the report is persisted as the current item's
-  `content` (read it via the read-content modal). Applying proposed insertions
-  is a manual follow-up; this mode never creates rows.
+- **Context**: the full map **with capped sibling content** (per-item ~1500 chars,
+  global ~16k; empty items marked `(no content)`).
+- **Algorithm**: an audit, not a rewrite. Returns a JSON plan of typed findings:
+  `insert`, `merge`, `reorder`, and `refine`. Item ids come from the bracketed
+  `[item <id>]` markers in the map.
+- **Output**: JSON only, `planOnly` — the wizard renders it and never stores it
+  as item content. Persisted to `outline.refinementPlan`.
 
-### 7. `consolidate` — Consolidate / Merge
+### 7. `consolidate` — Consolidate / Merge (structured)
 
-- **Context**: the full map.
-- **Algorithm**: detect overlapping/duplicate items from the current one
-  onward and merge them into a single coherent markdown unit, removing
+- **Context**: a specific **merge group** (anchor + sources, with capped content)
+  when scoped by the wizard; otherwise the full map with content.
+- **Algorithm**: merge the group into one coherent markdown unit, removing
   redundancy while preserving all unique coverage.
-- **Output handling**: the merged markdown is persisted to the current
-  item. Automatic deletion/merging of the duplicate sibling rows is a
-  manual follow-up; this mode only produces the merged content.
+- **Output**: JSON only (`{ anchorId, sourceIds, mergedContent }`), `planOnly`.
+  Applying the merge deletes the absorbed rows and renumbers (see below).
+
+### Refinement wizard (`bui.outline-chapter.component.refine.tsx`)
+
+Header action **Refine Outline** on the items table, a guided flow:
+
+1. **Scope** — whole outline or selected items; topic/author options.
+2. **Critique** — `runCritiquePlanAction` returns and persists a structured plan;
+   findings are shown with approve/deny toggles (approvals persist to the plan).
+3. **Apply** — dry-run preview; merged content is generated per approved merge
+   group via `runConsolidateMergeAction`; `applyRefinementPlanAction` then runs
+   inside one Dexie `transaction("rw", books, chapters)`: insertions → merges
+   (write anchor + delete sources) → reorder → contiguous renumber → reference
+   remap. Any failure rolls the whole apply back.
+4. **Refine** — `runIterativeRefineAction` loops the targeted items.
+
+`critique` and `consolidate` are marked `planOnly` and are excluded from the batch
+writer and per-row mode selectors; `generateItemContentAction` rejects them.
 
 ### Quick reference
 
@@ -274,6 +304,6 @@ mode-specific `context` between the artifact and the task turn.
 | `chain_of_thought` | prior turns as user/assistant messages (ordered, capped) | current content | no |
 | `control` | chosen reference rows, or standalone | current content | no |
 | `parallel` | none (artifact only) | current content | no |
-| `iterative_refine` | current existing content | refined current content | no |
-| `critique` | full map | audit report (stored as content) | no |
-| `consolidate` | full map | merged content | no |
+| `iterative_refine` | current existing content + optional directive | refined current content | no |
+| `critique` | full map + capped content | JSON plan (`planOnly`) | via apply |
+| `consolidate` | merge group + content (or full map) | JSON merged content (`planOnly`) | via apply |

@@ -66,6 +66,22 @@ function isParallelMode(mode: string): boolean {
 }
 
 /**
+ * Plan-only modes (critique / consolidate) return structured plans and must not
+ * write raw output as item content; they are driven by the Refine wizard.
+ */
+function isPlanOnlyMode(mode: string): boolean {
+  return (
+    buiOutlineChapterPromptContent.modes.find((entry) => entry.key === mode)
+      ?.planOnly === true
+  );
+}
+
+/** The writable modes offered by the batch selector. */
+const WRITABLE_MODES = buiOutlineChapterPromptContent.modes.filter(
+  (mode) => !mode.planOnly,
+);
+
+/**
  * Number of item content generations running at once in Parallel mode. Each is
  * an independent request to the content Route Handler; Route Handlers are NOT
  * serialized the way Server Actions are, so these truly overlap. Everything not
@@ -114,8 +130,11 @@ export default function BUIOutlineChapterComponentPipeline({
 
         // Default the mode to the outline's own Generation Mode.
         const outlineMode = outline?.generationMode || "sequential";
-        setOutlineGenerationMode(outlineMode);
-        setGenerationMode(outlineMode);
+        const writableMode = isPlanOnlyMode(outlineMode)
+          ? "sequential"
+          : outlineMode;
+        setOutlineGenerationMode(writableMode);
+        setGenerationMode(writableMode);
 
         const sorted = [...records].sort((a, b) => a.number - b.number);
         const first = sorted[0];
@@ -538,7 +557,7 @@ export default function BUIOutlineChapterComponentPipeline({
                         : "hover:border-default-400 focus:border-primary"
                     }`}
                   >
-                    {buiOutlineChapterPromptContent.modes.map((mode) => (
+                    {WRITABLE_MODES.map((mode) => (
                       <option key={mode.key} value={mode.key}>
                         {mode.label}
                       </option>

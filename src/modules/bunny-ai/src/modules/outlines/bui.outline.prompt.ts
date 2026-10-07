@@ -128,6 +128,12 @@ Outline seed / brief:
 {{#if title}}
 Working title (optional, may be improved): {{title}}
 {{/if}}
+{{#if topic}}
+Attach this Topic to the outline:
+Topic Title: {{topic.title}}
+{{#if topic.description}}Topic Content: {{topic.description}}
+{{/if}}Incorporate this Topic into the outline description and AI instruction.
+{{/if}}
   `,
   authorProfileUserPrompt: `
 Outline Title: {{outline.title}}

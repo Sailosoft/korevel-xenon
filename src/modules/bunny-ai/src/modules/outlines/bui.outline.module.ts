@@ -1,6 +1,6 @@
 // bui.outline.module.ts
 import React from "react";
-import { ListTree, Sparkles } from "lucide-react";
+import { ListTree, Sparkles, Download } from "lucide-react";
 import {
   BunnyConfig,
   BunnyKernel,
@@ -8,6 +8,7 @@ import {
 import { BUIOutlineEntity } from "./bui.outline.entity";
 import { BUIOutlineRepository } from "./bui.outline.repository";
 import { BUI_OUTLINE_GENERATION_TYPES } from "./bui.outline.prompt";
+import { buiOutlineExportDownload } from "./bui.outline.export.download";
 import { buiOutlineChapterPromptContent } from "./bui.outline-chapter.prompt.content";
 import { buiOutlineServerGenerateDraft } from "./bui.outline.server";
 import BUIAuthorRepository from "../authors/bui.author.repository";
@@ -159,10 +160,26 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
         variant: "accent",
         onClick: async (context) => {
           const adminPanel = context!.adminPanel;
+
+          // Topic choices; a missing/stale list is non-fatal. Values are strings
+          // because the dialog's single Select tracks string keys.
+          let topicOptions: { label: string; value: string }[] = [];
+          try {
+            const topicsResult = await topicRepository.getList({});
+            if (topicsResult.isSuccess) {
+              topicOptions = topicsResult.value.map((topic) => ({
+                label: topic.title,
+                value: String(topic.id),
+              }));
+            }
+          } catch (error) {
+            console.error("Failed to load topics for outline generation:", error);
+          }
+
           const option: AdminPanelDialogOption = {
             title: "Generate Outline with AI",
             message:
-              "Describe the outline seed and pick a Generation Type. The AI creates one outline record (title, description, AI instruction).",
+              "Describe the outline seed and pick a Generation Type. Optionally attach a Topic. The AI creates one outline record (title, description, AI instruction).",
             actionId: "generate_outline_draft",
             fields: [
               {
@@ -176,26 +193,10 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
                 })),
               },
               {
-                name: "minItems",
-                label: "Minimum items (optional)",
-                type: "number",
-              },
-              {
-                name: "maxItems",
-                label: "Maximum items (optional)",
-                type: "number",
-              },
-              {
-                name: "minWords",
-                label: "Minimum words",
-                type: "number",
-                defaultValue: "1000",
-              },
-              {
-                name: "maxWords",
-                label: "Maximum words",
-                type: "number",
-                defaultValue: "1500",
+                name: "topicId",
+                label: "Topic",
+                type: "select",
+                options: topicOptions,
               },
               {
                 name: "brief",
@@ -217,9 +218,25 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
               }
 
               try {
+                const topicId = toOptionalNumber(data.topicId);
+                let topic: { title: string; description?: string } | undefined;
+                if (topicId != null) {
+                  try {
+                    const topicRecord = await topicRepository.panelGetOne(topicId);
+                    topic = {
+                      title: topicRecord.title,
+                      description: topicRecord.description,
+                    };
+                  } catch {
+                    console.warn(
+                      `Topic ${topicId} could not be found; continuing without it.`,
+                    );
+                  }
+                }
+
                 const aiConfig = await settingsRepo.getActiveAIConfig();
                 const draft = await buiOutlineServerGenerateDraft(
-                  { brief: data.brief.trim() },
+                  { brief: data.brief.trim(), topic },
                   data.generationType || "guide",
                   aiConfig,
                 );
@@ -231,10 +248,9 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
                   additionalPrompt: draft.additionalPrompt,
                   generationType: data.generationType || "guide",
                   generationMode: "sequential",
-                  minItems: toOptionalNumber(data.minItems),
-                  maxItems: toOptionalNumber(data.maxItems),
-                  minWords: toOptionalNumber(data.minWords) ?? 1000,
-                  maxWords: toOptionalNumber(data.maxWords) ?? 1500,
+                  topicId,
+                  minWords: 1000,
+                  maxWords: 1500,
                 });
 
                 adminPanel.table.refresh?.();
@@ -272,6 +288,22 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
           context: BunnyKernel<BUIOutlineEntity, unknown>,
         ): void {
           context.router.push(`/modules/bunny-ai/outlines/${row.id}`);
+        },
+      },
+      {
+        id: "instant_download_export",
+        variant: "ghost",
+        icon: React.createElement(Download),
+        onClick: async function (
+          row: BUIOutlineEntity,
+          context: BunnyKernel<BUIOutlineEntity, unknown>,
+        ) {
+          if (!row.id) return;
+          context.adminPanel?.table?.loadingOn?.();
+          // Compiles the outline with the shared Books templates using the
+          // default fallback configuration.
+          await buiOutlineExportDownload(row.id);
+          context.adminPanel?.table?.loadingOff?.();
         },
       },
     ],

@@ -50,7 +50,17 @@ export async function openItemGenerateDialog(
   ]);
   // Default the dialog to the outline's own Generation Type and Mode.
   const outlineGenerationType = outline?.generationType || "guide";
-  const outlineGenerationMode = outline?.generationMode || "sequential";
+  const requestedMode = outline?.generationMode || "sequential";
+  const outlineModeIsPlanOnly =
+    buiOutlineChapterPromptContent.modes.find(
+      (mode) => mode.key === requestedMode,
+    )?.planOnly === true;
+  const outlineGenerationMode = outlineModeIsPlanOnly
+    ? "sequential"
+    : requestedMode;
+  const writableModes = buiOutlineChapterPromptContent.modes.filter(
+    (mode) => !mode.planOnly,
+  );
 
   const referenceOptions: BunnySelectOption[] = siblings
     .filter((item) => item.id != null && item.id !== row.id)
@@ -88,7 +98,7 @@ export async function openItemGenerateDialog(
         type: "select",
         defaultValue: outlineGenerationMode,
         showIf: { field: "overrideGeneration" },
-        options: buiOutlineChapterPromptContent.modes.map((mode) => ({
+        options: writableModes.map((mode) => ({
           label: mode.label,
           value: mode.key,
         })),
@@ -102,9 +112,11 @@ export async function openItemGenerateDialog(
       },
       {
         name: "referenceIds",
-        label: "Control mode: items to reference (none = all)",
+        label:
+          "Control mode: items to reference (defaults to the item's Reference section)",
         type: "select",
         multiple: true,
+        defaultValue: row.referenceIds?.join(","),
         showIf: { field: "generationMode", value: "control" },
         options: referenceOptions,
       },

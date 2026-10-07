@@ -65,6 +65,8 @@ export async function buiOutlineServerGenerate(
 export interface BUIOutlineDraftParams {
   brief: string;
   title?: string;
+  /** Optional Topic the outline is being generated around. */
+  topic?: { title: string; description?: string };
 }
 
 export interface BUIOutlineDraftResult {
@@ -130,6 +132,7 @@ ${buiOutlinePrompt.draftExtraPrompt}`;
   const userPrompt = Handlebars.compile(buiOutlinePrompt.draftUserPrompt)({
     brief: params.brief,
     title: params.title ?? "",
+    topic: params.topic,
   });
 
   try {
