@@ -52,6 +52,15 @@ export class BUIDatabase extends Dexie {
     this.version(8).stores({
       topics: "++id, title",
     });
+
+    // Delete Book/Outline cascade — when a book or outline row is deleted, also
+    // remove all of its chapters/items (chapters where bookId === deleted id).
+    // Registered on the shared `books` table so both real books and outlines
+    // (kind: "outline") are covered from a single hook, and so every delete path
+    // (repository, panelDelete, or direct db access) cascades.
+    this.books.hook("deleting", (pk) => {
+      return this.chapters.where("bookId").equals(pk).delete();
+    });
   }
 }
 

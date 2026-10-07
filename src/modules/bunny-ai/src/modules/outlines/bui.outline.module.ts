@@ -290,22 +290,22 @@ export const buiOutlineModule: BunnyConfig<BUIOutlineEntity, BUIOutlineEntity> =
           context.router.push(`/modules/bunny-ai/outlines/${row.id}`);
         },
       },
-      {
-        id: "instant_download_export",
-        variant: "ghost",
-        icon: React.createElement(Download),
-        onClick: async function (
-          row: BUIOutlineEntity,
-          context: BunnyKernel<BUIOutlineEntity, unknown>,
-        ) {
-          if (!row.id) return;
-          context.adminPanel?.table?.loadingOn?.();
-          // Compiles the outline with the shared Books templates using the
-          // default fallback configuration.
-          await buiOutlineExportDownload(row.id);
-          context.adminPanel?.table?.loadingOff?.();
-        },
-      },
+      // {
+      //   id: "instant_download_export",
+      //   variant: "ghost",
+      //   icon: React.createElement(Download),
+      //   onClick: async function (
+      //     row: BUIOutlineEntity,
+      //     context: BunnyKernel<BUIOutlineEntity, unknown>,
+      //   ) {
+      //     if (!row.id) return;
+      //     context.adminPanel?.table?.loadingOn?.();
+      //     // Compiles the outline with the shared Books templates using the
+      //     // default fallback configuration.
+      //     await buiOutlineExportDownload(row.id);
+      //     context.adminPanel?.table?.loadingOff?.();
+      //   },
+      // },
     ],
     query: {
       getAll: (options, overrideOptions) =>
