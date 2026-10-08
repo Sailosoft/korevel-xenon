@@ -6,7 +6,7 @@
 #   dev     — hot-reloading development server (used by docker compose --profile dev)
 #   runner  — minimal standalone production server (default)
 
-FROM oven/bun:1-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 # libc6-compat lets glibc-linked native prebuilds run on musl.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app

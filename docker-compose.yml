@@ -13,6 +13,11 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: "3000"
+      # Inside a container `localhost` is the container itself, so host services
+      # such as Ollama must be reached via host.docker.internal instead.
+      OPEN_AI_BASE_URL: ${OPEN_AI_BASE_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3052:3000"
     restart: unless-stopped
@@ -30,6 +35,10 @@ services:
     environment:
       NODE_ENV: development
       WATCHPACK_POLLING: "true"
+      # Reach host services (e.g. Ollama) from inside the container.
+      OPEN_AI_BASE_URL: ${OPEN_AI_BASE_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules

@@ -10,6 +10,9 @@ import { buiAuthorPrompt } from "../authors/bui.author.prompt";
 import { buiBookPrompt } from "../books/bui.book.prompt";
 import { buiChapterPrompt } from "../books/bui.book-chapter.prompt";
 import { buiChapterPromptContent } from "../books/bui.book-chapter.prompt.content";
+import { buiTopicPrompt } from "../topics/bui.topic.prompt";
+import { buiOutlinePrompt } from "../outlines/bui.outline.prompt";
+import { buiOutlineChapterPromptContent } from "../outlines/bui.outline-chapter.prompt.content";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -124,6 +127,81 @@ export const promptViewerRegistry: PromptViewerEntry[] = [
       systemPrompt: entry.systemPrompt,
       userPrompt: entry.userPrompt,
     })),
+  },
+
+  // ── Topics ─────────────────────────────────────────────────────────────────
+  {
+    module: "Topics",
+    label: "buiTopicPrompt.generateTopic",
+    description:
+      "Prompts used to AI-generate a reusable Topic (title + description), framed by 11 Generation Types.",
+    prompts: buiTopicPrompt.generateTopic.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: buiTopicPrompt.userPrompt,
+      extraPrompt: buiTopicPrompt.extraPrompt,
+    })),
+  },
+
+  // ── Outlines (Structure) ───────────────────────────────────────────────────
+  {
+    module: "Outlines",
+    label: "buiOutlinePrompt.generateStructure",
+    description:
+      "Prompts used to generate an outline structure (summary + item list), framed by 11 Generation Types.",
+    prompts: buiOutlinePrompt.generateStructure.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: buiOutlinePrompt.authorProfileUserPrompt,
+      extraPrompt: buiOutlinePrompt.extraPrompt,
+    })),
+  },
+
+  // ── Outlines (AI Draft record) ─────────────────────────────────────────────
+  {
+    module: "Outlines",
+    label: "buiOutlinePrompt.generateOutlineDraft",
+    description:
+      "Prompts used to AI-generate a single outline record (title, description, AI instruction), framed by 11 Generation Types.",
+    prompts: buiOutlinePrompt.generateOutlineDraft.map((entry) => ({
+      type: entry.key,
+      systemPrompt: entry.systemPrompt,
+      userPrompt: buiOutlinePrompt.draftUserPrompt,
+      extraPrompt: buiOutlinePrompt.draftExtraPrompt,
+    })),
+  },
+
+  // ── Outlines (Item Content — Types) ─────────────────────────────────
+  {
+    module: "Outlines",
+    label: "buiOutlineChapterPromptContent (Types)",
+    description:
+      "Item content prompts across the 11 Generation Types (shown with the Sequential mode).",
+    prompts: buiOutlineChapterPromptContent.types.map((type) => {
+      const built = buiOutlineChapterPromptContent.build(type.key, "sequential");
+      return {
+        type: type.key,
+        systemPrompt: built.systemPrompt,
+        userPrompt: built.userPrompt,
+      };
+    }),
+  },
+
+  // ── Outlines (Item Content — Modes) ─────────────────────────────────
+  {
+    module: "Outlines",
+    label: "buiOutlineChapterPromptContent (Modes)",
+    description:
+      "Item content prompts across the 7 Generation Modes (shown with the Guide type).",
+    prompts: buiOutlineChapterPromptContent.modes.map((mode) => {
+      const built = buiOutlineChapterPromptContent.build("guide", mode.key);
+      return {
+        type: mode.key,
+        systemPrompt: built.systemPrompt,
+        userPrompt: built.userPrompt,
+        extraPrompt: mode.contextInjection,
+      };
+    }),
   },
 ];
 

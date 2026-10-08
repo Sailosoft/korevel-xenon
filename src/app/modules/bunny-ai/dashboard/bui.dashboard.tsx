@@ -20,6 +20,7 @@ import {
   UserCircle,
   Rabbit,
   BookOpenCheck,
+  ListTree,
 } from "lucide-react";
 
 // ─── Theme — matches the layout's Laravel crimson ───
@@ -217,11 +218,21 @@ function SectionHeader({
 export default function BUIDashboard() {
   // ── Reactive Dexie queries ──
   const authors = useLiveQuery(() => buiDatabase.authors.toArray()) ?? [];
-  const books = useLiveQuery(() => buiDatabase.books.toArray()) ?? [];
+  const allBooks = useLiveQuery(() => buiDatabase.books.toArray()) ?? [];
   const chapters = useLiveQuery(() => buiDatabase.chapters.toArray()) ?? [];
   const skills = useLiveQuery(() => buiDatabase.authorSkills.toArray()) ?? [];
   const relations =
     useLiveQuery(() => buiDatabase.authorSkillRelations.toArray()) ?? [];
+
+  // ── Books exclude outlines (which are discriminated by kind) ──
+  const books = useMemo(
+    () => allBooks.filter((b) => b.kind !== "outline"),
+    [allBooks],
+  );
+  const outlineCount = useMemo(
+    () => allBooks.filter((b) => b.kind === "outline").length,
+    [allBooks],
+  );
 
   // ── Derived stats ──
   const totalChapters = chapters.length;
@@ -333,7 +344,7 @@ export default function BUIDashboard() {
       </div>
 
       {/* ── Stats Grid ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           label="Authors"
           value={authors.length}
@@ -347,6 +358,13 @@ export default function BUIDashboard() {
           icon={<BookOpen className="w-5 h-5 text-white" />}
           href="/modules/bunny-ai/books"
           accent="bg-gradient-to-br from-amber-400 to-orange-500"
+        />
+        <StatCard
+          label="Outlines"
+          value={outlineCount}
+          icon={<ListTree className="w-5 h-5 text-white" />}
+          href="/modules/bunny-ai/outlines"
+          accent="bg-gradient-to-br from-sky-400 to-blue-500"
         />
         <StatCard
           label="Chapters"

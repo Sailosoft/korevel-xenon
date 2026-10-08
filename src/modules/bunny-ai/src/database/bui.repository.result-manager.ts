@@ -15,7 +15,7 @@ export class BUIRepositoryResultManager<T> {
     };
   }
 
-  successList(data: T[]): BuiRepositoryResult<T[]> {
+  successList<B = T>(data: B[]): BuiRepositoryResult<B[]> {
     return {
       isSuccess: true,
       value: data,

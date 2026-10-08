@@ -7,6 +7,31 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v5.2.0",
+    title: "Version 5.2.0: BunnyBook Outlines & Topics, BunnyDeveloper Grouped Pages, Shell Redesign, and AI Generation Modes",
+    content: [
+      "BunnyBook: Added the Outlines module with 11 generation types, 7 generation modes, AI structure generation, batch item writing with a 3-wide parallel pool, and a guided Refine wizard (critique, merge, and iterative refine).",
+      "BunnyBook: Added the Topics module — reusable, AI-generatable topics that can seed any number of outlines.",
+      "BunnyBook: Added inline outline detail editing (title, type/mode, topic, author, item limits, instruction, summary) and HTML export reusing the Books export engine.",
+      "BunnyBook: Deleting a book or outline now cascades and removes its chapters/items.",
+      "BunnyBook: Added Outlines to the dashboard stats and the Outlines/Topics navigation; the Books list now excludes outlines.",
+      "BunnyDeveloper: Split Schema, App Builder, API Design, Diagram, and Architecture into grouped list → detail pages, adding Diagram Groups (three levels) and Architecture Groups.",
+      "BunnyDeveloper: Redesigned the shell with a dark dotted sidebar and a blue gradient header.",
+      "BunnyDeveloper: Unified AI generation across all builders with create, append, update, and replace modes plus a target selector.",
+      "Helix: Added doChatWithHistory for multi-turn chat completions and refreshed the DeepInfra model list.",
+      "System: Pinned the Docker base image and expanded the Docker workflow documentation.",
+    ],
+    apps: [
+      CatalogApp.BunnyBook,
+      CatalogApp.BunnyDeveloper
+    ],
+    dates: [
+      "2026-10-06",
+      "2026-10-07",
+      "2026-10-08"
+    ]
+  },
+  {
     version: "v5.1.0",
     title: "Version 5.1.0",
     content: [

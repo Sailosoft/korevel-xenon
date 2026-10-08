@@ -10,6 +10,7 @@ import {
 import { BunnyKernel } from "@/src/modules/bunny/src/Bunny.Interface";
 import { BUIBookChapterEntity } from "./bui.book.entity";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 import { generateChapterContentAction } from "./bui.book-chapter.action.content";
 import { buiChapterPromptContent } from "./bui.book-chapter.prompt.content";
 import BUIAuthorSkillPicker from "../author-skills/bui.author-skills.picker.component";
@@ -152,6 +153,9 @@ export default function BUIBookChapterComponentPipeline({
 
       setProgress({ current: 0, total: targetedChapters.length });
 
+      const settingsRepo = new BUISettingsRepository();
+      const aiConfig = await settingsRepo.getActiveAIConfig();
+
       // 3. Loop sequentially through target records
       for (let i = 0; i < targetedChapters.length; i++) {
         const chapter = targetedChapters[i];
@@ -162,7 +166,7 @@ export default function BUIBookChapterComponentPipeline({
         await generateChapterContentAction(
           chapter.id!,
           promptType,
-          undefined,
+          aiConfig,
           useAuthorSkills,
           useAuthorProfile,
           selectedSkillNames,

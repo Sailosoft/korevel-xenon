@@ -4,6 +4,7 @@ import { LoaderIcon, Rocket, AlertTriangle } from "lucide-react";
 import { useCallback, useState, useEffect } from "react";
 import { BUIBookRepository } from "./bui.book.repository";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
+import BUISettingsRepository from "../settings/bui.settings.repository";
 import { buiChapterServerGenerate } from "./bui.book-chapter.server";
 import { buiChapterPrompt } from "./bui.book-chapter.prompt";
 import { BUIBookEntity } from "./bui.book.entity";
@@ -80,6 +81,9 @@ export default function BUIBookChapterComponentGenerate({
         );
       }
 
+      const settingsRepo = new BUISettingsRepository();
+      const aiConfig = await settingsRepo.getActiveAIConfig();
+
       const response = await buiChapterServerGenerate(
         {
           book: bookData,
@@ -87,7 +91,7 @@ export default function BUIBookChapterComponentGenerate({
         },
         templateType,
         useAuthorProfile,
-        undefined,
+        aiConfig,
         skills,
       );
 

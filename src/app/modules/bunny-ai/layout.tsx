@@ -11,6 +11,8 @@ import {
   FileText,
   Settings,
   Store,
+  ListTree,
+  Tag,
 } from "lucide-react";
 import BUIDocumentShell from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell";
 import type { BUIDocumentShellConfig } from "@/src/modules/bunny-ai/src/modules/document-shell/bui.document-shell.config";
@@ -45,6 +47,18 @@ const BUNNY_AI_SHELL_CONFIG: BUIDocumentShellConfig = {
       href: "/modules/bunny-ai/books",
       label: "Books",
       icon: BookOpen,
+    },
+    {
+      href: "/modules/bunny-ai/outlines",
+      label: "Outlines",
+      icon: ListTree,
+      section: "Outline",
+    },
+    {
+      href: "/modules/bunny-ai/topics",
+      label: "Topics",
+      icon: Tag,
+      section: "Outline",
     },
     {
       href: "/modules/bunny-ai/author-skills",
