@@ -163,6 +163,24 @@ export function addTopicToTree(
   });
 }
 
+export function replaceSiblingsInTree(
+  topics: BDOutlineTopic[],
+  parentId: string | null,
+  ordered: BDOutlineTopic[],
+): BDOutlineTopic[] {
+  if (parentId === null) return ordered;
+  return topics.map((topic) => {
+    if (topic.id === parentId) return { ...topic, children: ordered };
+    if (topic.children && topic.children.length > 0) {
+      return {
+        ...topic,
+        children: replaceSiblingsInTree(topic.children, parentId, ordered),
+      };
+    }
+    return topic;
+  });
+}
+
 export function removeTopicFromTree(
   topics: BDOutlineTopic[],
   id: string,

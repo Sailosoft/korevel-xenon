@@ -71,6 +71,7 @@ export function BDDiagramListComponent({ groupId }: BDDiagramListComponentProps)
 
   const [deleting, setDeleting] = useState<BDDiagramRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiType, setAiType] = useState<BDDiagramType>("flowchart");
   const [createOpen, setCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<Record<string, unknown>>({
     name: "New Diagram",
@@ -192,11 +193,29 @@ export function BDDiagramListComponent({ groupId }: BDDiagramListComponentProps)
         title="AI Diagram Generation"
         placeholder="e.g. A flowchart of the checkout process with payment, inventory and email steps"
         generate={({ instruction, mode, aiConfig: cfg }) =>
-          bdGenerateDiagram({ instruction, mode, aiConfig: cfg })
+          bdGenerateDiagram({ instruction, mode, aiConfig: cfg, diagramType: aiType })
         }
         onApply={applyArtifact}
         defaultMode="create"
         modes={["create"]}
+        extraFields={
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-medium text-slate-500">
+              Diagram type
+            </span>
+            <select
+              value={aiType}
+              onChange={(e) => setAiType(e.target.value as BDDiagramType)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+            >
+              {BD_DIAGRAM_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        }
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-3">
             {artifact.diagrams.map((d, i) => (

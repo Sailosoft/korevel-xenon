@@ -12,3 +12,13 @@ export function useBDOutlines(projectId: string): BDOutline[] | undefined {
     [projectId],
   );
 }
+
+/** undefined = loading, null = not found, otherwise the outline. */
+export function useBDOutline(
+  id: string,
+): BDOutline | null | undefined {
+  return useLiveQuery(async () => {
+    const record = await bdDB.outlines.get(id);
+    return record ?? null;
+  }, [id]);
+}

@@ -23,7 +23,10 @@ export { BDSchemaBuilderComponent } from "./modules/schema-builder";
 export { BDDiagramBuilderComponent } from "./modules/diagram-builder";
 export { BDAppBuilderComponent } from "./modules/app-builder";
 export { BDApiDesignComponent } from "./modules/api-design";
-export { BDOutlineBuilderComponent } from "./modules/outline";
+export {
+  BDOutlineListComponent,
+  BDOutlineDetailComponent,
+} from "./modules/outline";
 export { BDArchitectureBuilderComponent } from "./modules/architecture";
 export {
   BDFileManagerComponent,

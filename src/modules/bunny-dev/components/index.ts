@@ -51,6 +51,9 @@ export type {
   BDListAction,
 } from "./BDList";
 
+export { BDSortableList } from "./BDSortableList";
+export type { BDSortableListProps } from "./BDSortableList";
+
 export { BDForm } from "./BDForm";
 export type {
   BDFormProps,
@@ -75,8 +78,17 @@ export type { BDCodeEditorProps } from "./BDCodeEditor";
 export { BDWysiwygEditor } from "./BDWysiwygEditor";
 export type { BDWysiwygEditorProps } from "./BDWysiwygEditor";
 
+export { BDDiffView } from "./BDDiffView";
+export type { BDDiffViewProps } from "./BDDiffView";
+
 export { BDDiagramView } from "./BDDiagramView";
 export type { BDDiagramViewProps } from "./BDDiagramView";
+
+export { BDDiagramCanvas } from "./BDDiagramCanvas";
+export type {
+  BDDiagramCanvasProps,
+  BDDiagramCanvasHandle,
+} from "./BDDiagramCanvas";
 
 export { BDComingSoon } from "./BDComingSoon";
 export type { BDComingSoonProps } from "./BDComingSoon";

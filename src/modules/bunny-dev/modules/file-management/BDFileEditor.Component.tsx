@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, Download, Trash2, FileWarning } from "lucide-react";
+import { Save, Download, Trash2, FileWarning, Sparkles } from "lucide-react";
 import type { BDProjectFile } from "../../BDDomain.Types";
 import { BDProjectFileEncoding, BDProjectFileKind } from "../../BDDomain.Types";
 import { formatSize, isTextKind, languageFor } from "./BDFile.Types";
@@ -9,6 +9,7 @@ import BDCodeEditor from "../../components/BDCodeEditor";
 import BDWysiwygEditor from "../../components/BDWysiwygEditor";
 import BDButton from "../../components/BDButton";
 import BDBadge from "../../components/BDBadge";
+import BDFileAIComponent from "./BDFileAI.Component";
 
 export interface BDFileEditorComponentProps {
   file: BDProjectFile;
@@ -27,12 +28,14 @@ export function BDFileEditorComponent({
   locked = false,
 }: BDFileEditorComponentProps) {
   const [data, setData] = useState(file.content?.data ?? "");
+  const [aiOpen, setAiOpen] = useState(false);
 
   // Reset local content when a different file is opened.
   const [prevId, setPrevId] = useState(file.id);
   if (file.id !== prevId) {
     setPrevId(file.id);
     setData(file.content?.data ?? "");
+    setAiOpen(false);
   }
 
   const objectUrl = useMemo(
@@ -50,19 +53,27 @@ export function BDFileEditorComponent({
   const isImage = file.kind === BDProjectFileKind.image;
   const canEdit = isTextKind(file.kind) && !locked;
 
-  const handleSave = () => {
+  const persist = (nextData: string) => {
     onSave({
       ...file,
       content: {
         encoding: BDProjectFileEncoding.utf8,
-        data,
+        data: nextData,
         language: languageFor(file.name),
         updatedAt: new Date().toISOString(),
       },
-      size: data.length,
+      size: nextData.length,
       status: "saved",
       revision: file.revision + 1,
     });
+  };
+
+  const handleSave = () => persist(data);
+
+  // Accepting the AI changes updates the editor and saves immediately.
+  const handleAcceptAI = (nextData: string) => {
+    setData(nextData);
+    persist(nextData);
   };
 
   return (
@@ -77,6 +88,16 @@ export function BDFileEditorComponent({
           <span className="text-xs text-slate-300">rev {file.revision}</span>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && (
+            <BDButton
+              size="sm"
+              variant="secondary"
+              icon={Sparkles}
+              onClick={() => setAiOpen(true)}
+            >
+              AI Assistant
+            </BDButton>
+          )}
           {canEdit && (
             <BDButton size="sm" icon={Save} onClick={handleSave}>
               Save
@@ -143,6 +164,17 @@ export function BDFileEditorComponent({
           </div>
         )}
       </div>
+
+      <BDFileAIComponent
+        key={file.id}
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        projectId={file.projectId}
+        fileName={file.name}
+        language={languageFor(file.name)}
+        content={data}
+        onAccept={handleAcceptAI}
+      />
     </div>
   );
 }

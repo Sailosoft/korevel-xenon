@@ -6,6 +6,7 @@
 // the client stores as a pending proposal and applies all-or-nothing.
 
 import type { BDGenerationMode } from "../../BDDomain.Types";
+import type { BDDiagramType } from "./BDDiagram.Domain";
 import type { HelixAISchemaOptions } from "@/src/modules/helix/src/HelixAISchemaTypes";
 import {
   bdGenerateStructured,
@@ -23,6 +24,7 @@ export interface BDDiagramGenerateParams {
   instruction: string;
   mode: BDGenerationMode;
   targetContext?: string;
+  diagramType?: BDDiagramType;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -208,7 +210,10 @@ function normalizeEdge(raw: unknown): BDDiagramEdgeDraft | null {
   return { source, target, label: asString(e.label) || undefined };
 }
 
-function normalizeDiagram(raw: unknown): BDDiagramDraft | null {
+function normalizeDiagram(
+  raw: unknown,
+  defaultType: BDDiagramType,
+): BDDiagramDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const d = raw as Record<string, unknown>;
   const name = asString(d.name) || "Diagram";
@@ -224,7 +229,7 @@ function normalizeDiagram(raw: unknown): BDDiagramDraft | null {
     : [];
   return {
     name,
-    type: (asString(d.type) || "flowchart") as BDDiagramDraft["type"],
+    type: (asString(d.type) || defaultType) as BDDiagramDraft["type"],
     direction: (asString(d.direction) || "TB") as BDDiagramDraft["direction"],
     nodes,
     edges,
@@ -235,15 +240,24 @@ function normalizeDiagram(raw: unknown): BDDiagramDraft | null {
 export async function bdGenerateDiagram(
   params: BDDiagramGenerateParams,
 ): Promise<BDDiagramArtifact> {
+  const diagramType = params.diagramType ?? "flowchart";
+
   const system =
     "You are a senior software architect who communicates with clear Mermaid " +
     "diagrams. Prefer concise node ids and readable labels. Return only the " +
     "structured JSON requested.";
 
+  const context =
+    `Diagram type: ${diagramType}. Produce every diagram as a ${diagramType} ` +
+    `and set each diagram's "type" field to "${diagramType}". Populate each ` +
+    `node's fields to match that type (e.g. flowchart: kind/shape; er: fields; ` +
+    `gantt: start/duration; pie: value).`;
+
   const user = bdBuildModeUser({
     mode: params.mode,
     instruction: params.instruction,
     targetContext: params.targetContext,
+    context,
   });
 
   const raw = await bdGenerateStructured({
@@ -256,7 +270,7 @@ export async function bdGenerateDiagram(
 
   const diagramsRaw = Array.isArray(raw.diagrams) ? raw.diagrams : [];
   const diagrams = diagramsRaw
-    .map(normalizeDiagram)
+    .map((entry) => normalizeDiagram(entry, diagramType))
     .filter((d): d is BDDiagramDraft => d !== null);
 
   return { diagrams };

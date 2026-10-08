@@ -99,7 +99,6 @@ export function BDShellSidebar({
           {wizard && (
             <Link
               href={wizard.href}
-              onClick={onClose}
               className={cn(
                 "mb-5 flex w-full items-center space-x-3 rounded-2xl px-4 py-3 shadow-md",
                 theme.btnPrimary,
@@ -146,7 +145,6 @@ export function BDShellSidebar({
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={onClose}
                         className={cn(
                           "group flex items-center space-x-3 rounded-xl px-4 py-2.5 transition-colors",
                           isActive
