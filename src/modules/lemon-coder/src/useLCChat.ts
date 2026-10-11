@@ -27,7 +27,6 @@ import type {
   LCChatMessage,
   LCContextStashItem,
   LCFileActionResult,
-  LCFileEdit,
   LCAIResponse,
   LCErrorInfo,
   LCAIConversationMessage,
@@ -41,22 +40,21 @@ import {
   buildCodePrompt,
 } from "./LCPromptMode";
 
-// ── SEARCH/REPLACE Normalisation ──────────────────────────────────────────────────
+// The pure SEARCH/REPLACE engine lives in LCApplyEdits.ts (imported for internal
+// use and re-exported so existing consumers keep importing it from this module).
+import { applySearchReplace } from "./LCApplyEdits";
+export { applySearchReplace } from "./LCApplyEdits";
+
+// ── Stash context budgeting ───────────────────────────────────────────────────
 
 /**
- * Normalise whitespace for fuzzy matching.
- * Collapses runs of whitespace into single spaces and normalises line endings.
- * This allows "forgiving" match when the AI slightly differs from the file
- * on disk (e.g. extra blank line, tabs vs spaces).
+ * Maximum characters of a single stashed file embedded into the prompt.
+ * Keeps input tokens bounded when a large file is stashed; truncated content
+ * is marked so the model knows it is incomplete.
  */
-function collapseWhitespace(s: string): string {
-  return s
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/[\t ]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
-    .trim();
-}
+export const MAX_STASH_CHARS_PER_FILE = 20000;
+
+// ── SEARCH/REPLACE Normalisation ──────────────────────────────────────────────────
 
 /**
  * Detect and fix double-escaped content from the AI.
@@ -128,53 +126,6 @@ function sanitiseEscapedContent(value: string): string {
 }
 
 /**
- * Find the position of `search` in `content` using whitespace-agnostic matching.
- * Returns the byte offset in `content` or -1 if not found.
- *
- * Strategy: collapse whitespace in both strings, find the match position in the
- * collapsed version, then trace back through the original content to map the
- * collapsed position back to an original offset.
- */
-function fuzzyIndexOf(content: string, search: string): number {
-  const collapsedContent = collapseWhitespace(content);
-  const collapsedSearch = collapseWhitespace(search);
-  const cIdx = collapsedContent.indexOf(collapsedSearch);
-  if (cIdx === -1) return -1;
-
-  // Map collapsed position back to original position by walking through
-  // the original content and collapsing as we go.
-  let originalPos = 0;
-  let collapsedPos = 0;
-  let inWhitespace = false;
-
-  while (collapsedPos < cIdx && originalPos < content.length) {
-    const ch = content[originalPos];
-    const isWS = /[\s]/.test(ch);
-
-    if (isWS) {
-      if (!inWhitespace) {
-        // This is the first whitespace char — counts as 1 in collapsed form
-        collapsedPos++;
-        inWhitespace = true;
-      }
-      // Additional whitespace chars are collapsed away — don't advance collapsedPos
-    } else {
-      collapsedPos++;
-      inWhitespace = false;
-    }
-
-    originalPos++;
-  }
-
-  // Skip any remaining leading whitespace in the actual content before the match
-  while (originalPos < content.length && /[\s]/.test(content[originalPos])) {
-    originalPos++;
-  }
-
-  return originalPos;
-}
-
-/**
  * Normalise a raw AI response so all file entries have a `Content` field.
  *
  * Handles two patterns:
@@ -221,137 +172,6 @@ function normaliseFileEdits(aiResponse: LCAIResponse): LCAIResponse {
   }
 
   return { ...aiResponse, FileContents: fileContents };
-}
-
-/**
- * Apply SEARCH/REPLACE edits to file content.
- * Returns the new content if all edits apply successfully, or throws with details.
- *
- * Matching strategy (progressive fallback):
- *   1. Exact match (indexOf) — preferred, character-perfect
- *   2. Whitespace-normalised match (fuzzyIndexOf) — tolerates whitespace differences
- *   3. Trailing-whitespace-agnostic match — strips trailing whitespace per line
- *   4. Partial-block match — drops first/last line of Search block to tolerate surrounding context drift
- *   5. Multiple-match detection — warns and uses lastIndexOf (prefers end-of-file)
- *
- * Edits are applied sequentially (edit N searches in the result of edit N-1).
- * Exported so external handlers (LCApp, LCStudio) can use it directly.
- */
-export function applySearchReplace(
-  originalContent: string,
-  edits: LCFileEdit[],
-): { content: string; applied: number } {
-  // Normalize to LF to avoid CRLF/LF position mismatches in slice operations
-  let content = originalContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  let applied = 0;
-
-  for (const edit of edits) {
-    const label = edit.Description || `edit #${applied + 1}`;
-    const search = edit.Search;
-
-    // ── Strategy 1: Exact match ──────────────────────────────────────────
-    let idx = content.indexOf(search);
-
-    // ── Strategy 2: Whitespace-agnostic fuzzy match ──────────────────────
-    if (idx === -1) {
-      idx = fuzzyIndexOf(content, search);
-      if (idx !== -1) {
-        console.warn(
-          `[applySearchReplace] "${label}" matched via whitespace-agnostic fallback ` +
-          `(position ${idx}). Verify the edit is correct.`,
-        );
-      }
-    }
-
-    // ── Strategy 3: Trailing-whitespace-agnostic match ───────────────────
-    // Strip trailing whitespace from each line in both search and content.
-    // AIs commonly add or remove spaces at line ends during generation.
-    if (idx === -1) {
-      const trimTrailing = (s: string) => s.split("\n").map(l => l.trimEnd()).join("\n");
-      const trimmedContent = trimTrailing(content);
-      const trimmedSearch = trimTrailing(search);
-      const trimmedIdx = trimmedContent.indexOf(trimmedSearch);
-      if (trimmedIdx !== -1) {
-        // Validate: check that the original content at this position, when trimmed matches
-        const candidate = trimTrailing(content.slice(trimmedIdx, trimmedIdx + search.length));
-        if (candidate === trimmedSearch) {
-          idx = trimmedIdx;
-          console.warn(
-            `[applySearchReplace] "${label}" matched via trailing-whitespace-agnostic fallback ` +
-            `(position ${idx}). Verify the edit is correct.`,
-          );
-        }
-      }
-    }
-
-    // ── Strategy 4: Partial-block match ──────────────────────────────────
-    // When the full block fails, try dropping the first and/or last line of
-    // the Search block. This tolerates surrounding context drift — the AI may
-    // have included an extra adjacent line that no longer matches.
-    if (idx === -1) {
-      const searchLines = search.split("\n");
-      if (searchLines.length >= 4) {
-        // Try without the first line
-        const withoutFirst = searchLines.slice(1).join("\n");
-        let partialIdx = content.indexOf(withoutFirst);
-        if (partialIdx === -1) partialIdx = fuzzyIndexOf(content, withoutFirst);
-        if (partialIdx !== -1) {
-          idx = partialIdx;
-          console.warn(
-            `[applySearchReplace] "${label}" matched via partial-block fallback ` +
-            `(dropped first line, position ${idx}). Verify the edit is correct.`,
-          );
-        }
-      }
-      if (idx === -1 && searchLines.length >= 4) {
-        // Try without the last line
-        const withoutLast = searchLines.slice(0, -1).join("\n");
-        let partialIdx = content.indexOf(withoutLast);
-        if (partialIdx === -1) partialIdx = fuzzyIndexOf(content, withoutLast);
-        if (partialIdx !== -1) {
-          idx = partialIdx;
-          console.warn(
-            `[applySearchReplace] "${label}" matched via partial-block fallback ` +
-            `(dropped last line, position ${partialIdx}). Verify the edit is correct.`,
-          );
-        }
-      }
-    }
-
-    // ── Strategy 5: Detect multiple matches (use last occurrence) ───────
-    if (idx !== -1) {
-      const secondIdx = content.indexOf(search, idx + 1);
-      if (secondIdx !== -1) {
-        console.warn(
-          `[applySearchReplace] "${label}" matched ${content.indexOf(search) !== -1 ? 'multiple' : 'at least 2'} locations. ` +
-          `Using the last occurrence (position ${content.lastIndexOf(search)}). ` +
-          `If this is wrong, make the Search block more specific.`,
-        );
-        idx = content.lastIndexOf(search);
-      }
-    }
-
-    // ── Match failed — throw with helpful context ───────────────────────
-    if (idx === -1) {
-      const preview = search.slice(0, 100);
-      // Find a nearby anchor point for debugging
-      const contextLine = search.split("\n").find(l => l.trim().length > 20)?.trim() || preview;
-      throw new Error(
-        `SEARCH block "${label}" did not match the current file content.\n` +
-        `Looked for ${search.length} chars starting with: "${preview}"...\n` +
-        `Context anchor: "${contextLine.slice(0, 80)}"\n` +
-        `AI Replace preview: "${edit.Replace.slice(0, 120)}"\n` +
-        `Tip: The Search string must match the EXACT current file content. ` +
-        `Check for whitespace differences, tabs vs spaces, or use smaller Search blocks.`,
-      );
-    }
-
-    // ── Apply the edit ─────────────────────────────────────────────────
-    content = content.slice(0, idx) + edit.Replace + content.slice(idx + search.length);
-    applied++;
-  }
-
-  return { content, applied };
 }
 
 /**
@@ -620,6 +440,11 @@ export function useLCChat(): UseLCChatReturn {
               }
             }
 
+            if (fileContent.length > MAX_STASH_CHARS_PER_FILE) {
+              fileContent =
+                fileContent.slice(0, MAX_STASH_CHARS_PER_FILE) + "\n…(truncated)";
+            }
+
             const contentBlock = fileContent
               ? `\`\`\`\n${fileContent}\n\`\`\``
               : readError || "(content not available)";
@@ -682,9 +507,8 @@ export function useLCChat(): UseLCChatReturn {
               content:
                 "You are Lemon Coder, an AI coding assistant. You help users write and modify code files. " +
                 "You MUST respond with a valid JSON object containing exactly the fields requested in the user prompt. " +
-                "When providing file Content, always output the COMPLETE file from the first line to the last — " +
-                "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
-                "The Content field must be ready to copy-paste and write directly to the file as-is. " +
+                "For NEW files return the complete file in Content. For EXISTING files return " +
+                'Edits and set Content to "". Never restate unchanged lines or the whole file. ' +
                 "CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
                 "and replace literal newlines with \\n. Never use trailing commas in objects or arrays. " +
                 "Verify your JSON is valid before responding.",
