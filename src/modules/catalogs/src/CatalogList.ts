@@ -107,7 +107,7 @@ export const catalogApps: CatalogApp[] = [
     id: 13,
     name: "Bunny Developer",
     url: "/modules/bunny-dev",
-    description: "Local-first developer decision workspace — schema builder, Filament-style app builder with rendering, API design, diagrams, outlines, architecture docs, files, kanban, and AI agents.",
+    description: "Local-first developer decision workspace — schema builder, Filament-style app builder with rendering, API design, diagrams, docs, specs, files, kanban, and AI agents.",
     category: "code-editor",
     status: "Active",
     iconColor: "from-blue-400 to-sky-300",

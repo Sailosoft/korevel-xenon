@@ -5,13 +5,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppWindow, Plus, Trash2, Sparkles, ExternalLink } from "lucide-react";
-import type {
-  BDApp,
-  BDAppColumn,
-  BDAppConnection,
-  BDAppField,
-  BDAppResource,
-} from "../../BDDomain.Types";
+import type { BDApp } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { bdAppRepository, bdAppRecordRepository } from "./BDApp.Repository";
 import { deleteAppRecordsByApp } from "../../BDAppDatabase";
@@ -19,6 +13,9 @@ import { useBDApps, useBDProjectSchemaModels } from "./BDApp.Hooks";
 import {
   BD_APP_EMPTY_FORM,
   createApp,
+  deriveAppMeta,
+  resourcesFromDrafts,
+  slugify,
   type BDAppArtifact,
 } from "./BDApp.Types";
 import { bdGenerateApp } from "./BDAppBuilder.Server";
@@ -27,29 +24,9 @@ import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
 import BDBadge from "../../components/BDBadge";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
+import BDAppFillerComponent from "./BDAppFiller.Component";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
-
-function toAppField(draft: {
-  name: string;
-  label?: string;
-  type: string;
-  required?: boolean;
-  options?: { value: string; label: string }[];
-}): BDAppField {
-  const options =
-    draft.options && draft.options.length > 0
-      ? Object.fromEntries(draft.options.map((o) => [o.value, o.label]))
-      : undefined;
-  return {
-    kind: "field",
-    name: draft.name,
-    label: draft.label ?? draft.name,
-    type: draft.type as BDAppField["type"],
-    required: draft.required,
-    options,
-  };
-}
 
 export function BDAppListComponent() {
   const { projectId } = useBDProjectContext();
@@ -61,17 +38,20 @@ export function BDAppListComponent() {
 
   const [deletingApp, setDeletingApp] = useState<BDApp | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const hrefFor = (app: BDApp) =>
     `/modules/bunny-dev/projects/${projectId}/app/${app.id}`;
 
-  const handleCreateApp = async () => {
+  const createNewApp = async (name: string) => {
+    const meta = deriveAppMeta(name);
     const created = await bdAppRepository.create(
       createApp(projectId, {
         ...BD_APP_EMPTY_FORM,
-        name: "New App",
-        slug: "new-app",
-        path: "/",
+        name: meta.name,
+        slug: meta.slug,
+        path: meta.path,
+        brandName: meta.brandName,
       }),
     );
     router.push(hrefFor(created));
@@ -91,64 +71,17 @@ export function BDAppListComponent() {
   };
 
   const applyArtifact = async (artifact: BDAppArtifact) => {
-    const slugFor = (r: { name: string; slug?: string }) =>
-      r.slug ?? r.name.toLowerCase().replace(/\s+/g, "-");
-
-    const buildResources = (
-      appDraft: BDAppArtifact["apps"][number],
-    ): BDAppResource[] => {
-      const reference = appDraft.resources.map((r) => ({
-        name: r.name,
-        slug: slugFor(r),
-      }));
-      return appDraft.resources.map((r) => {
-        const model = (models ?? []).find((m) => m.name === r.model);
-        const resource: BDAppResource = {
-          name: r.name,
-          slug: slugFor(r),
-          label: r.label ?? r.name,
-          pluralLabel: `${r.label ?? r.name}s`,
-          modelId: model?.id,
-          form: { components: (r.fields ?? []).map(toAppField) },
-          table: {
-            columns: (r.columns ?? []).map((c) => ({
-              type: c.type as BDAppColumn["type"],
-              name: c.name,
-              label: c.label ?? c.name,
-            })),
-          },
-        };
-        const connections: BDAppConnection[] = (r.connections ?? [])
-          .map((c) => {
-            const target = reference.find(
-              (x) => x.slug === c.target || x.name === c.target,
-            );
-            return {
-              name: c.name,
-              type: c.type,
-              targetSlug: target ? target.slug : "",
-              titleAttribute: c.titleAttribute,
-              foreignKey: c.foreignKey,
-              label: c.label,
-            } satisfies BDAppConnection;
-          })
-          .filter((c) => c.targetSlug);
-        if (connections.length > 0) resource.connections = connections;
-        return resource;
-      });
-    };
-
     for (const appDraft of artifact.apps) {
       const created = await bdAppRepository.create(
         createApp(projectId, {
           ...BD_APP_EMPTY_FORM,
           name: appDraft.name,
-          slug: appDraft.slug ?? appDraft.name.toLowerCase().replace(/\s+/g, "-"),
+          slug: appDraft.slug ?? slugify(appDraft.name),
           path: appDraft.path ?? "/",
         }),
       );
       await bdAppRepository.update(created.id, {
-        resources: buildResources(appDraft),
+        resources: resourcesFromDrafts(appDraft.resources, models ?? []),
       });
     }
   };
@@ -168,7 +101,7 @@ export function BDAppListComponent() {
             >
               AI Generate
             </BDButton>
-            <BDButton icon={Plus} onClick={handleCreateApp}>
+            <BDButton icon={Plus} onClick={() => setCreating(true)}>
               New app
             </BDButton>
           </>
@@ -266,6 +199,17 @@ export function BDAppListComponent() {
         confirmLabel="Delete app"
         onConfirm={handleDeleteApp}
         onCancel={() => setDeletingApp(null)}
+      />
+
+      <BDAppFillerComponent
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="New app"
+        description="Enter an app name and the slug, path and brand name are derived from it."
+        label="App name"
+        placeholder="e.g. Shop Admin"
+        submitLabel="Create"
+        onSubmit={createNewApp}
       />
     </div>
   );

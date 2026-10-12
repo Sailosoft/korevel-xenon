@@ -21,10 +21,13 @@ import { bdDiagramRepository } from "./BDDiagram.Repository";
 import { useBDDiagramGroups, useBDDiagramsByGroup } from "./BDDiagram.Hooks";
 import {
   BD_DIAGRAM_TYPE_OPTIONS,
+  BD_MAX_DIAGRAMS,
   createDefaultDiagramNode,
   createDiagramEdge,
   createDiagramNode,
   type BDDiagramArtifact,
+  type BDDiagramBatchMode,
+  type BDDiagramCreation,
 } from "./BDDiagram.Types";
 import { bdGenerateDiagram } from "./BDDiagramBuilder.Server";
 import BDPageHeader from "../../components/BDPageHeader";
@@ -71,7 +74,13 @@ export function BDDiagramListComponent({ groupId }: BDDiagramListComponentProps)
 
   const [deleting, setDeleting] = useState<BDDiagramRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiCreation, setAiCreation] = useState<BDDiagramCreation>("single");
   const [aiType, setAiType] = useState<BDDiagramType>("flowchart");
+  const [aiBatchMode, setAiBatchMode] = useState<BDDiagramBatchMode>("auto");
+  const [aiCount, setAiCount] = useState(3);
+  const [aiTypeCounts, setAiTypeCounts] = useState<
+    Partial<Record<BDDiagramType, number>>
+  >({});
   const [createOpen, setCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<Record<string, unknown>>({
     name: "New Diagram",
@@ -109,6 +118,10 @@ export function BDDiagramListComponent({ groupId }: BDDiagramListComponentProps)
     setDeleting(null);
     toast({ title: "Diagram deleted", status: "success" });
   };
+
+  const batchTypes = (Object.entries(aiTypeCounts) as [BDDiagramType, number][])
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([type]) => type);
 
   const applyArtifact = async (artifact: BDDiagramArtifact) => {
     const buildNodes = (draft: BDDiagramArtifact["diagrams"][number]) =>
@@ -192,32 +205,158 @@ export function BDDiagramListComponent({ groupId }: BDDiagramListComponentProps)
         onOpenChange={setAiOpen}
         title="AI Diagram Generation"
         placeholder="e.g. A flowchart of the checkout process with payment, inventory and email steps"
-        generate={({ instruction, mode, aiConfig: cfg }) =>
-          bdGenerateDiagram({ instruction, mode, aiConfig: cfg, diagramType: aiType })
-        }
+        generate={({ instruction, mode, aiConfig: cfg }) => {
+          if (
+            aiCreation === "batch" &&
+            aiBatchMode === "types" &&
+            batchTypes.length === 0
+          ) {
+            throw new Error(
+              "Pick at least one diagram type with a count of 1 or more.",
+            );
+          }
+          return bdGenerateDiagram({
+            instruction,
+            mode,
+            aiConfig: cfg,
+            creation: aiCreation,
+            diagramType: aiCreation === "single" ? aiType : undefined,
+            batchMode: aiCreation === "batch" ? aiBatchMode : undefined,
+            count:
+              aiCreation === "batch" && aiBatchMode === "auto"
+                ? aiCount
+                : undefined,
+            types:
+              aiCreation === "batch" && aiBatchMode === "types"
+                ? batchTypes
+                : undefined,
+            counts:
+              aiCreation === "batch" && aiBatchMode === "types"
+                ? aiTypeCounts
+                : undefined,
+          });
+        }}
         onApply={applyArtifact}
         defaultMode="create"
         modes={["create"]}
         extraFields={
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-medium text-slate-500">
-              Diagram type
-            </span>
-            <select
-              value={aiType}
-              onChange={(e) => setAiType(e.target.value as BDDiagramType)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
-            >
-              {BD_DIAGRAM_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-slate-500">
+                Creation
+              </span>
+              <select
+                value={aiCreation}
+                onChange={(e) =>
+                  setAiCreation(e.target.value as BDDiagramCreation)
+                }
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+              >
+                <option value="single">Single diagram</option>
+                <option value="batch">Batch</option>
+              </select>
+            </label>
+
+            {aiCreation === "single" ? (
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-slate-500">
+                  Diagram type
+                </span>
+                <select
+                  value={aiType}
+                  onChange={(e) => setAiType(e.target.value as BDDiagramType)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+                >
+                  {BD_DIAGRAM_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Batch mode
+                  </span>
+                  <select
+                    value={aiBatchMode}
+                    onChange={(e) =>
+                      setAiBatchMode(e.target.value as BDDiagramBatchMode)
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+                  >
+                    <option value="auto">Auto — AI picks types</option>
+                    <option value="types">Pick types</option>
+                  </select>
+                </label>
+
+                {aiBatchMode === "auto" ? (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-slate-500">
+                      Number of diagrams
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={BD_MAX_DIAGRAMS}
+                      value={aiCount}
+                      onChange={(e) => setAiCount(Number(e.target.value))}
+                      className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+                    />
+                  </label>
+                ) : (
+                  <div className="flex max-h-40 w-64 flex-col gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    {BD_DIAGRAM_TYPE_OPTIONS.map((opt) => {
+                      const count = aiTypeCounts[opt.value] ?? 0;
+                      return (
+                        <label
+                          key={opt.value}
+                          className="flex items-center gap-2 text-xs text-slate-600"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={count > 0}
+                            onChange={(e) =>
+                              setAiTypeCounts((prev) => ({
+                                ...prev,
+                                [opt.value]: e.target.checked
+                                  ? prev[opt.value] || 1
+                                  : 0,
+                              }))
+                            }
+                          />
+                          <span className="flex-1">{opt.label}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={BD_MAX_DIAGRAMS}
+                            value={count}
+                            disabled={count <= 0}
+                            onChange={(e) =>
+                              setAiTypeCounts((prev) => ({
+                                ...prev,
+                                [opt.value]: Number(e.target.value),
+                              }))
+                            }
+                            className="w-16 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         }
         renderPreview={(artifact) => (
           <div className="flex flex-col gap-3">
+            <p className="text-xs text-slate-500">
+              {artifact.diagrams.length} diagram
+              {artifact.diagrams.length === 1 ? "" : "s"} will be created.
+            </p>
             {artifact.diagrams.map((d, i) => (
               <div key={i} className="rounded-lg border border-slate-200 p-3">
                 <p className="text-sm font-semibold text-slate-800">

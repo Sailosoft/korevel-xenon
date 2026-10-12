@@ -896,6 +896,15 @@ export function toMermaid(diagram: BDDiagramRecord): string {
 
 // ── AI artifact drafts ─────────────────────────────────────────────────────
 
+/** Whether AI generation creates one diagram or a batch of diagrams. */
+export type BDDiagramCreation = "single" | "batch";
+
+/** Batch sub-mode: AI picks the types, or the user picks types + counts. */
+export type BDDiagramBatchMode = "auto" | "types";
+
+/** Hard cap on how many diagrams a single batch generation may create. */
+export const BD_MAX_DIAGRAMS = 20;
+
 export interface BDDiagramNodeDraft {
   id?: string;
   label: string;

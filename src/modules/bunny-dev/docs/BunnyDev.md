@@ -72,7 +72,7 @@ it could have group so i could build a different version  and variant of schema.
   - diagram.
   - app builder
   - schema builder management
-  - outline
+  - docs
   - and the rest
   - content creating
   - virtual file management
@@ -80,8 +80,8 @@ it could have group so i could build a different version  and variant of schema.
 - it has a multi-turn decision making for the agent to manage those.
   - wether to create new, append them, or change them.
 
-### Outline
-- GEnerating outline, helpful, guides, and docs
+### Docs
+- Generating docs, helpful guides, and reference material
 - use react markdown reader and wysiwyg editor
 - can export it.
 
@@ -103,10 +103,10 @@ it could have group so i could build a different version  and variant of schema.
     - app builder(App)
     - schema builder(Schema)
     - api reference builder(API)
-    - outline builder(Outline)
+    - docs builder(Docs)
     - diagram builder(Diagram)
     - file management(File)
-    - architecture designer(Architecture Design)
+    - specs designer(Specs)
     - Project Management(Project Management)
     - the rest.
 - all the builders conntected to that project.

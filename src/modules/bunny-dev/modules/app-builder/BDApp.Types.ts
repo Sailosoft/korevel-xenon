@@ -141,12 +141,35 @@ const COLUMN_TYPE_MAP: Record<BDSchemaType, BDAppColumn["type"]> = {
   array: "tags",
 };
 
-function slugify(value: string): string {
+export function slugify(value: string): string {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .toLowerCase()
     .replace(/^-+|-+$/g, "");
+}
+
+/** Derive an app's identity (slug, path, brand) from its name. */
+export function deriveAppMeta(name: string): {
+  name: string;
+  slug: string;
+  path: string;
+  brandName: string;
+} {
+  const slug = slugify(name);
+  return { name, slug, path: slug ? `/${slug}` : "/", brandName: name };
+}
+
+/** Derive a resource's identity fields from its name. */
+export function deriveResourceIdentity(
+  name: string,
+): Pick<BDAppResource, "name" | "slug" | "label" | "pluralLabel"> {
+  return {
+    name,
+    slug: slugify(name),
+    label: name,
+    pluralLabel: name ? `${name}s` : "",
+  };
 }
 
 /** Build a form field from a schema column. */
@@ -258,13 +281,9 @@ export function findInverseConnection(
   return candidates[0];
 }
 
-export function createAppResource(name = "NewResource"): BDAppResource {
-  const slug = slugify(name);
+export function createAppResource(name = ""): BDAppResource {
   return {
-    name,
-    slug,
-    label: name,
-    pluralLabel: `${name}s`,
+    ...deriveResourceIdentity(name),
     form: { components: [] },
     table: { columns: [] },
   };
@@ -454,6 +473,7 @@ export interface BDAppResourceDraft {
   name: string;
   slug?: string;
   label?: string;
+  pluralLabel?: string;
   model?: string;
   fields?: BDAppFieldDraft[];
   columns?: BDAppColumnDraft[];
@@ -469,4 +489,149 @@ export interface BDAppDraft {
 
 export interface BDAppArtifact {
   apps: BDAppDraft[];
+}
+
+// ── AI section toggles ─────────────────────────────────────────────────────
+
+/** Which parts of a single resource an AI run should fill. */
+export interface BDAppResourceAISections {
+  meta: boolean;
+  form: boolean;
+  table: boolean;
+  connections: boolean;
+}
+
+/** Which parts of an app the design-view AI run should fill. */
+export interface BDAppDesignAISections {
+  meta: boolean;
+  resources: boolean;
+}
+
+/** App-level meta returned by the design-view AI run. */
+export interface BDAppMetaDraft {
+  name?: string;
+  slug?: string;
+  path?: string;
+  description?: string;
+  brandName?: string;
+  logoUrl?: string;
+  themeMode?: "light" | "dark" | "system";
+  primaryColor?: string;
+}
+
+/** Artifact returned by the design-view AI run. */
+export interface BDAppDesignDraft {
+  meta?: BDAppMetaDraft;
+  resources?: BDAppResourceDraft[];
+}
+
+/** A minimal resource reference used to resolve connection targets. */
+export interface BDAppResourceRef {
+  name: string;
+  slug: string;
+}
+
+// ── AI draft → domain conversions ──────────────────────────────────────────
+
+/** Convert an AI field draft into a form field. */
+export function fieldFromDraft(draft: BDAppFieldDraft): BDAppField {
+  const options =
+    draft.options && draft.options.length > 0
+      ? Object.fromEntries(draft.options.map((o) => [o.value, o.label]))
+      : undefined;
+  return {
+    kind: "field",
+    type: draft.type as BDAppFieldType,
+    name: draft.name,
+    label: draft.label ?? draft.name,
+    required: draft.required,
+    options,
+  };
+}
+
+/** Convert an AI column draft into a table column. */
+export function columnFromDraft(draft: BDAppColumnDraft): BDAppColumn {
+  return {
+    type: draft.type as BDAppColumn["type"],
+    name: draft.name,
+    label: draft.label ?? draft.name,
+  };
+}
+
+/** Convert an AI connection draft into a connection, resolving its target. */
+export function connectionFromDraft(
+  draft: BDAppConnectionDraft,
+  references: BDAppResourceRef[],
+): BDAppConnection | null {
+  const target = references.find(
+    (ref) => ref.slug === draft.target || ref.name === draft.target,
+  );
+  if (!target) return null;
+  return {
+    name: draft.name,
+    type: draft.type,
+    targetSlug: target.slug,
+    titleAttribute: draft.titleAttribute,
+    foreignKey: draft.foreignKey,
+    label: draft.label,
+  };
+}
+
+/**
+ * Build one resource from an AI draft, resolving its slug (with de-duplication
+ * against `usedSlugs`) and mapping connection targets via `references`.
+ */
+export function resourceFromDraft(
+  draft: BDAppResourceDraft,
+  models: BDSchemaModel[],
+  references: BDAppResourceRef[],
+  slug: string,
+): BDAppResource {
+  const model = models.find((m) => m.name === draft.model);
+  const resource: BDAppResource = {
+    name: draft.name,
+    slug,
+    label: draft.label ?? draft.name,
+    pluralLabel: draft.pluralLabel ?? `${draft.label ?? draft.name}s`,
+    modelId: model?.id,
+    form: { components: (draft.fields ?? []).map(fieldFromDraft) },
+    table: { columns: (draft.columns ?? []).map(columnFromDraft) },
+  };
+  const connections = (draft.connections ?? [])
+    .map((c) => connectionFromDraft(c, references))
+    .filter((c): c is BDAppConnection => c !== null);
+  if (connections.length > 0) resource.connections = connections;
+  return resource;
+}
+
+/**
+ * Build resources from AI drafts, resolving connection targets against existing
+ * resources plus the sibling drafts in the same batch, and de-duplicating slugs.
+ */
+export function resourcesFromDrafts(
+  drafts: BDAppResourceDraft[],
+  models: BDSchemaModel[],
+  existing: BDAppResourceRef[] = [],
+): BDAppResource[] {
+  const used = new Set(existing.map((ref) => ref.slug).filter(Boolean));
+  const resolved = drafts.map((draft) => {
+    const base = draft.slug ?? (slugify(draft.name) || "resource");
+    let slug = base;
+    if (used.has(slug)) {
+      let i = 2;
+      while (used.has(`${base}-${i}`)) i += 1;
+      slug = `${base}-${i}`;
+    }
+    used.add(slug);
+    return { draft, slug };
+  });
+
+  const references: BDAppResourceRef[] = [
+    ...existing,
+    ...resolved.map((r) => ({ name: r.draft.name, slug: r.slug })),
+  ];
+
+  return resolved.map((r) =>
+    resourceFromDraft(r.draft, models, references, r.slug),
+  );
 }

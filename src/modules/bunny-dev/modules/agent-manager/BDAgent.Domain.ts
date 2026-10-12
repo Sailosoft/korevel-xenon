@@ -109,8 +109,8 @@ export type BDSubsystem =
   | "app"
   | "api"
   | "diagram"
-  | "outline"
-  | "architecture"
+  | "docs"
+  | "specs"
   | "board"
   | "files"
   | "agent";

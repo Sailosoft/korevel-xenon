@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import type { HelixAISettings } from "@/src/modules/helix";
 import { BUIAuthor } from "../modules/authors/bui.author.entity";
 import {
   BUIBookChapterEntity,
@@ -14,6 +15,7 @@ export class BUIDatabase extends Dexie {
   books!: Dexie.Table<BUIBookEntity, number>;
   chapters!: Dexie.Table<BUIBookChapterEntity, number>;
   settings!: Dexie.Table<BUISetting, string>;
+  aiSettings!: Dexie.Table<HelixAISettings, string>;
   authorSkills!: Dexie.Table<BUIAuthorSkill, number>;
   authorSkillRelations!: Dexie.Table<BUIAuthorSkillRelation, number>;
   topics!: Dexie.Table<BUITopicEntity, number>;
@@ -51,6 +53,13 @@ export class BUIDatabase extends Dexie {
 
     this.version(8).stores({
       topics: "++id, title",
+    });
+
+    // Helix AI configuration singleton (key = "default"). Bunny AI reads the
+    // active provider + model from here so it follows the shared Helix
+    // configuration instead of a .env default.
+    this.version(9).stores({
+      aiSettings: "key, provider, model",
     });
 
     // Delete Book/Outline cascade — when a book or outline row is deleted, also

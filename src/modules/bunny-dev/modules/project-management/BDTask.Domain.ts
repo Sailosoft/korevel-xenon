@@ -174,8 +174,8 @@ export interface BDIssueLink extends BDEntity {
 export interface BDAttachment extends BDEntity {
   projectId: string;
   taskId?: string;
-  architectureId?: string;
-  outlineId?: string;
+  specId?: string;
+  docId?: string;
   name: string;
   url: string;
   mime?: string;

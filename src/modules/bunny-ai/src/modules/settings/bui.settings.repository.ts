@@ -1,7 +1,7 @@
 import { buiDatabase } from "../../database/bui.database";
 import BUIRepositoryAdminPanel from "../../database/bui.repository.admin-panel";
 import { BUISetting } from "./bui.settings.entity";
-import type { HelixAIOption } from "@/src/modules/helix";
+import type { HelixAIOption, HelixAISettings } from "@/src/modules/helix";
 
 export default class BUISettingsRepository extends BUIRepositoryAdminPanel<BUISetting> {
   constructor() {
@@ -9,19 +9,25 @@ export default class BUISettingsRepository extends BUIRepositoryAdminPanel<BUISe
   }
 
   /**
-   * Reads the persisted AI provider + model from the settings table.
-   * Falls back to "default" / "gemma4:31b-cloud" when not found.
+   * Reads the persisted Helix AI configuration from the shared `aiSettings`
+   * singleton (key = "default"). This is the same row written by the shared
+   * HelixAIProviderSelector, so every AI feature follows the Helix config.
+   */
+  async getHelixSettings(): Promise<HelixAISettings | undefined> {
+    return buiDatabase.aiSettings.get("default");
+  }
+
+  /**
+   * Resolves the active Helix AI provider + model as a `HelixAIOption` so it
+   * can be forwarded to the server actions. Falls back to the Helix "default"
+   * provider only when nothing has been configured yet.
    */
   async getActiveAIConfig(): Promise<HelixAIOption> {
-    const [providerSetting, modelSetting] = await Promise.all([
-      buiDatabase.settings.get("ai_provider"),
-      buiDatabase.settings.get("default_ai_model"),
-    ]);
+    const settings = await this.getHelixSettings();
 
     return {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      provider: (providerSetting?.value as any) ?? "default",
-      model: modelSetting?.value ?? "gemma4:31b-cloud",
+      provider: settings?.provider ?? "default",
+      model: settings?.model ?? "gemma4:31b-cloud",
     };
   }
 }

@@ -12,11 +12,11 @@ import { v7 as uuidv7 } from "uuid";
 import type {
   BDAPI,
   BDApiGroup,
-  BDArchitectureGroup,
-  BDArchitectureRecord,
   BDBoard,
   BDDiagramGroup,
   BDDiagramRecord,
+  BDSpecGroup,
+  BDSpecRecord,
 } from "./BDDomain.Types";
 
 /**
@@ -178,20 +178,22 @@ export function configureBDMigrations(db: Dexie): void {
       }
     });
 
-  // ── Version 5 — Architecture groups ────────────────────────────────────────
-  // Adds the architectureGroups aggregate and moves existing documents under a
+  // ── Version 5 — Spec (formerly Architecture) groups ────────────────────────
+  // Adds the specGroups aggregate and moves existing documents under a
   // per-project "Default" group so every document always lives in a group.
+  // Historically this ran against the `architectures` table, which is renamed
+  // to `specs` in version 6.
   db.version(5)
     .stores({
       architectureGroups: "id, projectId, position",
       architectures: "id, projectId, slug, type, status, groupId",
     })
     .upgrade(async (tx) => {
-      const records = (await tx.table("architectures").toArray()) as BDArchitectureRecord[];
+      const records = (await tx.table("architectures").toArray()) as BDSpecRecord[];
       if (records.length === 0) return;
 
       const now = new Date().toISOString();
-      const byProject = new Map<string, BDArchitectureRecord[]>();
+      const byProject = new Map<string, BDSpecRecord[]>();
       for (const record of records) {
         if (record.groupId) continue;
         const list = byProject.get(record.projectId);
@@ -200,7 +202,7 @@ export function configureBDMigrations(db: Dexie): void {
       }
 
       for (const [projectId, rows] of byProject) {
-        const group: BDArchitectureGroup = {
+        const group: BDSpecGroup = {
           id: uuidv7(),
           projectId,
           name: "Default",
@@ -215,4 +217,90 @@ export function configureBDMigrations(db: Dexie): void {
           .bulkPut(rows.map((r) => ({ ...r, groupId: group.id })));
       }
     });
+
+  // ── Version 6 — rename outline→docs, architecture→specs ────────────────────
+  // Adds the `docs` / `specs` / `specGroups` tables and copies data from the
+  // previous `outlines` / `architectures` / `architectureGroups` tables,
+  // rewriting the renamed foreign-key fields and persisted `subsystem` values.
+  // The old tables stay declared in v6 so the upgrade can still read them;
+  // they are dropped in v7.
+  db.version(6)
+    .stores({
+      docs: "id, projectId, slug",
+      specs: "id, projectId, slug, type, status, groupId",
+      specGroups: "id, projectId, position",
+    })
+    .upgrade(async (tx) => {
+      // Docs: copy each record, renaming its sources' `architectureId` → `specId`.
+      const docs = (await tx.table("outlines").toArray()) as Array<
+        Record<string, unknown>
+      >;
+      if (docs.length > 0) {
+        const migratedDocs = docs.map((doc) => {
+          if (!Array.isArray(doc.sources)) return doc;
+          const sources = (doc.sources as Array<Record<string, unknown>>).map(
+            (source) => {
+              const { architectureId, ...rest } = source;
+              return architectureId ? { ...rest, specId: architectureId } : rest;
+            },
+          );
+          return { ...doc, sources };
+        });
+        await tx.table("docs").bulkPut(migratedDocs);
+      }
+
+      // Specs + spec groups: structural rename only.
+      const specs = await tx.table("architectures").toArray();
+      if (specs.length > 0) await tx.table("specs").bulkPut(specs);
+      const specGroups = await tx.table("architectureGroups").toArray();
+      if (specGroups.length > 0) await tx.table("specGroups").bulkPut(specGroups);
+
+      // Attachments: rename `outlineId` → `docId`, `architectureId` → `specId`.
+      const attachments = (await tx.table("attachments").toArray()) as Array<
+        Record<string, unknown>
+      >;
+      if (attachments.length > 0) {
+        const migratedAttachments = attachments.map((attachment) => {
+          const { outlineId, architectureId, ...rest } = attachment;
+          const next: Record<string, unknown> = { ...rest };
+          if (outlineId) next.docId = outlineId;
+          if (architectureId) next.specId = architectureId;
+          return next;
+        });
+        await tx.table("attachments").bulkPut(migratedAttachments);
+      }
+
+      // AI generation records: rename persisted subsystem values.
+      const subsystemMap: Record<string, string> = {
+        outline: "docs",
+        architecture: "specs",
+      };
+      for (const table of ["generationRuns", "batchProposals"] as const) {
+        const rows = (await tx.table(table).toArray()) as Array<
+          Record<string, unknown>
+        >;
+        const migratedRows = rows
+          .filter(
+            (row) =>
+              typeof row.subsystem === "string" &&
+              subsystemMap[row.subsystem as string] !== undefined,
+          )
+          .map((row) => ({
+            ...row,
+            subsystem: subsystemMap[row.subsystem as string],
+          }));
+        if (migratedRows.length > 0) {
+          await tx.table(table).bulkPut(migratedRows);
+        }
+      }
+    });
+
+  // ── Version 7 — drop the pre-rename tables ─────────────────────────────────
+  // Data was copied into docs/specs/specGroups in v6; drop the old tables now
+  // that nothing reads them. Setting a table to `null` deletes it.
+  db.version(7).stores({
+    outlines: null,
+    architectures: null,
+    architectureGroups: null,
+  });
 }

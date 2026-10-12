@@ -13,8 +13,8 @@ tenant. Solves "decide and document, then hand off to AI agents".
   - `/modules/bunny-dev` — project list (outer shell)
   - `/modules/bunny-dev/settings` — global AI settings
   - `/modules/bunny-dev/projects/[projectId]` — project workspace (inner shell)
-    - `/schema` · `/app` · `/api` · `/outline` · `/diagram` · `/files` ·
-      `/architecture` · `/board` · `/agents` · `/settings`
+    - `/schema` · `/app` · `/api` · `/docs` · `/diagram` · `/files` ·
+      `/specs` · `/board` · `/agents` · `/settings`
 - `src/modules/bunny-dev/` — module source
   - `BDDomain.Types.ts` — canonical serializable domain model
   - `BDDatabase.ts` / `BDMigration.ts` / `BDRepository.ts` — Dexie layer
@@ -24,7 +24,7 @@ tenant. Solves "decide and document, then hand off to AI agents".
   - `modules/ai-settings/` — global AI provider/model
   - `modules/agent-manager/` — agents, handoffs, and the shared generation pipeline
   - `modules/schema-builder/` · `diagram-builder/` · `app-builder/` ·
-    `api-design/` · `outline/` · `architecture/` · `file-management/` ·
+    `api-design/` · `docs/` · `specs/` · `file-management/` ·
     `project-management/`
 
 ## Conventions

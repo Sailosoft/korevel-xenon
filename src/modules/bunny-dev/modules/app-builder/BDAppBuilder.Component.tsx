@@ -14,6 +14,8 @@ import {
   LayoutGrid,
   Eye,
   ExternalLink,
+  Wand2,
+  Sparkles,
 } from "lucide-react";
 import type { BDApp, BDAppResource } from "../../BDDomain.Types";
 import { useBDApps, useBDProjectSchemaModels } from "./BDApp.Hooks";
@@ -22,12 +24,20 @@ import { migrateLegacyAppRecords } from "../../BDAppDatabase";
 import {
   collectAppFields,
   createAppResource,
+  deriveAppMeta,
+  resourcesFromDrafts,
   toAppForm,
 } from "./BDApp.Types";
-import type { BDAppForm } from "./BDApp.Types";
+import type {
+  BDAppDesignAISections,
+  BDAppDesignDraft,
+  BDAppForm,
+} from "./BDApp.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import BDAppResourceComponent from "./BDAppResource.Component";
 import BDAppRenderingComponent from "./BDAppRendering.Component";
+import BDAppFillerComponent from "./BDAppFiller.Component";
+import BDAppDesignAIComponent from "./BDAppDesignAI.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
@@ -57,9 +67,15 @@ export function BDAppBuilderComponent({
   const [form, setForm] = useState<BDAppForm | null>(null);
   const [mode, setMode] = useState<"design" | "preview">("design");
   const [resourceIndex, setResourceIndex] = useState<number | null>(null);
+  const [creatingResource, setCreatingResource] = useState<BDAppResource | null>(
+    null,
+  );
+  const [createCounter, setCreateCounter] = useState(0);
   const [deletingResource, setDeletingResource] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [appFillerOpen, setAppFillerOpen] = useState(false);
+  const [designAiOpen, setDesignAiOpen] = useState(false);
 
   // Copy any pre-existing records from the legacy table once.
   useEffect(() => {
@@ -113,34 +129,130 @@ export function BDAppBuilderComponent({
     });
   };
 
-  const addResource = () => {
-    if (!draft) return;
-    const resources = [...draft.resources, createAppResource()];
-    update({ resources });
-    setResourceIndex(resources.length - 1);
+  const openNewResource = () => {
+    setResourceIndex(null);
+    setCreatingResource(createAppResource());
+    setCreateCounter((count) => count + 1);
   };
 
-  const saveResource = (resource: BDAppResource) => {
-    if (!draft || resourceIndex === null) return;
-    const resources = draft.resources.map((r, i) =>
-      i === resourceIndex ? resource : r,
-    );
-    update({ resources });
+  const closeResource = () => {
     setResourceIndex(null);
-    toast({ title: "Resource saved", status: "success" });
+    setCreatingResource(null);
+  };
+
+  const persistResources = async (resources: BDAppResource[]) => {
+    if (!draft) return;
+    update({ resources });
+    await bdAppRepository.update(draft.id, { resources });
+  };
+
+  const saveResource = async (resource: BDAppResource) => {
+    if (!draft) return;
+    const resources =
+      creatingResource !== null
+        ? [...draft.resources, resource]
+        : resourceIndex !== null
+          ? draft.resources.map((r, i) => (i === resourceIndex ? resource : r))
+          : draft.resources;
+    setSaving(true);
+    try {
+      await persistResources(resources);
+      closeResource();
+      toast({ title: "Resource saved", status: "success" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteResource = async () => {
     if (!draft || deletingResource === null) return;
     const resource = draft.resources[deletingResource];
     await bdAppRecordRepository.deleteResourceWithLinks(draft, resource.slug);
-    update({
-      resources: draft.resources.filter((_, i) => i !== deletingResource),
-    });
+    await persistResources(
+      draft.resources.filter((_, i) => i !== deletingResource),
+    );
     if (resourceIndex === deletingResource) setResourceIndex(null);
     setDeletingResource(null);
     toast({ title: "Resource deleted", status: "success" });
   };
+
+  const applyAppMetaFiller = (name: string) => {
+    if (!form || !draft) return;
+    const meta = deriveAppMeta(name);
+    const nextForm: BDAppForm = { ...form, ...meta };
+    setForm(nextForm);
+    update({
+      name: meta.name,
+      slug: meta.slug,
+      path: meta.path,
+      brand:
+        nextForm.brandName || nextForm.logoUrl
+          ? {
+              name: nextForm.brandName || nextForm.name,
+              logo: nextForm.logoUrl || undefined,
+            }
+          : undefined,
+    });
+  };
+
+  const applyDesignAI = (
+    result: BDAppDesignDraft,
+    sections: BDAppDesignAISections,
+  ) => {
+    if (!draft || !form) return;
+    const patch: Partial<BDApp> = {};
+
+    if (sections.meta && result.meta) {
+      const meta = result.meta;
+      const nextForm: BDAppForm = {
+        ...form,
+        name: meta.name ?? form.name,
+        slug: meta.slug ?? form.slug,
+        path: meta.path ?? form.path,
+        description: meta.description ?? form.description,
+        brandName: meta.brandName ?? form.brandName,
+        logoUrl: meta.logoUrl ?? form.logoUrl,
+        themeMode: meta.themeMode ?? form.themeMode,
+        primaryColor: meta.primaryColor ?? form.primaryColor,
+      };
+      setForm(nextForm);
+      patch.name = nextForm.name;
+      patch.slug = nextForm.slug;
+      patch.path = nextForm.path;
+      patch.description = nextForm.description || undefined;
+      patch.brand =
+        nextForm.brandName || nextForm.logoUrl
+          ? {
+              name: nextForm.brandName || nextForm.name,
+              logo: nextForm.logoUrl || undefined,
+            }
+          : undefined;
+      patch.theme =
+        nextForm.themeMode !== "system" || nextForm.primaryColor
+          ? {
+              mode: nextForm.themeMode,
+              primary: nextForm.primaryColor || undefined,
+            }
+          : undefined;
+    }
+
+    if (sections.resources && result.resources && result.resources.length > 0) {
+      const refs = draft.resources.map((r) => ({
+        name: r.name,
+        slug: r.slug,
+      }));
+      const generated = resourcesFromDrafts(result.resources, models ?? [], refs);
+      patch.resources = [...draft.resources, ...generated];
+    }
+
+    if (Object.keys(patch).length > 0) {
+      update(patch);
+      void bdAppRepository.update(draft.id, patch);
+    }
+    toast({ title: "AI generation applied", status: "success" });
+  };
+
+  const resourceOpen = resourceIndex !== null || creatingResource !== null;
 
   if (apps && initialAppId && !apps.some((a) => a.id === initialAppId)) {
     return (
@@ -213,6 +325,24 @@ export function BDAppBuilderComponent({
                 >
                   <Eye className="h-3.5 w-3.5" /> Render
                 </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <BDButton
+                  size="sm"
+                  variant="secondary"
+                  icon={Wand2}
+                  onClick={() => setAppFillerOpen(true)}
+                >
+                  Fill details
+                </BDButton>
+                <BDButton
+                  size="sm"
+                  variant="secondary"
+                  icon={Sparkles}
+                  onClick={() => setDesignAiOpen(true)}
+                >
+                  Generate AI
+                </BDButton>
               </div>
             </div>
 
@@ -328,7 +458,7 @@ export function BDAppBuilderComponent({
                   size="sm"
                   variant="secondary"
                   icon={Plus}
-                  onClick={addResource}
+                  onClick={openNewResource}
                 >
                   Add resource
                 </BDButton>
@@ -339,7 +469,7 @@ export function BDAppBuilderComponent({
                   title="No resources"
                   description="Add a resource to define a CRUD entity."
                   action={
-                    <BDButton icon={Plus} onClick={addResource}>
+                    <BDButton icon={Plus} onClick={openNewResource}>
                       Add resource
                     </BDButton>
                   }
@@ -398,17 +528,50 @@ export function BDAppBuilderComponent({
       )}
 
       <BDAppResourceComponent
-        open={resourceIndex !== null}
+        open={resourceOpen}
         resource={
-          resourceIndex !== null ? draft?.resources[resourceIndex] ?? null : null
+          creatingResource ??
+          (resourceIndex !== null
+            ? draft?.resources[resourceIndex] ?? null
+            : null)
         }
         models={models ?? []}
         resources={draft?.resources ?? []}
-        onClose={() => setResourceIndex(null)}
+        isNew={creatingResource !== null}
+        resetToken={creatingResource !== null ? `new-${createCounter}` : resourceIndex ?? undefined}
+        projectId={projectId}
+        isSaving={saving}
+        onClose={closeResource}
         onSave={saveResource}
         onDelete={() => {
           if (resourceIndex !== null) setDeletingResource(resourceIndex);
         }}
+      />
+
+      <BDAppFillerComponent
+        open={appFillerOpen}
+        onClose={() => setAppFillerOpen(false)}
+        title="Fill app details"
+        description="Enter an app name and the slug, path and brand name are derived from it."
+        label="App name"
+        placeholder="e.g. Shop Admin"
+        submitLabel="Fill details"
+        initialName={form?.name ?? ""}
+        onSubmit={applyAppMetaFiller}
+      />
+
+      <BDAppDesignAIComponent
+        open={designAiOpen}
+        onOpenChange={setDesignAiOpen}
+        projectId={projectId}
+        currentMeta={{
+          name: form?.name,
+          slug: form?.slug,
+          path: form?.path,
+        }}
+        models={models ?? []}
+        resources={draft?.resources ?? []}
+        onAccept={applyDesignAI}
       />
 
       <BDConfirmDialog

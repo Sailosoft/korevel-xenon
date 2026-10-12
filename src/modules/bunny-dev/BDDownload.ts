@@ -1,5 +1,5 @@
 // BDDownload.ts — small browser download / clipboard helpers shared by every
-// BunnyDev export feature (Prisma schema, diagram, outline, architecture, files).
+// BunnyDev export feature (Prisma schema, diagram, docs, specs, files).
 
 /** Trigger a browser download of a text payload. */
 export function downloadText(
