@@ -45,11 +45,8 @@ export interface CallAIConversationParams {
 const SYSTEM_MESSAGE =
   "You are Lemon Coder, an AI coding assistant. You help users write and modify code files. " +
   "You MUST respond with a valid JSON object containing exactly the fields requested in the user prompt. " +
-  "When providing file Content, always output the COMPLETE file from the first line to the last — " +
-  "never a diff, never a snippet, never placeholders like '... rest remains the same'. " +
-  "The Content field must be ready to copy-paste and write directly to the file as-is. " +
-  // before
-  // CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\\", backslashes as \\\\, " +
+  "For NEW files return the complete file in Content. For EXISTING files return " +
+  'Edits and set Content to "". Never restate unchanged lines or the whole file. ' +
   'CRITICAL: The Content field is a JSON string — you MUST escape all double quotes as \\", backslashes as \\\\, ' +
   "and replace literal newlines with \\n. Never use trailing commas in objects or arrays. " +
   "Verify your JSON is valid before responding.";
@@ -84,6 +81,8 @@ async function callOpenAI(
     temperature: 0.7,
   });
 
+  logTokenUsage("default", model, response.usage);
+
   const rawContent = response.choices[0]?.message?.content || "";
 
   return parseLCAIResponse(rawContent);
@@ -96,6 +95,30 @@ function makeErrorResponse(error: unknown): LCAIResponse {
     AIMessage: `AI Error: ${error instanceof Error ? error.message : "Unknown error"}`,
     FileContents: [],
   };
+}
+
+/** Token totals reported by the provider (all fields optional). */
+interface TokenUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
+/**
+ * Log provider-reported token usage. Non-invasive: purely for measuring the
+ * effect of prompt/output slimming. No behaviour change.
+ */
+function logTokenUsage(
+  provider: string,
+  model: string,
+  usage: TokenUsage | undefined,
+): void {
+  if (!usage) return;
+  console.debug(
+    `[lemon-coder] tokens — provider: ${provider}, model: ${model}, ` +
+      `prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, ` +
+      `total: ${usage.total_tokens}`,
+  );
 }
 
 // ── Single-Prompt Action (Code mode) ────────────────────────────────────────
@@ -135,6 +158,8 @@ export async function callHelixAI({
         : {}),
       temperature: 0.7,
     });
+
+    logTokenUsage(provider, model, response.usage);
 
     const rawContent = response.choices[0]?.message?.content || "";
 
@@ -184,6 +209,8 @@ export async function callHelixAIWithConversation({
         : {}),
       temperature: 0.7,
     });
+
+    logTokenUsage(provider, model, response.usage);
 
     const rawContent = response.choices[0]?.message?.content || "";
 

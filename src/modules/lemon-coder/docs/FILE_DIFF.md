@@ -61,14 +61,44 @@ It applies edits **sequentially** — each edit searches in the result of the pr
 
 ```
 Strategy 1: Exact match (indexOf)
-    └─ Fail? → Strategy 2: Whitespace-agnostic (fuzzyIndexOf)
-        └─ Fail? → Strategy 3: Trailing-whitespace-agnostic
-            └─ Fail? → Strategy 4: Partial-block match
-                └─ Fail? → Strategy 5: Multiple-match detection
+    └─ Fail? → Strategy 2: Anchor match (short first/last-line anchors, uniqueness-first)
+        └─ Fail? → Strategy 3: Whitespace-agnostic (fuzzyIndexOf)
+            └─ Fail? → Strategy 4: Trailing-whitespace-agnostic
+                └─ Fail? → Strategy 5: Partial-block match
                     └─ Fail? → Error with context
 ```
 
-### Strategy 3 — Trailing-whitespace-agnostic
+Ambiguity is a hard error: a non-anchor search that matches more than one
+location throws instead of guessing. The anchor path resolves uniqueness itself.
+
+### Strategy 2 — Anchor match
+
+`Search` blocks may now be as short as 1-3 lines: the FIRST and LAST non-blank
+lines act as **start/end anchors**. [`findAnchorRegion()`](../src/useLCChat.ts)
+locates the region they bound:
+
+- Each anchor is the trimmed line prefix, capped at 30 characters.
+- Candidates must match at a **line-leading** position (only whitespace before).
+- **Both anchors unique** → the unambiguous span is used (no span cap).
+- **Otherwise** → candidates must fall within `lineCount + 2` lines AND contain
+  the Search's middle lines; exactly one winner is required, else it throws.
+- `Replace` overwrites the whole inclusive anchor-to-anchor region.
+
+Handles: the AI emitting short anchor blocks instead of pasting large sections,
+and surrounding-context drift between the anchors.
+
+### Strategy 3 — Whitespace-agnostic
+
+```typescript
+// [`useLCChat.ts`](../src/useLCChat.ts) — fuzzyIndexOf()
+const collapsedContent = collapseWhitespace(content);
+const collapsedSearch = collapseWhitespace(search);
+const cIdx = collapsedContent.indexOf(collapsedSearch);
+```
+
+Handles: AI whitespace drift (extra blank line, tabs vs spaces).
+
+### Strategy 4 — Trailing-whitespace-agnostic
 
 ```typescript
 // [`useLCChat.ts:269-285`](../src/useLCChat.ts:269)
@@ -92,10 +122,10 @@ if (trimmedIdx !== -1) {
 
 Handles: AI adds/removes trailing spaces on lines during generation.
 
-### Strategy 4 — Partial-block match
+### Strategy 5 — Partial-block match
 
 ```typescript
-// [`useLCChat.ts:291-318`](../src/useLCChat.ts:291)
+// [`useLCChat.ts`](../src/useLCChat.ts)
 const searchLines = search.split("\n");
 if (searchLines.length >= 4) {
   // Try without the first line
@@ -110,10 +140,12 @@ Handles: AI includes an extra adjacent context line that no longer matches the c
 ### The edit application
 
 ```typescript
-// [`useLCChat.ts:349-351`](../src/useLCChat.ts:349)
+// [`useLCChat.ts`](../src/useLCChat.ts)
+// regionEnd is idx + search.length for exact/fuzzy matches, or the end of the
+// anchored region when Strategy 2 matched.
 content = content.slice(0, idx)    // everything before match
        + edit.Replace              // insert replacement
-       + content.slice(idx + search.length); // everything after match
+       + content.slice(regionEnd); // everything after the matched region
 ```
 
 ---
