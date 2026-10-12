@@ -19,6 +19,8 @@ import type {
   BDAppFieldDraft,
   BDAppColumnDraft,
   BDAppMetaDraft,
+  BDAppRecordAIField,
+  BDAppRecordAIFieldOption,
   BDAppResourceAISections,
   BDAppResourceDraft,
 } from "./BDApp.Types";
@@ -453,6 +455,9 @@ export async function bdGenerateAppResource(
 export interface BDAppDesignGenerateParams {
   instruction: string;
   sections: BDAppDesignAISections;
+  /** Optional bounds on how many resources to generate. */
+  minResources?: number;
+  maxResources?: number;
   models?: string[];
   existingResources?: { slug: string; label: string }[];
   currentMeta?: { name?: string; slug?: string; path?: string };
@@ -491,6 +496,16 @@ export async function bdGenerateAppDesign(
     params.sections.resources
       ? "New resources may also connect to each other by slug or name."
       : undefined,
+    params.sections.resources && params.minResources
+      ? `Generate at least ${params.minResources} resource${
+          params.minResources === 1 ? "" : "s"
+        }.`
+      : undefined,
+    params.sections.resources && params.maxResources
+      ? `Generate at most ${params.maxResources} resource${
+          params.maxResources === 1 ? "" : "s"
+        }.`
+      : undefined,
     "Leave every unrequested section empty.",
   ].filter((line): line is string => !!line);
 
@@ -526,4 +541,356 @@ export async function bdGenerateAppDesign(
     throw new Error("AI returned no content. Please retry.");
   }
   return { meta, resources };
+}
+
+// ── Record generation (rendered app "Create with AI") ──────────────────────
+
+export interface BDAppRecordGenerateParams {
+  instruction: string;
+  /** Label of the resource the record belongs to (prompt context). */
+  resourceLabel?: string;
+  /** Generate a single record (default) or a batch of records. */
+  mode?: "single" | "batch";
+  /** Batch only: optional lower/upper bounds on how many records to make. */
+  minRecords?: number;
+  maxRecords?: number;
+  /** Field descriptors for the target resource. */
+  fields: BDAppRecordAIField[];
+  /** Current form values, sent as context (may be empty). */
+  current?: Record<string, unknown>;
+  aiConfig?: BDAIConfigOverride;
+}
+
+/** Maximum relation candidates included per field in the prompt. */
+const RECORD_AI_MAX_CANDIDATES = 25;
+
+const RECORD_AI_MULTI_TYPES = new Set([
+  "multiSelect",
+  "checkboxList",
+  "tags",
+]);
+
+function describeFieldOptions(options: BDAppRecordAIFieldOption[]): string {
+  return options.map((o) => `${o.value} — ${o.label}`).join("; ");
+}
+
+function describeRecordFields(fields: BDAppRecordAIField[]): string {
+  return fields
+    .map((field) => {
+      const required = field.required ? " (required)" : "";
+      if (field.relation) {
+        const candidates = field.relation.candidates;
+        const shown = candidates.slice(0, RECORD_AI_MAX_CANDIDATES);
+        const more =
+          candidates.length > shown.length
+            ? ` …(${candidates.length - shown.length} more not shown)`
+            : "";
+        const list = shown.length > 0 ? describeFieldOptions(shown) : "";
+        const kind = field.relation.multiple ? "one or more ids" : "one id";
+        return `- ${field.label} [${field.name}]: relationSelect${required}. Choose ${kind} from: ${
+          list || "(no candidates available — leave unset)"
+        }${more}`;
+      }
+      if (field.options && field.options.length > 0) {
+        return `- ${field.label} [${field.name}]: ${field.type}${required}. Allowed: ${describeFieldOptions(
+          field.options,
+        )}`;
+      }
+      return `- ${field.label} [${field.name}]: ${field.type}${required}.`;
+    })
+    .join("\n");
+}
+
+function fieldToSchemaProperty(
+  field: BDAppRecordAIField,
+): HelixStrictPropertyDefinition {
+  if (field.relation) {
+    const candidates = field.relation.candidates.slice(
+      0,
+      RECORD_AI_MAX_CANDIDATES,
+    );
+    const allowed = describeFieldOptions(candidates);
+    const description = allowed
+      ? `Relation. Choose ${
+          field.relation.multiple ? "one or more ids" : "one id"
+        } from: ${allowed}.`
+      : "Relation. No candidates are available; leave this field unset.";
+    return field.relation.multiple
+      ? {
+          type: "array",
+          description,
+          items: { type: "string", description: "Target record id." },
+        }
+      : { type: "string", description };
+  }
+
+  if (field.options && field.options.length > 0) {
+    const description = `One of: ${describeFieldOptions(field.options)}.`;
+    return RECORD_AI_MULTI_TYPES.has(field.type)
+      ? {
+          type: "array",
+          description,
+          items: { type: "string", description: "An allowed value." },
+        }
+      : { type: "string", description };
+  }
+
+  switch (field.type) {
+    case "toggle":
+    case "checkbox":
+      return { type: "boolean", description: "Boolean flag." };
+    case "date":
+      return { type: "string", description: "Date, formatted YYYY-MM-DD." };
+    case "time":
+      return { type: "string", description: "Time, formatted HH:MM." };
+    case "dateTime":
+      return { type: "string", description: "ISO-8601 date-time string." };
+    case "keyValue":
+      return { type: "object", description: "Arbitrary key/value object.", properties: {} };
+    case "repeater":
+    case "builder":
+      return {
+        type: "array",
+        description: "Repeatable list of objects.",
+        items: { type: "object", description: "One item.", properties: {} },
+      };
+    case "tags":
+      return {
+        type: "array",
+        description: "List of tag strings.",
+        items: { type: "string", description: "A tag." },
+      };
+    default:
+      return { type: "string", description: "Text value." };
+  }
+}
+
+function buildRecordSchema(
+  fields: BDAppRecordAIField[],
+  batch: boolean,
+): HelixAISchemaOptions {
+  const fieldProperties: Record<string, HelixStrictPropertyDefinition> = {};
+  for (const field of fields) {
+    fieldProperties[field.name] = fieldToSchemaProperty(field);
+  }
+  if (!batch) {
+    return {
+      name: "app_builder_record",
+      description: "A single record's field values.",
+      properties: fieldProperties,
+    };
+  }
+  return {
+    name: "app_builder_records",
+    description: "A batch of generated records.",
+    properties: {
+      records: {
+        type: "array",
+        description: "Generated records.",
+        items: {
+          type: "object",
+          description: "One record.",
+          properties: fieldProperties,
+        },
+      },
+    },
+  };
+}
+
+/** Prompt line describing the requested batch size bounds. */
+function describeBatchCount(min?: number, max?: number): string {
+  if (min !== undefined && max !== undefined) {
+    return `Generate between ${min} and ${max} records.`;
+  }
+  if (min !== undefined) return `Generate at least ${min} records.`;
+  if (max !== undefined) return `Generate at most ${max} records.`;
+  return "Generate a reasonable number of varied records (about 5 to 10).";
+}
+
+function matchRecordOption(
+  candidate: unknown,
+  options: BDAppRecordAIFieldOption[],
+): string | undefined {
+  const text =
+    typeof candidate === "string" ? candidate : String(candidate ?? "");
+  const byValue = options.find((o) => o.value === text);
+  if (byValue) return byValue.value;
+  const lower = text.trim().toLowerCase();
+  const byLabel = options.find((o) => o.label.trim().toLowerCase() === lower);
+  return byLabel?.value;
+}
+
+function resolveRelationValue(
+  value: unknown,
+  relation: { multiple: boolean; candidates: BDAppRecordAIFieldOption[] },
+): unknown {
+  if (relation.multiple) {
+    const list = Array.isArray(value) ? value : [value];
+    const ids: string[] = [];
+    for (const entry of list) {
+      const id = matchRecordOption(entry, relation.candidates);
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    return ids.length > 0 ? ids : undefined;
+  }
+  return matchRecordOption(value, relation.candidates);
+}
+
+function resolveOptionValue(
+  value: unknown,
+  options: BDAppRecordAIFieldOption[],
+  type: string,
+): unknown {
+  if (RECORD_AI_MULTI_TYPES.has(type)) {
+    const list = Array.isArray(value) ? value : [value];
+    const values: string[] = [];
+    for (const entry of list) {
+      const resolved = matchRecordOption(entry, options);
+      if (resolved && !values.includes(resolved)) values.push(resolved);
+    }
+    return values.length > 0 ? values : undefined;
+  }
+  return matchRecordOption(value, options);
+}
+
+function toRecordTags(value: unknown): string[] | undefined {
+  const list = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  const tags = list
+    .map((entry) => String(entry ?? "").trim())
+    .filter((entry) => entry.length > 0);
+  return tags.length > 0 ? tags : undefined;
+}
+
+/** Coerce AI output against field/relation/option constraints; drop misses. */
+function normalizeRecordValues(
+  raw: Record<string, unknown>,
+  fields: BDAppRecordAIField[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (!(field.name in raw)) continue;
+    const value = raw[field.name];
+    if (value === undefined || value === null) continue;
+
+    if (field.relation) {
+      const resolved = resolveRelationValue(value, field.relation);
+      if (resolved !== undefined) out[field.name] = resolved;
+      continue;
+    }
+
+    if (field.options && field.options.length > 0) {
+      const resolved = resolveOptionValue(value, field.options, field.type);
+      if (resolved !== undefined) out[field.name] = resolved;
+      continue;
+    }
+
+    switch (field.type) {
+      case "toggle":
+      case "checkbox":
+        out[field.name] = Boolean(value);
+        break;
+      case "tags": {
+        const tags = toRecordTags(value);
+        if (tags) out[field.name] = tags;
+        break;
+      }
+      case "keyValue":
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          out[field.name] = value;
+        }
+        break;
+      case "repeater":
+      case "builder":
+        if (Array.isArray(value)) out[field.name] = value;
+        break;
+      default:
+        out[field.name] = typeof value === "string" ? value : String(value);
+    }
+  }
+  return out;
+}
+
+export async function bdGenerateAppRecord(
+  params: BDAppRecordGenerateParams,
+): Promise<Record<string, unknown>[]> {
+  const batch = params.mode === "batch";
+  if (!params.instruction.trim()) {
+    throw new Error("Describe the record first.");
+  }
+  if (params.fields.length === 0) {
+    throw new Error("This resource has no generatable fields.");
+  }
+  if (batch) {
+    if (params.minRecords !== undefined && params.minRecords < 1) {
+      throw new Error("Minimum records must be at least 1.");
+    }
+    if (params.maxRecords !== undefined && params.maxRecords < 1) {
+      throw new Error("Maximum records must be at least 1.");
+    }
+    if (
+      params.minRecords !== undefined &&
+      params.maxRecords !== undefined &&
+      params.minRecords > params.maxRecords
+    ) {
+      throw new Error("Minimum records cannot exceed the maximum.");
+    }
+  }
+
+  const contextLines = [
+    params.resourceLabel ? `Resource: ${params.resourceLabel}.` : undefined,
+    batch
+      ? "Generate a batch of records. Field definitions:"
+      : "Generate ONE record. Field definitions:",
+    describeRecordFields(params.fields),
+    params.current && Object.keys(params.current).length > 0
+      ? `Current form values (context, may be empty): ${JSON.stringify(
+          params.current,
+        )}`
+      : undefined,
+    batch
+      ? describeBatchCount(params.minRecords, params.maxRecords)
+      : undefined,
+    batch ? "Make the records varied and distinct from one another." : undefined,
+    "Use relation and select values only from the allowed lists above; omit a field when no valid value applies.",
+  ].filter((line): line is string => !!line);
+
+  const system = batch
+    ? "You generate a batch of valid, varied records for a Filament-style " +
+      "admin resource. Choose relation and select values only from the " +
+      "allowed lists provided. Return only the structured JSON requested."
+    : "You generate a single valid record for a Filament-style admin " +
+      "resource. Choose relation and select values only from the allowed " +
+      "lists provided. Return only the structured JSON requested.";
+
+  const user = bdBuildModeUser({
+    mode: "create",
+    instruction: params.instruction,
+    context: contextLines.join("\n"),
+  });
+
+  const raw = await bdGenerateStructured({
+    system,
+    user,
+    schema: buildRecordSchema(params.fields, batch),
+    aiConfig: params.aiConfig,
+    temperature: 0.2,
+  });
+
+  if (!batch) {
+    const record = normalizeRecordValues(raw, params.fields);
+    return Object.keys(record).length > 0 ? [record] : [];
+  }
+
+  const list = Array.isArray(raw.records) ? raw.records : [];
+  return list
+    .map((entry) =>
+      entry && typeof entry === "object"
+        ? normalizeRecordValues(entry as Record<string, unknown>, params.fields)
+        : {},
+    )
+    .filter((record) => Object.keys(record).length > 0);
 }

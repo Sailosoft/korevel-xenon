@@ -140,6 +140,9 @@ export type BDAppPageType =
   | "settings"
   | "custom";
 
+/** What the create/edit form does after a successful create/update. */
+export type BDAppFormBehavior = "close" | "view";
+
 /** Serializable column formatter descriptor (replaces the former function). */
 export interface BDAppColumnFormat {
   kind: "text" | "currency" | "date" | "since" | "number";
@@ -522,6 +525,8 @@ export interface BDAppResource {
   infolist?: BDAppSchema;
   table?: BDAppTable;
   pages?: BDAppResourcePages;
+  /** Post-submit behavior for this resource's create/edit form. Default "close". */
+  formBehavior?: BDAppFormBehavior;
   /** First-class resource-to-resource connections (Filament-style relations). */
   connections?: BDAppConnection[];
   actions?: BDAppAction[];

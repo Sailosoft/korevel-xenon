@@ -18,12 +18,14 @@ import {
   Search,
   ArrowLeft,
   LayoutGrid,
+  Sparkles,
 } from "lucide-react";
 import { bdAppDB, migrateLegacyAppRecords } from "../../BDAppDatabase";
 import type {
   BDAppColumn,
   BDAppConnection,
   BDAppField,
+  BDAppFormBehavior,
   BDAppRecord,
   BDAppResource,
 } from "../../BDDomain.Types";
@@ -36,9 +38,11 @@ import {
   deriveConnectionColumns,
   deriveConnectionFields,
   formFromModel,
+  resolveFormBehavior,
   tableFromModel,
 } from "./BDApp.Types";
 import BDAppRelationManager from "./BDAppRelationManager.Component";
+import BDAppRecordAIComponent from "./BDAppRecordAI.Component";
 import BDSchemaForm from "../../components/BDSchemaForm";
 import BDButton from "../../components/BDButton";
 import BDModal from "../../components/BDModal";
@@ -104,6 +108,7 @@ export function BDAppRenderingComponent({
   } | null>(null);
   const [childValues, setChildValues] = useState<BDFormValues>({});
   const [childSaving, setChildSaving] = useState(false);
+  const [recordAiOpen, setRecordAiOpen] = useState(false);
 
   const viewing = useMemo(
     () => allRecords.find((row) => row.id === viewingId) ?? null,
@@ -230,29 +235,38 @@ export function BDAppRenderingComponent({
 
   const openCreate = () => {
     setFormValues({});
+    setRecordAiOpen(false);
     setEditing({ mode: "create" });
   };
 
   const openEdit = (row: BDAppRecord) => {
     setFormValues({ ...row.data });
+    setRecordAiOpen(false);
     setEditing({ mode: "edit", row });
   };
 
-  const handleSubmit = async (values: BDFormValues) => {
+  const handleSubmit = async (
+    values: BDFormValues,
+    then: BDAppFormBehavior,
+  ) => {
     if (!editing || !resolvedSlug) return;
     setSaving(true);
     try {
       if (editing.mode === "create") {
-        await bdAppRecordRepository.createRow({
+        const created = await bdAppRecordRepository.createRow({
           projectId: app.projectId,
           appId,
           resourceSlug: resolvedSlug,
           data: values,
         });
+        setEditing(null);
+        if (then === "view") setViewingId(created.id);
       } else if (editing.row) {
-        await bdAppRecordRepository.update(editing.row.id, { data: values });
+        const id = editing.row.id;
+        await bdAppRecordRepository.update(id, { data: values });
+        setEditing(null);
+        if (then === "view") setViewingId(id);
       }
-      setEditing(null);
       toast({ title: "Saved", status: "success" });
     } finally {
       setSaving(false);
@@ -264,6 +278,26 @@ export function BDAppRenderingComponent({
     await bdAppRecordRepository.deleteRowWithLinks(app, deleting);
     setDeleting(null);
     toast({ title: "Deleted", status: "success" });
+  };
+
+  const handleRecordAiBatch = async (records: Record<string, unknown>[]) => {
+    if (!resolvedSlug || records.length === 0) return;
+    await Promise.all(
+      records.map((data) =>
+        bdAppRecordRepository.createRow({
+          projectId: app.projectId,
+          appId,
+          resourceSlug: resolvedSlug,
+          data,
+        }),
+      ),
+    );
+    setEditing(null);
+    setRecordAiOpen(false);
+    toast({
+      title: `Created ${records.length} record${records.length === 1 ? "" : "s"}`,
+      status: "success",
+    });
   };
 
   const openChildCreate = (connection: BDAppConnection) => {
@@ -381,6 +415,14 @@ export function BDAppRenderingComponent({
   const infolistEntries = activeResource?.infolist
     ? collectAppEntries(activeResource.infolist.components)
     : [];
+
+  const formBehavior: BDAppFormBehavior = activeResource
+    ? resolveFormBehavior(activeResource)
+    : "close";
+  const altFormBehavior: BDAppFormBehavior =
+    formBehavior === "view" ? "close" : "view";
+  const submitVerb = editing?.mode === "create" ? "Create" : "Save";
+  const submitWithView = `${submitVerb} & view`;
 
   const themeColors = {
     ...app.colors,
@@ -594,25 +636,66 @@ export function BDAppRenderingComponent({
       {/* Create / Edit form */}
       <BDModal
         open={editing !== null}
-        onClose={() => setEditing(null)}
+        onClose={() => {
+          setEditing(null);
+          setRecordAiOpen(false);
+        }}
         title={
           editing?.mode === "create"
             ? `Create ${activeResource?.label ?? "record"}`
             : `Edit ${activeResource?.label ?? "record"}`
         }
         size="lg"
+        closeOnEscape={!recordAiOpen}
       >
+        {editing?.mode === "create" && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-xs text-slate-500">
+              Fill this record with AI, then review before creating.
+            </span>
+            <BDButton
+              size="sm"
+              variant="secondary"
+              icon={Sparkles}
+              onClick={() => setRecordAiOpen(true)}
+            >
+              Generate with AI
+            </BDButton>
+          </div>
+        )}
         <BDSchemaForm
           fields={fields}
           value={formValues}
           onChange={setFormValues}
-          onSubmit={handleSubmit}
-          onCancel={() => setEditing(null)}
-          submitLabel={editing?.mode === "create" ? "Create" : "Save"}
+          onSubmit={(values) => handleSubmit(values, formBehavior)}
+          onSecondarySubmit={(values) => handleSubmit(values, altFormBehavior)}
+          onCancel={() => {
+            setEditing(null);
+            setRecordAiOpen(false);
+          }}
+          submitLabel={formBehavior === "view" ? submitWithView : submitVerb}
+          secondarySubmitLabel={
+            formBehavior === "view" ? submitVerb : submitWithView
+          }
           isLoading={saving}
           relationOptions={relationOptions}
         />
       </BDModal>
+
+      {/* AI record fill (Create modal only) */}
+      <BDAppRecordAIComponent
+        open={recordAiOpen}
+        onOpenChange={setRecordAiOpen}
+        projectId={app.projectId}
+        resourceLabel={activeResource?.label ?? activeResource?.name}
+        fields={fields}
+        relationOptions={relationOptions}
+        current={formValues}
+        onAccept={(values) =>
+          setFormValues((prev) => ({ ...prev, ...values }))
+        }
+        onAcceptBatch={handleRecordAiBatch}
+      />
 
       {/* View */}
       <BDModal

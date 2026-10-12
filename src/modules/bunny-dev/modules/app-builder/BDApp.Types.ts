@@ -10,6 +10,7 @@ import type {
   BDAppEntry,
   BDAppField,
   BDAppFieldType,
+  BDAppFormBehavior,
   BDAppResource,
   BDAppSchema,
   BDAppTable,
@@ -98,6 +99,19 @@ export const BD_APP_COLUMN_TYPE_OPTIONS = COLUMN_TYPES.map((v) => ({
   label: v,
   value: v,
 }));
+
+export const BD_APP_FORM_BEHAVIOR_OPTIONS: {
+  label: string;
+  value: BDAppFormBehavior;
+}[] = [
+  { label: "Save & close", value: "close" },
+  { label: "Save & view record", value: "view" },
+];
+
+/** The create/edit form behavior for a resource, defaulting to "close". */
+export function resolveFormBehavior(resource: BDAppResource): BDAppFormBehavior {
+  return resource.formBehavior ?? "close";
+}
 
 const FIELD_TYPE_MAP: Record<BDSchemaType, BDAppFieldType> = {
   string: "text",
@@ -634,4 +648,80 @@ export function resourcesFromDrafts(
   return resolved.map((r) =>
     resourceFromDraft(r.draft, models, references, r.slug),
   );
+}
+
+// ── AI record-generation field descriptors ─────────────────────────────────
+
+/** An allowed value for a record field, as presented to the AI. */
+export interface BDAppRecordAIFieldOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * A field descriptor handed to the record-generation AI: identity, type, and
+ * the allowed values for select-like and relation fields.
+ */
+export interface BDAppRecordAIField {
+  name: string;
+  label: string;
+  type: BDAppFieldType;
+  required?: boolean;
+  /** Allowed values for select-like fields. */
+  options?: BDAppRecordAIFieldOption[];
+  /** Candidate records for relation fields. */
+  relation?: { multiple: boolean; candidates: BDAppRecordAIFieldOption[] };
+}
+
+const RECORD_AI_SELECT_TYPES: BDAppFieldType[] = [
+  "select",
+  "multiSelect",
+  "radio",
+  "checkboxList",
+  "toggleButtons",
+];
+
+/** Field types the record-generation AI cannot produce. */
+const RECORD_AI_SKIP_TYPES: BDAppFieldType[] = [
+  "hidden",
+  "fileUpload",
+  "image",
+];
+
+/**
+ * Build the field descriptors sent to the record-generation AI from a
+ * resource's rendered fields and its resolved relation options. Skips fields
+ * the AI cannot produce (hidden, file uploads, images).
+ */
+export function buildRecordAIFields(
+  fields: BDAppField[],
+  relationOptions: Record<string, BDAppRecordAIFieldOption[]>,
+): BDAppRecordAIField[] {
+  const out: BDAppRecordAIField[] = [];
+  for (const field of fields) {
+    if (RECORD_AI_SKIP_TYPES.includes(field.type)) continue;
+    const descriptor: BDAppRecordAIField = {
+      name: field.name,
+      label: field.label ?? field.name,
+      type: field.type,
+      required: field.required,
+    };
+    if (field.type === "relationSelect") {
+      descriptor.relation = {
+        multiple: field.relation?.multiple === true,
+        candidates: relationOptions[field.name] ?? [],
+      };
+    } else if (
+      RECORD_AI_SELECT_TYPES.includes(field.type) ||
+      (field.type === "tags" &&
+        !!field.options &&
+        Object.keys(field.options).length > 0)
+    ) {
+      descriptor.options = Object.entries(field.options ?? {}).map(
+        ([value, label]) => ({ value, label }),
+      );
+    }
+    out.push(descriptor);
+  }
+  return out;
 }

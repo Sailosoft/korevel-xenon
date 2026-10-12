@@ -10,10 +10,12 @@ import type {
   BDAppConnection,
   BDAppConnectionType,
   BDAppField,
+  BDAppFormBehavior,
   BDAppResource,
   BDSchemaModel,
 } from "../../BDDomain.Types";
 import {
+  BD_APP_FORM_BEHAVIOR_OPTIONS,
   collectAppFields,
   createAppConnection,
   columnFromDraft,
@@ -293,6 +295,30 @@ export function BDAppResourceComponent({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="flex flex-col gap-1 md:col-span-2">
+                <span className="text-xs font-medium text-slate-600">
+                  Form behavior
+                </span>
+                <select
+                  className={CELL}
+                  value={draft.formBehavior ?? "close"}
+                  onChange={(e) =>
+                    update({
+                      formBehavior: e.target.value as BDAppFormBehavior,
+                    })
+                  }
+                >
+                  {BD_APP_FORM_BEHAVIOR_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-slate-400">
+                  Primary action when saving a record in this resource&apos;s
+                  form.
+                </span>
               </label>
             </div>
           </section>

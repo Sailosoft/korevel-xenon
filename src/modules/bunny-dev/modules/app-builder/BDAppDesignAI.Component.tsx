@@ -63,6 +63,8 @@ export function BDAppDesignAIComponent({
     meta: true,
     resources: true,
   });
+  const [minResources, setMinResources] = useState("");
+  const [maxResources, setMaxResources] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +72,8 @@ export function BDAppDesignAIComponent({
 
   const reset = () => {
     setInstruction("");
+    setMinResources("");
+    setMaxResources("");
     setError(null);
   };
 
@@ -77,6 +81,13 @@ export function BDAppDesignAIComponent({
     if (isGenerating) return;
     reset();
     onOpenChange(false);
+  };
+
+  const parseCount = (value: string): number | undefined => {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   };
 
   const handleGenerate = async () => {
@@ -88,12 +99,30 @@ export function BDAppDesignAIComponent({
       setError("Select at least one section to generate.");
       return;
     }
+
+    const min = sections.resources ? parseCount(minResources) : undefined;
+    const max = sections.resources ? parseCount(maxResources) : undefined;
+    if (min !== undefined && min < 1) {
+      setError("Minimum resources must be at least 1.");
+      return;
+    }
+    if (max !== undefined && max < 1) {
+      setError("Maximum resources must be at least 1.");
+      return;
+    }
+    if (min !== undefined && max !== undefined && min > max) {
+      setError("Minimum resources cannot exceed the maximum.");
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
     try {
       const draft = await bdGenerateAppDesign({
         instruction: instruction.trim(),
         sections,
+        minResources: min,
+        maxResources: max,
         models: models.map((m) => m.name),
         existingResources: resources.map((r) => ({
           slug: r.slug,
@@ -165,6 +194,45 @@ export function BDAppDesignAIComponent({
               </label>
             ))}
           </div>
+
+          {sections.resources && (
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Min resources
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={minResources}
+                    onChange={(e) => setMinResources(e.target.value)}
+                    placeholder="optional"
+                    disabled={isGenerating}
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Max resources
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={maxResources}
+                    onChange={(e) => setMaxResources(e.target.value)}
+                    placeholder="optional"
+                    disabled={isGenerating}
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                </label>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Optional. Leave blank to let the AI decide how many resources to
+                create.
+              </span>
+            </div>
+          )}
         </div>
 
         <label className="flex flex-col gap-1">
