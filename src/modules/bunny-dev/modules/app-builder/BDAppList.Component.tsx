@@ -24,7 +24,7 @@ import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
 import BDBadge from "../../components/BDBadge";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
-import BDAppFillerComponent from "./BDAppFiller.Component";
+import BDAppCreateComponent from "./BDAppCreate.Component";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
 
@@ -43,8 +43,11 @@ export function BDAppListComponent() {
   const hrefFor = (app: BDApp) =>
     `/modules/bunny-dev/projects/${projectId}/app/${app.id}`;
 
-  const createNewApp = async (name: string) => {
-    const meta = deriveAppMeta(name);
+  const createNewApp = async (values: {
+    name: string;
+    schemaGroupId: string;
+  }) => {
+    const meta = deriveAppMeta(values.name);
     const created = await bdAppRepository.create(
       createApp(projectId, {
         ...BD_APP_EMPTY_FORM,
@@ -52,6 +55,7 @@ export function BDAppListComponent() {
         slug: meta.slug,
         path: meta.path,
         brandName: meta.brandName,
+        schemaGroupId: values.schemaGroupId,
       }),
     );
     router.push(hrefFor(created));
@@ -201,14 +205,10 @@ export function BDAppListComponent() {
         onCancel={() => setDeletingApp(null)}
       />
 
-      <BDAppFillerComponent
+      <BDAppCreateComponent
         open={creating}
         onClose={() => setCreating(false)}
-        title="New app"
-        description="Enter an app name and the slug, path and brand name are derived from it."
-        label="App name"
-        placeholder="e.g. Shop Admin"
-        submitLabel="Create"
+        projectId={projectId}
         onSubmit={createNewApp}
       />
     </div>

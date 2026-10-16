@@ -1,20 +1,17 @@
 "use client";
 
-import { Eye, PenLine, Plus, Trash2 } from "lucide-react";
+import { Eye, PenLine, Trash2 } from "lucide-react";
 import { useState } from "react";
-import type {
-  BDSpecRecord,
-  BDSpecSection,
-} from "../../BDDomain.Types";
+import type { BDSpecDocMode, BDSpecRecord } from "../../BDDomain.Types";
 import {
+  BD_SPEC_DOC_MODE_OPTIONS,
   BD_SPEC_STATUS_OPTIONS,
   BD_SPEC_TYPE_OPTIONS,
-  createSection,
-  sectionMarkdown,
+  inferDocMode,
 } from "./BDSpec.Types";
 import { toSpecMarkdown } from "./BDSpecExport";
+import BDSpecSectionsEditor from "./BDSpecSectionsEditor.Component";
 import BDButton from "../../components/BDButton";
-import BDIconButton from "../../components/BDIconButton";
 import BDWysiwygEditor from "../../components/BDWysiwygEditor";
 import BDMarkdownView from "../../components/BDMarkdownView";
 import BDBadge from "../../components/BDBadge";
@@ -36,35 +33,9 @@ export function BDSpecComponent({
   onDelete,
 }: BDSpecComponentProps) {
   const [preview, setPreview] = useState(false);
-  const [viewSections, setViewSections] = useState<Set<string>>(new Set());
+  const docMode = inferDocMode(record);
 
-  const updateSection = (
-    index: number,
-    patch: Partial<BDSpecSection>,
-  ) => {
-    onChange({
-      sections: record.sections.map((s, i) =>
-        i === index ? { ...s, ...patch } : s,
-      ),
-    });
-  };
-
-  const setSectionView = (id: string, view: boolean) =>
-    setViewSections((prev) => {
-      const next = new Set(prev);
-      if (view) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-
-  const allInView =
-    record.sections.length > 0 &&
-    record.sections.every((s) => viewSections.has(s.id));
-
-  const toggleAllSections = () =>
-    setViewSections(
-      allInView ? new Set() : new Set(record.sections.map((s) => s.id)),
-    );
+  const setDocMode = (mode: BDSpecDocMode) => onChange({ docMode: mode });
 
   return (
     <div className="flex flex-col gap-4">
@@ -123,8 +94,26 @@ export function BDSpecComponent({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-700">Content</h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Body</h3>
+            <div className="flex rounded-lg border border-slate-200 p-0.5">
+              {BD_SPEC_DOC_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setDocMode(opt.value)}
+                  className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                    docMode === opt.value
+                      ? "bg-blue-50 font-medium text-blue-700"
+                      : "text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => setPreview((v) => !v)}
@@ -145,134 +134,25 @@ export function BDSpecComponent({
           <div className="min-h-[200px] rounded-lg border border-slate-200 p-4">
             <BDMarkdownView content={toSpecMarkdown(record)} />
           </div>
-        ) : (
+        ) : docMode === "single" ? (
           <BDWysiwygEditor
             value={record.content ?? ""}
             onChange={(value) => onChange({ content: value })}
             placeholder="Write the spec document…"
           />
+        ) : (
+          <p className="text-xs text-slate-400">
+            This document is authoring as titled sections — edit them below.
+          </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-700">
-            Sections ({record.sections.length})
-          </h3>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleAllSections}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
-            >
-              {allInView ? (
-                <>
-                  <PenLine className="h-3.5 w-3.5" /> Edit all
-                </>
-              ) : (
-                <>
-                  <Eye className="h-3.5 w-3.5" /> View all
-                </>
-              )}
-            </button>
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Plus}
-              onClick={() =>
-                onChange({
-                  sections: [
-                    ...record.sections,
-                    createSection("New section", 2, record.sections.length),
-                  ],
-                })
-              }
-            >
-              Add section
-            </BDButton>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          {record.sections.map((section, index) => (
-            <div
-              key={section.id}
-              className="rounded-lg border border-slate-200 p-3"
-            >
-              <div className="flex items-center gap-2">
-                <select
-                  className="rounded border border-slate-200 px-1.5 py-1 text-xs"
-                  value={section.level}
-                  onChange={(e) =>
-                    updateSection(index, {
-                      level: Number(e.target.value) as BDSpecSection["level"],
-                    })
-                  }
-                >
-                  {[1, 2, 3, 4, 5, 6].map((l) => (
-                    <option key={l} value={l}>
-                      H{l}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className={`${CELL} flex-1`}
-                  value={section.title}
-                  onChange={(e) =>
-                    updateSection(index, { title: e.target.value })
-                  }
-                />
-                <BDIconButton
-                  icon={viewSections.has(section.id) ? PenLine : Eye}
-                  label={
-                    viewSections.has(section.id) ? "Edit section" : "View section"
-                  }
-                  size="sm"
-                  onClick={() =>
-                    setSectionView(section.id, !viewSections.has(section.id))
-                  }
-                />
-                <BDIconButton
-                  icon={Trash2}
-                  label="Remove section"
-                  size="sm"
-                  className="hover:bg-red-50 hover:text-red-500"
-                  onClick={() => {
-                    setSectionView(section.id, false);
-                    onChange({
-                      sections: record.sections.filter((_, i) => i !== index),
-                    });
-                  }}
-                />
-              </div>
-              {viewSections.has(section.id) ? (
-                <div className="mt-2 rounded-lg border border-slate-200 p-3">
-                  <BDMarkdownView content={sectionMarkdown(section)} />
-                </div>
-              ) : (
-                <div className="mt-2 flex flex-col gap-2">
-                  <input
-                    className={CELL}
-                    placeholder="Section summary (one line)"
-                    value={section.summary ?? ""}
-                    onChange={(e) =>
-                      updateSection(index, {
-                        summary: e.target.value || undefined,
-                      })
-                    }
-                  />
-                  <BDWysiwygEditor
-                    value={section.content}
-                    onChange={(value) =>
-                      updateSection(index, { content: value })
-                    }
-                    placeholder="Section content (markdown)"
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {docMode === "sectioned" && (
+        <BDSpecSectionsEditor
+          sections={record.sections}
+          onChange={(sections) => onChange({ sections })}
+        />
+      )}
     </div>
   );
 }

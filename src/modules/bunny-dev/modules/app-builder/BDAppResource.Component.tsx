@@ -20,11 +20,14 @@ import type {
 import {
   BD_APP_FORM_BEHAVIOR_OPTIONS,
   collectAppFields,
+  connectionsFromModelRelations,
+  connectionNameOptions,
   createAppConnection,
   columnFromDraft,
   connectionFromDraft,
   deriveResourceIdentity,
   fieldFromDraft,
+  resourceFieldOptions,
 } from "./BDApp.Types";
 import type {
   BDAppResourceAISections,
@@ -34,6 +37,7 @@ import type {
 import BDAppFormComponent from "./BDAppForm.Component";
 import BDAppTableComponent from "./BDAppTable.Component";
 import BDAppFillerComponent from "./BDAppFiller.Component";
+import BDAppFieldSelect from "./BDAppFieldSelect.Component";
 import BDAppResourceAIComponent from "./BDAppResourceAI.Component";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
@@ -48,6 +52,8 @@ export interface BDAppResourceComponentProps {
   open: boolean;
   resource: BDAppResource | null;
   models: BDSchemaModel[];
+  /** True when the parent app is tied to a schema design (schema group). */
+  schemaTied?: boolean;
   /** Sibling resources in the same app (connection targets). */
   resources: BDAppResource[];
   /** True when creating a new resource (nothing committed until onSave). */
@@ -78,6 +84,7 @@ export function BDAppResourceComponent({
   open,
   resource,
   models,
+  schemaTied = false,
   resources,
   isNew = false,
   resetToken,
@@ -125,6 +132,9 @@ export function BDAppResourceComponent({
   const fields = collectAppFields(draft.form?.components);
   const columns = draft.table?.columns ?? [];
   const connections = draft.connections ?? [];
+  // The resource's tied schema model — its properties are the candidates for
+  // "Add from schema" in the form/table designers.
+  const tiedModel = models.find((m) => m.id === draft.modelId) ?? null;
 
   const update = (patch: Partial<BDAppResource>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -151,6 +161,63 @@ export function BDAppResourceComponent({
         foreignKey: undefined,
       }),
     ]);
+  };
+
+  const targetBySlug = new Map(resources.map((r) => [r.slug, r]));
+
+  /** camelCase connection name derived from a resource's label/name. */
+  const connectionNameFor = (target: BDAppResource) => {
+    const words = (target.label ?? target.name ?? target.slug)
+      .replace(/[^a-zA-Z0-9 ]/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const camel = words
+      .map((word, i) =>
+        i === 0
+          ? word.toLowerCase()
+          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+      )
+      .join("");
+    return camel || "connection";
+  };
+
+  /**
+   * Point a connection at a new target, auto-filling name/titleAttr while
+   * they are still untouched (empty or at their create defaults).
+   */
+  const setConnectionTarget = (index: number, targetSlug: string) => {
+    const connection = connections[index];
+    const target = targetBySlug.get(targetSlug);
+    const patch: Partial<BDAppConnection> = { targetSlug };
+    if (target) {
+      if (!connection.name || /^connection(_\d+)?$/.test(connection.name)) {
+        patch.name = connectionNameFor(target);
+      }
+      if (!connection.titleAttribute || connection.titleAttribute === "name") {
+        const options = resourceFieldOptions(target, models);
+        const preferred =
+          options.find((o) => o.value === "name") ??
+          options.find((o) => o.hint?.includes("string")) ??
+          options.find((o) => o.hint?.includes("text")) ??
+          options.find((o) => o.value !== "id");
+        if (preferred) patch.titleAttribute = preferred.value;
+      }
+    }
+    updateConnection(index, patch);
+  };
+
+  /** Pre-fill connections from the schema model's relations. */
+  const deriveFromSchema = () => {
+    const model = models.find((m) => m.id === draft.modelId);
+    if (!model) return;
+    const derived = connectionsFromModelRelations(
+      model,
+      resources,
+      models,
+      connections.map((c) => c.name),
+    );
+    if (derived.length > 0) setConnections([...connections, ...derived]);
   };
 
   const applyIdentityFiller = (name: string) => {
@@ -315,6 +382,15 @@ export function BDAppResourceComponent({
                     </option>
                   ))}
                 </select>
+                <span className="text-[11px] text-slate-400">
+                  {schemaTied
+                    ? models.length === 0
+                      ? "This app's schema design has no models yet — build them in the Schema Builder first."
+                      : "Models from this app's tied schema design. Tying one enables “Add from schema” for fields and columns."
+                    : models.length === 0
+                      ? "No schema models in this project yet — build one in the Schema Builder first."
+                      : "Any model in this project — tie a schema in App settings to narrow the list."}
+                </span>
               </label>
               <label className="flex flex-col gap-1 md:col-span-2">
                 <span className="text-xs font-medium text-slate-600">
@@ -346,6 +422,7 @@ export function BDAppResourceComponent({
           <BDAppFormComponent
             fields={fields}
             models={models}
+            model={tiedModel}
             projectId={projectId}
             onChange={setFields}
           />
@@ -355,14 +432,26 @@ export function BDAppResourceComponent({
               <h3 className="text-sm font-semibold text-slate-700">
                 Connections ({connections.length})
               </h3>
-              <BDButton
-                size="sm"
-                variant="secondary"
-                icon={Plus}
-                onClick={addConnection}
-              >
-                Add connection
-              </BDButton>
+              <div className="flex items-center gap-2">
+                {draft.modelId ? (
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={Wand2}
+                    onClick={deriveFromSchema}
+                  >
+                    Derive from schema
+                  </BDButton>
+                ) : null}
+                <BDButton
+                  size="sm"
+                  variant="secondary"
+                  icon={Plus}
+                  onClick={addConnection}
+                >
+                  Add connection
+                </BDButton>
+              </div>
             </div>
             {connections.length === 0 ? (
               <p className="text-xs text-slate-400">
@@ -403,7 +492,7 @@ export function BDAppResourceComponent({
                       className={CELL}
                       value={connection.targetSlug}
                       onChange={(e) =>
-                        updateConnection(index, { targetSlug: e.target.value })
+                        setConnectionTarget(index, e.target.value)
                       }
                     >
                       <option value="">Target resource…</option>
@@ -414,36 +503,55 @@ export function BDAppResourceComponent({
                         </option>
                       ))}
                     </select>
-                    <input
-                      className={`${CELL} w-28`}
-                      placeholder="title attr"
+                    <BDAppFieldSelect
+                      cell={`${CELL} w-44`}
+                      placeholder="title attr (default: name)"
                       value={connection.titleAttribute ?? ""}
-                      onChange={(e) =>
+                      options={resourceFieldOptions(
+                        targetBySlug.get(connection.targetSlug),
+                        models,
+                      )}
+                      onChange={(value) =>
                         updateConnection(index, {
-                          titleAttribute: e.target.value || undefined,
+                          titleAttribute: value || undefined,
                         })
                       }
                     />
                     {connection.type === "oneToMany" && (
-                      <input
-                        className={`${CELL} w-32`}
+                      <BDAppFieldSelect
+                        cell={`${CELL} w-44`}
                         placeholder="child fk"
                         value={connection.foreignKey ?? ""}
-                        onChange={(e) =>
+                        suggestion={`${draft.slug}Id`}
+                        options={resourceFieldOptions(
+                          targetBySlug.get(connection.targetSlug),
+                          models,
+                        )}
+                        onChange={(value) =>
                           updateConnection(index, {
-                            foreignKey: e.target.value || undefined,
+                            foreignKey: value || undefined,
                           })
                         }
                       />
                     )}
                     {connection.type === "oneToOne" && (
-                      <input
-                        className={`${CELL} w-28`}
+                      <BDAppFieldSelect
+                        cell={`${CELL} w-44`}
                         placeholder="inverse"
                         value={connection.inverseName ?? ""}
-                        onChange={(e) =>
+                        suggestion={
+                          targetBySlug
+                            .get(connection.targetSlug)
+                            ?.connections?.find(
+                              (c) => c.targetSlug === draft.slug,
+                            )?.name
+                        }
+                        options={connectionNameOptions(
+                          targetBySlug.get(connection.targetSlug),
+                        ).filter((option) => option.value !== connection.name)}
+                        onChange={(value) =>
                           updateConnection(index, {
-                            inverseName: e.target.value || undefined,
+                            inverseName: value || undefined,
                           })
                         }
                       />
@@ -504,6 +612,7 @@ export function BDAppResourceComponent({
 
           <BDAppTableComponent
             columns={columns}
+            model={tiedModel}
             projectId={projectId}
             onChange={(next) =>
               update({ table: { ...draft.table, columns: next } })

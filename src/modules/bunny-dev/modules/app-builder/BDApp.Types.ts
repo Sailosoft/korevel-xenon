@@ -19,6 +19,7 @@ import type {
 import type {
   BDSchemaModel,
   BDSchemaProperty,
+  BDSchemaRelationType,
   BDSchemaType,
 } from "../schema-builder/BDSchema.Domain";
 
@@ -32,6 +33,8 @@ export interface BDAppForm {
   themeMode: "light" | "dark" | "system";
   primaryColor: string;
   builderLayout: BDAppBuilderLayout;
+  /** Optional tie to a schema design (schema group). Empty string = untied. */
+  schemaGroupId: string;
 }
 
 export const BD_APP_EMPTY_FORM: BDAppForm = {
@@ -44,6 +47,7 @@ export const BD_APP_EMPTY_FORM: BDAppForm = {
   themeMode: "system",
   primaryColor: "",
   builderLayout: "full",
+  schemaGroupId: "",
 };
 
 const FIELD_TYPES: BDAppFieldType[] = [
@@ -189,7 +193,7 @@ export function deriveResourceIdentity(
   };
 }
 
-/** Build a form field from a schema column. */
+/** Build a form field from a schema column, linked to it via schemaPropertyName. */
 export function fieldFromProperty(property: BDSchemaProperty): BDAppField {
   const type = FIELD_TYPE_MAP[property.type] ?? "text";
   return {
@@ -197,6 +201,7 @@ export function fieldFromProperty(property: BDSchemaProperty): BDAppField {
     type,
     name: property.name,
     label: property.name,
+    schemaPropertyName: property.name,
     required: !property.nullable && !property.primary,
     options:
       property.type === "enum" && property.values
@@ -205,12 +210,13 @@ export function fieldFromProperty(property: BDSchemaProperty): BDAppField {
   };
 }
 
-/** Build a table column from a schema column. */
+/** Build a table column from a schema column, linked to it via schemaPropertyName. */
 export function columnFromProperty(property: BDSchemaProperty): BDAppColumn {
   return {
     type: COLUMN_TYPE_MAP[property.type] ?? "text",
     name: property.name,
     label: property.name,
+    schemaPropertyName: property.name,
     sortable: true,
     searchable: property.type === "string" || property.type === "text",
   };
@@ -383,6 +389,129 @@ export function deriveConnectionColumns(resource: BDAppResource): BDAppColumn[] 
   return out;
 }
 
+// ── Field-picker options ───────────────────────────────────────────────────
+
+/** A single candidate in a field-picker select (title attr, child fk, …). */
+export interface BDAppFieldOption {
+  value: string;
+  label: string;
+  /** Short context shown beside the label (source or schema type). */
+  hint?: string;
+}
+
+/** Record a candidate name once; later sources do not override earlier ones. */
+function addFieldOption(
+  map: Map<string, BDAppFieldOption>,
+  name: string | undefined,
+  hint: string,
+): void {
+  if (!name || map.has(name)) return;
+  map.set(name, { value: name, label: name, hint });
+}
+
+/** Candidate field names on a schema model, for pickers. */
+export function modelFieldOptions(
+  model: BDSchemaModel | null | undefined,
+): BDAppFieldOption[] {
+  const map = new Map<string, BDAppFieldOption>();
+  addFieldOption(map, "id", "record id");
+  if (!model) return [...map.values()];
+  for (const property of model.properties) {
+    addFieldOption(
+      map,
+      property.name,
+      property.primary ? `${property.type} · pk` : property.type,
+    );
+  }
+  return [...map.values()];
+}
+
+/**
+ * Candidate field names on a resource — schema-model columns first (real
+ * column names), then form fields, then table columns, then `id`.
+ */
+export function resourceFieldOptions(
+  resource: BDAppResource | null | undefined,
+  models: BDSchemaModel[],
+): BDAppFieldOption[] {
+  const map = new Map<string, BDAppFieldOption>();
+  addFieldOption(map, "id", "record id");
+  if (!resource) return [...map.values()];
+
+  const model = resource.modelId
+    ? models.find((m) => m.id === resource.modelId)
+    : undefined;
+  if (model) {
+    for (const property of model.properties) {
+      addFieldOption(map, property.name, `model · ${property.type}`);
+    }
+  }
+  for (const field of collectAppFields(resource.form?.components)) {
+    addFieldOption(map, field.name, "form field");
+  }
+  for (const column of resource.table?.columns ?? []) {
+    addFieldOption(map, column.name, "table column");
+  }
+  return [...map.values()];
+}
+
+/** Connection names on a resource, for inverse pickers. */
+export function connectionNameOptions(
+  resource: BDAppResource | null | undefined,
+): BDAppFieldOption[] {
+  return (resource?.connections ?? []).map((connection) => ({
+    value: connection.name,
+    label: connection.name,
+    hint: connection.type,
+  }));
+}
+
+const RELATION_CONNECTION_TYPE: Partial<
+  Record<BDSchemaRelationType, BDAppConnectionType>
+> = {
+  belongsTo: "oneToOne",
+  hasOne: "oneToOne",
+  hasMany: "oneToMany",
+  belongsToMany: "manyToMany",
+};
+
+/**
+ * Pre-fill connections from a schema model's relations. Each relation maps to
+ * a connection whose target is the app resource backed by the relation's
+ * target model; polymorphic/through relations are skipped. Names already in
+ * `existingNames` are skipped so deriving never clobbers existing connections.
+ */
+export function connectionsFromModelRelations(
+  model: BDSchemaModel,
+  resources: BDAppResource[],
+  models: BDSchemaModel[],
+  existingNames: string[] = [],
+): BDAppConnection[] {
+  const used = new Set(existingNames);
+  const out: BDAppConnection[] = [];
+  for (const relation of model.relations ?? []) {
+    const type = RELATION_CONNECTION_TYPE[relation.type];
+    if (!type) continue;
+    const target = resources.find(
+      (r) => r.modelId && r.modelId === relation.targetModelId,
+    );
+    if (!target) continue;
+    const name = relation.name || target.slug;
+    if (used.has(name)) continue;
+    used.add(name);
+    out.push(
+      createAppConnection({
+        name,
+        type,
+        targetSlug: target.slug,
+        foreignKey: relation.foreignKey,
+        label: name,
+      }),
+    );
+  }
+  return out;
+}
+
 /** A place where a link to a deleted resource may be stored. */
 export interface BDAppConnectionReference {
   resourceSlug: string;
@@ -428,6 +557,7 @@ export function createApp(projectId: string, form: BDAppForm): Omit<BDApp, "id">
     slug: form.slug || slugify(form.name),
     path: form.path || "/",
     description: form.description || undefined,
+    schemaGroupId: form.schemaGroupId || undefined,
     brand:
       form.brandName || form.logoUrl
         ? {
@@ -459,6 +589,7 @@ export function toAppForm(app: BDApp): BDAppForm {
     primaryColor:
       typeof app.theme?.primary === "string" ? app.theme.primary : "",
     builderLayout: app.builderLayout ?? "full",
+    schemaGroupId: app.schemaGroupId ?? "",
   };
 }
 

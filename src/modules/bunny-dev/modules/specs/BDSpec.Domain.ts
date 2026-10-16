@@ -27,6 +27,13 @@ export type BDSpecType =
   | "guide"
   | "proposal";
 
+/**
+ * How a document's body is authored:
+ * - `single` — one free-form content body (`content`); `sections` is unused.
+ * - `sectioned` — an ordered list of titled sections (`sections`); `content` is unused.
+ */
+export type BDSpecDocMode = "single" | "sectioned";
+
 export type BDSpecStatus =
   | "draft"
   | "review"
@@ -233,6 +240,8 @@ export type BDSpec =
  * table can persist any variant (and `create` accepts object literals).
  */
 export interface BDSpecRecord extends BDSpecBase<BDSpecType> {
+  /** How the body is authored (single content vs sectionized). */
+  docMode?: BDSpecDocMode;
   /** When this record is a variant, the spec it derives from. */
   variantOfId?: string;
   variantLabel?: string;

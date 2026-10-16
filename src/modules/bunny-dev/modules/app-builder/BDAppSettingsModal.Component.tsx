@@ -31,6 +31,8 @@ export interface BDAppSettingsModalProps {
   isSaving?: boolean;
   /** Resource editor actions for the active designer tab, if any. */
   resourceActions?: BDAppSettingsResourceActions | null;
+  /** Schema groups available to tie this app to a schema design. */
+  schemaGroups?: { id: string; name: string }[];
 }
 
 export function BDAppSettingsModal({
@@ -42,6 +44,7 @@ export function BDAppSettingsModal({
   onSave,
   isSaving,
   resourceActions = null,
+  schemaGroups = [],
 }: BDAppSettingsModalProps) {
   return (
     <BDModal
@@ -180,6 +183,33 @@ export function BDAppSettingsModal({
         <p className="mt-2 text-[11px] text-slate-400">
           Full view opens the designer as a dedicated full-screen workspace.
           App shell keeps it inside the Bunny Developer workspace chrome.
+        </p>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <span className="text-xs font-medium text-slate-600">
+          Schema design
+        </span>
+        <label className="mt-2 flex flex-col gap-1">
+          <select
+            className={CELL}
+            value={form.schemaGroupId}
+            onChange={(e) => onChange({ schemaGroupId: e.target.value })}
+          >
+            <option value="">Not tied</option>
+            {schemaGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-[11px] text-slate-400">
+          {form.schemaGroupId
+            ? `Tied to schema — resources can pick models from this design and map properties to fields/columns.`
+            : schemaGroups.length === 0
+              ? "No schema groups in this project yet — build one in the Schema Builder first."
+              : "Not tied — resources can pick models from any schema group in this project."}
         </p>
       </div>
 

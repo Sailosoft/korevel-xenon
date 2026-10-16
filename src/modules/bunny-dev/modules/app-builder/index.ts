@@ -19,6 +19,8 @@ export { BDAppTableComponent } from "./BDAppTable.Component";
 export { BDAppResourceComponent } from "./BDAppResource.Component";
 export type { BDAppResourceComponentHandle } from "./BDAppResource.Component";
 export { BDAppFillerComponent } from "./BDAppFiller.Component";
+export { BDAppCreateComponent } from "./BDAppCreate.Component";
+export { BDAppPropertyPicker } from "./BDAppPropertyPicker.Component";
 export { BDAppResourceAIComponent } from "./BDAppResourceAI.Component";
 export { BDAppDesignAIComponent } from "./BDAppDesignAI.Component";
 export { BDAppRenderingComponent } from "./BDAppRendering.Component";

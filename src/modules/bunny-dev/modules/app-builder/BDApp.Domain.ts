@@ -240,6 +240,11 @@ export interface BDAppField {
   type: BDAppFieldType;
   name: string;
   label?: string;
+  /**
+   * Name of the schema property this field maps to (schema + table tied up).
+   * Persisted so the link is visible and re-syncable after creation.
+   */
+  schemaPropertyName?: string;
   helperText?: string;
   placeholder?: string;
   default?: unknown;
@@ -318,6 +323,11 @@ export interface BDAppColumn {
   type: BDAppColumnType;
   name: string;
   label?: string;
+  /**
+   * Name of the schema property this column maps to (schema + table tied up).
+   * Persisted so the link is visible and re-syncable after creation.
+   */
+  schemaPropertyName?: string;
   sortable?: boolean;
   searchable?: boolean;
   toggleable?: boolean;
@@ -621,6 +631,12 @@ export interface BDApp extends BDEntity {
   path: string;
   description?: string;
   domain?: string;
+  /**
+   * Optional tie to a schema design (schema group). When set, resources are
+   * offered models from this group only, and their fields/columns can be
+   * mapped to schema properties.
+   */
+  schemaGroupId?: string;
   /** Designer layout preference; defaults to "full" when unset. */
   builderLayout?: BDAppBuilderLayout;
   theme?: BDAppTheme;

@@ -24,6 +24,7 @@ import {
 import { cn } from "@heroui/react";
 import type { BDApp, BDAppResource } from "../../BDDomain.Types";
 import { useBDApps, useBDProjectSchemaModels } from "./BDApp.Hooks";
+import { useBDSchemaGroups } from "../schema-builder/BDSchemaBuilder.Hooks";
 import { bdAppRepository, bdAppRecordRepository } from "./BDApp.Repository";
 import { migrateLegacyAppRecords } from "../../BDAppDatabase";
 import {
@@ -153,6 +154,7 @@ export function BDAppBuilderComponent({
   const openAppInNewTab = (appId: string) =>
     window.open(`/modules/bunny-dev/render/${appId}`, "_blank", "noopener");
   const models = useBDProjectSchemaModels(projectId);
+  const schemaGroups = useBDSchemaGroups(projectId);
 
   const [draft, setDraft] = useState<BDApp | null>(null);
   const [form, setForm] = useState<BDAppForm | null>(null);
@@ -221,6 +223,7 @@ export function BDAppBuilderComponent({
     update({
       builderLayout: next.builderLayout,
       description: next.description || undefined,
+      schemaGroupId: next.schemaGroupId || undefined,
       brand:
         next.brandName || next.logoUrl
           ? {
@@ -413,6 +416,13 @@ export function BDAppBuilderComponent({
     activeResourceIndex >= 0 && draft
       ? draft.resources[activeResourceIndex]
       : undefined;
+
+  // Models available to resource editors: when the app is tied to a schema
+  // design, only that group's models; otherwise every model in the project.
+  const designerModels =
+    draft?.schemaGroupId && models
+      ? models.filter((m) => m.groupId === draft.schemaGroupId)
+      : (models ?? []);
 
   // Full view (default): break out of the BDShell document shell into a
   // dedicated full-screen workspace. "shell" embeds the designer in the
@@ -687,7 +697,8 @@ export function BDAppBuilderComponent({
                 open
                 variant="inline"
                 resource={creatingResource}
-                models={models ?? []}
+                models={designerModels}
+                schemaTied={!!draft.schemaGroupId}
                 resources={draft.resources}
                 isNew
                 resetToken={`new-${createCounter}`}
@@ -703,7 +714,8 @@ export function BDAppBuilderComponent({
                 open
                 variant="inline"
                 resource={activeResource}
-                models={models ?? []}
+                models={designerModels}
+                schemaTied={!!draft.schemaGroupId}
                 resources={draft.resources}
                 isNew={false}
                 resetToken={activeResource.slug}
@@ -747,6 +759,7 @@ export function BDAppBuilderComponent({
           onSave={handleSaveApp}
           isSaving={saving}
           resourceActions={resourceActions}
+          schemaGroups={schemaGroups ?? []}
         />
       )}
 
