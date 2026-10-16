@@ -6,6 +6,8 @@
     "dev": "next dev -p 3050",
     "sub": "next dev -p 3051",
     "build": "next build",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "build:fresh": "npm run clean && next build",
     "start": "next start",
     "start:pm2": "npm run build && pm2 start ecosystem.config.js && pm2 status",
     "lint": "eslint"

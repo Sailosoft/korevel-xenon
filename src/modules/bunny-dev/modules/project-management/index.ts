@@ -19,6 +19,9 @@ export {
   useBDTaskComments,
 } from "./BDTask.Hooks";
 export { BDBoardComponent } from "./BDBoard.Component";
+export { BDBoardListComponent } from "./BDBoardList.Component";
+export { BDBoardDialogComponent } from "./BDBoardDialog.Component";
+export { BDTaskChipRow } from "./BDTaskChips.Component";
 export { BDBoardSettingsComponent } from "./BDBoardSettings.Component";
 export { BDProjectManagementSettingsComponent } from "./BDProjectManagementSettings.Component";
 export { BDTaskDrawerComponent } from "./BDTaskDrawer.Component";

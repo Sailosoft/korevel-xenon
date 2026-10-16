@@ -22,6 +22,12 @@ export type BDAppAlign = "start" | "center" | "end";
 
 /** Declarative visibility — a boolean or a rule string resolved at runtime. */
 export type BDAppVisibility = boolean | string;
+
+/**
+ * How the app designer itself renders: "full" as a dedicated full-screen
+ * workspace, "shell" embedded inside the Bunny Developer document shell.
+ */
+export type BDAppBuilderLayout = "full" | "shell";
 /** Declarative href — resolved at runtime (may contain {id} placeholders). */
 export type BDAppHref = string;
 
@@ -615,6 +621,8 @@ export interface BDApp extends BDEntity {
   path: string;
   description?: string;
   domain?: string;
+  /** Designer layout preference; defaults to "full" when unset. */
+  builderLayout?: BDAppBuilderLayout;
   theme?: BDAppTheme;
   brand?: BDAppBrand;
   colors?: Partial<Record<BDAppColor, string>>;

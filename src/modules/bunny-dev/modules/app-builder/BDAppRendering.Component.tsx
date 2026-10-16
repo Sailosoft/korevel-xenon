@@ -15,11 +15,13 @@ import {
   Pencil,
   Trash2,
   Eye,
+  ExternalLink,
   Search,
   ArrowLeft,
   LayoutGrid,
   Sparkles,
 } from "lucide-react";
+import { cn } from "@heroui/react";
 import { bdAppDB, migrateLegacyAppRecords } from "../../BDAppDatabase";
 import type {
   BDAppColumn,
@@ -42,6 +44,7 @@ import {
   tableFromModel,
 } from "./BDApp.Types";
 import BDAppRelationManager from "./BDAppRelationManager.Component";
+import BDAppStandaloneShell from "./BDAppStandaloneShell.Component";
 import BDAppRecordAIComponent from "./BDAppRecordAI.Component";
 import BDSchemaForm from "../../components/BDSchemaForm";
 import BDButton from "../../components/BDButton";
@@ -109,6 +112,9 @@ export function BDAppRenderingComponent({
   const [childValues, setChildValues] = useState<BDFormValues>({});
   const [childSaving, setChildSaving] = useState(false);
   const [recordAiOpen, setRecordAiOpen] = useState(false);
+  // SPA chrome state (standalone only): icon-rail collapse + mobile drawer.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const viewing = useMemo(
     () => allRecords.find((row) => row.id === viewingId) ?? null,
@@ -221,10 +227,24 @@ export function BDAppRenderingComponent({
   }, [allRecords, resolvedSlug, query]);
 
   if (app === undefined) {
-    return <p className="p-6 text-sm text-slate-500">Loading app…</p>;
+    return standalone ? (
+      <p className="flex h-full items-center justify-center text-sm text-slate-500">
+        Loading app…
+      </p>
+    ) : (
+      <p className="p-6 text-sm text-slate-500">Loading app…</p>
+    );
   }
   if (app === null) {
-    return (
+    return standalone ? (
+      <div className="flex h-full items-center justify-center p-6">
+        <BDEmptyState
+          icon={LayoutGrid}
+          title="App not found"
+          description="This generated app may have been deleted."
+        />
+      </div>
+    ) : (
       <BDEmptyState
         icon={LayoutGrid}
         title="App not found"
@@ -443,195 +463,265 @@ export function BDAppRenderingComponent({
       } as unknown as CSSProperties)
     : undefined;
 
+  const brandName = app.brand?.name || app.name || "Application";
+  const activeLabel = activeResource
+    ? activeResource.pluralLabel ?? activeResource.label ?? activeResource.name
+    : undefined;
+  const totalForActive = allRecords.filter(
+    (record) => record.resourceSlug === resolvedSlug,
+  ).length;
+
+  // Resource page — toolbar + table + footer. Shared by the SPA shell content
+  // pane (standalone) and the designer's preview grid (embedded).
+  const resourcePage = (
+    <div
+      className={cn(
+        "flex min-h-0 flex-col gap-3",
+        standalone && "h-full p-4 md:p-6",
+      )}
+    >
+      {activeResource ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                {activeLabel}
+              </p>
+              <p className="text-xs text-slate-500">{rows.length} records</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search…"
+                  className="w-52 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-blue-400"
+                />
+              </div>
+              <BDButton size="sm" icon={Plus} onClick={openCreate}>
+                Create
+              </BDButton>
+            </div>
+          </div>
+
+          {rows.length === 0 ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+              <BDEmptyState
+                icon={LayoutGrid}
+                title={query.trim() ? "No matches" : "No records yet"}
+                description={
+                  query.trim()
+                    ? "No records match your search."
+                    : "Create the first record for this resource."
+                }
+                action={
+                  <BDButton icon={Plus} onClick={openCreate}>
+                    Create record
+                  </BDButton>
+                }
+              />
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "bd-scroll overflow-auto rounded-xl border border-slate-200 bg-white",
+                standalone && "min-h-40",
+              )}
+            >
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    {columns.map((col) => (
+                      <th
+                        key={col.name}
+                        className="bd-sticky-head whitespace-nowrap bg-slate-50 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                      >
+                        {col.label ?? col.name}
+                      </th>
+                    ))}
+                    <th className="bd-sticky-head w-28 bg-slate-50 px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-t border-slate-100 transition-colors hover:bg-blue-50/40"
+                    >
+                      {columns.map((col) => {
+                        const cell = renderCell(col.name, row);
+                        return (
+                          <td
+                            key={col.name}
+                            className="px-3 py-2.5 align-middle text-slate-700"
+                          >
+                            {typeof cell === "string" ? (
+                              <span
+                                className="block max-w-[18rem] truncate"
+                                title={cell}
+                              >
+                                {cell}
+                              </span>
+                            ) : (
+                              cell
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-600"
+                            onClick={() => setViewingId(row.id)}
+                            aria-label="View"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-600"
+                            onClick={() => openEdit(row)}
+                            aria-label="Edit"
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+                            onClick={() => setDeleting(row)}
+                            aria-label="Delete"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="shrink-0 px-1 text-[11px] text-slate-500">
+            {rows.length}
+            {rows.length !== totalForActive ? ` of ${totalForActive}` : ""}{" "}
+            {rows.length === 1 ? "record" : "records"}
+            {query.trim() ? ` · filtered by "${query.trim()}"` : ""}
+          </p>
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <BDEmptyState
+            icon={LayoutGrid}
+            title="No resource selected"
+            description="Add a resource in the designer to render a CRUD page."
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
-      className="flex flex-col gap-4"
+      className={standalone ? "h-full" : "flex flex-col gap-4"}
       style={standaloneStyle}
       data-bd-theme={standalone ? app.theme?.mode ?? "system" : undefined}
     >
-      {standalone && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-3">
-            {app.brand?.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={app.brand.logo}
-                alt=""
-                className="h-8 w-8 rounded object-contain"
-              />
-            ) : (
-              <LayoutGrid className="h-5 w-5 text-blue-600" />
-            )}
-            <div>
-              <p className="text-sm font-semibold text-slate-800">
-                {app.brand?.name || app.name}
-              </p>
-              <p className="text-xs text-slate-500">
-                {app.description || `${app.path} · ${resources.length} resources`}
-              </p>
-            </div>
-          </div>
-          <BDButton
-            size="sm"
-            variant="secondary"
-            icon={ArrowLeft}
-            onClick={() =>
-              router.push(
-                `/modules/bunny-dev/projects/${app.projectId}/app/${appId}`,
-              )
-            }
-          >
-            Back to metadata
-          </BDButton>
-        </div>
-      )}
-
-      {!embedded && !standalone && (
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <LayoutGrid className="h-4 w-4 text-blue-600" />
-          <div>
-            <p className="text-sm font-semibold text-slate-800">{app.name}</p>
-            <p className="text-xs text-slate-500">
-              {app.path} · {resources.length} resources
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[14rem_1fr]">
-        {/* Resource nav */}
-        <nav className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2">
-          {resources.map((resource) => (
-            <button
-              key={resource.slug}
-              type="button"
-              onClick={() => {
-                setActiveSlug(resource.slug);
-                setQuery("");
-              }}
-              className={`rounded-lg px-3 py-2 text-left text-sm ${
-                resource.slug === resolvedSlug
-                  ? "bg-blue-50 font-semibold text-blue-700"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {resource.pluralLabel ?? resource.label ?? resource.name}
-            </button>
-          ))}
-          {resources.length === 0 && (
-            <p className="px-3 py-2 text-xs text-slate-400">
-              No resources defined.
-            </p>
-          )}
-        </nav>
-
-        {/* Resource page */}
-        <div className="flex flex-col gap-3">
-          {activeResource ? (
+      {standalone ? (
+        <BDAppStandaloneShell
+          brand={{ name: brandName, logo: app.brand?.logo }}
+          breadcrumb={activeLabel ? [brandName, activeLabel] : [brandName]}
+          resources={resources.map((resource) => ({
+            slug: resource.slug,
+            label: resource.pluralLabel ?? resource.label ?? resource.name,
+          }))}
+          activeSlug={resolvedSlug}
+          onSelect={(slug) => {
+            setActiveSlug(slug);
+            setQuery("");
+          }}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((value) => !value)}
+          drawerOpen={drawerOpen}
+          onToggleDrawer={() => setDrawerOpen((value) => !value)}
+          onCloseDrawer={() => setDrawerOpen(false)}
+          stats={
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {activeResource.pluralLabel ??
-                      activeResource.label ??
-                      activeResource.name}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {rows.length} records
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search…"
-                      className="w-52 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-blue-400"
-                    />
-                  </div>
-                  <BDButton size="sm" icon={Plus} onClick={openCreate}>
-                    Create
-                  </BDButton>
-                </div>
-              </div>
-
-              {rows.length === 0 ? (
-                <BDEmptyState
-                  icon={LayoutGrid}
-                  title="No records yet"
-                  description="Create the first record for this resource."
-                  action={
-                    <BDButton icon={Plus} onClick={openCreate}>
-                      Create record
-                    </BDButton>
-                  }
-                />
-              ) : (
-                <div className="bd-scroll overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                  <table className="w-full border-collapse text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                      <tr>
-                        {columns.map((col) => (
-                          <th key={col.name} className="px-3 py-2 font-medium">
-                            {col.label ?? col.name}
-                          </th>
-                        ))}
-                        <th className="w-px px-3 py-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => (
-                        <tr key={row.id} className="border-t border-slate-100">
-                          {columns.map((col) => (
-                            <td key={col.name} className="px-3 py-2 text-slate-700">
-                              {renderCell(col.name, row)}
-                            </td>
-                          ))}
-                          <td className="px-3 py-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                className="rounded p-1 text-slate-400 hover:text-blue-600"
-                                onClick={() => setViewingId(row.id)}
-                                aria-label="View"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded p-1 text-slate-400 hover:text-blue-600"
-                                onClick={() => openEdit(row)}
-                                aria-label="Edit"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded p-1 text-slate-400 hover:text-red-500"
-                                onClick={() => setDeleting(row)}
-                                aria-label="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {allRecords.length} records · {app.path}
             </>
-          ) : (
-            <BDEmptyState
-              icon={LayoutGrid}
-              title="No resource selected"
-              description="Add a resource in the designer to render a CRUD page."
-            />
+          }
+          actions={
+            <BDButton
+              size="sm"
+              variant="secondary"
+              icon={ExternalLink}
+              title="Open the designer"
+              onClick={() =>
+                router.push(
+                  `/modules/bunny-dev/projects/${app.projectId}/app/${appId}`,
+                )
+              }
+            >
+              Designer
+            </BDButton>
+          }
+        >
+          {resourcePage}
+        </BDAppStandaloneShell>
+      ) : (
+        <>
+          {!embedded && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <LayoutGrid className="h-4 w-4 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-slate-800">
+                  {app.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {app.path} · {resources.length} resources
+                </p>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[14rem_1fr]">
+            {/* Resource nav */}
+            <nav className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2">
+              {resources.map((resource) => (
+                <button
+                  key={resource.slug}
+                  type="button"
+                  onClick={() => {
+                    setActiveSlug(resource.slug);
+                    setQuery("");
+                  }}
+                  className={`rounded-lg px-3 py-2 text-left text-sm ${
+                    resource.slug === resolvedSlug
+                      ? "bg-blue-50 font-semibold text-blue-700"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {resource.pluralLabel ?? resource.label ?? resource.name}
+                </button>
+              ))}
+              {resources.length === 0 && (
+                <p className="px-3 py-2 text-xs text-slate-400">
+                  No resources defined.
+                </p>
+              )}
+            </nav>
+
+            <div className="min-w-0">{resourcePage}</div>
+          </div>
+        </>
+      )}
 
       {/* Create / Edit form */}
       <BDModal

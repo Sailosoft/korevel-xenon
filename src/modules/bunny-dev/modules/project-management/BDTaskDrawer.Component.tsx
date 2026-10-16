@@ -68,7 +68,12 @@ export function BDTaskDrawerComponent({
 
   if (!draft) {
     return (
-      <BDModal open={open} onClose={onClose} title="Task">
+      <BDModal
+        open={open}
+        onClose={onClose}
+        title="Task"
+        closeOnBackdrop={false}
+      >
         <p className="text-sm text-slate-500">Select a task to edit.</p>
       </BDModal>
     );
@@ -127,6 +132,7 @@ export function BDTaskDrawerComponent({
       size="xl"
       bodyScroll={false}
       bodyClassName="p-0"
+      closeOnBackdrop={false}
       title={
         isUpdate && draft.key ? (
           <span className="font-mono text-sm font-semibold text-blue-600">
@@ -357,7 +363,20 @@ export function BDTaskDrawerComponent({
                       <span className="text-xs font-medium text-slate-600">
                         {field.name}
                       </span>
-                      {field.type === "textarea" ? (
+                      {field.type === "select" ? (
+                        <select
+                          className={FIELD}
+                          value={value}
+                          onChange={(e) => onChange(e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : field.type === "textarea" ? (
                         <textarea
                           className={cn(FIELD, "min-h-[72px] resize-y")}
                           value={value}

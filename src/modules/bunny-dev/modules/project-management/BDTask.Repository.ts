@@ -5,10 +5,29 @@ import type {
   BDBoard,
   BDBoardColumn,
   BDBoardTask,
+  BDBoardType,
   BDTaskComment,
 } from "../../BDDomain.Types";
 import { BDRepository } from "../../BDRepository";
-import { createBoardColumn } from "./BDTask.Types";
+import {
+  boardTemplateById,
+  createBoardColumn,
+  deriveBoardKey,
+  sanitizeBoardKey,
+} from "./BDTask.Types";
+
+export interface BDBoardColumnInput {
+  name: string;
+  category?: BDBoardColumn["status"]["category"];
+  color?: string;
+  status?: BDBoardColumn["status"]["status"];
+}
+
+export interface BDBoardInput {
+  name: string;
+  key?: string;
+  type?: BDBoardType;
+}
 
 export class BDBoardRepository extends BDRepository<BDBoard> {
   constructor() {
@@ -24,26 +43,77 @@ export class BDBoardRepository extends BDRepository<BDBoard> {
     );
   }
 
-  /** Create a board plus its three default columns. */
-  async createWithDefaultColumns(
+  /**
+   * Resolve a unique board key within a project. When `derive` is true the
+   * value is treated as a board name (initials); otherwise it is treated as an
+   * explicit key and only sanitized.
+   */
+  async uniqueBoardKey(
     projectId: string,
-    name = "Board",
+    desired: string,
+    derive = false,
+  ): Promise<string> {
+    const existing = await this.listByProject(projectId);
+    const taken = existing
+      .map((board) => board.key ?? "")
+      .filter(Boolean);
+    if (derive) return deriveBoardKey(desired, taken);
+    const base = sanitizeBoardKey(desired);
+    const upper = new Set(taken.map((key) => key.toUpperCase()));
+    if (!upper.has(base)) return base;
+    for (let i = 2; i < 1000; i++) {
+      const candidate = `${base}${i}`;
+      if (!upper.has(candidate)) return candidate;
+    }
+    return `${base}${Date.now()}`;
+  }
+
+  /** Create a board plus its initial columns (in the given order). */
+  async createWithColumns(
+    projectId: string,
+    input: BDBoardInput,
+    columns: BDBoardColumnInput[],
   ): Promise<{ board: BDBoard; columns: BDBoardColumn[] }> {
     const existing = await this.listByProject(projectId);
     const position =
       existing.reduce((max, board) => Math.max(max, board.position ?? 0), -1) +
       1;
-    const board = await this.create({ projectId, name, type: "kanban", position });
-    const names = ["To Do", "In Progress", "Done"];
-    const columns: BDBoardColumn[] = [];
-    for (let index = 0; index < names.length; index++) {
-      columns.push(
+    const hasExplicitKey = !!input.key?.trim();
+    const key = await this.uniqueBoardKey(
+      projectId,
+      hasExplicitKey ? input.key!.trim() : input.name,
+      !hasExplicitKey,
+    );
+    const board = await this.create({
+      projectId,
+      name: input.name,
+      key,
+      type: input.type ?? "kanban",
+      position,
+    });
+    const created: BDBoardColumn[] = [];
+    for (let index = 0; index < columns.length; index++) {
+      const seed = columns[index];
+      created.push(
         await bdBoardColumnRepository.create(
-          createBoardColumn(board.id, names[index], index),
+          createBoardColumn(board.id, seed.name, index, {
+            category: seed.category,
+            color: seed.color,
+            status: seed.status,
+          }),
         ),
       );
     }
-    return { board, columns };
+    return { board, columns: created };
+  }
+
+  /** Create a board plus the default Kanban columns. */
+  async createWithDefaultColumns(
+    projectId: string,
+    name = "Board",
+  ): Promise<{ board: BDBoard; columns: BDBoardColumn[] }> {
+    const template = boardTemplateById("kanban");
+    return this.createWithColumns(projectId, { name }, template?.sections ?? []);
   }
 }
 

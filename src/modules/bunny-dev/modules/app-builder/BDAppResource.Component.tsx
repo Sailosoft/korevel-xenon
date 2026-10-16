@@ -1,10 +1,13 @@
 "use client";
 
-// BDAppResource.Component — modal editor for one app resource: identity,
-// form fields, and table columns. Also supports create mode (isNew) where the
-// resource is only committed when the parent handles onSave.
+// BDAppResource.Component — editor for one app resource: identity, form
+// fields, and table columns. Renders as a modal by default, or inline (no
+// modal wrapper, no footer — actions live in the app settings modal) with
+// variant="inline" — used by the app designer shell. Also supports create
+// mode (isNew) where the resource is only committed when the parent handles
+// onSave.
 
-import { useState } from "react";
+import { useImperativeHandle, useState, type Ref } from "react";
 import { Plus, Save, Trash2, Wand2, Sparkles } from "lucide-react";
 import type {
   BDAppConnection,
@@ -35,6 +38,12 @@ import BDAppResourceAIComponent from "./BDAppResourceAI.Component";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 
+/** Imperative handle letting parents trigger actions on the open editor. */
+export interface BDAppResourceComponentHandle {
+  /** Commit the current editor draft via onSave. */
+  save: () => void;
+}
+
 export interface BDAppResourceComponentProps {
   open: boolean;
   resource: BDAppResource | null;
@@ -47,9 +56,13 @@ export interface BDAppResourceComponentProps {
   resetToken?: string | number;
   projectId: string;
   isSaving?: boolean;
+  /** "modal" (default) wraps the editor in a BDModal; "inline" renders it bare. */
+  variant?: "modal" | "inline";
   onClose: () => void;
   onSave: (resource: BDAppResource) => void;
   onDelete: () => void;
+  /** Exposes save() so external chrome (e.g. the settings modal) can commit. */
+  ref?: Ref<BDAppResourceComponentHandle>;
 }
 
 const CELL =
@@ -70,11 +83,24 @@ export function BDAppResourceComponent({
   resetToken,
   projectId,
   isSaving,
+  variant = "modal",
   onClose,
   onSave,
   onDelete,
+  ref,
 }: BDAppResourceComponentProps) {
   const [draft, setDraft] = useState<BDAppResource | null>(resource);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: () => {
+        if (draft) onSave(draft);
+      },
+    }),
+    [draft, onSave],
+  );
+
   const [fillerOpen, setFillerOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -88,6 +114,7 @@ export function BDAppResourceComponent({
   }
 
   if (!draft) {
+    if (variant === "inline") return null;
     return (
       <BDModal open={open} onClose={onClose} title="Resource">
         <p className="text-sm text-slate-500">Select a resource to edit.</p>
@@ -186,35 +213,28 @@ export function BDAppResourceComponent({
 
   const title = isNew ? "New resource" : draft.label ?? draft.name;
 
-  return (
+  const editorFooter = (
     <>
-      <BDModal
-        open={open}
-        onClose={onClose}
-        size="lg"
-        title={title}
-        description={isNew ? undefined : draft.slug || undefined}
-        footer={
-          <>
-            {!isNew && (
-              <BDButton variant="danger" icon={Trash2} onClick={onDelete}>
-                Delete resource
-              </BDButton>
-            )}
-            <div className="flex-1" />
-            <BDButton variant="ghost" onClick={onClose}>
-              Close
-            </BDButton>
-            <BDButton
-              icon={Save}
-              isLoading={isSaving}
-              onClick={() => onSave(draft)}
-            >
-              Save resource
-            </BDButton>
-          </>
-        }
+      {!isNew && (
+        <BDButton variant="danger" icon={Trash2} onClick={onDelete}>
+          Delete resource
+        </BDButton>
+      )}
+      <div className="flex-1" />
+      <BDButton variant="ghost" onClick={onClose}>
+        Close
+      </BDButton>
+      <BDButton
+        icon={Save}
+        isLoading={isSaving}
+        onClick={() => onSave(draft)}
       >
+        Save resource
+      </BDButton>
+    </>
+  );
+
+  const editorBody = (
         <div className="flex flex-col gap-5">
           <section>
             <div className="mb-2 flex items-center justify-between">
@@ -326,6 +346,7 @@ export function BDAppResourceComponent({
           <BDAppFormComponent
             fields={fields}
             models={models}
+            projectId={projectId}
             onChange={setFields}
           />
 
@@ -483,14 +504,16 @@ export function BDAppResourceComponent({
 
           <BDAppTableComponent
             columns={columns}
-            models={models}
+            projectId={projectId}
             onChange={(next) =>
               update({ table: { ...draft.table, columns: next } })
             }
           />
         </div>
-      </BDModal>
+  );
 
+  const subModals = (
+    <>
       <BDAppFillerComponent
         open={fillerOpen}
         onClose={() => setFillerOpen(false)}
@@ -512,6 +535,47 @@ export function BDAppResourceComponent({
         resources={resources}
         onAccept={applyAIDraft}
       />
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <>
+        <div className="flex h-full flex-col">
+          <div className="bd-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="text-base font-semibold text-slate-800">
+                  {title}
+                </h2>
+                {draft.slug && (
+                  <span className="text-xs text-slate-400">{draft.slug}</span>
+                )}
+              </div>
+              {editorBody}
+            </div>
+          </div>
+        </div>
+
+        {subModals}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <BDModal
+        open={open}
+        onClose={onClose}
+        size="lg"
+        title={title}
+        description={isNew ? undefined : draft.slug || undefined}
+        footer={editorFooter}
+      >
+        {editorBody}
+      </BDModal>
+
+      {subModals}
     </>
   );
 }

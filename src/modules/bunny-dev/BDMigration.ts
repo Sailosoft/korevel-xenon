@@ -18,6 +18,7 @@ import type {
   BDSpecGroup,
   BDSpecRecord,
 } from "./BDDomain.Types";
+import { deriveBoardKey } from "./modules/project-management/BDTask.Types";
 
 /**
  * Register every schema version on the given Dexie instance.
@@ -303,4 +304,35 @@ export function configureBDMigrations(db: Dexie): void {
     architectures: null,
     architectureGroups: null,
   });
+
+  // ── Version 8 — board keys ─────────────────────────────────────────────────
+  // Adds a `key` index to boards and backfills a unique per-project key derived
+  // from each board's name so task ids read `{board-key}-{n}`.
+  db.version(8)
+    .stores({
+      boards: "id, projectId, sprintId, position, key",
+    })
+    .upgrade(async (tx) => {
+      const table = tx.table("boards");
+      const boards = (await table.toArray()) as BDBoard[];
+      const byProject = new Map<string, BDBoard[]>();
+      for (const board of boards) {
+        const list = byProject.get(board.projectId);
+        if (list) list.push(board);
+        else byProject.set(board.projectId, [board]);
+      }
+      for (const list of byProject.values()) {
+        const taken = list
+          .map((board) => board.key)
+          .filter((key): key is string => !!key);
+        const updates: BDBoard[] = [];
+        for (const board of list) {
+          if (board.key) continue;
+          const key = deriveBoardKey(board.name, taken);
+          taken.push(key);
+          updates.push({ ...board, key });
+        }
+        if (updates.length > 0) await table.bulkPut(updates);
+      }
+    });
 }

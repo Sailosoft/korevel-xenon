@@ -4,13 +4,22 @@
 
 import { Fragment, useState } from "react";
 import { Plus, GripVertical } from "lucide-react";
-import type { BDBoardColumn, BDBoardTask } from "../../BDDomain.Types";
+import type {
+  BDBoardColumn,
+  BDBoardCustomField,
+  BDBoardTask,
+  BDProjectMember,
+} from "../../BDDomain.Types";
 import BDBadge from "../../components/BDBadge";
+import BDTaskChipRow from "./BDTaskChips.Component";
 import { cn } from "@heroui/react";
 
 export interface BDBoardComponentProps {
   columns: BDBoardColumn[];
   tasks: BDBoardTask[];
+  cardChips?: string[];
+  customFields?: BDBoardCustomField[];
+  members?: BDProjectMember[];
   onSelectTask: (task: BDBoardTask) => void;
   onMoveTask: (
     task: BDBoardTask,
@@ -22,21 +31,12 @@ export interface BDBoardComponentProps {
 
 type DropEdge = "before" | "after";
 
-const PRIORITY_COLOR: Record<
-  string,
-  "gray" | "info" | "warning" | "danger" | "success"
-> = {
-  lowest: "gray",
-  low: "gray",
-  medium: "info",
-  high: "warning",
-  highest: "danger",
-  blocker: "danger",
-};
-
 export function BDBoardComponent({
   columns,
   tasks,
+  cardChips,
+  customFields,
+  members,
   onSelectTask,
   onMoveTask,
   onAddTask,
@@ -155,15 +155,13 @@ export function BDBoardComponent({
                       <p className="mt-1 line-clamp-2 text-sm text-slate-800">
                         {task.name}
                       </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <BDBadge color="gray">{task.type}</BDBadge>
-                        <BDBadge color={PRIORITY_COLOR[task.priority] ?? "gray"}>
-                          {task.priority}
-                        </BDBadge>
-                        {task.storyPoints ? (
-                          <BDBadge color="primary">{task.storyPoints} pts</BDBadge>
-                        ) : null}
-                      </div>
+                      <BDTaskChipRow
+                        task={task}
+                        cardChips={cardChips}
+                        customFields={customFields}
+                        members={members}
+                        className="mt-2"
+                      />
                     </div>
                     {showAfter && (
                       <div className="h-0.5 shrink-0 rounded-full bg-blue-500" />

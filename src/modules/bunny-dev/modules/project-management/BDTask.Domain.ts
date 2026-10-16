@@ -19,6 +19,7 @@ export const BDCustomFieldType = {
   textarea: "textarea",
   number: "number",
   date: "date",
+  select: "select",
 } as const;
 export type BDCustomFieldType = (typeof BDCustomFieldType)[keyof typeof BDCustomFieldType];
 
@@ -95,17 +96,23 @@ export interface BDBoardCustomField {
   slug: string;
   position?: number;
   type: BDCustomFieldType;
+  /** Choices for `select` fields; each string is both the label and the value. */
+  options?: string[];
 }
 
 export interface BDBoard extends BDEntity {
   projectId: string;
   name: string;
+  /** Short uppercase key used to build task ids, e.g. "MYB" → "MYB-12". */
+  key?: string;
   type: BDBoardType;
   sprintId?: string;
   position?: number;
   swimlanes?: BDSwimlane[];
   customFields?: BDBoardCustomField[];
   quickFilters?: BDBoardQuickFilter[];
+  /** Chip ids shown on task cards (built-ins + `custom:<slug>`). */
+  cardChips?: string[];
 }
 
 export interface BDBoardColumn extends BDEntity {
