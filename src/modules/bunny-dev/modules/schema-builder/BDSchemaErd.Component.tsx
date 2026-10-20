@@ -235,7 +235,7 @@ export function BDSchemaErdComponent({
         <BDDiagramCanvas
           ref={canvasRef}
           chart={source}
-          className="h-full min-h-[320px]"
+          className="h-[70vh] min-h-[320px]"
           surfaceClassName=""
         />
       ) : (

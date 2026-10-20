@@ -28,6 +28,7 @@ export {
   BDDocDetailComponent,
 } from "./modules/docs";
 export { BDSpecBuilderComponent } from "./modules/specs";
+export { BDSpecDetailComponent } from "./modules/specs";
 export {
   BDFileManagerComponent,
   BDFileEditorPageComponent,

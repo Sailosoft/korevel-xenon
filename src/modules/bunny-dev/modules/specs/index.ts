@@ -8,6 +8,7 @@ export {
   bdSpecGroupRepository,
 } from "./BDSpec.Repository";
 export {
+  useBDSpec,
   useBDSpecs,
   useBDSpecGroups,
   useBDSpecsByGroup,
@@ -18,7 +19,7 @@ export {
 } from "./BDSpecExport";
 export { BDSpecComponent } from "./BDSpec.Component";
 export { BDSpecSectionsEditor } from "./BDSpecSectionsEditor.Component";
-export { BDSpecViewModal } from "./BDSpecViewModal.Component";
+export { BDSpecDetailComponent } from "./BDSpecDetail.Component";
 export {
   BDSpecCreateModal,
   type BDSpecCreateInput,

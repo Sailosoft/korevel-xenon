@@ -38,6 +38,13 @@ export const BDSprintState = {
 } as const;
 export type BDSprintState = (typeof BDSprintState)[keyof typeof BDSprintState];
 
+/**
+ * How the App Builder designer renders apps in this project: "full" as a
+ * dedicated full-screen workspace, "shell" embedded in the Bunny Developer
+ * document shell. `undefined` uses the default ("shell").
+ */
+export type BDProjectBuilderLayout = "full" | "shell";
+
 /** Project root — the aggregate every sub-module hangs off of. */
 export interface BDProject extends BDEntity {
   key: string;
@@ -46,6 +53,7 @@ export interface BDProject extends BDEntity {
   leadId?: string;
   issueTypes: BDIssueType[];
   agentSettings?: BDAgentSettings;
+  builderLayout?: BDProjectBuilderLayout;
 }
 
 export interface BDProjectMember extends BDEntity {

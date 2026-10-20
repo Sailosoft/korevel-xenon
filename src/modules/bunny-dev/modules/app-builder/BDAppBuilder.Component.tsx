@@ -39,6 +39,7 @@ import type {
   BDAppForm,
 } from "./BDApp.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
+import { BD_PROJECT_DEFAULT_BUILDER_LAYOUT } from "../core/BDProject.Types";
 import BDAppResourceComponent, {
   type BDAppResourceComponentHandle,
 } from "./BDAppResource.Component";
@@ -144,7 +145,7 @@ function BDAppBuilderOverview({
 export function BDAppBuilderComponent({
   initialAppId,
 }: BDAppBuilderComponentProps = {}) {
-  const { projectId } = useBDProjectContext();
+  const { projectId, project } = useBDProjectContext();
   const { toast } = useBDToast();
   const router = useRouter();
   const apps = useBDApps(projectId);
@@ -221,7 +222,6 @@ export function BDAppBuilderComponent({
     const next = { ...form, ...patch };
     setForm(next);
     update({
-      builderLayout: next.builderLayout,
       description: next.description || undefined,
       schemaGroupId: next.schemaGroupId || undefined,
       brand:
@@ -424,11 +424,17 @@ export function BDAppBuilderComponent({
       ? models.filter((m) => m.groupId === draft.schemaGroupId)
       : (models ?? []);
 
-  // Full view (default): break out of the BDShell document shell into a
-  // dedicated full-screen workspace. "shell" embeds the designer in the
-  // workspace chrome (viewport-height card). Only resolved once the app is
-  // loaded so the loading/empty state does not flash full-screen.
-  const fullView = draft && form ? form.builderLayout !== "shell" : false;
+  // Project-wide layout: "full" breaks out of the BDShell document shell into
+  // a dedicated full-screen workspace, "shell" embeds the designer in the
+  // workspace chrome (viewport-height card). Unset projects default to shell.
+  // Only resolved once the app and project are loaded so the loading/empty
+  // state does not flash full-screen.
+  const builderLayout =
+    project?.builderLayout ?? BD_PROJECT_DEFAULT_BUILDER_LAYOUT;
+  const fullView =
+    draft && form && project !== undefined
+      ? builderLayout === "full"
+      : false;
 
   // True while a resource editor tab is active in design mode — gates the
   // title-bar "Save resource" action and the Ctrl/Cmd+S shortcut.

@@ -3,7 +3,6 @@
 
 import type {
   BDApp,
-  BDAppBuilderLayout,
   BDAppColumn,
   BDAppComponent,
   BDAppConnection,
@@ -32,7 +31,6 @@ export interface BDAppForm {
   logoUrl: string;
   themeMode: "light" | "dark" | "system";
   primaryColor: string;
-  builderLayout: BDAppBuilderLayout;
   /** Optional tie to a schema design (schema group). Empty string = untied. */
   schemaGroupId: string;
 }
@@ -46,7 +44,6 @@ export const BD_APP_EMPTY_FORM: BDAppForm = {
   logoUrl: "",
   themeMode: "system",
   primaryColor: "",
-  builderLayout: "full",
   schemaGroupId: "",
 };
 
@@ -572,7 +569,6 @@ export function createApp(projectId: string, form: BDAppForm): Omit<BDApp, "id">
             primary: form.primaryColor || undefined,
           }
         : undefined,
-    builderLayout: form.builderLayout,
     resources: [],
   };
 }
@@ -588,7 +584,6 @@ export function toAppForm(app: BDApp): BDAppForm {
     themeMode: app.theme?.mode ?? "system",
     primaryColor:
       typeof app.theme?.primary === "string" ? app.theme.primary : "",
-    builderLayout: app.builderLayout ?? "full",
     schemaGroupId: app.schemaGroupId ?? "",
   };
 }

@@ -5,7 +5,6 @@
 // File menu; changes apply live via onChange, persisted by the Save action.
 
 import { Save, Wand2 } from "lucide-react";
-import { cn } from "@heroui/react";
 import type { BDAppForm } from "./BDApp.Types";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
@@ -150,40 +149,22 @@ export function BDAppSettingsModal({
           <span className="text-xs font-medium text-slate-600">
             Primary color
           </span>
-          <input
-            className={CELL}
-            value={form.primaryColor}
-            onChange={(e) => onChange({ primaryColor: e.target.value })}
-            placeholder="#1976d2"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={form.primaryColor || "#1976d2"}
+              onChange={(e) => onChange({ primaryColor: e.target.value })}
+              className="h-9 w-12 shrink-0 cursor-pointer rounded border border-slate-200 bg-white"
+              aria-label="Pick primary color"
+            />
+            <input
+              className={CELL}
+              value={form.primaryColor}
+              onChange={(e) => onChange({ primaryColor: e.target.value })}
+              placeholder="#1976d2"
+            />
+          </div>
         </label>
-      </div>
-
-      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <span className="text-xs font-medium text-slate-600">
-          Builder layout
-        </span>
-        <div className="mt-2 flex items-center gap-2">
-          {(["full", "shell"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onChange({ builderLayout: value })}
-              className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                form.builderLayout === value
-                  ? "border-[#90caf9] bg-[#e3f2fd] font-semibold text-[#1565c0]"
-                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-100",
-              )}
-            >
-              {value === "full" ? "Full view" : "App shell"}
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-slate-400">
-          Full view opens the designer as a dedicated full-screen workspace.
-          App shell keeps it inside the Bunny Developer workspace chrome.
-        </p>
       </div>
 
       <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">

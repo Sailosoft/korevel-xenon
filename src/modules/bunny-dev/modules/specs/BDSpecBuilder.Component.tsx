@@ -2,22 +2,17 @@
 
 // BDSpecBuilder.Component — Specs page 2: the documents inside
 // one spec group. Group management lives on page 1
-// (BDSpecGroupListComponent).
+// (BDSpecGroupListComponent); individual documents live on page 3
+// (BDSpecDetailComponent).
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Building2,
-  Copy,
-  Download,
   Eye,
-  FileDown,
-  GitCompare,
-  Globe,
   Plus,
-  Save,
   Sparkles,
   Trash2,
-  Wand2,
 } from "lucide-react";
 import type {
   BDSpecDocMode,
@@ -34,33 +29,25 @@ import {
   createSpec,
   createSection,
   inferDocMode,
-  slugify,
   specDraftToMarkdown,
   type BDSpecArtifact,
   type BDSpecSectionDraft,
 } from "./BDSpec.Types";
 import { bdGenerateSpec } from "./BDSpecBuilder.Server";
 import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
-import { toSpecHtml, toSpecMarkdown } from "./BDSpecExport";
-import BDSpecComponent from "./BDSpec.Component";
 import BDSpecCreateModal, {
   type BDSpecCreateInput,
 } from "./BDSpecCreateModal.Component";
-import BDSpecViewModal from "./BDSpecViewModal.Component";
-import BDSpecRefineComponent from "./BDSpecRefine.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
-import BDDrawer from "../../components/BDDrawer";
-import BDModal from "../../components/BDModal";
 import BDBadge from "../../components/BDBadge";
 import BDMarkdownView from "../../components/BDMarkdownView";
 import BDEmptyState from "../../components/BDEmptyState";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
-import { downloadText, copyText, openTextTab } from "../../BDDownload";
 
 function draftSectionsToRecords(
   drafts: BDSpecSectionDraft[] | undefined,
@@ -107,6 +94,7 @@ export function BDSpecBuilderComponent({
 }: BDSpecBuilderComponentProps = {}) {
   const { projectId } = useBDProjectContext();
   const { toast } = useBDToast();
+  const router = useRouter();
   const groups = useBDSpecGroups(projectId);
   const records = useBDSpecs(projectId);
 
@@ -114,29 +102,14 @@ export function BDSpecBuilderComponent({
   const activeGroup = groups?.find((g) => g.id === groupId);
   const groupRecords = (records ?? []).filter((r) => r.groupId === groupId);
 
-  const [draft, setDraft] = useState<BDSpecRecord | null>(null);
-  const [viewing, setViewing] = useState<BDSpecRecord | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<BDSpecRecord | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [compare, setCompare] = useState<BDSpecRecord | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiType, setAiType] = useState<BDSpecType>("architecture");
   const [aiDocMode, setAiDocMode] = useState<BDSpecDocMode>("sectioned");
-  const [refineOpen, setRefineOpen] = useState(false);
-  const [refineDocId, setRefineDocId] = useState<string | undefined>(undefined);
 
-  const update = (patch: Partial<BDSpecRecord>) =>
-    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
-
-  const variants = groupRecords.filter(
-    (r) => r.variantOfId && r.variantOfId === draft?.id,
-  );
-
-  const openRefine = (id?: string) => {
-    setRefineDocId(id);
-    setRefineOpen(true);
-  };
+  const specHref = (id: string) =>
+    `/modules/bunny-dev/projects/${projectId}/specs/${groupId}/${id}`;
 
   const handleCreate = async ({ form, content, sections }: BDSpecCreateInput) => {
     if (!groupId) {
@@ -149,76 +122,15 @@ export function BDSpecBuilderComponent({
       sections,
     });
     setCreating(false);
-    setDraft(created);
     toast({ title: "Spec created", status: "success" });
-  };
-
-  const handleSave = async () => {
-    if (!draft) return;
-    setSaving(true);
-    try {
-      await bdSpecRepository.update(draft.id, {
-        ...draft,
-        updatedAt: new Date().toISOString(),
-      });
-      toast({ title: "Spec saved", status: "success" });
-    } finally {
-      setSaving(false);
-    }
+    router.push(specHref(created.id));
   };
 
   const handleDelete = async () => {
     if (!deleting) return;
     await bdSpecRepository.delete(deleting.id);
-    setDraft((prev) => (prev?.id === deleting.id ? null : prev));
     setDeleting(null);
     toast({ title: "Deleted", status: "success" });
-  };
-
-  const handleHandoff = () => {
-    if (!draft) return;
-    downloadText("Spec.md", toSpecMarkdown(draft), "text/markdown");
-  };
-
-  const handleCopyHandoff = async () => {
-    if (!draft) return;
-    const ok = await copyText(toSpecMarkdown(draft));
-    toast({
-      title: ok ? "Spec.md copied" : "Copy failed",
-      status: ok ? "success" : "error",
-    });
-  };
-
-  const createVariant = async () => {
-    if (!draft) return;
-    const label = `Variant ${variants.length + 1}`;
-    const variant = await bdSpecRepository.create({
-      projectId: draft.projectId,
-      groupId: draft.groupId,
-      docMode: inferDocMode(draft),
-      name: `${draft.name} — ${label}`,
-      slug: `${draft.slug}-${slugify(label)}`,
-      type: draft.type,
-      status: draft.status,
-      format: draft.format,
-      summary: draft.summary,
-      content: draft.content,
-      sections: draft.sections.map((s) => ({ ...s, id: crypto.randomUUID() })),
-      variantOfId: draft.id,
-      variantLabel: label,
-      version: draft.version,
-    });
-    setDraft(variant);
-    toast({ title: "Variant created", status: "success" });
-  };
-
-  const handleRefineApply = (recordId: string, patch: Partial<BDSpecRecord>) => {
-    setDraft((prev) => {
-      if (prev && prev.id === recordId) return { ...prev, ...patch };
-      const base = groupRecords.find((r) => r.id === recordId);
-      return base ? { ...base, ...patch } : prev;
-    });
-    toast({ title: "Refinement applied — review and save", status: "success" });
   };
 
   const applyArtifact = async (
@@ -260,6 +172,7 @@ export function BDSpecBuilderComponent({
     }
 
     let baseId: string | undefined;
+    let firstId: string | undefined;
     for (let index = 0; index < artifact.specs.length; index++) {
       const draftSpec = artifact.specs[index];
       const created = await bdSpecRepository.create({
@@ -285,8 +198,13 @@ export function BDSpecBuilderComponent({
         variantLabel:
           index === 0 ? undefined : draftSpec.variantLabel ?? `Variant ${index}`,
       });
-      if (index === 0) baseId = created.id;
+      if (index === 0) {
+        baseId = created.id;
+        firstId = created.id;
+      }
     }
+
+    if (firstId && groupId) router.push(specHref(firstId));
   };
 
   if (groups && !activeGroup) {
@@ -330,13 +248,6 @@ export function BDSpecBuilderComponent({
               }}
             >
               AI Generate
-            </BDButton>
-            <BDButton
-              variant="secondary"
-              icon={Wand2}
-              onClick={() => openRefine(draft?.id)}
-            >
-              AI Refine
             </BDButton>
             <BDButton icon={Plus} onClick={() => setCreating(true)}>
               New document
@@ -435,21 +346,6 @@ export function BDSpecBuilderComponent({
         )}
       />
 
-      <BDSpecRefineComponent
-        open={refineOpen}
-        onOpenChange={setRefineOpen}
-        projectId={projectId}
-        documents={groupRecords}
-        initialDocumentId={refineDocId}
-        onApply={handleRefineApply}
-      />
-
-      <BDSpecViewModal
-        open={viewing !== null}
-        onClose={() => setViewing(null)}
-        record={viewing}
-      />
-
       <BDList<BDSpecRecord>
         title="Documents"
         data={groupRecords}
@@ -462,7 +358,7 @@ export function BDSpecBuilderComponent({
           title: "No documents yet",
           description: "Create a spec document or generate one.",
         }}
-        onRowClick={(row) => setDraft(row)}
+        onRowClick={(row) => router.push(specHref(row.id))}
         columns={[
           {
             key: "name",
@@ -518,18 +414,11 @@ export function BDSpecBuilderComponent({
         ]}
         rowActions={[
           {
-            label: "View",
+            label: "Open",
             icon: Eye,
             iconOnly: true,
-            tooltip: "View document",
-            onSelect: ([row]) => setViewing(row),
-          },
-          {
-            label: "Refine",
-            icon: Wand2,
-            iconOnly: true,
-            tooltip: "AI refine",
-            onSelect: ([row]) => openRefine(row.id),
+            tooltip: "Open document",
+            onSelect: ([row]) => router.push(specHref(row.id)),
           },
           {
             label: "Delete",
@@ -542,162 +431,11 @@ export function BDSpecBuilderComponent({
         ]}
       />
 
-      <BDDrawer
-        open={draft !== null}
-        onClose={() => setDraft(null)}
-        title={draft?.name ?? "Document"}
-        description={draft ? `${draft.type} · ${draft.status}` : undefined}
-        width="48rem"
-        footer={
-          <>
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Wand2}
-              onClick={() => draft && openRefine(draft.id)}
-            >
-              AI Refine
-            </BDButton>
-            <BDButton
-              size="sm"
-              icon={Save}
-              isLoading={saving}
-              onClick={handleSave}
-            >
-              Save
-            </BDButton>
-          </>
-        }
-      >
-        {draft && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400">
-                {draft.sections.length} sections
-                {variants.length > 0 ? ` · ${variants.length} variants` : ""}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <BDButton
-                  size="sm"
-                  variant="secondary"
-                  icon={Download}
-                  onClick={() =>
-                    downloadText(
-                      `${draft.slug}.md`,
-                      toSpecMarkdown(draft),
-                      "text/markdown",
-                    )
-                  }
-                >
-                  Export markdown
-                </BDButton>
-                <BDButton
-                  size="sm"
-                  variant="secondary"
-                  icon={Globe}
-                  onClick={() => openTextTab(toSpecHtml(draft))}
-                >
-                  View
-                </BDButton>
-                <BDButton
-                  size="sm"
-                  variant="secondary"
-                  icon={Download}
-                  onClick={() =>
-                    downloadText(
-                      `${draft.slug}.html`,
-                      toSpecHtml(draft),
-                      "text/html",
-                    )
-                  }
-                >
-                  HTML
-                </BDButton>
-                <BDButton
-                  size="sm"
-                  variant="secondary"
-                  icon={FileDown}
-                  onClick={handleHandoff}
-                >
-                  AI Handoff
-                </BDButton>
-                <BDButton
-                  size="sm"
-                  variant="secondary"
-                  icon={Copy}
-                  onClick={handleCopyHandoff}
-                >
-                  Copy
-                </BDButton>
-              </div>
-            </div>
-
-            {variants.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2">
-                <span className="text-xs font-medium text-slate-500">
-                  Variants:
-                </span>
-                {variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => setDraft(variant)}
-                    className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-xs text-slate-600 hover:text-blue-600"
-                  >
-                    <GitCompare className="h-3 w-3" />
-                    {variant.variantLabel ?? variant.name}
-                  </button>
-                ))}
-                <BDButton
-                  size="sm"
-                  variant="ghost"
-                  icon={GitCompare}
-                  onClick={() => setCompare(variants[0])}
-                >
-                  Compare
-                </BDButton>
-              </div>
-            )}
-
-            <BDSpecComponent
-              record={draft}
-              onChange={update}
-              onCreateVariant={createVariant}
-              onDelete={() => setDeleting(draft)}
-            />
-          </div>
-        )}
-      </BDDrawer>
-
       <BDSpecCreateModal
         open={creating}
         onClose={() => setCreating(false)}
         onSubmit={handleCreate}
       />
-
-      <BDModal
-        open={compare !== null}
-        onClose={() => setCompare(null)}
-        title="Compare variants"
-        size="full"
-      >
-        {draft && compare && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-blue-700">
-                {draft.name}
-              </h3>
-              <BDMarkdownView content={toSpecMarkdown(draft)} />
-            </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-violet-700">
-                {compare.name}
-              </h3>
-              <BDMarkdownView content={toSpecMarkdown(compare)} />
-            </div>
-          </div>
-        )}
-      </BDModal>
 
       <BDConfirmDialog
         open={!!deleting}

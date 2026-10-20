@@ -4,11 +4,8 @@ import { bdDB } from "../../BDDatabase";
 import type {
   BDSchemaGroup,
   BDSchemaModel,
-  BDSchemaProperty,
 } from "../../BDDomain.Types";
-import { BDSchemaType } from "../../BDDomain.Types";
 import { BDRepository, type BDCreateInput } from "../../BDRepository";
-import { slugifyTable } from "./BDSchemaBuilder.Types";
 
 export class BDSchemaGroupRepository extends BDRepository<BDSchemaGroup> {
   constructor() {
@@ -49,30 +46,20 @@ export class BDSchemaModelRepository extends BDRepository<BDSchemaModel> {
     return this.listWhere("projectId", projectId);
   }
 
-  async createModel(
-    projectId: string,
-    groupId: string,
-    name: string,
-  ): Promise<BDSchemaModel> {
-    const idProperty: BDSchemaProperty = {
-      name: "id",
-      type: BDSchemaType.uuid,
-      nullable: false,
-      primary: true,
-      unique: true,
-    };
+  async createFromDraft(draft: BDSchemaModel): Promise<BDSchemaModel> {
     return this.create({
-      projectId,
-      groupId,
-      name,
-      table: name.trim() ? slugifyTable(name) : "",
-      properties: [idProperty],
-      relations: [],
-      indexes: [],
-      primaryKey: ["id"],
-      timestamps: true,
-      softDeletes: false,
-    } as BDCreateInput<BDSchemaModel>);
+      projectId: draft.projectId,
+      groupId: draft.groupId,
+      name: draft.name,
+      table: draft.table,
+      description: draft.description,
+      properties: draft.properties,
+      relations: draft.relations,
+      indexes: draft.indexes,
+      primaryKey: draft.primaryKey,
+      timestamps: draft.timestamps,
+      softDeletes: draft.softDeletes,
+    });
   }
 }
 

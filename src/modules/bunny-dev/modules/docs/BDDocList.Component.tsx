@@ -18,7 +18,6 @@ import { useBDProjectContext } from "../core/BDProject.Context";
 import { useBDDocs } from "./BDDoc.Hooks";
 import { bdDocRepository } from "./BDDoc.Repository";
 import {
-  BD_DOC_EMPTY_FORM,
   countTopics,
   createDoc,
   createTopic,
@@ -26,29 +25,16 @@ import {
   type BDDocForm,
   type BDDocTopicDraft,
 } from "./BDDoc.Types";
+import BDDocCreateComponent from "./BDDocCreate.Component";
 import { bdGenerateDoc } from "./BDDocBuilder.Server";
 import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDButton from "../../components/BDButton";
 import BDList from "../../components/BDList";
 import BDBadge from "../../components/BDBadge";
-import BDModal from "../../components/BDModal";
-import BDForm from "../../components/BDForm";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDGenerationPanel from "../agent-manager/BDGenerationPanel";
 import { useBDToast } from "../../components/BDToast";
-
-const DOC_FIELDS = [
-  { name: "name", label: "Name", type: "text" as const, required: true },
-  { name: "title", label: "Title", type: "text" as const },
-  { name: "slug", label: "Slug", type: "text" as const },
-  {
-    name: "description",
-    label: "Description",
-    type: "textarea" as const,
-    columnSpan: "full" as const,
-  },
-];
 
 function draftToTopics(drafts: BDDocTopicDraft[]): BDDocTopic[] {
   return drafts.map((draft, index) => {
@@ -99,17 +85,13 @@ export function BDDocListComponent() {
   const docs = useBDDocs(projectId);
 
   const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState<BDDocForm>(
-    BD_DOC_EMPTY_FORM,
-  );
   const [deleting, setDeleting] = useState<BDDoc | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
 
   const detailHref = (doc: BDDoc) =>
     `/modules/bunny-dev/projects/${projectId}/docs/${doc.id}`;
 
-  const handleCreate = async (values: Record<string, unknown>) => {
-    const form = values as unknown as BDDocForm;
+  const handleCreate = async (form: BDDocForm) => {
     const created = await bdDocRepository.create(
       createDoc(projectId, form),
     );
@@ -184,10 +166,7 @@ export function BDDocListComponent() {
             </BDButton>
             <BDButton
               icon={Plus}
-              onClick={() => {
-                setCreateForm(BD_DOC_EMPTY_FORM);
-                setCreating(true);
-              }}
+              onClick={() => setCreating(true)}
             >
               New doc
             </BDButton>
@@ -294,21 +273,11 @@ export function BDDocListComponent() {
         ]}
       />
 
-      <BDModal
+      <BDDocCreateComponent
         open={creating}
         onClose={() => setCreating(false)}
-        title="New doc"
-        size="lg"
-      >
-        <BDForm
-          fields={DOC_FIELDS}
-          value={createForm as unknown as Record<string, unknown>}
-          onChange={(v) => setCreateForm(v as unknown as BDDocForm)}
-          onSubmit={handleCreate}
-          onCancel={() => setCreating(false)}
-          submitLabel="Create doc"
-        />
-      </BDModal>
+        onSubmit={handleCreate}
+      />
 
       <BDConfirmDialog
         open={!!deleting}

@@ -3,10 +3,12 @@
 export {
   BD_PROJECT_EMPTY_FORM,
   BD_PROJECT_DEFAULT_AGENT_SETTINGS,
+  BD_PROJECT_DEFAULT_BUILDER_LAYOUT,
   BD_PROJECT_DEFAULT_ISSUE_TYPES,
   toProjectForm,
 } from "./BDProject.Types";
 export type { BDProjectForm } from "./BDProject.Types";
+export type { BDProjectBuilderLayout } from "./BDProject.Domain";
 
 export { BDProjectRepository, bdProjectRepository } from "./BDProject.Repository";
 

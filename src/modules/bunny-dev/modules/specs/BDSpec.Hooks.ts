@@ -40,3 +40,11 @@ export function useBDSpecsByGroup(
     return bdDB.specs.where("groupId").equals(groupId).toArray();
   }, [groupId]);
 }
+
+/** undefined = loading, null = not found, otherwise the spec document. */
+export function useBDSpec(id: string): BDSpecRecord | null | undefined {
+  return useLiveQuery(async () => {
+    const record = await bdDB.specs.get(id);
+    return record ?? null;
+  }, [id]);
+}

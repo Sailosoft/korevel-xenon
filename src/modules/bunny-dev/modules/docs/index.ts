@@ -10,5 +10,6 @@ export {
 } from "./BDDocExport";
 export { BDDocComponent } from "./BDDoc.Component";
 export { BDDocEditorComponent } from "./BDDocEditor.Component";
+export { BDDocCreateComponent } from "./BDDocCreate.Component";
 export { BDDocListComponent } from "./BDDocList.Component";
 export { BDDocDetailComponent } from "./BDDocDetail.Component";

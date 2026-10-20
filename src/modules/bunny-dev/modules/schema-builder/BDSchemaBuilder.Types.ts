@@ -68,6 +68,74 @@ export function createDefaultIndex(): BDSchemaIndex {
   return { columns: [], type: BDSchemaIndexType.index };
 }
 
+/** snake_case a model name (no pluralization). `OrderItem` → `order_item`. */
+export function snakeCase(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .toLowerCase()
+    .replace(/^_+|_+$/g, "");
+}
+
+/** camelCase a model name. `OrderItem` → `orderItem`. */
+export function camelCase(name: string): string {
+  const base = snakeCase(name);
+  return base.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+/** Singular relation name for the "one" side; plural for the "many" side. */
+export function suggestRelationName(
+  type: BDSchemaRelation["type"],
+  targetName: string,
+): string {
+  const base = camelCase(targetName);
+  if (!base) return "";
+  switch (type) {
+    case "hasMany":
+    case "belongsToMany":
+    case "hasManyThrough":
+    case "morphMany":
+      return /s$/.test(base) ? base : `${base}s`;
+    default:
+      return base;
+  }
+}
+
+/** Default foreign key column for a target model: `OrderItem` → `order_item_id`. */
+export function suggestForeignKey(targetName: string): string {
+  const base = snakeCase(targetName);
+  return base ? `${base}_id` : "";
+}
+
+/** A new, unsaved model draft — persisted only when the user saves it. */
+export function createEmptyModel(
+  projectId: string,
+  groupId: string,
+): BDSchemaModel {
+  return {
+    id: "",
+    projectId,
+    groupId,
+    name: "",
+    table: "",
+    description: "",
+    properties: [
+      {
+        name: "id",
+        type: BDSchemaType.uuid,
+        nullable: false,
+        primary: true,
+        unique: true,
+      },
+    ],
+    relations: [],
+    indexes: [],
+    primaryKey: ["id"],
+    timestamps: true,
+    softDeletes: false,
+  };
+}
+
 export function slugifyTable(name: string): string {
   const base = name
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")

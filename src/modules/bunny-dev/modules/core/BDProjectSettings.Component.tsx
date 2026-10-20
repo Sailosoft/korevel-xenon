@@ -2,12 +2,17 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
-import { Settings, Save, Trash2, Bot, Brain } from "lucide-react";
+import { Settings, Save, Trash2, Bot, Brain, LayoutGrid } from "lucide-react";
+import { cn } from "@heroui/react";
 import { HelixAIProviderSelector } from "@/src/modules/helix";
 import { bdDB } from "../../BDDatabase";
 import { useBDProjectContext } from "./BDProject.Context";
 import { bdProjectRepository } from "./BDProject.Repository";
-import { BD_PROJECT_DEFAULT_AGENT_SETTINGS } from "./BDProject.Types";
+import {
+  BD_PROJECT_DEFAULT_AGENT_SETTINGS,
+  BD_PROJECT_DEFAULT_BUILDER_LAYOUT,
+} from "./BDProject.Types";
+import type { BDProjectBuilderLayout } from "./BDProject.Domain";
 import {
   BD_HANDOFF_POLICY_OPTIONS,
 } from "../agent-manager/BDAgent.Types";
@@ -58,12 +63,20 @@ export function BDProjectSettingsComponent() {
     toast({ title: "Override cleared — inheriting global AI", status: "success" });
   };
 
+  const builderLayout =
+    ctx.project?.builderLayout ?? BD_PROJECT_DEFAULT_BUILDER_LAYOUT;
+
+  const saveBuilderLayout = async (layout: BDProjectBuilderLayout) => {
+    await bdProjectRepository.updateBuilderLayout(projectId, layout);
+    toast({ title: "Builder layout saved", status: "success" });
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <BDPageHeader
         icon={Settings}
         title="Project Settings"
-        description="Project-scoped AI and agent settings. Everything is local-first and stored in IndexedDB."
+        description="Project-scoped AI, agent, and App Builder settings. Everything is local-first and stored in IndexedDB."
       />
 
       {/* AI override */}
@@ -98,6 +111,43 @@ export function BDProjectSettingsComponent() {
             Clear override
           </BDButton>
         )}
+      </div>
+
+      {/* App Builder layout */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <LayoutGrid className="h-4 w-4 text-blue-600" />
+          <h2 className="text-sm font-semibold text-slate-800">
+            App Builder Layout
+          </h2>
+          <BDBadge>project default</BDBadge>
+        </div>
+        <p className="mb-3 text-xs text-slate-500">
+          How the App Builder opens for every app in this project.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {(["full", "shell"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={builderLayout === value}
+              onClick={() => void saveBuilderLayout(value)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                builderLayout === value
+                  ? "border-[#90caf9] bg-[#e3f2fd] font-semibold text-[#1565c0]"
+                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-100",
+              )}
+            >
+              {value === "full" ? "Full view" : "App shell"}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">
+          Full view opens the designer as a dedicated full-screen workspace.
+          App shell keeps it inside the Bunny Developer workspace chrome.
+          Defaults to App shell when unset.
+        </p>
       </div>
 
       {/* Agent settings */}

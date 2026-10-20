@@ -4,7 +4,7 @@
 // relations, and indexes. Edits a local draft and saves the whole model.
 
 import { useState } from "react";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, Sparkles } from "lucide-react";
 import type {
   BDSchemaModel,
   BDSchemaProperty,
@@ -22,6 +22,8 @@ import {
   createDefaultRelation,
   createDefaultIndex,
   toModelForm,
+  suggestRelationName,
+  suggestForeignKey,
   type BDSchemaModelForm,
 } from "./BDSchemaBuilder.Types";
 
@@ -136,20 +138,53 @@ export function BDSchemaModelComponent({
     update({ indexes });
   };
 
-  const relationTargets = allModels.filter((m) => m.id !== draft.id);
+  // Relations are always resolved inside the current schema group. A model may
+  // point at itself (self reference), so the edited model stays selectable.
+  const relationTargets = allModels.filter((m) => m.groupId === draft.groupId);
+  const modelById = new Map(allModels.map((m) => [m.id, m]));
+  const ownColumns = draft.properties.map((p) => p.name);
+
+  const columnsOf = (targetModelId: string): string[] =>
+    modelById.get(targetModelId)?.properties.map((p) => p.name) ?? [];
+
+  /** Preferred referenced column on the target: primary key, else first column. */
+  const defaultOwnerKey = (target: BDSchemaModel | undefined): string => {
+    if (!target) return "";
+    const declared = target.primaryKey?.[0];
+    if (declared && target.properties.some((p) => p.name === declared)) {
+      return declared;
+    }
+    const primary = target.properties.find((p) => p.primary);
+    return primary?.name ?? target.properties[0]?.name ?? "";
+  };
+
+  // Relation name, referenced key, and foreign key derive from the target model.
+  const applyRelationSuggestion = (index: number) => {
+    const relation = draft.relations[index];
+    const target = modelById.get(relation.targetModelId);
+    if (!target) return;
+    updateRelation(index, {
+      name: suggestRelationName(relation.type, target.name),
+      ownerKey: relation.ownerKey || defaultOwnerKey(target),
+      foreignKey: suggestForeignKey(target.name),
+    });
+  };
 
   return (
     <BDModal
       open={open}
       onClose={onClose}
       size="lg"
-      title={draft.name || "Model"}
+      closeOnBackdrop={false}
+      title={draft.name || (draft.id ? "Model" : "New model")}
       description={draft.table}
       footer={
         <>
-          <BDButton variant="danger" icon={Trash2} onClick={onDelete}>
-            Delete model
-          </BDButton>
+          {draft.id ? (
+            <BDButton variant="danger" icon={Trash2} onClick={onDelete}>
+              Delete model
+            </BDButton>
+          ) : null}
           <div className="flex-1" />
           <BDButton variant="ghost" onClick={onClose}>
             Close
@@ -332,81 +367,193 @@ export function BDSchemaModelComponent({
             <p className="text-xs text-slate-400">No relations.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {draft.relations.map((relation, index) => (
-                <div
-                  key={index}
-                  className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2"
-                >
-                  <input
-                    className={CELL}
-                    placeholder="name"
-                    value={relation.name}
-                    onChange={(e) =>
-                      updateRelation(index, { name: e.target.value })
-                    }
-                  />
-                  <select
-                    className={CELL}
-                    value={relation.type}
-                    onChange={(e) =>
-                      updateRelation(index, {
-                        type: e.target.value as BDSchemaRelation["type"],
-                      })
-                    }
+              {draft.relations.map((relation, index) => {
+                const target = modelById.get(relation.targetModelId);
+                const targetColumns = columnsOf(relation.targetModelId);
+                const ownerKeyOptions =
+                  relation.ownerKey &&
+                  !targetColumns.includes(relation.ownerKey)
+                    ? [relation.ownerKey, ...targetColumns]
+                    : targetColumns;
+                const fkOptions =
+                  relation.foreignKey &&
+                  !ownColumns.includes(relation.foreignKey)
+                    ? [relation.foreignKey, ...ownColumns]
+                    : ownColumns;
+                return (
+                  <div
+                    key={index}
+                    className="flex flex-col gap-2 rounded-lg border border-slate-200 p-2"
                   >
-                    {[
-                      "belongsTo",
-                      "hasOne",
-                      "hasMany",
-                      "belongsToMany",
-                      "hasManyThrough",
-                      "morphOne",
-                      "morphMany",
-                      "morphTo",
-                    ].map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className={CELL}
-                    value={relation.targetModelId}
-                    onChange={(e) =>
-                      updateRelation(index, { targetModelId: e.target.value })
-                    }
-                  >
-                    <option value="">Target…</option>
-                    {relationTargets.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className={CELL}
-                    placeholder="foreign key"
-                    value={relation.foreignKey ?? ""}
-                    onChange={(e) =>
-                      updateRelation(index, {
-                        foreignKey: e.target.value || undefined,
-                      })
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                    onClick={() =>
-                      update({
-                        relations: draft.relations.filter((_, i) => i !== index),
-                      })
-                    }
-                    aria-label="Remove relation"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        className={CELL}
+                        value={relation.type}
+                        onChange={(e) =>
+                          updateRelation(index, {
+                            type: e.target.value as BDSchemaRelation["type"],
+                          })
+                        }
+                      >
+                        {[
+                          "belongsTo",
+                          "hasOne",
+                          "hasMany",
+                          "belongsToMany",
+                          "hasManyThrough",
+                          "morphOne",
+                          "morphMany",
+                          "morphTo",
+                        ].map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className={CELL}
+                        value={relation.targetModelId}
+                        onChange={(e) => {
+                          const targetModelId = e.target.value;
+                          const nextTarget = modelById.get(targetModelId);
+                          const nextColumns = nextTarget
+                            ? nextTarget.properties.map((p) => p.name)
+                            : [];
+                          updateRelation(index, {
+                            targetModelId,
+                            name: relation.name.trim()
+                              ? relation.name
+                              : nextTarget
+                                ? suggestRelationName(
+                                    relation.type,
+                                    nextTarget.name,
+                                  )
+                                : "",
+                            ownerKey:
+                              relation.ownerKey &&
+                              nextColumns.includes(relation.ownerKey)
+                                ? relation.ownerKey
+                                : nextTarget
+                                  ? defaultOwnerKey(nextTarget)
+                                  : undefined,
+                            foreignKey: relation.foreignKey
+                              ? relation.foreignKey
+                              : nextTarget
+                                ? suggestForeignKey(nextTarget.name)
+                                : undefined,
+                          });
+                        }}
+                      >
+                        <option value="">Target model…</option>
+                        {relation.targetModelId &&
+                        target &&
+                        !relationTargets.some(
+                          (m) => m.id === relation.targetModelId,
+                        ) ? (
+                          <option value={relation.targetModelId}>
+                            {target.name || "Untitled model"} (other group)
+                          </option>
+                        ) : null}
+                        {relationTargets.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.id === draft.id
+                              ? `${m.name || "Untitled model"} (this model)`
+                              : m.name || "Untitled model"}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className={CELL}
+                        placeholder="name"
+                        value={relation.name}
+                        onChange={(e) =>
+                          updateRelation(index, { name: e.target.value })
+                        }
+                      />
+                      <BDButton
+                        size="sm"
+                        variant="ghost"
+                        icon={Sparkles}
+                        title="Suggest name, referenced key, and foreign key"
+                        aria-label="Suggest name, referenced key, and foreign key"
+                        onClick={() => applyRelationSuggestion(index)}
+                      />
+                      <button
+                        type="button"
+                        className="ml-auto rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                        onClick={() =>
+                          update({
+                            relations: draft.relations.filter(
+                              (_, i) => i !== index,
+                            ),
+                          })
+                        }
+                        aria-label="Remove relation"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-slate-500">
+                        References
+                      </span>
+                      <select
+                        className={CELL}
+                        value={relation.ownerKey ?? ""}
+                        disabled={!target}
+                        onChange={(e) =>
+                          updateRelation(index, {
+                            ownerKey: e.target.value || undefined,
+                          })
+                        }
+                      >
+                        <option value="">
+                          {target
+                            ? targetColumns.length
+                              ? `${target.name || "Target"} key…`
+                              : "No columns in target"
+                            : "Select a target first"}
+                        </option>
+                        {ownerKeyOptions.map((column) => (
+                          <option key={column} value={column}>
+                            {column}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-slate-500">
+                        Foreign key
+                      </span>
+                      <select
+                        className={CELL}
+                        value={relation.foreignKey ?? ""}
+                        disabled={ownColumns.length === 0}
+                        onChange={(e) =>
+                          updateRelation(index, {
+                            foreignKey: e.target.value || undefined,
+                          })
+                        }
+                      >
+                        <option value="">
+                          {ownColumns.length
+                            ? `${draft.name || "This model"} column…`
+                            : "No columns in this model"}
+                        </option>
+                        {fkOptions.map((column) => (
+                          <option key={column} value={column}>
+                            {column}
+                          </option>
+                        ))}
+                      </select>
+                      {target ? (
+                        <span className="text-[11px] text-slate-400">
+                          {target.name || "target"}.{relation.ownerKey || "?"} ←{" "}
+                          {draft.name || "this"}.{relation.foreignKey || "?"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

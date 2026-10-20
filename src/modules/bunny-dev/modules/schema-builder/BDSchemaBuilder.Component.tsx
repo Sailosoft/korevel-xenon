@@ -19,6 +19,7 @@ import { bdDB } from "../../BDDatabase";
 import type { BDSchemaModel } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { bdSchemaModelRepository } from "./BDSchemaBuilder.Repository";
+import { createEmptyModel } from "./BDSchemaBuilder.Types";
 import { useBDSchemaGroups, useBDSchemaModels } from "./BDSchemaBuilder.Hooks";
 import { generatePrismaExport } from "./BDPrismaExport.Server";
 import BDSchemaModelComponent from "./BDSchemaModel.Component";
@@ -57,6 +58,7 @@ export function BDSchemaBuilderComponent({
   const models = useBDSchemaModels(groupId);
 
   const [editingModel, setEditingModel] = useState<BDSchemaModel | null>(null);
+  const [isNewModel, setIsNewModel] = useState(false);
   const [deletingModel, setDeletingModel] = useState<BDSchemaModel | null>(null);
   const [savingModel, setSavingModel] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -64,24 +66,37 @@ export function BDSchemaBuilderComponent({
   const [exportText, setExportText] = useState("");
   const [erdOpen, setErdOpen] = useState(false);
 
-  const handleAddModel = async () => {
+  const openModel = (model: BDSchemaModel) => {
+    setIsNewModel(false);
+    setEditingModel(model);
+  };
+
+  const closeModel = () => {
+    setIsNewModel(false);
+    setEditingModel(null);
+  };
+
+  const handleAddModel = () => {
     if (!groupId) {
       toast({ title: "Group not found", status: "warning" });
       return;
     }
-    const model = await bdSchemaModelRepository.createModel(
-      projectId,
-      groupId,
-      "",
-    );
-    setEditingModel(model);
+    setIsNewModel(true);
+    setEditingModel(createEmptyModel(projectId, groupId));
   };
 
   const handleSaveModel = async (draft: BDSchemaModel) => {
     setSavingModel(true);
     try {
-      await bdSchemaModelRepository.update(draft.id, draft);
-      setEditingModel(draft);
+      const saved = isNewModel
+        ? await bdSchemaModelRepository.createFromDraft(draft)
+        : await bdSchemaModelRepository.update(draft.id, draft);
+      if (!saved) {
+        toast({ title: "Model not found", status: "error" });
+        return;
+      }
+      setIsNewModel(false);
+      setEditingModel(saved);
       toast({ title: "Model saved", status: "success" });
     } finally {
       setSavingModel(false);
@@ -91,7 +106,7 @@ export function BDSchemaBuilderComponent({
   const handleDeleteModel = async () => {
     if (!deletingModel) return;
     await bdSchemaModelRepository.delete(deletingModel.id);
-    if (editingModel?.id === deletingModel.id) setEditingModel(null);
+    if (editingModel?.id === deletingModel.id) closeModel();
     setDeletingModel(null);
     toast({ title: "Model deleted", status: "success" });
   };
@@ -161,7 +176,7 @@ export function BDSchemaBuilderComponent({
           title: "No models yet",
           description: "Add a model to start designing tables.",
         }}
-        onRowClick={(row) => setEditingModel(row)}
+        onRowClick={(row) => openModel(row)}
         toolbar={
           <BDButton size="sm" icon={Plus} onClick={handleAddModel}>
             Add model
@@ -196,7 +211,7 @@ export function BDSchemaBuilderComponent({
             icon: Pencil,
             iconOnly: true,
             tooltip: "Edit model",
-            onSelect: ([row]) => setEditingModel(row),
+            onSelect: ([row]) => openModel(row),
           },
           {
             label: "Delete",
@@ -221,7 +236,7 @@ export function BDSchemaBuilderComponent({
         model={editingModel}
         allModels={allModels ?? []}
         isSaving={savingModel}
-        onClose={() => setEditingModel(null)}
+        onClose={closeModel}
         onSave={handleSaveModel}
         onDelete={() => {
           if (editingModel) setDeletingModel(editingModel);
