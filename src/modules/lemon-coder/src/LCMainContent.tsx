@@ -47,7 +47,7 @@ export interface LCMainContentProps {
   /** Dismiss external-change warning */
   onAcknowledgeExternalChange: () => void;
   /** Save the currently open file */
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
   /**
    * Read the content of a file from the project filesystem by its relative path.
    * Used to fetch the original file content for diff preview.
@@ -122,6 +122,31 @@ const LCMainContent = forwardRef<LCMainContentHandle, LCMainContentProps>(functi
     }
   }, [selectedFile]);
 
+
+  // ── View Mode Switching ──────────────────────────────────────────────────
+
+  /**
+   * Switch to chat view. If the user is leaving an edited file, persist the
+   * buffer first so the chat pipeline (which reads from disk) sees the edits.
+   */
+  const handleShowChat = useCallback(async () => {
+    if (viewMode === "file" && selectedFile && isDirty) {
+      await onSave();
+    }
+    setDiffPreview(null);
+    setDiffWarning(null);
+    setViewMode("chat");
+  }, [viewMode, selectedFile, isDirty, onSave]);
+
+  const handleShowFile = useCallback(() => {
+    setViewMode("file");
+    setDiffPreview(null);
+    // Only reload from disk when there are no unsaved edits — reloading with a
+    // dirty buffer would silently discard the user's changes.
+    if (selectedFile && !isDirty) {
+      onReloadFromDisk();
+    }
+  }, [selectedFile, isDirty, onReloadFromDisk]);
 
   // ── Diff Preview Handlers ────────────────────────────────────────────────
 
@@ -261,11 +286,7 @@ const LCMainContent = forwardRef<LCMainContentHandle, LCMainContentProps>(functi
         {/* View Mode Toggle */}
         <div className="flex items-center gap-1 bg-[#1e1e1e] rounded-md p-0.5">
           <button
-            onClick={() => {
-              setViewMode("chat");
-              setDiffPreview(null);
-              setDiffWarning(null);
-            }}
+            onClick={handleShowChat}
             className={`text-xs h-7 px-3 rounded-md flex items-center gap-1.5 transition-colors ${
               viewMode === "chat"
                 ? "bg-[#e5c07b] text-[#1e1e1e]"
@@ -276,14 +297,7 @@ const LCMainContent = forwardRef<LCMainContentHandle, LCMainContentProps>(functi
             Chat
           </button>
           <button
-            onClick={() => {
-              setViewMode("file");
-              setDiffPreview(null);
-              // Reload file content from disk when switching to file view
-              if (selectedFile) {
-                onReloadFromDisk();
-              }
-            }}
+            onClick={handleShowFile}
             className={`text-xs h-7 px-3 rounded-md flex items-center gap-1.5 transition-colors ${
               viewMode === "file" || viewMode === "diff"
                 ? "bg-[#e5c07b] text-[#1e1e1e]"

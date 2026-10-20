@@ -843,6 +843,8 @@ export function useLCFileSystem(): UseLCFileSystemReturn {
       console.log(`[lemon-coder] Saved: ${selectedFile.path}`);
     } catch (error) {
       console.error("Failed to save file:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.danger(`Failed to save ${selectedFile.path}: ${msg}`);
     }
   }, [selectedFile, selectedFileContent]);
 
