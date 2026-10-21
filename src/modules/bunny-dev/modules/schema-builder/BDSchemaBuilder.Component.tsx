@@ -14,16 +14,22 @@ import {
   Copy,
   FileCode2,
   Network,
+  BookOpen,
 } from "lucide-react";
 import { bdDB } from "../../BDDatabase";
-import type { BDSchemaModel } from "../../BDDomain.Types";
+import type { BDSchemaModel, BDSchemaRelation } from "../../BDDomain.Types";
 import { useBDProjectContext } from "../core/BDProject.Context";
 import { bdSchemaModelRepository } from "./BDSchemaBuilder.Repository";
-import { createEmptyModel } from "./BDSchemaBuilder.Types";
+import {
+  createEmptyModel,
+  suggestRelationName,
+  type BDSchemaInverseRelationRequest,
+} from "./BDSchemaBuilder.Types";
 import { useBDSchemaGroups, useBDSchemaModels } from "./BDSchemaBuilder.Hooks";
 import { generatePrismaExport } from "./BDPrismaExport.Server";
 import BDSchemaModelComponent from "./BDSchemaModel.Component";
 import BDSchemaErdComponent from "./BDSchemaErd.Component";
+import BDSchemaDocComponent from "./BDSchemaDoc.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
@@ -41,6 +47,62 @@ export interface BDSchemaBuilderComponentProps {
   initialGroupId?: string;
 }
 
+/**
+ * Add the inverse side of relations created through "Add relation column".
+ * Runs only after the current model is saved, so new models have a real id.
+ */
+async function applyInverseRelations(
+  saved: BDSchemaModel,
+  requests: BDSchemaInverseRelationRequest[],
+): Promise<void> {
+  for (const request of requests) {
+    const belongsTo = saved.relations.some(
+      (relation) =>
+        relation.type === "belongsTo" &&
+        relation.targetModelId === request.targetModelId &&
+        relation.foreignKey === request.foreignKey,
+    );
+    if (!belongsTo) continue;
+    if (request.targetModelId === saved.id) continue;
+
+    const target = await bdSchemaModelRepository.get(request.targetModelId);
+    if (!target) continue;
+    if (
+      target.relations.some(
+        (relation) =>
+          relation.targetModelId === saved.id &&
+          relation.foreignKey === request.foreignKey,
+      )
+    ) {
+      continue;
+    }
+
+    const ownerKey =
+      saved.primaryKey[0] ??
+      saved.properties.find((property) => property.primary)?.name ??
+      saved.properties[0]?.name ??
+      "id";
+    const inverse: BDSchemaRelation = {
+      name: suggestRelationName(
+        "hasMany",
+        saved.name.trim() || "model",
+      ),
+      type: "hasMany",
+      targetModelId: saved.id,
+      foreignKey: request.foreignKey,
+      ownerKey,
+    };
+
+    try {
+      await bdSchemaModelRepository.update(target.id, {
+        relations: [...target.relations, inverse],
+      });
+    } catch {
+      // The model is already saved; a failed inverse must not undo it.
+    }
+  }
+}
+
 export function BDSchemaBuilderComponent({
   initialGroupId,
 }: BDSchemaBuilderComponentProps = {}) {
@@ -56,6 +118,12 @@ export function BDSchemaBuilderComponent({
   const groupId = initialGroupId;
   const activeGroup = groups?.find((g) => g.id === groupId);
   const models = useBDSchemaModels(groupId);
+  const exportBaseName =
+    (activeGroup?.name ?? "schema")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "schema";
 
   const [editingModel, setEditingModel] = useState<BDSchemaModel | null>(null);
   const [isNewModel, setIsNewModel] = useState(false);
@@ -65,6 +133,7 @@ export function BDSchemaBuilderComponent({
   const [exportTab, setExportTab] = useState<"prisma" | "builder">("prisma");
   const [exportText, setExportText] = useState("");
   const [erdOpen, setErdOpen] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
 
   const openModel = (model: BDSchemaModel) => {
     setIsNewModel(false);
@@ -85,7 +154,10 @@ export function BDSchemaBuilderComponent({
     setEditingModel(createEmptyModel(projectId, groupId));
   };
 
-  const handleSaveModel = async (draft: BDSchemaModel) => {
+  const handleSaveModel = async (
+    draft: BDSchemaModel,
+    inverseRequests: BDSchemaInverseRelationRequest[] = [],
+  ): Promise<boolean> => {
     setSavingModel(true);
     try {
       const saved = isNewModel
@@ -93,11 +165,20 @@ export function BDSchemaBuilderComponent({
         : await bdSchemaModelRepository.update(draft.id, draft);
       if (!saved) {
         toast({ title: "Model not found", status: "error" });
-        return;
+        return false;
       }
       setIsNewModel(false);
       setEditingModel(saved);
+      await applyInverseRelations(saved, inverseRequests);
       toast({ title: "Model saved", status: "success" });
+      return true;
+    } catch (err) {
+      toast({
+        title: "Could not save model",
+        description: err instanceof Error ? err.message : undefined,
+        status: "error",
+      });
+      return false;
     } finally {
       setSavingModel(false);
     }
@@ -112,7 +193,7 @@ export function BDSchemaBuilderComponent({
   };
 
   const openExport = async () => {
-    const result = await generatePrismaExport(allModels ?? []);
+    const result = await generatePrismaExport(models ?? [], activeGroup?.name);
     setExportText(exportTab === "prisma" ? result.prisma : result.modelBuilder);
     setExportOpen(true);
   };
@@ -153,6 +234,13 @@ export function BDSchemaBuilderComponent({
             </BDButton>
             <BDButton
               variant="secondary"
+              icon={BookOpen}
+              onClick={() => setDocOpen(true)}
+            >
+              Schema
+            </BDButton>
+            <BDButton
+              variant="secondary"
               icon={Network}
               onClick={() => setErdOpen(true)}
             >
@@ -177,11 +265,6 @@ export function BDSchemaBuilderComponent({
           description: "Add a model to start designing tables.",
         }}
         onRowClick={(row) => openModel(row)}
-        toolbar={
-          <BDButton size="sm" icon={Plus} onClick={handleAddModel}>
-            Add model
-          </BDButton>
-        }
         columns={[
           {
             key: "name",
@@ -231,6 +314,13 @@ export function BDSchemaBuilderComponent({
         models={models ?? []}
       />
 
+      <BDSchemaDocComponent
+        open={docOpen}
+        onClose={() => setDocOpen(false)}
+        group={activeGroup ?? null}
+        models={models ?? []}
+      />
+
       <BDSchemaModelComponent
         open={!!editingModel}
         model={editingModel}
@@ -238,9 +328,6 @@ export function BDSchemaBuilderComponent({
         isSaving={savingModel}
         onClose={closeModel}
         onSave={handleSaveModel}
-        onDelete={() => {
-          if (editingModel) setDeletingModel(editingModel);
-        }}
       />
 
       <BDConfirmDialog
@@ -254,7 +341,8 @@ export function BDSchemaBuilderComponent({
       <BDModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
-        title="Schema export"
+        title={`Schema export${activeGroup ? ` — ${activeGroup.name}` : ""}`}
+        description="Only the models in this schema group are included."
         size="xl"
         footer={
           <>
@@ -275,7 +363,9 @@ export function BDSchemaBuilderComponent({
               icon={Download}
               onClick={() =>
                 downloadText(
-                  exportTab === "prisma" ? "schema.prisma" : "models.ts",
+                  exportTab === "prisma"
+                    ? `${exportBaseName}.prisma`
+                    : `${exportBaseName}.models.ts`,
                   exportText,
                 )
               }
@@ -298,7 +388,10 @@ export function BDSchemaBuilderComponent({
               onClick={() => {
                 setExportTab(key);
                 void (async () => {
-                  const result = await generatePrismaExport(allModels ?? []);
+                  const result = await generatePrismaExport(
+                    models ?? [],
+                    activeGroup?.name,
+                  );
                   setExportText(key === "prisma" ? result.prisma : result.modelBuilder);
                 })();
               }}

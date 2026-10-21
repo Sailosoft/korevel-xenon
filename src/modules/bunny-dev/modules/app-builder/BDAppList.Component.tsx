@@ -176,6 +176,15 @@ export function BDAppListComponent() {
             label: "Resources",
             render: (row) => <BDBadge>{row.resources.length}</BDBadge>,
           },
+          {
+            key: "published",
+            label: "Status",
+            render: (row) => (
+              <BDBadge color={row.published ? "success" : "gray"}>
+                {row.published ? "Published" : "Draft"}
+              </BDBadge>
+            ),
+          },
         ]}
         rowActions={[
           {

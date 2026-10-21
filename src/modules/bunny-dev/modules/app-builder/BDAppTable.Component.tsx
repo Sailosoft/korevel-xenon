@@ -7,10 +7,9 @@
 // column type stays fully adjustable afterwards.
 
 import { useState } from "react";
-import { Plus, RefreshCw, Trash2, Wand2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { BDAppColumn, BDSchemaModel } from "../../BDDomain.Types";
 import { BD_APP_COLUMN_TYPE_OPTIONS, columnFromProperty } from "./BDApp.Types";
-import BDAppModelDerive from "./BDAppModelDerive.Component";
 import BDAppPropertyPicker from "./BDAppPropertyPicker.Component";
 import BDButton from "../../components/BDButton";
 
@@ -21,7 +20,6 @@ export interface BDAppTableComponentProps {
    * properties become the candidates for "Add column".
    */
   model?: BDSchemaModel | null;
-  projectId: string;
   onChange: (columns: BDAppColumn[]) => void;
 }
 
@@ -31,18 +29,12 @@ const CELL =
 export function BDAppTableComponent({
   columns,
   model,
-  projectId,
   onChange,
 }: BDAppTableComponentProps) {
-  const [deriveOpen, setDeriveOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const update = (index: number, patch: Partial<BDAppColumn>) => {
     onChange(columns.map((c, i) => (i === index ? { ...c, ...patch } : c)));
-  };
-
-  const deriveFromModel = (schemaModel: BDSchemaModel) => {
-    onChange(schemaModel.properties.map(columnFromProperty));
   };
 
   // When a schema model is tied to the resource, picking a property creates a
@@ -52,7 +44,7 @@ export function BDAppTableComponent({
       setPickerOpen(true);
       return;
     }
-    onChange([...columns, { type: "text", name: `col_${columns.length + 1}` }]);
+    onChange([...columns, { type: "text", name: "" }]);
   };
 
   return (
@@ -63,14 +55,6 @@ export function BDAppTableComponent({
             Table columns ({columns.length})
           </h3>
           <div className="flex items-center gap-2">
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Wand2}
-              onClick={() => setDeriveOpen(true)}
-            >
-              Derive
-            </BDButton>
             <BDButton
               size="sm"
               variant="secondary"
@@ -85,8 +69,8 @@ export function BDAppTableComponent({
         {columns.length === 0 ? (
           <p className="text-xs text-slate-400">
             {model
-              ? "No columns yet — add schema properties one by one, or derive them all at once."
-              : "No columns yet — derive from a model or add manually."}
+              ? "No columns yet — add schema properties one by one, or use “Fill from schema”."
+              : "No columns yet — add a column to start."}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
@@ -103,7 +87,7 @@ export function BDAppTableComponent({
                 >
                   <input
                     className={`${CELL} w-36`}
-                    placeholder="name"
+                    placeholder="column name"
                     value={column.name}
                     onChange={(e) => update(index, { name: e.target.value })}
                   />
@@ -187,17 +171,6 @@ export function BDAppTableComponent({
           </div>
         )}
       </section>
-
-      <BDAppModelDerive
-        open={deriveOpen}
-        onClose={() => setDeriveOpen(false)}
-        projectId={projectId}
-        kind="columns"
-        onSelect={(schemaModel) => {
-          deriveFromModel(schemaModel);
-          setDeriveOpen(false);
-        }}
-      />
 
       <BDAppPropertyPicker
         open={pickerOpen}

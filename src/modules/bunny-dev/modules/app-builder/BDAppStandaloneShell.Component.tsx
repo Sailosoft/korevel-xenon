@@ -84,7 +84,7 @@ export function BDAppStandaloneShell({
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded text-[11px] font-semibold uppercase transition-colors",
               active
-                ? "bg-[#e3f2fd] text-[#1565c0]"
+                ? "bg-[var(--bd-primary-soft)] text-[var(--bd-primary-strong)]"
                 : "text-slate-500 hover:bg-white hover:text-slate-700",
             )}
           >
@@ -101,7 +101,7 @@ export function BDAppStandaloneShell({
           className={cn(
             "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
             active
-              ? "bg-[#e3f2fd] font-semibold text-[#1565c0]"
+              ? "bg-[var(--bd-primary-soft)] font-semibold text-[var(--bd-primary-strong)]"
               : "text-slate-700 hover:bg-white",
           )}
         >
@@ -168,13 +168,13 @@ export function BDAppStandaloneShell({
       data-bd-theme={theme}
     >
       {/* Header */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
+      <header className="bd-app-header flex h-12 shrink-0 items-center gap-2 border-b border-white/15 px-3">
         <button
           type="button"
           onClick={onToggleDrawer}
           aria-label="Open navigation"
           title="Open navigation"
-          className="rounded p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 md:hidden"
+          className="rounded p-1.5 text-current opacity-80 transition-colors hover:bg-white/15 hover:opacity-100 md:hidden"
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -187,12 +187,12 @@ export function BDAppStandaloneShell({
             className="h-7 w-7 shrink-0 rounded object-contain"
           />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-[#e3f2fd] text-[#1976d2]">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white/15 text-current">
             <LayoutGrid className="h-4 w-4" />
           </span>
         )}
         <span
-          className="max-w-[160px] shrink-0 truncate text-sm font-semibold text-slate-800"
+          className="max-w-[160px] shrink-0 truncate text-sm font-semibold text-current"
           title={brand.name}
         >
           {brand.name}
@@ -205,14 +205,14 @@ export function BDAppStandaloneShell({
           {breadcrumb.map((crumb, index) => (
             <span key={`${crumb}-${index}`} className="flex min-w-0 items-center gap-1">
               {index > 0 && (
-                <ChevronRight className="h-3 w-3 shrink-0 text-slate-400" />
+                <ChevronRight className="h-3 w-3 shrink-0 text-current opacity-50" />
               )}
               <span
                 className={cn(
                   "min-w-0 truncate text-xs",
                   index === breadcrumb.length - 1
-                    ? "font-medium text-slate-700"
-                    : "hidden text-slate-400 sm:inline",
+                    ? "font-medium text-current"
+                    : "hidden text-current opacity-70 sm:inline",
                 )}
                 title={crumb}
               >
@@ -229,8 +229,10 @@ export function BDAppStandaloneShell({
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "hidden rounded p-1.5 transition-colors hover:bg-slate-100 md:block",
-              sidebarCollapsed ? "text-[#1976d2]" : "text-slate-500 hover:text-slate-700",
+              "hidden rounded p-1.5 transition-colors hover:bg-white/15 md:block",
+              sidebarCollapsed
+                ? "text-current"
+                : "text-current opacity-70 hover:opacity-100",
             )}
           >
             <PanelLeft className="h-4 w-4" />

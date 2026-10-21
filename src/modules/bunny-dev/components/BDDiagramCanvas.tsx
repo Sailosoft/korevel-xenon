@@ -77,6 +77,7 @@ export const BDDiagramCanvas = forwardRef<
   ref,
 ) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [zoomInput, setZoomInput] = useState<string | null>(null);
   const [fitScale, setFitScale] = useState(DEFAULT_ZOOM);
   const [dragging, setDragging] = useState(false);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
@@ -222,6 +223,13 @@ export const BDDiagramCanvas = forwardRef<
   const zoomIn = () => setZoom((value) => clampZoom(value + ZOOM_STEP));
   const zoomOut = () => setZoom((value) => clampZoom(value - ZOOM_STEP));
 
+  const commitZoomInput = () => {
+    if (zoomInput === null) return;
+    const parsed = Number.parseFloat(zoomInput);
+    if (Number.isFinite(parsed)) setZoom(clampZoom(parsed / 100));
+    setZoomInput(null);
+  };
+
   // Grab-to-pan: drag moves the scroll position (browser clamps at the edges).
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -281,12 +289,35 @@ export const BDDiagramCanvas = forwardRef<
               aria-label="Zoom out"
               title="Zoom out"
             />
-            <span
-              className="w-12 text-center text-xs font-medium text-slate-500"
-              title="100% = fit to the viewer"
+            <div
+              className="flex items-center rounded-md border border-transparent hover:border-slate-200 focus-within:border-blue-400 focus-within:bg-white"
+              title="100% = fit to the viewer. Type a percentage and press Enter."
             >
-              {Math.round(zoom * 100)}%
-            </span>
+              <input
+                value={zoomInput ?? String(Math.round(zoom * 100))}
+                onFocus={(e) => {
+                  setZoomInput(String(Math.round(zoom * 100)));
+                  e.currentTarget.select();
+                }}
+                onChange={(e) =>
+                  setZoomInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))
+                }
+                onBlur={commitZoomInput}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitZoomInput();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setZoomInput(null);
+                  }
+                }}
+                inputMode="numeric"
+                aria-label="Zoom percentage"
+                className="w-10 bg-transparent py-0.5 pr-0 text-right text-xs font-medium text-slate-500 outline-none"
+              />
+              <span className="pr-1 text-xs font-medium text-slate-500">%</span>
+            </div>
             <BDButton
               size="sm"
               variant="ghost"

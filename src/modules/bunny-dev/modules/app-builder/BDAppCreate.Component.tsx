@@ -67,20 +67,6 @@ export function BDAppCreateComponent({
       }
     >
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">App name</span>
-        <input
-          className={CELL}
-          value={name}
-          autoFocus
-          placeholder="e.g. Shop Admin"
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-          }}
-        />
-      </label>
-
-      <label className="mt-3 flex flex-col gap-1">
         <span className="text-xs font-medium text-slate-600">
           Schema design (optional)
         </span>
@@ -101,6 +87,20 @@ export function BDAppCreateComponent({
           their properties to resource fields/columns. You can change this
           later in App settings.
         </span>
+      </label>
+
+      <label className="mt-3 flex flex-col gap-1">
+        <span className="text-xs font-medium text-slate-600">App name</span>
+        <input
+          className={CELL}
+          value={name}
+          autoFocus
+          placeholder="e.g. Shop Admin"
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+        />
       </label>
     </BDModal>
   );

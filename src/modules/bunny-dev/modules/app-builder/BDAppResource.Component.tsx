@@ -8,7 +8,7 @@
 // onSave.
 
 import { useImperativeHandle, useState, type Ref } from "react";
-import { Plus, Save, Trash2, Wand2, Sparkles } from "lucide-react";
+import { Database, Plus, Save, Trash2, Wand2, Sparkles } from "lucide-react";
 import type {
   BDAppConnection,
   BDAppConnectionType,
@@ -27,6 +27,7 @@ import {
   connectionFromDraft,
   deriveResourceIdentity,
   fieldFromDraft,
+  resolveIdStrategy,
   resourceFieldOptions,
 } from "./BDApp.Types";
 import type {
@@ -38,6 +39,7 @@ import BDAppFormComponent from "./BDAppForm.Component";
 import BDAppTableComponent from "./BDAppTable.Component";
 import BDAppFillerComponent from "./BDAppFiller.Component";
 import BDAppFieldSelect from "./BDAppFieldSelect.Component";
+import BDAppSchemaFillComponent from "./BDAppSchemaFill.Component";
 import BDAppResourceAIComponent from "./BDAppResourceAI.Component";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
@@ -110,6 +112,7 @@ export function BDAppResourceComponent({
 
   const [fillerOpen, setFillerOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [schemaFillOpen, setSchemaFillOpen] = useState(false);
 
   const drawerKey = `${open}:${resetToken ?? resource?.slug ?? "none"}`;
   const [prevKey, setPrevKey] = useState(drawerKey);
@@ -118,6 +121,7 @@ export function BDAppResourceComponent({
     setDraft(resource);
     setFillerOpen(false);
     setAiOpen(false);
+    setSchemaFillOpen(false);
   }
 
   if (!draft) {
@@ -135,6 +139,15 @@ export function BDAppResourceComponent({
   // The resource's tied schema model — its properties are the candidates for
   // "Add from schema" in the form/table designers.
   const tiedModel = models.find((m) => m.id === draft.modelId) ?? null;
+  const idStrategy = schemaTied ? resolveIdStrategy(tiedModel) : null;
+  const idStrategyLabel =
+    idStrategy?.kind === "incremental"
+      ? "Integer · auto-increment"
+      : idStrategy?.kind === "uuid"
+        ? "UUID · generated"
+        : idStrategy
+          ? `Manual · ${idStrategy.property}`
+          : "";
 
   const update = (patch: Partial<BDAppResource>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -315,6 +328,16 @@ export function BDAppResourceComponent({
                 >
                   Fill details
                 </BDButton>
+                {schemaTied && tiedModel && (
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={Database}
+                    onClick={() => setSchemaFillOpen(true)}
+                  >
+                    Fill from schema
+                  </BDButton>
+                )}
                 <BDButton
                   size="sm"
                   variant="secondary"
@@ -364,34 +387,46 @@ export function BDAppResourceComponent({
                   onChange={(e) => update({ pluralLabel: e.target.value })}
                 />
               </label>
-              <label className="flex flex-col gap-1 md:col-span-2">
-                <span className="text-xs font-medium text-slate-600">
-                  Schema model
-                </span>
-                <select
-                  className={CELL}
-                  value={draft.modelId ?? ""}
-                  onChange={(e) =>
-                    update({ modelId: e.target.value || undefined })
-                  }
-                >
-                  <option value="">None</option>
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[11px] text-slate-400">
-                  {schemaTied
-                    ? models.length === 0
+              {schemaTied && (
+                <label className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-xs font-medium text-slate-600">
+                    Schema model
+                  </span>
+                  <select
+                    className={CELL}
+                    value={draft.modelId ?? ""}
+                    onChange={(e) =>
+                      update({ modelId: e.target.value || undefined })
+                    }
+                  >
+                    <option value="">None</option>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] text-slate-400">
+                    {models.length === 0
                       ? "This app's schema design has no models yet — build them in the Schema Builder first."
-                      : "Models from this app's tied schema design. Tying one enables “Add from schema” for fields and columns."
-                    : models.length === 0
-                      ? "No schema models in this project yet — build one in the Schema Builder first."
-                      : "Any model in this project — tie a schema in App settings to narrow the list."}
-                </span>
-              </label>
+                      : "Models from this app's tied schema design. Tying one enables “Add from schema” for fields and columns."}
+                  </span>
+                </label>
+              )}
+              {schemaTied && idStrategy && (
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-xs font-medium text-slate-600">
+                    Record ID
+                  </span>
+                  <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm text-slate-600">
+                    {idStrategyLabel}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Generated from the schema model&apos;s primary key when a
+                    record is created.
+                  </span>
+                </div>
+              )}
               <label className="flex flex-col gap-1 md:col-span-2">
                 <span className="text-xs font-medium text-slate-600">
                   Form behavior
@@ -423,7 +458,6 @@ export function BDAppResourceComponent({
             fields={fields}
             models={models}
             model={tiedModel}
-            projectId={projectId}
             onChange={setFields}
           />
 
@@ -433,7 +467,7 @@ export function BDAppResourceComponent({
                 Connections ({connections.length})
               </h3>
               <div className="flex items-center gap-2">
-                {draft.modelId ? (
+                {schemaTied && draft.modelId ? (
                   <BDButton
                     size="sm"
                     variant="secondary"
@@ -613,7 +647,6 @@ export function BDAppResourceComponent({
           <BDAppTableComponent
             columns={columns}
             model={tiedModel}
-            projectId={projectId}
             onChange={(next) =>
               update({ table: { ...draft.table, columns: next } })
             }
@@ -633,6 +666,20 @@ export function BDAppResourceComponent({
         submitLabel="Fill details"
         initialName={draft.name}
         onSubmit={applyIdentityFiller}
+      />
+
+      <BDAppSchemaFillComponent
+        open={schemaFillOpen}
+        onClose={() => setSchemaFillOpen(false)}
+        model={tiedModel}
+        fields={fields}
+        columns={columns}
+        onApply={(next) =>
+          update({
+            form: { components: next.fields },
+            table: { ...draft.table, columns: next.columns },
+          })
+        }
       />
 
       <BDAppResourceAIComponent

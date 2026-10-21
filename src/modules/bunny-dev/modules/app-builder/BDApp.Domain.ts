@@ -632,6 +632,8 @@ export interface BDApp extends BDEntity {
    * mapped to schema properties.
    */
   schemaGroupId?: string;
+  /** Whether the app is published (shown by the app list; does not gate rendering). */
+  published?: boolean;
   theme?: BDAppTheme;
   brand?: BDAppBrand;
   colors?: Partial<Record<BDAppColor, string>>;

@@ -14,8 +14,9 @@ export {
   useBDProjectSchemaModels,
 } from "./BDApp.Hooks";
 export { BDAppFormComponent } from "./BDAppForm.Component";
-export { BDAppModelDerive } from "./BDAppModelDerive.Component";
 export { BDAppTableComponent } from "./BDAppTable.Component";
+export { BDAppSchemaFillComponent } from "./BDAppSchemaFill.Component";
+export type { BDAppSchemaFillProps } from "./BDAppSchemaFill.Component";
 export { BDAppResourceComponent } from "./BDAppResource.Component";
 export type { BDAppResourceComponentHandle } from "./BDAppResource.Component";
 export { BDAppFillerComponent } from "./BDAppFiller.Component";

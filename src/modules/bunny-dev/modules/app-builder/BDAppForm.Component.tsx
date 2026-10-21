@@ -15,7 +15,6 @@ import {
   modelFieldOptions,
 } from "./BDApp.Types";
 import BDAppFieldSelect from "./BDAppFieldSelect.Component";
-import BDAppModelDerive from "./BDAppModelDerive.Component";
 import BDAppPropertyPicker from "./BDAppPropertyPicker.Component";
 import BDButton from "../../components/BDButton";
 
@@ -27,7 +26,6 @@ export interface BDAppFormComponentProps {
    * properties become the candidates for "Add field".
    */
   model?: BDSchemaModel | null;
-  projectId: string;
   onChange: (fields: BDAppField[]) => void;
 }
 
@@ -38,18 +36,12 @@ export function BDAppFormComponent({
   fields,
   models,
   model,
-  projectId,
   onChange,
 }: BDAppFormComponentProps) {
-  const [deriveOpen, setDeriveOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const update = (index: number, patch: Partial<BDAppField>) => {
     onChange(fields.map((f, i) => (i === index ? { ...f, ...patch } : f)));
-  };
-
-  const deriveFromModel = (schemaModel: BDSchemaModel) => {
-    onChange(schemaModel.properties.filter((p) => !p.primary).map(fieldFromProperty));
   };
 
   // When a schema model is tied to the resource, picking a property creates a
@@ -59,10 +51,7 @@ export function BDAppFormComponent({
       setPickerOpen(true);
       return;
     }
-    onChange([
-      ...fields,
-      { kind: "field", type: "text", name: `field_${fields.length + 1}` },
-    ]);
+    onChange([...fields, { kind: "field", type: "text", name: "" }]);
   };
 
   return (
@@ -73,14 +62,6 @@ export function BDAppFormComponent({
             Form fields ({fields.length})
           </h3>
           <div className="flex items-center gap-2">
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Wand2}
-              onClick={() => setDeriveOpen(true)}
-            >
-              Derive
-            </BDButton>
             <BDButton
               size="sm"
               variant="secondary"
@@ -96,8 +77,8 @@ export function BDAppFormComponent({
           <p className="flex items-center gap-1 text-xs text-slate-400">
             <Wand2 className="h-3 w-3" />{" "}
             {model
-              ? "No fields yet — add schema properties one by one, or derive them all at once."
-              : "No fields yet — derive from a model or add manually."}
+              ? "No fields yet — add schema properties one by one, or use “Fill from schema”."
+              : "No fields yet — add a field to start."}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
@@ -114,7 +95,7 @@ export function BDAppFormComponent({
                 >
                   <input
                     className={`${CELL} w-36`}
-                    placeholder="name"
+                    placeholder="field name"
                     value={field.name}
                     onChange={(e) => update(index, { name: e.target.value })}
                   />
@@ -234,17 +215,6 @@ export function BDAppFormComponent({
           </div>
         )}
       </section>
-
-      <BDAppModelDerive
-        open={deriveOpen}
-        onClose={() => setDeriveOpen(false)}
-        projectId={projectId}
-        kind="fields"
-        onSelect={(schemaModel) => {
-          deriveFromModel(schemaModel);
-          setDeriveOpen(false);
-        }}
-      />
 
       <BDAppPropertyPicker
         open={pickerOpen}

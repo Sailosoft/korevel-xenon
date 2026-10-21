@@ -28,6 +28,8 @@ import { useBDSchemaGroups } from "../schema-builder/BDSchemaBuilder.Hooks";
 import { bdAppRepository, bdAppRecordRepository } from "./BDApp.Repository";
 import { migrateLegacyAppRecords } from "../../BDAppDatabase";
 import {
+  buildBrand,
+  buildTheme,
   createAppResource,
   deriveAppMeta,
   resourcesFromDrafts,
@@ -91,7 +93,7 @@ function BDAppBuilderOverview({
         <p className="mt-1 text-sm text-slate-500">
           {form.description || "No description yet."}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
               Slug
@@ -109,6 +111,14 @@ function BDAppBuilderOverview({
               Resources
             </p>
             <p className="text-sm text-slate-700">{app.resources.length}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              Status
+            </p>
+            <p className="text-sm text-slate-700">
+              {form.published ? "Published" : "Draft"}
+            </p>
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-400">
@@ -224,17 +234,9 @@ export function BDAppBuilderComponent({
     update({
       description: next.description || undefined,
       schemaGroupId: next.schemaGroupId || undefined,
-      brand:
-        next.brandName || next.logoUrl
-          ? {
-              name: next.brandName || next.name,
-              logo: next.logoUrl || undefined,
-            }
-          : undefined,
-      theme:
-        next.themeMode !== "system" || next.primaryColor
-          ? { mode: next.themeMode, primary: next.primaryColor || undefined }
-          : undefined,
+      published: next.published,
+      brand: buildBrand(next),
+      theme: buildTheme(next),
     });
   };
 
@@ -336,13 +338,7 @@ export function BDAppBuilderComponent({
       name: meta.name,
       slug: meta.slug,
       path: meta.path,
-      brand:
-        nextForm.brandName || nextForm.logoUrl
-          ? {
-              name: nextForm.brandName || nextForm.name,
-              logo: nextForm.logoUrl || undefined,
-            }
-          : undefined,
+      brand: buildBrand(nextForm),
     });
   };
 
@@ -371,20 +367,9 @@ export function BDAppBuilderComponent({
       patch.slug = nextForm.slug;
       patch.path = nextForm.path;
       patch.description = nextForm.description || undefined;
-      patch.brand =
-        nextForm.brandName || nextForm.logoUrl
-          ? {
-              name: nextForm.brandName || nextForm.name,
-              logo: nextForm.logoUrl || undefined,
-            }
-          : undefined;
-      patch.theme =
-        nextForm.themeMode !== "system" || nextForm.primaryColor
-          ? {
-              mode: nextForm.themeMode,
-              primary: nextForm.primaryColor || undefined,
-            }
-          : undefined;
+      patch.published = nextForm.published;
+      patch.brand = buildBrand(nextForm);
+      patch.theme = buildTheme(nextForm);
     }
 
     if (sections.resources && result.resources && result.resources.length > 0) {
@@ -417,12 +402,13 @@ export function BDAppBuilderComponent({
       ? draft.resources[activeResourceIndex]
       : undefined;
 
-  // Models available to resource editors: when the app is tied to a schema
-  // design, only that group's models; otherwise every model in the project.
+  // Models available to resource editors: only when the app is tied to a
+  // schema design. Untied apps have no schema-driven UI (model picker, derive,
+  // fill from schema) and the renderer ignores stale model links.
   const designerModels =
     draft?.schemaGroupId && models
       ? models.filter((m) => m.groupId === draft.schemaGroupId)
-      : (models ?? []);
+      : [];
 
   // Project-wide layout: "full" breaks out of the BDShell document shell into
   // a dedicated full-screen workspace, "shell" embeds the designer in the
@@ -660,6 +646,8 @@ export function BDAppBuilderComponent({
                   <span>{draft.resources.length} resources</span>
                   <span>·</span>
                   <span>{openTabs.length} open tabs</span>
+                  <span>·</span>
+                  <span>{form?.published ? "Published" : "Draft"}</span>
                   {mode === "preview" && (
                     <>
                       <span>·</span>

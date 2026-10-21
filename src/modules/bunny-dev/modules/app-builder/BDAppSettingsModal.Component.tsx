@@ -1,11 +1,13 @@
 "use client";
 
-// BDAppSettingsModal — app metadata dialog (name, slug, path, description,
-// brand, theme). Opened from the sidebar "Settings" item or the title-bar
-// File menu; changes apply live via onChange, persisted by the Save action.
+// BDAppSettingsModal — app metadata dialog (schema tie, name, slug, path,
+// description, brand, theme, publish state). Opened from the sidebar
+// "Settings" item or the title-bar File menu; changes apply live via
+// onChange, persisted by the Save action.
 
-import { Save, Wand2 } from "lucide-react";
+import { Save, Wand2, X } from "lucide-react";
 import type { BDAppForm } from "./BDApp.Types";
+import { BD_APP_DEFAULT_COLORS, BD_APP_THEME_TOKENS } from "./BDApp.Types";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 
@@ -34,6 +36,50 @@ export interface BDAppSettingsModalProps {
   schemaGroups?: { id: string; name: string }[];
 }
 
+function ColorField({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="color"
+          value={value || fallback}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-10 shrink-0 cursor-pointer rounded border border-slate-200 bg-white"
+          aria-label={`Pick ${label}`}
+        />
+        <input
+          className={CELL}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={fallback}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label={`Reset ${label}`}
+            title="Use the default"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </label>
+  );
+}
+
 export function BDAppSettingsModal({
   open,
   onClose,
@@ -51,7 +97,7 @@ export function BDAppSettingsModal({
       onClose={onClose}
       size="lg"
       title="App settings"
-      description="Name, routing, brand and theme for this app."
+      description="Schema tie, publishing, routing, brand and theme for this app."
       footer={
         <>
           <BDButton
@@ -72,7 +118,34 @@ export function BDAppSettingsModal({
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <span className="text-xs font-medium text-slate-600">
+          Schema design
+        </span>
+        <label className="mt-2 flex flex-col gap-1">
+          <select
+            className={CELL}
+            value={form.schemaGroupId}
+            onChange={(e) => onChange({ schemaGroupId: e.target.value })}
+          >
+            <option value="">Not tied</option>
+            {schemaGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-[11px] text-slate-400">
+          {form.schemaGroupId
+            ? "Tied to schema — resources can pick models from this design and map properties to fields/columns."
+            : schemaGroups.length === 0
+              ? "No schema groups in this project yet — build one in the Schema Builder first."
+              : "Not tied — resource schema tools are hidden. Stored model links are kept if you re-tie later."}
+        </p>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-slate-600">Name</span>
           <input
@@ -145,56 +218,59 @@ export function BDAppSettingsModal({
             <option value="dark">dark</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+      </div>
+
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-slate-600">
-            Primary color
+            Theme colors
           </span>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={form.primaryColor || "#1976d2"}
-              onChange={(e) => onChange({ primaryColor: e.target.value })}
-              className="h-9 w-12 shrink-0 cursor-pointer rounded border border-slate-200 bg-white"
-              aria-label="Pick primary color"
+          <span className="text-[11px] text-slate-400">
+            Optional — empty keeps the default
+          </span>
+        </div>
+        <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <ColorField
+            label="Primary"
+            value={form.primaryColor}
+            fallback={BD_APP_DEFAULT_COLORS.primary}
+            onChange={(primaryColor) => onChange({ primaryColor })}
+          />
+          {BD_APP_THEME_TOKENS.map((token) => (
+            <ColorField
+              key={token}
+              label={token}
+              value={form.colors[token]}
+              fallback={BD_APP_DEFAULT_COLORS[token]}
+              onChange={(value) =>
+                onChange({ colors: { ...form.colors, [token]: value } })
+              }
             />
-            <input
-              className={CELL}
-              value={form.primaryColor}
-              onChange={(e) => onChange({ primaryColor: e.target.value })}
-              placeholder="#1976d2"
-            />
-          </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={form.published}
+            onChange={(e) => onChange({ published: e.target.checked })}
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium text-slate-600">
+              Published
+            </span>
+            <span className="text-[11px] text-slate-400">
+              Shows as published in the app list; opening the app is not
+              affected.
+            </span>
+          </span>
         </label>
       </div>
 
-      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <span className="text-xs font-medium text-slate-600">
-          Schema design
-        </span>
-        <label className="mt-2 flex flex-col gap-1">
-          <select
-            className={CELL}
-            value={form.schemaGroupId}
-            onChange={(e) => onChange({ schemaGroupId: e.target.value })}
-          >
-            <option value="">Not tied</option>
-            {schemaGroups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="mt-2 text-[11px] text-slate-400">
-          {form.schemaGroupId
-            ? `Tied to schema — resources can pick models from this design and map properties to fields/columns.`
-            : schemaGroups.length === 0
-              ? "No schema groups in this project yet — build one in the Schema Builder first."
-              : "Not tied — resources can pick models from any schema group in this project."}
-        </p>
-      </div>
-
-      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <span className="text-xs font-medium text-slate-600">
           Active resource
         </span>

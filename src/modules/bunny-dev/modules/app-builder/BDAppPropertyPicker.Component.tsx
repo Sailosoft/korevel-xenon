@@ -30,7 +30,7 @@ export function BDAppPropertyPicker({
   const [query, setQuery] = useState("");
 
   // Reset the picker whenever it is dismissed (render-time adjustment, same
-  // pattern as BDAppModelDerive's open-key reset).
+  // pattern as BDAppSchemaFill's open-key reset).
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);

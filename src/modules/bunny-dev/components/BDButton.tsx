@@ -3,7 +3,7 @@
 // BDButton — the module's base button primitive (bluish theme).
 // Config-first: variant + size + optional icon and loading state.
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import { Loader2, type LucideIcon } from "lucide-react";
 import { cn } from "@heroui/react";
 
@@ -17,7 +17,7 @@ export type BDButtonVariant =
 export type BDButtonSize = "sm" | "md" | "lg";
 
 export interface BDButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+  extends Omit<ComponentPropsWithRef<"button">, "children"> {
   variant?: BDButtonVariant;
   size?: BDButtonSize;
   icon?: LucideIcon;
@@ -26,14 +26,16 @@ export interface BDButtonProps
 }
 
 export const BD_BUTTON_VARIANT_CLASSES: Record<BDButtonVariant, string> = {
-  primary: "bg-[#1976d2] text-white hover:bg-[#1565c0] border-transparent",
+  primary:
+    "bg-[var(--bd-primary)] text-[var(--bd-on-primary)] hover:bg-[var(--bd-primary-hover)] border-transparent",
   secondary:
-    "bg-[#e3f2fd] text-[#1565c0] hover:bg-[#bbdefb] border-transparent",
+    "bg-[var(--bd-primary-soft)] text-[var(--bd-primary-strong)] hover:bg-[var(--bd-primary-soft-hover)] border-transparent",
   outline:
-    "bg-transparent text-[#1565c0] border-[#90caf9] hover:bg-[#e3f2fd]",
+    "bg-transparent text-[var(--bd-primary-strong)] border-[var(--bd-primary-border)] hover:bg-[var(--bd-primary-soft)]",
   ghost:
     "bg-transparent text-slate-600 border-transparent hover:bg-slate-100",
-  danger: "bg-[#dc2626] text-white hover:bg-[#b91c1c] border-transparent",
+  danger:
+    "bg-[var(--bd-color-danger)] text-white hover:bg-[var(--bd-color-danger-hover)] border-transparent",
 };
 
 export const BD_BUTTON_SIZE_CLASSES: Record<BDButtonSize, string> = {
@@ -50,10 +52,12 @@ export function BDButton({
   className,
   children,
   disabled,
+  ref,
   ...rest
 }: BDButtonProps) {
   return (
     <button
+      ref={ref}
       type="button"
       disabled={disabled || isLoading}
       className={cn(

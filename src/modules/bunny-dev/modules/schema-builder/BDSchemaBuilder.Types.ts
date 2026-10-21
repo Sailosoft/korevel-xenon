@@ -22,6 +22,12 @@ export interface BDSchemaModelForm {
   softDeletes: boolean;
 }
 
+/** Inverse relation the target model should receive once the edited model is saved. */
+export interface BDSchemaInverseRelationRequest {
+  targetModelId: string;
+  foreignKey: string;
+}
+
 export const BD_SCHEMA_GROUP_EMPTY: BDSchemaGroupForm = {
   name: "",
   description: "",
@@ -83,6 +89,18 @@ export function camelCase(name: string): string {
   return base.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
+/** English plural for a snake/camel base: `category` → `categories`, `day` → `days`. */
+export function pluralizeWord(base: string): string {
+  if (!base) return "";
+  if (/[^aeiou]y$/i.test(base)) return `${base.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/i.test(base)) {
+    // Names already ending in a plural-looking "s" stay as-is.
+    if (/s$/i.test(base) && !/(ss|us|is)$/i.test(base)) return base;
+    return `${base}es`;
+  }
+  return `${base}s`;
+}
+
 /** Singular relation name for the "one" side; plural for the "many" side. */
 export function suggestRelationName(
   type: BDSchemaRelation["type"],
@@ -95,7 +113,7 @@ export function suggestRelationName(
     case "belongsToMany":
     case "hasManyThrough":
     case "morphMany":
-      return /s$/.test(base) ? base : `${base}s`;
+      return pluralizeWord(base);
     default:
       return base;
   }
@@ -142,7 +160,60 @@ export function slugifyTable(name: string): string {
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .toLowerCase()
     .replace(/^_+|_+$/g, "");
-  return base ? `${base}s`.replace(/ss$/, "s") : "table";
+  return base ? pluralizeWord(base) : "table";
+}
+
+/** A unique foreign-key column name inside the current model. */
+export function uniqueForeignKey(base: string, existing: string[]): string {
+  const taken = new Set(existing);
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
+}
+
+export interface BDSchemaRelationColumnDraft {
+  property: BDSchemaProperty;
+  relation: BDSchemaRelation;
+}
+
+/**
+ * Column + belongsTo relation for a relation-column shortcut. The FK column
+ * mirrors the target primary key's type. Returns `null` when the target has no
+ * columns to reference.
+ */
+export function buildRelationColumn(
+  draft: BDSchemaModel,
+  target: BDSchemaModel,
+): BDSchemaRelationColumnDraft | null {
+  const key =
+    target.properties.find((p) => p.name === target.primaryKey?.[0]) ??
+    target.properties.find((p) => p.primary) ??
+    target.properties[0];
+  if (!key) return null;
+
+  const base = suggestForeignKey(target.name) || "model_id";
+  const foreignKey = uniqueForeignKey(
+    base,
+    draft.properties.map((p) => p.name),
+  );
+
+  return {
+    property: {
+      name: foreignKey,
+      type: key.type,
+      nullable: true,
+      fillable: true,
+    },
+    relation: {
+      name: suggestRelationName("belongsTo", target.name) || "target",
+      type: "belongsTo",
+      targetModelId: target.id,
+      foreignKey,
+      ownerKey: key.name,
+      nullable: true,
+    },
+  };
 }
 
 export function toGroupForm(group: BDSchemaGroup): BDSchemaGroupForm {

@@ -3,6 +3,7 @@
 
 import type {
   BDApp,
+  BDAppBrand,
   BDAppColumn,
   BDAppComponent,
   BDAppConnection,
@@ -14,13 +15,51 @@ import type {
   BDAppResource,
   BDAppSchema,
   BDAppTable,
+  BDAppTheme,
 } from "./BDApp.Domain";
+import type { BDAppColor } from "../core/BDShared.Types";
 import type {
   BDSchemaModel,
   BDSchemaProperty,
   BDSchemaRelationType,
   BDSchemaType,
 } from "../schema-builder/BDSchema.Domain";
+
+/** Optional non-primary theme colors; an empty string keeps the default. */
+export interface BDAppThemeColors {
+  success: string;
+  warning: string;
+  danger: string;
+  info: string;
+  gray: string;
+}
+
+/** Non-primary palette tokens exposed in App settings. */
+export const BD_APP_THEME_TOKENS = [
+  "success",
+  "warning",
+  "danger",
+  "info",
+  "gray",
+] as const satisfies readonly BDAppColor[];
+
+/** Default palette, shared by the designer preview and the standalone app. */
+export const BD_APP_DEFAULT_COLORS: Record<BDAppColor, string> = {
+  primary: "#1976d2",
+  success: "#16a34a",
+  warning: "#d97706",
+  danger: "#dc2626",
+  info: "#0288d1",
+  gray: "#64748b",
+};
+
+const BD_APP_EMPTY_COLORS: BDAppThemeColors = {
+  success: "",
+  warning: "",
+  danger: "",
+  info: "",
+  gray: "",
+};
 
 export interface BDAppForm {
   name: string;
@@ -31,6 +70,8 @@ export interface BDAppForm {
   logoUrl: string;
   themeMode: "light" | "dark" | "system";
   primaryColor: string;
+  colors: BDAppThemeColors;
+  published: boolean;
   /** Optional tie to a schema design (schema group). Empty string = untied. */
   schemaGroupId: string;
 }
@@ -44,6 +85,8 @@ export const BD_APP_EMPTY_FORM: BDAppForm = {
   logoUrl: "",
   themeMode: "system",
   primaryColor: "",
+  colors: { ...BD_APP_EMPTY_COLORS },
+  published: false,
   schemaGroupId: "",
 };
 
@@ -235,6 +278,247 @@ export function tableFromModel(model: BDSchemaModel): BDAppTable {
     defaultSort: { column: "id", direction: "desc" },
   };
 }
+
+// ── Schema-driven form/table selection ─────────────────────────────────────
+
+/** A model's primary property name, when one can be resolved. */
+function primaryPropertyName(model: BDSchemaModel): string | undefined {
+  return (
+    model.properties.find((p) => p.primary)?.name ??
+    model.properties.find((p) => model.primaryKey.includes(p.name))?.name ??
+    model.primaryKey[0]
+  );
+}
+
+/** True when a property is (part of) the model's primary key. */
+export function isPrimaryProperty(
+  model: BDSchemaModel,
+  property: BDSchemaProperty,
+): boolean {
+  return (
+    property.primary === true ||
+    property.name === primaryPropertyName(model) ||
+    model.primaryKey.includes(property.name)
+  );
+}
+
+export interface BDAppSchemaSelection {
+  form: string[];
+  columns: string[];
+}
+
+/** Default bulk selection: 3 columns (incl. PK), 3 non-PK form fields. */
+export function defaultSchemaSelection(
+  model: BDSchemaModel,
+): BDAppSchemaSelection {
+  const form = model.properties
+    .filter((property) => !isPrimaryProperty(model, property))
+    .slice(0, 3)
+    .map((property) => property.name);
+  return {
+    form,
+    columns: model.properties.slice(0, 3).map((property) => property.name),
+  };
+}
+
+/** Selection seeded from what is already schema-linked on the resource. */
+export function schemaSelectionFromResource(
+  model: BDSchemaModel,
+  fields: BDAppField[],
+  columns: BDAppColumn[],
+): BDAppSchemaSelection {
+  const names = new Set(model.properties.map((property) => property.name));
+  const defaults = defaultSchemaSelection(model);
+  const linkedForm = fields
+    .map((field) => field.schemaPropertyName)
+    .filter((name): name is string => !!name && names.has(name));
+  const linkedColumns = columns
+    .map((column) => column.schemaPropertyName)
+    .filter((name): name is string => !!name && names.has(name));
+  return {
+    form: linkedForm.length > 0 ? [...new Set(linkedForm)] : defaults.form,
+    columns:
+      linkedColumns.length > 0 ? [...new Set(linkedColumns)] : defaults.columns,
+  };
+}
+
+/**
+ * Apply a checkbox selection: schema-linked entries that are no longer
+ * selected are removed, manual entries are preserved, and newly selected
+ * properties are appended in model order.
+ */
+export function applySchemaSelection(
+  model: BDSchemaModel,
+  fields: BDAppField[],
+  columns: BDAppColumn[],
+  selection: BDAppSchemaSelection,
+): { fields: BDAppField[]; columns: BDAppColumn[] } {
+  const properties = new Map(
+    model.properties.map((property) => [property.name, property]),
+  );
+  const formSelected = new Set(selection.form);
+  const columnSelected = new Set(selection.columns);
+
+  const keptFields = fields.filter((field) => {
+    if (!field.schemaPropertyName || !properties.has(field.schemaPropertyName)) {
+      return true;
+    }
+    return formSelected.has(field.schemaPropertyName);
+  });
+  const fieldKeys = new Set(
+    keptFields.map((field) => field.schemaPropertyName ?? field.name),
+  );
+  const nextFields = [...keptFields];
+  for (const property of model.properties) {
+    if (!formSelected.has(property.name) || fieldKeys.has(property.name)) {
+      continue;
+    }
+    nextFields.push(fieldFromProperty(property));
+    fieldKeys.add(property.name);
+  }
+
+  const keptColumns = columns.filter((column) => {
+    if (
+      !column.schemaPropertyName ||
+      !properties.has(column.schemaPropertyName)
+    ) {
+      return true;
+    }
+    return columnSelected.has(column.schemaPropertyName);
+  });
+  const columnKeys = new Set(
+    keptColumns.map((column) => column.schemaPropertyName ?? column.name),
+  );
+  const nextColumns = [...keptColumns];
+  for (const property of model.properties) {
+    if (!columnSelected.has(property.name) || columnKeys.has(property.name)) {
+      continue;
+    }
+    nextColumns.push(columnFromProperty(property));
+    columnKeys.add(property.name);
+  }
+
+  return { fields: nextFields, columns: nextColumns };
+}
+
+// ── Record ID strategy ─────────────────────────────────────────────────────
+
+export type BDAppIdStrategy =
+  | { property: string; kind: "incremental" | "uuid" | "manual" }
+  | null;
+
+/** Resolve how a model's primary key is generated. */
+export function resolveIdStrategy(
+  model: BDSchemaModel | null | undefined,
+): BDAppIdStrategy {
+  if (!model) return null;
+  const name = primaryPropertyName(model);
+  if (!name) return null;
+  const property = model.properties.find((p) => p.name === name);
+  if (!property) return { property: name, kind: "manual" };
+  if (
+    property.autoIncrement === true &&
+    (property.type === "integer" || property.type === "bigint")
+  ) {
+    return { property: name, kind: "incremental" };
+  }
+  if (property.type === "uuid") {
+    return { property: name, kind: "uuid" };
+  }
+  return { property: name, kind: "manual" };
+}
+
+/** Next numeric id for a resource, starting at 1. */
+export function nextIncrementalId(
+  rows: { resourceSlug: string; data: Record<string, unknown> }[],
+  resourceSlug: string,
+  property: string,
+): number {
+  let max = 0;
+  for (const row of rows) {
+    if (row.resourceSlug !== resourceSlug) continue;
+    const value = Number(row.data?.[property]);
+    if (Number.isFinite(value) && value > max) max = value;
+  }
+  return max + 1;
+}
+
+/**
+ * Add a generated primary-key value to record data, unless the strategy is
+ * manual or the user already supplied a value.
+ */
+export function stampGeneratedId(
+  resource: BDAppResource,
+  model: BDSchemaModel | null | undefined,
+  rows: { resourceSlug: string; data: Record<string, unknown> }[],
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const strategy = resolveIdStrategy(model);
+  if (!strategy || strategy.kind === "manual") return data;
+  const current = data[strategy.property];
+  if (current !== undefined && current !== null && current !== "") return data;
+  const value =
+    strategy.kind === "uuid"
+      ? crypto.randomUUID()
+      : nextIncrementalId(rows, resource.slug, strategy.property);
+  return { ...data, [strategy.property]: value };
+}
+
+// ── Theme helpers ──────────────────────────────────────────────────────────
+
+function parseHexColor(value: string): [number, number, number] | null {
+  const hex = value.trim().replace(/^#/, "");
+  if (!/^[0-9a-f]{3}$/i.test(hex) && !/^[0-9a-f]{6}$/i.test(hex)) return null;
+  const full =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : hex;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+/** Readable foreground for a primary-color surface. */
+export function readableTextColor(color: string): "#ffffff" | "#0f172a" {
+  const rgb = parseHexColor(color);
+  if (!rgb) return "#ffffff";
+  const [r, g, b] = rgb.map((channel) => {
+    const srgb = channel / 255;
+    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.6 ? "#0f172a" : "#ffffff";
+}
+
+/** Brand config for an app form, or undefined when both fields are empty. */
+export function buildBrand(form: BDAppForm): BDAppBrand | undefined {
+  if (!form.brandName && !form.logoUrl) return undefined;
+  return { name: form.brandName || form.name, logo: form.logoUrl || undefined };
+}
+
+/** Theme config for an app form, or undefined when everything is default. */
+export function buildTheme(form: BDAppForm): BDAppTheme | undefined {
+  const colors: Partial<Record<BDAppColor, string>> = {};
+  for (const token of BD_APP_THEME_TOKENS) {
+    const value = form.colors?.[token];
+    if (value) colors[token] = value;
+  }
+  const hasColors = Object.keys(colors).length > 0;
+  if (form.themeMode === "system" && !form.primaryColor && !hasColors) {
+    return undefined;
+  }
+  return {
+    mode: form.themeMode,
+    primary: form.primaryColor || undefined,
+    colors: hasColors ? colors : undefined,
+  };
+}
+
 
 /** Flatten a (possibly nested) App schema into its field list. */
 export function collectAppFields(
@@ -555,20 +839,9 @@ export function createApp(projectId: string, form: BDAppForm): Omit<BDApp, "id">
     path: form.path || "/",
     description: form.description || undefined,
     schemaGroupId: form.schemaGroupId || undefined,
-    brand:
-      form.brandName || form.logoUrl
-        ? {
-            name: form.brandName || form.name,
-            logo: form.logoUrl || undefined,
-          }
-        : undefined,
-    theme:
-      form.themeMode !== "system" || form.primaryColor
-        ? {
-            mode: form.themeMode,
-            primary: form.primaryColor || undefined,
-          }
-        : undefined,
+    published: form.published,
+    brand: buildBrand(form),
+    theme: buildTheme(form),
     resources: [],
   };
 }
@@ -584,6 +857,14 @@ export function toAppForm(app: BDApp): BDAppForm {
     themeMode: app.theme?.mode ?? "system",
     primaryColor:
       typeof app.theme?.primary === "string" ? app.theme.primary : "",
+    colors: {
+      success: app.theme?.colors?.success ?? "",
+      warning: app.theme?.colors?.warning ?? "",
+      danger: app.theme?.colors?.danger ?? "",
+      info: app.theme?.colors?.info ?? "",
+      gray: app.theme?.colors?.gray ?? "",
+    },
+    published: app.published === true,
     schemaGroupId: app.schemaGroupId ?? "",
   };
 }

@@ -34,13 +34,16 @@ import type {
 import { useBDApp, useBDProjectSchemaModels } from "./BDApp.Hooks";
 import { bdAppRecordRepository } from "./BDApp.Repository";
 import {
+  BD_APP_DEFAULT_COLORS,
   collectAppEntries,
   collectAppFields,
   connectionKey,
   deriveConnectionColumns,
   deriveConnectionFields,
   formFromModel,
+  readableTextColor,
   resolveFormBehavior,
+  stampGeneratedId,
   tableFromModel,
 } from "./BDApp.Types";
 import BDAppRelationManager from "./BDAppRelationManager.Component";
@@ -56,18 +59,11 @@ import { useBDToast } from "../../components/BDToast";
 import type { BDFormOption, BDFormValues } from "../../components/BDForm";
 
 // Palette tokens resolve to concrete colors; raw CSS colors pass through.
-const BD_APP_COLOR_HEX: Record<string, string> = {
-  primary: "#1976d2",
-  success: "#16a34a",
-  warning: "#d97706",
-  danger: "#dc2626",
-  info: "#0288d1",
-  gray: "#64748b",
-};
-
 function resolveAppColor(value?: string): string {
-  if (!value) return BD_APP_COLOR_HEX.primary;
-  return BD_APP_COLOR_HEX[value] ?? value;
+  if (!value) return BD_APP_DEFAULT_COLORS.primary;
+  return (
+    (BD_APP_DEFAULT_COLORS as Record<string, string>)[value] ?? value
+  );
 }
 
 export interface BDAppRenderingComponentProps {
@@ -144,8 +140,18 @@ export function BDAppRenderingComponent({
   if (resolvedSlug !== activeSlug) setActiveSlug(resolvedSlug);
 
   const activeResource = resources.find((r) => r.slug === resolvedSlug);
+  // Schema models only drive rendering when the app is tied to a schema group.
+  const schemaTied = !!app?.schemaGroupId;
   const modelFor = (resource: BDAppResource | undefined) =>
-    (models ?? []).find((m) => m.id === resource?.modelId);
+    schemaTied
+      ? (models ?? []).find((m) => m.id === resource?.modelId)
+      : undefined;
+
+  /** Add the model's generated primary-key value to new record data. */
+  const stampIdFor = (
+    resource: BDAppResource | undefined,
+    data: Record<string, unknown>,
+  ) => (resource ? stampGeneratedId(resource, modelFor(resource), allRecords, data) : data);
 
   const fieldsForResource = (resource: BDAppResource): BDAppField[] => {
     const model = modelFor(resource);
@@ -277,7 +283,7 @@ export function BDAppRenderingComponent({
           projectId: app.projectId,
           appId,
           resourceSlug: resolvedSlug,
-          data: values,
+          data: stampIdFor(activeResource, values),
         });
         setEditing(null);
         if (then === "view") setViewingId(created.id);
@@ -302,8 +308,24 @@ export function BDAppRenderingComponent({
 
   const handleRecordAiBatch = async (records: Record<string, unknown>[]) => {
     if (!resolvedSlug || records.length === 0) return;
+    // Feed each stamped record back in so incremental ids advance per row.
+    const pending: { resourceSlug: string; data: Record<string, unknown> }[] = [
+      ...allRecords,
+    ];
+    const rows = records.map((data) => {
+      const stamped = activeResource
+        ? stampGeneratedId(
+            activeResource,
+            modelFor(activeResource),
+            pending,
+            data,
+          )
+        : data;
+      pending.push({ resourceSlug: resolvedSlug, data: stamped });
+      return stamped;
+    });
     await Promise.all(
-      records.map((data) =>
+      rows.map((data) =>
         bdAppRecordRepository.createRow({
           projectId: app.projectId,
           appId,
@@ -338,11 +360,13 @@ export function BDAppRenderingComponent({
         ? connectionKey(childEditing.connection, activeResource.slug)
         : "";
       if (childEditing.mode === "create") {
+        const data =
+          key && viewing ? { ...values, [key]: viewing.id } : values;
         await bdAppRecordRepository.createRow({
           projectId: app.projectId,
           appId,
           resourceSlug: childEditing.connection.targetSlug,
-          data: key && viewing ? { ...values, [key]: viewing.id } : values,
+          data: stampIdFor(childTarget, data),
         });
       } else if (childEditing.row) {
         await bdAppRecordRepository.update(childEditing.row.id, {
@@ -449,9 +473,11 @@ export function BDAppRenderingComponent({
     ...app.brand?.colors,
     ...app.theme?.colors,
   };
+  const primaryColor = resolveAppColor(app.theme?.primary);
   const standaloneStyle = standalone
     ? ({
-        "--bd-primary": resolveAppColor(app.theme?.primary),
+        "--bd-primary": primaryColor,
+        "--bd-on-primary": readableTextColor(primaryColor),
         ...Object.fromEntries(
           Object.entries(themeColors)
             .filter(([, value]) => typeof value === "string" && value)
@@ -496,7 +522,7 @@ export function BDAppRenderingComponent({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search…"
-                  className="w-52 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-blue-400"
+                  className="w-52 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-[var(--bd-primary)]"
                 />
               </div>
               <BDButton size="sm" icon={Plus} onClick={openCreate}>
@@ -660,9 +686,10 @@ export function BDAppRenderingComponent({
           actions={
             <BDButton
               size="sm"
-              variant="secondary"
+              variant="ghost"
               icon={ExternalLink}
               title="Open the designer"
+              className="text-[var(--bd-on-primary)] hover:bg-white/15 hover:text-[var(--bd-on-primary)]"
               onClick={() =>
                 router.push(
                   `/modules/bunny-dev/projects/${app.projectId}/app/${appId}`,
