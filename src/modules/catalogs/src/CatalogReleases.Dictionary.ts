@@ -7,6 +7,44 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v5.3.0",
+    title: "Version 5.3.0: App Builder VSCode Redesign, Specs & Docs, Schema & Board Upgrades",
+    content: [
+      "BunnyDeveloper: Redesigned the App Builder into a VSCode-style workspace with a title bar (File/Edit/View menus), collapsible Resources explorer sidebar, tabbed editors, status bar and a project-level Full view / App shell layout switch.",
+      "BunnyDeveloper: Added App Builder AI assistants — Design AI (app meta, brand, theme, resources), Resource AI (meta, form, table, connections) and Record AI (seed records with relation and select options).",
+      "BunnyDeveloper: Added first-class app connections (one-to-one, one-to-many, many-to-many) derivable from schema relations, form behaviors (Save & close / Save & view record) and incremental, UUID or manual id rules.",
+      "BunnyDeveloper: Added schema-driven field and column filling, a field select, a property picker and a form filler for building app resources from the attached schema group.",
+      "BunnyDeveloper: Added a standalone SPA shell — apps now open in a new browser tab with a themed header, responsive sidebar, sticky tables and record counts.",
+      "BunnyDeveloper: Renamed Architecture to Specs and Outline to Docs, both rebuilt with grouped list to detail routes, a single/sectioned document mode, a create modal and a dedicated sections editor.",
+      "BunnyDeveloper: Added an AI Document Assist refine wizard to Specs with per-type suggestions, four-option questions, multi-turn refinement and a side-by-side variant comparison.",
+      "BunnyDeveloper: Added drag-and-drop topic reordering, inline doc metadata editing and a table-of-contents markdown export to Docs.",
+      "BunnyDeveloper: Added a schema documentation view, a real index editor and an add-relation-column shortcut to the Schema Builder, and scoped Prisma exports to the active group.",
+      "BunnyDeveloper: Added board templates and a board creation dialog, a grouped list view, board-scoped task keys, select custom fields and configurable card chips to Project Management.",
+      "BunnyDeveloper: Added an interactive diagram canvas with fit-to-viewport zoom and grab-to-pan, plus single and batch AI diagram generation with enforced diagram counts.",
+      "BunnyDeveloper: Added an AI Assistant for files that proposes anchor-based patches and previews them in a unified diff before applying.",
+      "BunnyDeveloper: Added shared sortable list, diff view and diagram canvas components, and reworked the theme tokens so an app's primary color themes its header, buttons and badges.",
+      "LemonCoder: Rewrote the SEARCH/REPLACE edit engine with an anchor-matching strategy and made ambiguous edits a hard error instead of silently applying the last match.",
+      "LemonCoder: Shared the edit output rules between the Code and Agent prompts and cut output tokens by returning edits instead of restating whole files; stashed files are capped at 20,000 characters.",
+      "LemonCoder: Fixed the save chat flow — switching to chat saves a dirty buffer first, switching to files no longer discards unsaved edits, and failed saves now surface a toast.",
+      "BunnyBook: Added an author select field with inline create-and-select, simplified settings to a Helix-backed Preferences page, and reset chapter scroll position in the reader modal.",
+      "System: Added the react-aria-components dependency, clean and build:fresh scripts, and Dexie migrations for the Specs/Docs rename and board keys.",
+    ],
+    apps: [
+      CatalogApp.BunnyDeveloper,
+      CatalogApp.LemonCoder,
+      CatalogApp.BunnyBook,
+      CatalogApp.Catalog
+    ],
+    dates: [
+      "2026-10-09",
+      "2026-10-12",
+      "2026-10-13",
+      "2026-10-16",
+      "2026-10-17",
+      "2026-10-21"
+    ]
+  },
+  {
     version: "v5.2.0",
     title: "Version 5.2.0: BunnyBook Outlines & Topics, BunnyDeveloper Grouped Pages, Shell Redesign, and AI Generation Modes",
     content: [
