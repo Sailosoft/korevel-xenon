@@ -20,6 +20,9 @@ export {
 export { toErdMermaid, buildErdDiagramRecord } from "./BDErdExport";
 export { BDSchemaGroupComponent } from "./BDSchemaGroup.Component";
 export { BDSchemaModelComponent } from "./BDSchemaModel.Component";
+export { BDSchemaRelationColumnComponent } from "./BDSchemaRelationColumn.Component";
+export { BDSchemaIndexComponent } from "./BDSchemaIndex.Component";
 export { BDSchemaErdComponent } from "./BDSchemaErd.Component";
+export { BDSchemaDocComponent } from "./BDSchemaDoc.Component";
 export { BDSchemaGroupListComponent } from "./BDSchemaGroups.Component";
 export { BDSchemaBuilderComponent } from "./BDSchemaBuilder.Component";

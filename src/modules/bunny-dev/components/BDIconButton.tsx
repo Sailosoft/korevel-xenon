@@ -6,6 +6,7 @@
 import { useState, type MouseEventHandler } from "react";
 import { Loader2 } from "lucide-react";
 import { Tooltip, cn } from "@heroui/react";
+import { Focusable } from "react-aria-components/Focusable";
 import BDButton, {
   BD_BUTTON_SIZE_CLASSES,
   BD_BUTTON_VARIANT_CLASSES,
@@ -60,32 +61,34 @@ export function BDIconButton({
       isOpen={isOpen}
       onOpenChange={setIsOpen}
     >
-      {href ? (
-        <a
-          href={href}
-          aria-label={label}
-          className={sharedClassName}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-          onClick={rest.onClick as unknown as MouseEventHandler<HTMLAnchorElement>}
-        >
-          {content}
-        </a>
-      ) : (
-        <BDButton
-          aria-label={label}
-          variant={variant}
-          size={size}
-          icon={Icon}
-          isLoading={isLoading}
-          className={className}
-          onMouseEnter={() => setIsOpen(true)}
-          onMouseLeave={() => setIsOpen(false)}
-          {...rest}
-        >
-          {children}
-        </BDButton>
-      )}
+      <Focusable>
+        {href ? (
+          <a
+            href={href}
+            aria-label={label}
+            className={sharedClassName}
+            onMouseEnter={() => setIsOpen(true)}
+            onMouseLeave={() => setIsOpen(false)}
+            onClick={rest.onClick as unknown as MouseEventHandler<HTMLAnchorElement>}
+          >
+            {content}
+          </a>
+        ) : (
+          <BDButton
+            aria-label={label}
+            variant={variant}
+            size={size}
+            icon={Icon}
+            isLoading={isLoading}
+            className={className}
+            onMouseEnter={() => setIsOpen(true)}
+            onMouseLeave={() => setIsOpen(false)}
+            {...rest}
+          >
+            {children}
+          </BDButton>
+        )}
+      </Focusable>
       <Tooltip.Content>{text}</Tooltip.Content>
     </Tooltip>
   );

@@ -19,6 +19,9 @@ export interface BDSchemaFormProps {
   onSubmit?: (value: BDFormValues) => void | Promise<void>;
   onCancel?: () => void;
   submitLabel?: string;
+  /** Optional secondary submit action rendered beside the primary one. */
+  secondarySubmitLabel?: string;
+  onSecondarySubmit?: (value: BDFormValues) => void | Promise<void>;
   columns?: 1 | 2 | 3 | 4;
   isLoading?: boolean;
   error?: string | null;
@@ -68,6 +71,8 @@ export function BDSchemaForm({
   onSubmit,
   onCancel,
   submitLabel,
+  secondarySubmitLabel,
+  onSecondarySubmit,
   columns = 2,
   isLoading,
   error,
@@ -116,6 +121,8 @@ export function BDSchemaForm({
       onSubmit={onSubmit}
       onCancel={onCancel}
       submitLabel={submitLabel}
+      secondarySubmitLabel={secondarySubmitLabel}
+      onSecondarySubmit={onSecondarySubmit}
       columns={columns}
       isLoading={isLoading}
       error={error}

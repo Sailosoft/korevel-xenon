@@ -20,8 +20,6 @@ import type {
   BDAgentHandoff,
   BDAgentRun,
   BDAgentTask,
-  BDArchitectureGroup,
-  BDArchitectureRecord,
   BDBatchProposal,
   BDBoard,
   BDBoardColumn,
@@ -29,16 +27,18 @@ import type {
   BDComponent,
   BDDiagramGroup,
   BDDiagramRecord,
+  BDDoc,
   BDGenerationRun,
   BDIssueLink,
   BDLabel,
-  BDOutline,
   BDProject,
   BDProjectFile,
   BDProjectFolder,
   BDProjectMember,
   BDSchemaGroup,
   BDSchemaModel,
+  BDSpecGroup,
+  BDSpecRecord,
   BDSprint,
   BDTaskComment,
   BDVersion,
@@ -85,9 +85,9 @@ export class BDDatabase extends Dexie {
   public apiSpecs!: Table<BDAPI, string>;
   public diagramGroups!: Table<BDDiagramGroup, string>;
   public diagrams!: Table<BDDiagramRecord, string>;
-  public outlines!: Table<BDOutline, string>;
-  public architectureGroups!: Table<BDArchitectureGroup, string>;
-  public architectures!: Table<BDArchitectureRecord, string>;
+  public docs!: Table<BDDoc, string>;
+  public specGroups!: Table<BDSpecGroup, string>;
+  public specs!: Table<BDSpecRecord, string>;
 
   // ── Virtual file system ──────────────────────────────────────────────────
   public projectFolders!: Table<BDProjectFolder, string>;
@@ -121,9 +121,9 @@ export class BDDatabase extends Dexie {
   public apiSpecsRepo: BDRepository<BDAPI>;
   public diagramGroupsRepo: BDRepository<BDDiagramGroup>;
   public diagramsRepo: BDRepository<BDDiagramRecord>;
-  public outlinesRepo: BDRepository<BDOutline>;
-  public architectureGroupsRepo: BDRepository<BDArchitectureGroup>;
-  public architecturesRepo: BDRepository<BDArchitectureRecord>;
+  public docsRepo: BDRepository<BDDoc>;
+  public specGroupsRepo: BDRepository<BDSpecGroup>;
+  public specsRepo: BDRepository<BDSpecRecord>;
   public projectFoldersRepo: BDRepository<BDProjectFolder>;
   public projectFilesRepo: BDRepository<BDProjectFile>;
 
@@ -160,9 +160,9 @@ export class BDDatabase extends Dexie {
     this.apiSpecs = this.table("apiSpecs");
     this.diagramGroups = this.table("diagramGroups");
     this.diagrams = this.table("diagrams");
-    this.outlines = this.table("outlines");
-    this.architectureGroups = this.table("architectureGroups");
-    this.architectures = this.table("architectures");
+    this.docs = this.table("docs");
+    this.specGroups = this.table("specGroups");
+    this.specs = this.table("specs");
     this.projectFolders = this.table("projectFolders");
     this.projectFiles = this.table("projectFiles");
 
@@ -193,9 +193,9 @@ export class BDDatabase extends Dexie {
     this.apiSpecsRepo = new BDRepository(this.apiSpecs);
     this.diagramGroupsRepo = new BDRepository(this.diagramGroups);
     this.diagramsRepo = new BDRepository(this.diagrams);
-    this.outlinesRepo = new BDRepository(this.outlines);
-    this.architectureGroupsRepo = new BDRepository(this.architectureGroups);
-    this.architecturesRepo = new BDRepository(this.architectures);
+    this.docsRepo = new BDRepository(this.docs);
+    this.specGroupsRepo = new BDRepository(this.specGroups);
+    this.specsRepo = new BDRepository(this.specs);
     this.projectFoldersRepo = new BDRepository(this.projectFolders);
     this.projectFilesRepo = new BDRepository(this.projectFiles);
 
@@ -230,9 +230,9 @@ export class BDDatabase extends Dexie {
     "apiSpecs",
     "diagramGroups",
     "diagrams",
-    "outlines",
-    "architectureGroups",
-    "architectures",
+    "docs",
+    "specGroups",
+    "specs",
     "projectFolders",
     "projectFiles",
   ];
@@ -272,9 +272,9 @@ export class BDDatabase extends Dexie {
       void this.diagrams.where("groupId").equals(pk).delete();
     });
 
-    // Architecture group → its documents.
-    this.architectureGroups.hook("deleting", (pk) => {
-      void this.architectures.where("groupId").equals(pk).delete();
+    // Spec group → its documents.
+    this.specGroups.hook("deleting", (pk) => {
+      void this.specs.where("groupId").equals(pk).delete();
     });
 
     // Folder → child folders and files.

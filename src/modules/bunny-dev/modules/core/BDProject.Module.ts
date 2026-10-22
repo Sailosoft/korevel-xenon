@@ -60,9 +60,9 @@ export const BD_PROJECT_MODULES: BDProjectModuleDef[] = [
     description: "Document and mock API operations.",
   },
   {
-    key: "outline",
-    label: "Outline",
-    path: "/outline",
+    key: "docs",
+    label: "Docs",
+    path: "/docs",
     icon: ListTree,
     description: "Author knowledge bases, guides, and documentation.",
   },
@@ -81,11 +81,11 @@ export const BD_PROJECT_MODULES: BDProjectModuleDef[] = [
     description: "Virtual project file system with a dedicated editor page.",
   },
   {
-    key: "architecture",
-    label: "Architecture",
-    path: "/architecture",
+    key: "specs",
+    label: "Specs",
+    path: "/specs",
     icon: Building2,
-    description: "Architecture docs, ADRs, plans, and variants.",
+    description: "Spec docs, ADRs, plans, and variants.",
   },
   {
     key: "board",

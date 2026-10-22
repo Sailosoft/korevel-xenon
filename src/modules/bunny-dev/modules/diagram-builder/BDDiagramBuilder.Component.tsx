@@ -13,6 +13,7 @@ import {
   Save,
   Download,
   Lock,
+  Maximize2,
 } from "lucide-react";
 import type {
   BDDiagramDirection,
@@ -39,9 +40,12 @@ import { toDiagramMarkdown, toDiagramSvg } from "./BDDiagramExport";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
-import BDDiagramView from "../../components/BDDiagramView";
+import BDDiagramCanvas, {
+  type BDDiagramCanvasHandle,
+} from "../../components/BDDiagramCanvas";
 import BDCodeEditor from "../../components/BDCodeEditor";
 import BDConfirmDialog from "../../components/BDConfirmDialog";
+import BDModal from "../../components/BDModal";
 import BDEmptyState from "../../components/BDEmptyState";
 import { useBDToast } from "../../components/BDToast";
 import { downloadText } from "../../BDDownload";
@@ -204,7 +208,9 @@ export function BDDiagramBuilderComponent({
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showSource, setShowSource] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const canvasRef = useRef<BDDiagramCanvasHandle>(null);
+  const modalCanvasRef = useRef<BDDiagramCanvasHandle>(null);
 
   // Load the diagram once its live query arrives (render-time adjustment).
   if (record && loadedId !== record.id) {
@@ -335,9 +341,54 @@ export function BDDiagramBuilderComponent({
 
   const nodeFields = BD_DIAGRAM_NODE_FIELDS[draft.type] ?? [];
   const directionSupported = supportsDirection(draft.type);
+  const previewChart = toMermaid(draft);
+
+  const renderExportActions = (canvas: {
+    current: BDDiagramCanvasHandle | null;
+  }) => (
+    <div className="flex flex-wrap gap-2">
+      <BDButton
+        size="sm"
+        variant="secondary"
+        icon={Download}
+        onClick={() => downloadText(`${draft.name}.mmd`, previewChart)}
+      >
+        .mmd
+      </BDButton>
+      <BDButton
+        size="sm"
+        variant="secondary"
+        icon={Download}
+        onClick={() =>
+          downloadText(
+            `${draft.name}.md`,
+            toDiagramMarkdown(draft),
+            "text/markdown",
+          )
+        }
+      >
+        .md
+      </BDButton>
+      <BDButton
+        size="sm"
+        variant="secondary"
+        icon={Download}
+        onClick={() => {
+          const svg = toDiagramSvg(canvas.current?.getPreviewNode() ?? null);
+          if (!svg) {
+            toast({ title: "Nothing to export yet", status: "warning" });
+            return;
+          }
+          downloadText(`${draft.name}.svg`, svg, "image/svg+xml");
+        }}
+      >
+        .svg
+      </BDButton>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 xl:h-full xl:min-h-0">
       <BDBackLink href={backHref} label="Back to Diagrams" />
       <BDPageHeader
         icon={Workflow}
@@ -359,9 +410,12 @@ export function BDDiagramBuilderComponent({
         }
       />
 
-      <section className="bd-diagram-section">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="bd-diagram-section-title">Settings</h3>
+      <div className="grid grid-cols-1 gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-2">
+        {/* Editor column — scrolls on its own so the preview stays put. */}
+        <div className="bd-scroll flex min-h-0 flex-col gap-4 xl:overflow-y-auto xl:pr-1">
+          <section className="bd-diagram-section">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="bd-diagram-section-title">Settings</h3>
           <BDButton
             size="sm"
             variant="ghost"
@@ -458,7 +512,6 @@ export function BDDiagramBuilderComponent({
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Nodes */}
         <section className="bd-diagram-section">
           <div className="mb-3 flex items-center justify-between">
@@ -616,64 +669,49 @@ export function BDDiagramBuilderComponent({
             ))}
           </div>
         </section>
+        </div>
+
+        {/* Preview column — fills the pane and stays visible on xl. */}
+        <section className="bd-diagram-section hidden min-h-0 flex-col xl:flex">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="bd-diagram-section-title">Preview</h3>
+            {renderExportActions(canvasRef)}
+          </div>
+          <BDDiagramCanvas
+            ref={canvasRef}
+            chart={previewChart}
+            className="min-h-0 flex-1"
+            surfaceClassName="bd-diagram-surface"
+          />
+        </section>
       </div>
 
-      {/* Preview + export */}
-      <section className="bd-diagram-section">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="bd-diagram-section-title">Preview</h3>
-          <div className="flex gap-2">
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Download}
-              onClick={() =>
-                downloadText(`${draft.name}.mmd`, toMermaid(draft))
-              }
-            >
-              .mmd
-            </BDButton>
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Download}
-              onClick={() =>
-                downloadText(
-                  `${draft.name}.md`,
-                  toDiagramMarkdown(draft),
-                  "text/markdown",
-                )
-              }
-            >
-              .md
-            </BDButton>
-            <BDButton
-              size="sm"
-              variant="secondary"
-              icon={Download}
-              onClick={() => {
-                const svg = toDiagramSvg(previewRef.current);
-                if (!svg) {
-                  toast({
-                    title: "Nothing to export yet",
-                    status: "warning",
-                  });
-                  return;
-                }
-                downloadText(`${draft.name}.svg`, svg, "image/svg+xml");
-              }}
-            >
-              .svg
-            </BDButton>
-          </div>
-        </div>
-        <div ref={previewRef}>
-          <BDDiagramView
-            chart={toMermaid(draft)}
-            className="bd-diagram-surface"
+      {/* Small screens: open the zoomable preview in a modal. */}
+      <BDButton
+        icon={Maximize2}
+        className="fixed bottom-6 right-6 z-30 shadow-lg xl:hidden"
+        onClick={() => setPreviewOpen(true)}
+      >
+        Preview
+      </BDButton>
+
+      <BDModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        title={`Preview — ${draft.name}`}
+        size="xl"
+        bodyScroll={false}
+        footer={renderExportActions(modalCanvasRef)}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <BDDiagramCanvas
+            ref={modalCanvasRef}
+            chart={previewChart}
+            className="min-h-0 flex-1"
+            surfaceClassName="bd-diagram-surface"
           />
         </div>
-      </section>
+      </BDModal>
 
       <BDConfirmDialog
         open={deleting}

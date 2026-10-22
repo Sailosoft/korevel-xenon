@@ -1,14 +1,13 @@
 "use client";
 
-// Standalone application layout — no bunny-dev shell, just the rendered app on
-// a neutral canvas.
+// Standalone application layout — viewport-filling, non-scrolling so the SPA
+// shell inside owns all scrolling. Theme vars / data-bd-theme are applied by
+// the shell component, not here.
 
 export default function RenderAppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-[#f4f7fb] p-4 md:p-6">{children}</div>
-  );
+  return <div className="h-dvh overflow-hidden bg-[#f4f7fb]">{children}</div>;
 }

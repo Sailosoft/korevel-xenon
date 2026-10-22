@@ -33,14 +33,14 @@ export * from "./modules/app-builder/BDApp.Domain";
 // ── Diagram Builder ────────────────────────────────────────────────────────
 export * from "./modules/diagram-builder/BDDiagram.Domain";
 
-// ── Architecture Design ────────────────────────────────────────────────────
-export * from "./modules/architecture/BDArchitecture.Domain";
+// ── Spec Design ────────────────────────────────────────────────────────────
+export * from "./modules/specs/BDSpec.Domain";
 
 // ── Project File Management ────────────────────────────────────────────────
 export * from "./modules/file-management/BDFile.Domain";
 
-// ── Outline ────────────────────────────────────────────────────────────────
-export * from "./modules/outline/BDOutline.Domain";
+// ── Docs ───────────────────────────────────────────────────────────────────
+export * from "./modules/docs/BDDoc.Domain";
 
 // ── API Design ─────────────────────────────────────────────────────────────
 export * from "./modules/api-design/BDApi.Domain";

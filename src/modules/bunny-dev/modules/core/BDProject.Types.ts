@@ -1,6 +1,10 @@
 // BDProject.Types.ts — form shapes and defaults for the project core.
 
-import type { BDProject, BDIssueType } from "./BDProject.Domain";
+import type {
+  BDProject,
+  BDProjectBuilderLayout,
+  BDIssueType,
+} from "./BDProject.Domain";
 import type { BDAgentSettings } from "../agent-manager/BDAgent.Domain";
 import { BDAgentHandoffPolicy } from "../agent-manager/BDAgent.Domain";
 
@@ -34,6 +38,10 @@ export const BD_PROJECT_DEFAULT_AGENT_SETTINGS: BDAgentSettings = {
   handoffPolicy: BDAgentHandoffPolicy.manual,
   maxIterations: 8,
 };
+
+/** App Builder layout used when a project has not saved a preference. */
+export const BD_PROJECT_DEFAULT_BUILDER_LAYOUT: BDProjectBuilderLayout =
+  "shell";
 
 /** Extract the editable form values from a stored project. */
 export function toProjectForm(project: BDProject): BDProjectForm {

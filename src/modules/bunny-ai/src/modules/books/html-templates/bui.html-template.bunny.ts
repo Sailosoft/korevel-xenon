@@ -117,6 +117,11 @@ export const BUIHTMLTemplateBunny: BUIBookHTMLTemplate = {
                 body.appendChild(clone);
 
                 modal.classList.add('open');
+
+                // Reset the reader scroll so a newly selected chapter always
+                // starts from the top instead of inheriting the previous
+                // chapter's scroll position.
+                body.scrollTop = 0;
                 document.body.classList.add('bunny-locked');
             };
 

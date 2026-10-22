@@ -5,6 +5,19 @@
   --bd-primary: #1976d2;
   --bd-primary-dark: #1565c0;
   --bd-primary-light: #42a5f5;
+  --bd-primary-hover: #1565c0;
+  --bd-primary-strong: #1565c0;
+  --bd-primary-soft: #e3f2fd;
+  --bd-primary-soft-hover: #bbdefb;
+  --bd-primary-border: #90caf9;
+  --bd-on-primary: #ffffff;
+  --bd-color-primary: #1976d2;
+  --bd-color-success: #16a34a;
+  --bd-color-warning: #d97706;
+  --bd-color-danger: #dc2626;
+  --bd-color-info: #0288d1;
+  --bd-color-gray: #64748b;
+  --bd-color-danger-hover: #b91c1c;
   --bd-secondary: #0288d1;
   --bd-surface: #ffffff;
   --bd-surface-dark: #0f172a;
@@ -203,14 +216,172 @@
   text-align: left;
 }
 
+/* Sticky table header for rendered-app tables (standalone SPA + preview).
+   `border-collapse: collapse` drops sticky cell borders in Chromium, so the
+   separator is painted with a shadow instead. */
+.bd-sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 0 #e2e8f0;
+}
+
 /* Standalone rendered-app theme. Scoped to the standalone root only: the
    `data-bd-theme` attribute is set exclusively by the render engine. */
 [data-bd-theme] {
   --bd-primary-light: color-mix(in srgb, var(--bd-primary) 60%, #ffffff);
+  --bd-color-primary: var(--bd-primary);
+  --bd-primary-hover: color-mix(in srgb, var(--bd-primary) 85%, #000000);
+  --bd-primary-strong: color-mix(in srgb, var(--bd-primary) 78%, #000000);
+  --bd-primary-soft: color-mix(in srgb, var(--bd-primary) 12%, #ffffff);
+  --bd-primary-soft-hover: color-mix(in srgb, var(--bd-primary) 22%, #ffffff);
+  --bd-primary-border: color-mix(in srgb, var(--bd-primary) 45%, #ffffff);
+  --bd-color-danger-hover: color-mix(
+    in srgb,
+    var(--bd-color-danger) 85%,
+    #000000
+  );
+}
+
+/* Standalone app header: primary gradient with a readable foreground. */
+.bd-app-header {
+  background-image: linear-gradient(
+    135deg,
+    var(--bd-primary) 0%,
+    var(--bd-primary-strong) 100%
+  );
+  color: var(--bd-on-primary);
+}
+
+/* Status/label badges. Defaults match the former Tailwind palette; themed
+   apps mix the configured palette tokens in instead. */
+.bd-badge-primary {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.bd-badge-success {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.bd-badge-warning {
+  background-color: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.bd-badge-danger {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.bd-badge-info {
+  background-color: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+.bd-badge-gray,
+.bd-badge-neutral {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-bd-theme] .bd-badge-primary {
+  background-color: color-mix(
+    in srgb,
+    var(--bd-color-primary) 12%,
+    #ffffff
+  );
+  border-color: color-mix(in srgb, var(--bd-color-primary) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-primary) 80%, #000000);
+}
+
+[data-bd-theme] .bd-badge-success {
+  background-color: color-mix(
+    in srgb,
+    var(--bd-color-success) 12%,
+    #ffffff
+  );
+  border-color: color-mix(in srgb, var(--bd-color-success) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-success) 78%, #000000);
+}
+
+[data-bd-theme] .bd-badge-warning {
+  background-color: color-mix(
+    in srgb,
+    var(--bd-color-warning) 12%,
+    #ffffff
+  );
+  border-color: color-mix(in srgb, var(--bd-color-warning) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-warning) 72%, #000000);
+}
+
+[data-bd-theme] .bd-badge-danger {
+  background-color: color-mix(in srgb, var(--bd-color-danger) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--bd-color-danger) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-danger) 78%, #000000);
+}
+
+[data-bd-theme] .bd-badge-info {
+  background-color: color-mix(in srgb, var(--bd-color-info) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--bd-color-info) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-info) 78%, #000000);
+}
+
+[data-bd-theme] .bd-badge-gray,
+[data-bd-theme] .bd-badge-neutral {
+  background-color: color-mix(in srgb, var(--bd-color-gray) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--bd-color-gray) 32%, #ffffff);
+  color: color-mix(in srgb, var(--bd-color-gray) 78%, #000000);
 }
 
 [data-bd-theme="dark"] {
   color-scheme: dark;
+  --bd-primary-soft: color-mix(in srgb, var(--bd-primary) 24%, #172033);
+  --bd-primary-soft-hover: color-mix(in srgb, var(--bd-primary) 34%, #172033);
+}
+
+[data-bd-theme="dark"] .bd-badge-primary {
+  background-color: color-mix(in srgb, var(--bd-color-primary) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-primary) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-primary) 55%, #ffffff);
+}
+
+[data-bd-theme="dark"] .bd-badge-success {
+  background-color: color-mix(in srgb, var(--bd-color-success) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-success) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-success) 55%, #ffffff);
+}
+
+[data-bd-theme="dark"] .bd-badge-warning {
+  background-color: color-mix(in srgb, var(--bd-color-warning) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-warning) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-warning) 55%, #ffffff);
+}
+
+[data-bd-theme="dark"] .bd-badge-danger {
+  background-color: color-mix(in srgb, var(--bd-color-danger) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-danger) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-danger) 60%, #ffffff);
+}
+
+[data-bd-theme="dark"] .bd-badge-info {
+  background-color: color-mix(in srgb, var(--bd-color-info) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-info) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-info) 55%, #ffffff);
+}
+
+[data-bd-theme="dark"] .bd-badge-gray,
+[data-bd-theme="dark"] .bd-badge-neutral {
+  background-color: color-mix(in srgb, var(--bd-color-gray) 24%, #1e293b);
+  border-color: color-mix(in srgb, var(--bd-color-gray) 42%, #1e293b);
+  color: color-mix(in srgb, var(--bd-color-gray) 40%, #ffffff);
 }
 
 [data-bd-theme="dark"] .bg-white {
@@ -244,6 +415,10 @@
 [data-bd-theme="dark"] .text-slate-500,
 [data-bd-theme="dark"] .text-slate-400 {
   color: #94a3b8;
+}
+
+[data-bd-theme="dark"] .bd-sticky-head {
+  box-shadow: 0 1px 0 0 #334155;
 }
 
 /* MDXEditor content min-height, driven by the editor wrapper variant. */

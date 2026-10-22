@@ -20,5 +20,5 @@ export type BDAppColor =
   | "info"
   | "gray";
 
-/** Shared document format (Architecture origin, reused by Outline). */
-export type BDArchitectureFormat = "markdown" | "mdx" | "asciidoc";
+/** Shared document format (Specs origin, reused by Docs). */
+export type BDDocFormat = "markdown" | "mdx" | "asciidoc";

@@ -1,16 +1,25 @@
 "use client";
 
 // BDAppTable.Component — table designer: edit the ordered column list of a
-// resource's index table.
+// resource's index table. When the resource is tied to a schema model,
+// "Add column" opens a property picker — the picked property pre-fills the
+// column (name, label, derived type) with a persisted schema link, and the
+// column type stays fully adjustable afterwards.
 
-import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { BDAppColumn, BDSchemaModel } from "../../BDDomain.Types";
 import { BD_APP_COLUMN_TYPE_OPTIONS, columnFromProperty } from "./BDApp.Types";
+import BDAppPropertyPicker from "./BDAppPropertyPicker.Component";
 import BDButton from "../../components/BDButton";
 
 export interface BDAppTableComponentProps {
   columns: BDAppColumn[];
-  models: BDSchemaModel[];
+  /**
+   * The resource's tied schema model, when its schema/table are tied up. Its
+   * properties become the candidates for "Add column".
+   */
+  model?: BDSchemaModel | null;
   onChange: (columns: BDAppColumn[]) => void;
 }
 
@@ -19,126 +28,160 @@ const CELL =
 
 export function BDAppTableComponent({
   columns,
-  models,
+  model,
   onChange,
 }: BDAppTableComponentProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const update = (index: number, patch: Partial<BDAppColumn>) => {
     onChange(columns.map((c, i) => (i === index ? { ...c, ...patch } : c)));
   };
 
-  const deriveFromModel = (modelId: string) => {
-    const model = models.find((m) => m.id === modelId);
-    if (!model) return;
-    onChange(model.properties.map(columnFromProperty));
+  // When a schema model is tied to the resource, picking a property creates a
+  // linked column instead of a blank one.
+  const addColumn = () => {
+    if (model) {
+      setPickerOpen(true);
+      return;
+    }
+    onChange([...columns, { type: "text", name: "" }]);
   };
 
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">
-          Table columns ({columns.length})
-        </h3>
-        <div className="flex items-center gap-2">
-          <select
-            className={CELL}
-            value=""
-            onChange={(e) => {
-              if (e.target.value) deriveFromModel(e.target.value);
-            }}
-          >
-            <option value="">Derive from model…</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <BDButton
-            size="sm"
-            variant="secondary"
-            icon={Plus}
-            onClick={() =>
-              onChange([...columns, { type: "text", name: `col_${columns.length + 1}` }])
-            }
-          >
-            Add column
-          </BDButton>
-        </div>
-      </div>
-
-      {columns.length === 0 ? (
-        <p className="text-xs text-slate-400">
-          No columns yet — derive from a model or add manually.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {columns.map((column, index) => (
-            <div
-              key={index}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2"
+    <>
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">
+            Table columns ({columns.length})
+          </h3>
+          <div className="flex items-center gap-2">
+            <BDButton
+              size="sm"
+              variant="secondary"
+              icon={Plus}
+              onClick={addColumn}
             >
-              <input
-                className={`${CELL} w-36`}
-                placeholder="name"
-                value={column.name}
-                onChange={(e) => update(index, { name: e.target.value })}
-              />
-              <input
-                className={`${CELL} w-36`}
-                placeholder="label"
-                value={column.label ?? ""}
-                onChange={(e) =>
-                  update(index, { label: e.target.value || undefined })
-                }
-              />
-              <select
-                className={CELL}
-                value={column.type}
-                onChange={(e) =>
-                  update(index, {
-                    type: e.target.value as BDAppColumn["type"],
-                  })
-                }
-              >
-                {BD_APP_COLUMN_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1 text-xs text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={!!column.sortable}
-                  onChange={(e) =>
-                    update(index, { sortable: e.target.checked })
-                  }
-                />
-                sortable
-              </label>
-              <label className="flex items-center gap-1 text-xs text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={!!column.searchable}
-                  onChange={(e) =>
-                    update(index, { searchable: e.target.checked })
-                  }
-                />
-                searchable
-              </label>
-              <button
-                type="button"
-                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                onClick={() => onChange(columns.filter((_, i) => i !== index))}
-                aria-label="Remove column"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+              {model ? "Add from schema" : "Add column"}
+            </BDButton>
+          </div>
         </div>
-      )}
-    </section>
+
+        {columns.length === 0 ? (
+          <p className="text-xs text-slate-400">
+            {model
+              ? "No columns yet — add schema properties one by one, or use “Fill from schema”."
+              : "No columns yet — add a column to start."}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {columns.map((column, index) => {
+              const linkedProperty = column.schemaPropertyName
+                ? model?.properties.find(
+                    (p) => p.name === column.schemaPropertyName,
+                  )
+                : undefined;
+              return (
+                <div
+                  key={index}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2"
+                >
+                  <input
+                    className={`${CELL} w-36`}
+                    placeholder="column name"
+                    value={column.name}
+                    onChange={(e) => update(index, { name: e.target.value })}
+                  />
+                  <input
+                    className={`${CELL} w-36`}
+                    placeholder="label"
+                    value={column.label ?? ""}
+                    onChange={(e) =>
+                      update(index, { label: e.target.value || undefined })
+                    }
+                  />
+                  <select
+                    className={CELL}
+                    value={column.type}
+                    onChange={(e) =>
+                      update(index, {
+                        type: e.target.value as BDAppColumn["type"],
+                      })
+                    }
+                  >
+                    {BD_APP_COLUMN_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-1 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={!!column.sortable}
+                      onChange={(e) =>
+                        update(index, { sortable: e.target.checked })
+                      }
+                    />
+                    sortable
+                  </label>
+                  <label className="flex items-center gap-1 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={!!column.searchable}
+                      onChange={(e) =>
+                        update(index, { searchable: e.target.checked })
+                      }
+                    />
+                    searchable
+                  </label>
+
+                  {linkedProperty && (
+                    <span
+                      className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600"
+                      title={`Schema property: ${linkedProperty.name}`}
+                    >
+                      schema · {linkedProperty.type}
+                    </span>
+                  )}
+                  {linkedProperty && (
+                    <button
+                      type="button"
+                      className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      title="Re-sync from schema property (resets name, label and type)"
+                      onClick={() =>
+                        update(index, columnFromProperty(linkedProperty))
+                      }
+                      aria-label="Re-sync from schema property"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                    onClick={() => onChange(columns.filter((_, i) => i !== index))}
+                    aria-label="Remove column"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <BDAppPropertyPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        model={model ?? null}
+        excludeNames={columns.map((c) => c.schemaPropertyName ?? c.name)}
+        onSelect={(property) =>
+          onChange([...columns, columnFromProperty(property)])
+        }
+      />
+    </>
   );
 }
 

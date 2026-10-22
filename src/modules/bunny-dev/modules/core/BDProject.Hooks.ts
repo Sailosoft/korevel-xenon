@@ -32,8 +32,8 @@ export interface BDProjectStats {
   apps: number;
   apiSpecs: number;
   diagrams: number;
-  outlines: number;
-  architectures: number;
+  docs: number;
+  specs: number;
   boardTasks: number;
   agents: number;
   files: number;
@@ -50,8 +50,8 @@ export function useBDProjectStats(
       "apps",
       "apiSpecs",
       "diagrams",
-      "outlines",
-      "architectures",
+      "docs",
+      "specs",
       "boardTasks",
       "agents",
       "projectFiles",
@@ -69,8 +69,8 @@ export function useBDProjectStats(
       apps,
       apiSpecs,
       diagrams,
-      outlines,
-      architectures,
+      docs,
+      specs,
       boardTasks,
       agents,
       files,
@@ -82,8 +82,8 @@ export function useBDProjectStats(
       apps,
       apiSpecs,
       diagrams,
-      outlines,
-      architectures,
+      docs,
+      specs,
       boardTasks,
       agents,
       files,

@@ -26,6 +26,8 @@ export interface BDModalProps {
   bodyScroll?: boolean;
   /** When false, Escape does not close the modal (e.g. a nested modal is open). */
   closeOnEscape?: boolean;
+  /** When false, clicking the backdrop does not close the modal. */
+  closeOnBackdrop?: boolean;
 }
 
 const SIZE_CLASSES: Record<BDModalSize, string> = {
@@ -48,6 +50,7 @@ export function BDModal({
   bodyClassName,
   bodyScroll = true,
   closeOnEscape = true,
+  closeOnBackdrop = true,
 }: BDModalProps) {
   useEffect(() => {
     if (!open || !closeOnEscape) return;
@@ -64,7 +67,7 @@ export function BDModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={closeOnBackdrop ? onClose : undefined}
         aria-hidden
       />
       <div

@@ -49,6 +49,14 @@ export class BDProjectRepository extends BDRepository<BDProject> {
     };
     return this.update(id, { agentSettings: settings });
   }
+
+  /** Persist the project-wide App Builder layout preference. */
+  async updateBuilderLayout(
+    id: string,
+    layout: NonNullable<BDProject["builderLayout"]>,
+  ): Promise<BDProject | undefined> {
+    return this.update(id, { builderLayout: layout });
+  }
 }
 
 export const bdProjectRepository = new BDProjectRepository();

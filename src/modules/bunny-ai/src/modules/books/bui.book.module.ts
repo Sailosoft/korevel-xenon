@@ -9,8 +9,7 @@ import { BUIBookEntity } from "./bui.book.entity";
 
 import { BUIBookRepository } from "./bui.book.repository";
 import { BUIBookChapterRepository } from "./bui.book-chapter.repository";
-import BUIAuthorRepository from "../authors/bui.author.repository";
-import { BunnySelectOption } from "@/src/modules/bunny/src/form/BunnyForm.Interface";
+import BUIAuthorSelectField from "../authors/bui.author.select-field.component";
 import { AdminPanelDialogOption } from "@/src/modules/admin-panel/features/dialog/admin-panel-dialog.interface";
 import { buiBookServerEnhanceWithParams } from "./bui.book.server.enhance";
 import { getBunnyDefaultRowActions } from "@/src/modules/bunny/src/rows/BunnyRow.Action.Default";
@@ -18,7 +17,6 @@ import { BookOpenText } from "lucide-react";
 import { buiBookExportDownload } from "./bui.book.export.download";
 import BUISettingsRepository from "../settings/bui.settings.repository";
 const repository = new BUIBookRepository();
-const authorRepository = new BUIAuthorRepository();
 const defaultBunnyRowAction = getBunnyDefaultRowActions<BUIBookEntity>();
 const settingsRepo = new BUISettingsRepository();
 
@@ -58,18 +56,8 @@ export const buiBookModule: BunnyConfig<BUIBookEntity, BUIBookEntity> = {
       {
         name: "authorId",
         label: "Author",
-        type: "select",
-        options: async () => {
-          const result = await authorRepository.getList({});
-          if (result.isSuccess) {
-            return result.value.map<BunnySelectOption>((e) => ({
-              label: e.name,
-              value: e.id as number,
-            }));
-          }
-
-          throw new Error();
-        },
+        type: "custom",
+        component: BUIAuthorSelectField,
         rules: [
           {
             rule: "required",

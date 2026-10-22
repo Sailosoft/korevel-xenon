@@ -59,6 +59,9 @@ export interface BDFormProps {
   onCancel?: () => void;
   submitLabel?: string;
   cancelLabel?: string;
+  /** Optional secondary submit action rendered beside the primary one. */
+  secondarySubmitLabel?: string;
+  onSecondarySubmit?: (value: BDFormValues) => void | Promise<void>;
   columns?: 1 | 2 | 3 | 4;
   isLoading?: boolean;
   error?: string | null;
@@ -108,6 +111,8 @@ export function BDForm({
   onCancel,
   submitLabel = "Save",
   cancelLabel = "Cancel",
+  secondarySubmitLabel,
+  onSecondarySubmit,
   columns = 2,
   isLoading = false,
   error = null,
@@ -115,6 +120,7 @@ export function BDForm({
   className,
 }: BDFormProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [secondarySubmitting, setSecondarySubmitting] = useState(false);
 
   const setField = (name: string, next: unknown) => {
     onChange({ ...value, [name]: next });
@@ -130,6 +136,18 @@ export function BDForm({
       setSubmitting(false);
     }
   };
+
+  const handleSecondarySubmit = async () => {
+    if (!onSecondarySubmit) return;
+    setSecondarySubmitting(true);
+    try {
+      await onSecondarySubmit(value);
+    } finally {
+      setSecondarySubmitting(false);
+    }
+  };
+
+  const busy = submitting || secondarySubmitting || isLoading;
 
   const gridCols =
     columns === 1
@@ -468,7 +486,7 @@ export function BDForm({
         </p>
       )}
 
-      {(onSubmit || footer) && (
+      {(onSubmit || footer || onSecondarySubmit) && (
         <div className="flex items-center justify-end gap-2">
           {footer ?? (
             <>
@@ -477,9 +495,20 @@ export function BDForm({
                   {cancelLabel}
                 </BDButton>
               )}
+              {onSecondarySubmit && (
+                <BDButton
+                  variant="secondary"
+                  disabled={busy}
+                  isLoading={secondarySubmitting}
+                  onClick={handleSecondarySubmit}
+                >
+                  {secondarySubmitLabel ?? submitLabel}
+                </BDButton>
+              )}
               {onSubmit && (
                 <BDButton
                   type="submit"
+                  disabled={busy}
                   isLoading={submitting || isLoading}
                 >
                   {submitLabel}

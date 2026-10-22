@@ -18,7 +18,13 @@ export interface BDSchemaGroupComponentProps {
 }
 
 const FIELDS = [
-  { name: "name", label: "Group name", type: "text" as const, required: true },
+  {
+    name: "name",
+    label: "Group name",
+    type: "text" as const,
+    required: true,
+    columnSpan: "full" as const,
+  },
   {
     name: "description",
     label: "Description",

@@ -22,6 +22,7 @@ export type BDAppAlign = "start" | "center" | "end";
 
 /** Declarative visibility — a boolean or a rule string resolved at runtime. */
 export type BDAppVisibility = boolean | string;
+
 /** Declarative href — resolved at runtime (may contain {id} placeholders). */
 export type BDAppHref = string;
 
@@ -140,6 +141,9 @@ export type BDAppPageType =
   | "settings"
   | "custom";
 
+/** What the create/edit form does after a successful create/update. */
+export type BDAppFormBehavior = "close" | "view";
+
 /** Serializable column formatter descriptor (replaces the former function). */
 export interface BDAppColumnFormat {
   kind: "text" | "currency" | "date" | "since" | "number";
@@ -231,6 +235,11 @@ export interface BDAppField {
   type: BDAppFieldType;
   name: string;
   label?: string;
+  /**
+   * Name of the schema property this field maps to (schema + table tied up).
+   * Persisted so the link is visible and re-syncable after creation.
+   */
+  schemaPropertyName?: string;
   helperText?: string;
   placeholder?: string;
   default?: unknown;
@@ -309,6 +318,11 @@ export interface BDAppColumn {
   type: BDAppColumnType;
   name: string;
   label?: string;
+  /**
+   * Name of the schema property this column maps to (schema + table tied up).
+   * Persisted so the link is visible and re-syncable after creation.
+   */
+  schemaPropertyName?: string;
   sortable?: boolean;
   searchable?: boolean;
   toggleable?: boolean;
@@ -522,6 +536,8 @@ export interface BDAppResource {
   infolist?: BDAppSchema;
   table?: BDAppTable;
   pages?: BDAppResourcePages;
+  /** Post-submit behavior for this resource's create/edit form. Default "close". */
+  formBehavior?: BDAppFormBehavior;
   /** First-class resource-to-resource connections (Filament-style relations). */
   connections?: BDAppConnection[];
   actions?: BDAppAction[];
@@ -610,6 +626,14 @@ export interface BDApp extends BDEntity {
   path: string;
   description?: string;
   domain?: string;
+  /**
+   * Optional tie to a schema design (schema group). When set, resources are
+   * offered models from this group only, and their fields/columns can be
+   * mapped to schema properties.
+   */
+  schemaGroupId?: string;
+  /** Whether the app is published (shown by the app list; does not gate rendering). */
+  published?: boolean;
   theme?: BDAppTheme;
   brand?: BDAppBrand;
   colors?: Partial<Record<BDAppColor, string>>;

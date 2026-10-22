@@ -3,7 +3,7 @@
 // BDDiagramView — renders Mermaid source to SVG with a clean error surface.
 //
 // Pan/zoom is intentionally left to the Diagram Builder editor; this view is
-// the read-only renderer used by previews, outlines, and architecture sections.
+// the read-only renderer used by previews, docs, and spec sections.
 
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";

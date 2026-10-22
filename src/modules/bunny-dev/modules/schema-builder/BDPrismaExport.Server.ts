@@ -14,9 +14,10 @@ export interface BDPrismaExportResult {
 
 export async function generatePrismaExport(
   models: BDSchemaModel[],
+  groupName?: string,
 ): Promise<BDPrismaExportResult> {
   return {
-    prisma: toPrismaSchema(models),
-    modelBuilder: toModelBuilderFile(models),
+    prisma: toPrismaSchema(models, "postgresql", groupName),
+    modelBuilder: toModelBuilderFile(models, groupName),
   };
 }

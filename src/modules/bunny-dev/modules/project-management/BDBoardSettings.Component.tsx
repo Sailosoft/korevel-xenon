@@ -19,7 +19,12 @@ import {
   bdBoardColumnRepository,
   bdBoardRepository,
 } from "./BDTask.Repository";
-import { createBoardColumn } from "./BDTask.Types";
+import {
+  BD_BOARD_CARD_CHIPS,
+  BD_DEFAULT_CARD_CHIPS,
+  createBoardColumn,
+  customChipId,
+} from "./BDTask.Types";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 import { useBDToast } from "../../components/BDToast";
@@ -39,7 +44,15 @@ const CUSTOM_FIELD_TYPES: { label: string; value: BDCustomFieldType }[] = [
   { label: "Long text", value: CustomFieldType.textarea },
   { label: "Number", value: CustomFieldType.number },
   { label: "Date", value: CustomFieldType.date },
+  { label: "Select", value: CustomFieldType.select },
 ];
+
+function parseOptions(value: string): string[] {
+  return value
+    .split("\n")
+    .map((option) => option.trim())
+    .filter((option, index, list) => !!option && list.indexOf(option) === index);
+}
 
 function swap<T>(list: T[], from: number, to: number): T[] {
   if (to < 0 || to >= list.length) return list;
@@ -77,20 +90,33 @@ export function BDBoardSettingsComponent({
 
   const settingsKey = `${open}:${board?.id ?? "none"}`;
   const [name, setName] = useState("");
+  const [boardKey, setBoardKey] = useState("");
   const [fields, setFields] = useState<BDBoardCustomField[]>([]);
+  const [chips, setChips] = useState<string[]>(BD_DEFAULT_CARD_CHIPS);
   const [newColumnName, setNewColumnName] = useState("");
   const [prevKey, setPrevKey] = useState(settingsKey);
   if (settingsKey !== prevKey) {
     setPrevKey(settingsKey);
     setName(board?.name ?? "");
+    setBoardKey(board?.key ?? "");
     setFields(board?.customFields ?? []);
+    setChips(board?.cardChips ?? BD_DEFAULT_CARD_CHIPS);
     setNewColumnName("");
   }
 
   const renameBoard = async () => {
     if (!boardId || !name.trim()) return;
-    await bdBoardRepository.update(boardId, { name: name.trim() });
-    toast({ title: "Board renamed", status: "success" });
+    const patch: { name: string; key?: string } = { name: name.trim() };
+    const trimmedKey = boardKey.trim().toUpperCase();
+    if (board && trimmedKey && trimmedKey !== board.key) {
+      patch.key = await bdBoardRepository.uniqueBoardKey(
+        board.projectId,
+        trimmedKey,
+      );
+    }
+    await bdBoardRepository.update(boardId, patch);
+    if (patch.key) setBoardKey(patch.key);
+    toast({ title: "Board saved", status: "success" });
   };
 
   const addColumn = async () => {
@@ -184,10 +210,25 @@ export function BDBoardSettingsComponent({
         name: field.name.trim(),
         slug: slugify(field.slug || field.name),
         position,
+        options:
+          field.type === CustomFieldType.select
+            ? Array.from(new Set(parseOptions((field.options ?? []).join("\n"))))
+            : undefined,
       }));
     await bdBoardRepository.update(boardId, { customFields: cleaned });
     setFields(cleaned);
     toast({ title: "Custom fields saved", status: "success" });
+  };
+
+  const toggleChip = (id: string) =>
+    setChips((prev) =>
+      prev.includes(id) ? prev.filter((chip) => chip !== id) : [...prev, id],
+    );
+
+  const saveChips = async () => {
+    if (!boardId) return;
+    await bdBoardRepository.update(boardId, { cardChips: chips });
+    toast({ title: "Card chips saved", status: "success" });
   };
 
   return (
@@ -197,6 +238,7 @@ export function BDBoardSettingsComponent({
       size="lg"
       title="Board settings"
       description="Rename the board, manage its sections, and define custom fields."
+      closeOnBackdrop={false}
     >
       <div className="flex flex-col gap-6">
         {/* Rename board */}
@@ -204,24 +246,37 @@ export function BDBoardSettingsComponent({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Board
           </h3>
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-slate-600">Name</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
-                className={FIELD}
+                className={cn(FIELD, "flex-1")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
+              <label className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-600">Key</span>
+                <input
+                  className={cn(FIELD, "w-28 font-mono uppercase")}
+                  value={boardKey}
+                  placeholder="KEY"
+                  onChange={(e) => setBoardKey(e.target.value.toUpperCase())}
+                />
+              </label>
               <BDButton
                 size="sm"
                 icon={Save}
-                disabled={!name.trim() || name.trim() === board?.name}
+                disabled={
+                  !name.trim() ||
+                  (name.trim() === board?.name &&
+                    boardKey.trim().toUpperCase() === (board?.key ?? ""))
+                }
                 onClick={renameBoard}
               >
                 Save
               </BDButton>
             </div>
-          </label>
+          </div>
         </section>
 
         {/* Sections */}
@@ -373,6 +428,18 @@ export function BDBoardSettingsComponent({
                       updateField(field.id, { slug: e.target.value })
                     }
                   />
+                  {field.type === CustomFieldType.select ? (
+                    <textarea
+                      className={cn(FIELD, "mt-2 min-h-[64px] resize-y text-xs")}
+                      placeholder="One option per line"
+                      value={(field.options ?? []).join("\n")}
+                      onChange={(e) =>
+                        updateField(field.id, {
+                          options: e.target.value.split("\n"),
+                        })
+                      }
+                    />
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -384,6 +451,54 @@ export function BDBoardSettingsComponent({
               </BDButton>
             </div>
           )}
+        </section>
+
+        {/* Card chips */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Card chips
+          </h3>
+          <p className="text-xs text-slate-500">
+            Choose which chips appear on task cards.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {BD_BOARD_CARD_CHIPS.map((chip) => (
+              <label
+                key={chip.id}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600"
+              >
+                <input
+                  type="checkbox"
+                  checked={chips.includes(chip.id)}
+                  onChange={() => toggleChip(chip.id)}
+                />
+                {chip.label}
+              </label>
+            ))}
+            {fields
+              .filter((field) => field.name.trim())
+              .map((field) => {
+                const id = customChipId(slugify(field.slug || field.name));
+                return (
+                  <label
+                    key={id}
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={chips.includes(id)}
+                      onChange={() => toggleChip(id)}
+                    />
+                    {field.name}
+                  </label>
+                );
+              })}
+          </div>
+          <div className="flex justify-end">
+            <BDButton size="sm" icon={Save} onClick={saveChips}>
+              Save card chips
+            </BDButton>
+          </div>
         </section>
       </div>
     </BDModal>
