@@ -1,21 +1,12 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Input, Select, ListBox, Label, TextArea, Checkbox } from "@heroui/react";
-import {
-  MDXEditor,
-  headingsPlugin,
-  listsPlugin,
-  quotePlugin,
-  thematicBreakPlugin,
-  markdownShortcutPlugin,
-  MDXEditorMethods,
-} from "@mdxeditor/editor";
-import "@mdxeditor/editor/style.css";
 import {
   AdminPanelFormActionState,
   AdminPanelFormFieldDefinition,
 } from "@/src/modules/admin-panel/features/form-fields/admin-panel-form-field.interface";
+import BunnyMarkdownSurface from "./BunnyMarkdownSurface";
 
 interface BunnyDialogFieldsProps {
   fields: AdminPanelFormFieldDefinition[];
@@ -110,7 +101,8 @@ function FieldRenderer({ field, formState, onValueChange }: FieldRendererProps) 
     () => new Set(splitMultiValue(fallbackValue)),
   );
 
-  const editorRef = React.useRef<MDXEditorMethods>(null);
+  const lastEmittedRef = useRef(editorValue);
+  const lastFallbackRef = useRef(fallbackValue);
 
   // Track the previous fallback value and re-sync controlled state during
   // render (not in an effect) when it changes — avoids cascading setState
@@ -131,14 +123,13 @@ function FieldRenderer({ field, formState, onValueChange }: FieldRendererProps) 
 
   // Synchronize incoming resets or revalidation states across hook cycles
   React.useEffect(() => {
-    if (field.type === "editor") {
-      const currentMarkdown = editorRef.current?.getMarkdown();
-      const nextValue = typeof fallbackValue === "string" ? fallbackValue : "";
-      if (nextValue !== currentMarkdown) {
-        editorRef.current?.setMarkdown(nextValue);
-        setEditorValue(nextValue);
-      }
-    }
+    if (field.type !== "editor") return;
+    if (fallbackValue === lastFallbackRef.current) return;
+    lastFallbackRef.current = fallbackValue;
+    const nextValue = typeof fallbackValue === "string" ? fallbackValue : "";
+    if (nextValue === lastEmittedRef.current) return;
+    lastEmittedRef.current = nextValue;
+    setEditorValue(nextValue);
   }, [fallbackValue, field.type]);
 
   switch (field.type) {
@@ -301,22 +292,18 @@ function FieldRenderer({ field, formState, onValueChange }: FieldRendererProps) 
             {isRequired && <span className="text-red-500 ml-1">*</span>}
           </Label>
           <div
-            className="border rounded-md p-1 min-h-[150px] bg-background prose max-w-none dark:prose-invert"
+            className="border rounded-md p-1 min-h-[150px] bg-background"
             role="application"
             aria-labelledby={labelId}
           >
-            <MDXEditor
-              ref={editorRef}
-              markdown={editorValue}
-              onChange={(val) => setEditorValue(val)}
+            <BunnyMarkdownSurface
+              value={editorValue}
+              onChange={(val) => {
+                lastEmittedRef.current = val;
+                setEditorValue(val);
+              }}
               placeholder={field.placeholder}
-              plugins={[
-                headingsPlugin(),
-                listsPlugin(),
-                quotePlugin(),
-                thematicBreakPlugin(),
-                markdownShortcutPlugin(),
-              ]}
+              minHeight={150}
             />
           </div>
           {/* Synchronized hidden portal guarantees MDX source texts stream smoothly straight into browser native arrays */}

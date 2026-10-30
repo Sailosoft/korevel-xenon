@@ -1,116 +1,27 @@
 "use client";
 
-import {
-  MDXEditor,
-  MDXEditorMethods,
-  headingsPlugin,
-  listsPlugin,
-  quotePlugin,
-  thematicBreakPlugin,
-  markdownShortcutPlugin,
-  linkPlugin,
-  linkDialogPlugin,
-  tablePlugin,
-  codeBlockPlugin,
-  codeMirrorPlugin,
-  toolbarPlugin,
-  UndoRedo,
-  BoldItalicUnderlineToggles,
-  ListsToggle,
-  Separator,
-  CreateLink,
-  InsertTable,
-  CodeToggle,
-} from "@mdxeditor/editor";
-import "@mdxeditor/editor/style.css";
-import { forwardRef, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
+import { forwardRef, useRef, type RefObject } from "react";
+import type { MDXEditorMethods } from "@mdxeditor/editor";
+import type { IBLEditorProps } from "./BLEditor.impl";
 
-export interface IBLEditorProps {
-  markdown: string;
-  onChange?: (markdown: string) => void;
-  readOnly?: boolean;
-  minHeight?: string;
-  placeholder?: string;
-}
+export type { IBLEditorProps } from "./BLEditor.impl";
 
-/**
- * BLEditor - A lightweight MDX/Markdown editor for bunny-legacy.
- * Based on BookBuilderEditor but with a simplified interface.
- *
- * Uses an internal ref + useEffect to sync the markdown prop into the editor,
- * because MDXEditor treats the `markdown` prop as an initial value only
- * (uncontrolled). Without this sync, switching between books would show
- * stale content in the editor.
- */
-const BLEditor = forwardRef<MDXEditorMethods, IBLEditorProps>(
-  ({ markdown, onChange, readOnly, minHeight = "150px" }, externalRef) => {
-    const internalRef = useRef<MDXEditorMethods | null>(null);
-    const editorRef = (externalRef ?? internalRef) as React.RefObject<MDXEditorMethods | null>;
+const BLEditorImpl = dynamic(() => import("./BLEditor.impl"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[150px] items-center justify-center rounded-md border bg-white text-sm text-slate-400 dark:bg-slate-950">
+      Loading editor…
+    </div>
+  ),
+});
 
-    // Sync the markdown prop into the editor whenever it changes,
-    // because MDXEditor only uses the initial value.
-    useEffect(() => {
-      if (editorRef.current) {
-        editorRef.current.setMarkdown(markdown);
-      }
-    }, [markdown, editorRef]);
+const BLEditor = forwardRef<MDXEditorMethods, IBLEditorProps>((props, ref) => {
+  const internalRef = useRef<MDXEditorMethods | null>(null);
+  const editorRef = (ref ?? internalRef) as RefObject<MDXEditorMethods | null>;
 
-    return (
-      <div
-        className="border rounded-md bg-white dark:bg-slate-950 overflow-hidden"
-        style={{ minHeight }}
-      >
-        <MDXEditor
-          ref={editorRef}
-          markdown={markdown}
-          onChange={onChange}
-          readOnly={readOnly}
-          contentEditableClassName="prose dark:prose-invert max-w-none min-h-[200px] p-4 focus:outline-none"
-          placeholder="Write your content in markdown..."
-          plugins={[
-            // Basic Formatting
-            headingsPlugin(),
-            listsPlugin(),
-            quotePlugin(),
-            thematicBreakPlugin(),
-            // Links & Tables
-            linkPlugin(),
-            linkDialogPlugin(),
-            tablePlugin(),
-            // Code handling
-            codeBlockPlugin({ defaultCodeBlockLanguage: "ts" }),
-            codeMirrorPlugin({
-              codeBlockLanguages: {
-                js: "JS",
-                ts: "TS",
-                css: "CSS",
-                html: "HTML",
-              },
-            }),
-            // Shortcuts (e.g. typing '#' creates h1)
-            markdownShortcutPlugin(),
-            // The Toolbar
-            toolbarPlugin({
-              toolbarContents: () => (
-                <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-50 dark:bg-slate-900 border-b">
-                  <UndoRedo />
-                  <Separator />
-                  <BoldItalicUnderlineToggles />
-                  <Separator />
-                  <ListsToggle />
-                  <Separator />
-                  <CreateLink />
-                  <InsertTable />
-                  <CodeToggle />
-                </div>
-              ),
-            }),
-          ]}
-        />
-      </div>
-    );
-  },
-);
+  return <BLEditorImpl {...props} editorRef={editorRef} />;
+});
 
 BLEditor.displayName = "BLEditor";
 
