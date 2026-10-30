@@ -12,6 +12,7 @@ import { OLLAMA_CLOUD_MODELS } from "./HelixModel.OllamaCloud";
 
 export const OLLAMA_LOCAL_MODELS = [
   "gemma3:1b",
+  "gemma3:4b",
   "gemma4:31b",
   "llama3.2:8b",
   "llama3.2:3b",
