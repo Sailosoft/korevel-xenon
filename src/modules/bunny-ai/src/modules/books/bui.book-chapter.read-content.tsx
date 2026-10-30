@@ -3,75 +3,125 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { useEffect, useState } from "react";
-import { Volume2, VolumeX, Copy } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2, Volume2, VolumeX, Copy } from "lucide-react";
+import {
+  isSpeechSupported,
+  primeVoiceList,
+  speakChunks,
+  stripMarkdownForSpeech,
+  type SpeechSession,
+} from "./bui.book-chapter.speech";
 
 interface BUIBookChapterReadContentModuleProps {
   content: string;
 }
 
+type SpeechStatus = "idle" | "starting" | "speaking" | "error";
+
+interface SpeechProgress {
+  index: number;
+  total: number;
+}
+
+const AUDIO_HINT =
+  "No audio started. Check your device's silent mode / media volume, or that a text-to-speech voice is installed.";
+
 export default function BUIBookChapterReadContentModule({
   content,
 }: BUIBookChapterReadContentModuleProps) {
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [status, setStatus] = useState<SpeechStatus>("idle");
+  const [hint, setHint] = useState<string | null>(null);
+  const [progress, setProgress] = useState<SpeechProgress | null>(null);
 
-  const stopTextToSpeech = () => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsSpeaking(false);
-  };
+  const sessionRef = useRef<SpeechSession | null>(null);
+  const generationRef = useRef(0);
 
-  const stripMarkdown = (text: string): string => {
-    return text
-      .replace(/^#{1,6}\s+/gm, "")
-      .replace(/\*\*(.+?)\*\*/g, "$1")
-      .replace(/\*(.+?)\*/g, "$1")
-      .replace(/__(.+?)__/g, "$1")
-      .replace(/_(.+?)_/g, "$1")
-      .replace(/~~(.+?)~~/g, "$1")
-      .replace(/`{1,3}[^`]*`{1,3}/g, "")
-      .replace(/^\s*[-*+]\s+/gm, "")
-      .replace(/^\s*\d+\.\s+/gm, "")
-      .replace(/^\s*>\s+/gm, "")
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-      .replace(/---+/g, "")
-      .replace(/\|/g, " ")
-      .replace(/\n{2,}/g, "\n")
-      .trim();
-  };
+  const stopTextToSpeech = useCallback(() => {
+    generationRef.current += 1;
+    sessionRef.current?.cancel();
+    sessionRef.current = null;
+    setStatus("idle");
+    setProgress(null);
+  }, []);
 
   const handleTextToSpeech = () => {
-    if (!("speechSynthesis" in window)) {
-      console.error("Text to speech is not supported in this browser");
+    if (!isSpeechSupported()) {
+      setStatus("error");
+      setHint("Text to speech is not supported in this browser.");
       return;
     }
 
-    // Toggle: clicking again stops the speech
-    if (isSpeaking) {
+    if (status === "speaking" || status === "starting") {
       stopTextToSpeech();
       return;
     }
 
-    window.speechSynthesis.cancel();
+    const plainText = stripMarkdownForSpeech(content);
+    if (!plainText) {
+      setStatus("error");
+      setHint("There is no text to read in this chapter.");
+      return;
+    }
 
-    const plainText = stripMarkdown(content);
-    const utterance = new SpeechSynthesisUtterance(plainText);
-    utterance.lang = "en-US";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    setIsSpeaking(true);
+    setHint(null);
+    setProgress(null);
+    setStatus("starting");
+    generationRef.current += 1;
+    const generation = generationRef.current;
+
+    const session = speakChunks({
+      text: plainText,
+      onStart: () => {
+        if (generation !== generationRef.current) return;
+        setStatus("speaking");
+      },
+      onChunk: (index, total) => {
+        if (generation !== generationRef.current) return;
+        setProgress({ index: index + 1, total });
+      },
+      onEnd: () => {
+        if (generation !== generationRef.current) return;
+        sessionRef.current = null;
+        setStatus("idle");
+        setProgress(null);
+      },
+      onError: (reason) => {
+        if (generation !== generationRef.current) return;
+        sessionRef.current = null;
+        setProgress(null);
+        if (reason === "empty") {
+          setStatus("error");
+          setHint("There is no text to read in this chapter.");
+          return;
+        }
+        if (reason === "interrupted" || reason === "canceled") {
+          setStatus("idle");
+          return;
+        }
+        setStatus("error");
+        setHint(AUDIO_HINT);
+      },
+    });
+
+    if (!session) {
+      setStatus("error");
+      setHint(AUDIO_HINT);
+      return;
+    }
+
+    sessionRef.current = session;
   };
 
-  // Stop speech when the component unmounts (e.g., modal closed)
+  // Warm the voice list so a voice is available on the first tap.
+  useEffect(() => primeVoiceList(), []);
+
+  // Stop speech when the component unmounts (e.g., modal closed).
   useEffect(() => {
     return () => {
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      generationRef.current += 1;
+      sessionRef.current?.cancel();
+      sessionRef.current = null;
     };
   }, []);
 
@@ -83,20 +133,30 @@ export default function BUIBookChapterReadContentModule({
     }
   };
 
+  const isBusy = status === "speaking" || status === "starting";
+
   return (
     <div className="flex h-full flex-col">
       {/* Toolbox */}
-      <div className="mb-2 flex w-full items-center gap-1">
+      <div className="mb-2 flex w-full flex-wrap items-center gap-1">
         <button
           type="button"
           onClick={handleTextToSpeech}
-          title={isSpeaking ? "Stop" : "Text to Speech"}
+          title={isBusy ? "Stop" : "Text to Speech"}
+          aria-pressed={isBusy}
           className="flex items-center gap-1.5 rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200"
         >
-          {isSpeaking ? (
+          {status === "speaking" ? (
             <VolumeX className="h-3.5 w-3.5" />
+          ) : status === "starting" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Volume2 className="h-3.5 w-3.5" />
+          )}
+          {progress && status === "speaking" && (
+            <span className="text-[10px] tabular-nums text-slate-500">
+              {progress.index}/{progress.total}
+            </span>
           )}
         </button>
         <button
@@ -107,6 +167,11 @@ export default function BUIBookChapterReadContentModule({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
+        {hint && (
+          <span className="text-[11px] leading-snug text-amber-600">
+            {hint}
+          </span>
+        )}
       </div>
       <hr className="my-2 border-slate-200" />
       {/* Content */}
@@ -121,4 +186,3 @@ export default function BUIBookChapterReadContentModule({
     </div>
   );
 }
-

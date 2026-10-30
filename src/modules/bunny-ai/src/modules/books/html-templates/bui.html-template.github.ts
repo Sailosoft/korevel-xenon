@@ -258,45 +258,177 @@ export const BUIHTMLTemplateGitHub: BUIBookHTMLTemplate = {
 
         var ttsActiveChapter = null;
         var ttsSpeaking = false;
+        var ttsCancelToken = 0;
+        var ttsWatchdog = null;
+        var ttsStartTimer = null;
+
+        // Split long chapter text into sentence-sized chunks. Mobile speech
+        // engines drop or truncate very long utterances.
+        function splitSpeechChunks(text, maxLength) {
+            maxLength = maxLength || 180;
+            var normalized = String(text || "").replace(/\\s+/g, " ").trim();
+            if (!normalized) return [];
+            var sentences = normalized.match(/[^.!?]+[.!?]+["')\\]]*|[^.!?]+$/g) || [normalized];
+            var chunks = [];
+            var current = "";
+
+            function pushCurrent() {
+                if (current) {
+                    chunks.push(current);
+                    current = "";
+                }
+            }
+
+            function hardSplit(sentence) {
+                var rest = sentence;
+                while (rest.length > maxLength) {
+                    var cut = rest.lastIndexOf(" ", maxLength);
+                    if (cut <= 0) cut = maxLength;
+                    var piece = rest.slice(0, cut).trim();
+                    if (piece) chunks.push(piece);
+                    rest = rest.slice(cut).trim();
+                }
+                if (rest) chunks.push(rest);
+            }
+
+            for (var i = 0; i < sentences.length; i++) {
+                var sentence = sentences[i].trim();
+                if (!sentence) continue;
+                if (sentence.length > maxLength) {
+                    pushCurrent();
+                    hardSplit(sentence);
+                    continue;
+                }
+                if (!current) {
+                    current = sentence;
+                } else if (current.length + 1 + sentence.length <= maxLength) {
+                    current += " " + sentence;
+                } else {
+                    pushCurrent();
+                    current = sentence;
+                }
+            }
+
+            pushCurrent();
+            return chunks;
+        }
+
+        // Prefer an installed local English voice; devices without one stay
+        // silent when only utterance.lang is set.
+        function pickSpeechVoice() {
+            var voices = window.speechSynthesis.getVoices() || [];
+            var english = voices.filter(function (voice) {
+                return (voice.lang || "").toLowerCase().indexOf("en") === 0;
+            });
+            var local = english.filter(function (voice) { return voice.localService; });
+            return local[0] || english[0] || null;
+        }
+
+        function clearTtsTimers() {
+            if (ttsWatchdog) {
+                clearInterval(ttsWatchdog);
+                ttsWatchdog = null;
+            }
+            if (ttsStartTimer) {
+                clearTimeout(ttsStartTimer);
+                ttsStartTimer = null;
+            }
+        }
+
+        function stopSpeech(chapterId) {
+            ttsCancelToken += 1;
+            clearTtsTimers();
+            ttsSpeaking = false;
+            ttsActiveChapter = null;
+            try {
+                var synth = window.speechSynthesis;
+                // Only cancel when something is actually queued; cancelling a
+                // fresh engine right before speak() drops the utterance.
+                if (synth && (synth.speaking || synth.pending)) synth.cancel();
+            } catch (err) { /* unavailable */ }
+            if (chapterId) setTtsButtonState(chapterId, false);
+        }
 
         function toggleSpeech(chapterId) {
-            if (!('speechSynthesis' in window)) {
-                alert('Text-to-speech is not supported in this browser.');
+            if (!("speechSynthesis" in window)) {
+                alert("Text-to-speech is not supported in this browser.");
                 return;
             }
             var section = document.getElementById(chapterId);
             if (!section) return;
-            var content = section.querySelector('.chapter-content');
+            var content = section.querySelector(".chapter-content");
             var text = (content ? content.textContent : section.textContent).trim();
             if (!text) return;
 
             if (ttsSpeaking && ttsActiveChapter === chapterId) {
-                window.speechSynthesis.cancel();
-                ttsSpeaking = false;
-                ttsActiveChapter = null;
-                setTtsButtonState(chapterId, false);
+                stopSpeech(chapterId);
                 return;
             }
 
-            window.speechSynthesis.cancel();
-            var utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.rate = 1;
-            utterance.pitch = 1;
-            utterance.onend = function () {
-                ttsSpeaking = false;
-                ttsActiveChapter = null;
-                setTtsButtonState(chapterId, false);
-            };
-            utterance.onerror = function () {
-                ttsSpeaking = false;
-                ttsActiveChapter = null;
-                setTtsButtonState(chapterId, false);
-            };
-            window.speechSynthesis.speak(utterance);
+            var previousChapter = ttsActiveChapter;
+            stopSpeech(previousChapter);
+            var token = ttsCancelToken;
+
+            var chunks = splitSpeechChunks(text);
+            if (chunks.length === 0) return;
+
+            var synth = window.speechSynthesis;
+            try {
+                synth.resume();
+            } catch (err) { /* unavailable */ }
+
+            var voice = pickSpeechVoice();
+            var started = false;
             ttsSpeaking = true;
             ttsActiveChapter = chapterId;
             setTtsButtonState(chapterId, true);
+
+            function fail() {
+                if (token !== ttsCancelToken) return;
+                stopSpeech(chapterId);
+                alert("No audio started. Check the device silent mode / media volume, or that a text-to-speech voice is installed.");
+            }
+
+            ttsStartTimer = setTimeout(function () {
+                if (!started) fail();
+            }, 1500);
+
+            for (var i = 0; i < chunks.length; i++) {
+                var utterance = new SpeechSynthesisUtterance(chunks[i]);
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                if (voice) {
+                    utterance.voice = voice;
+                } else {
+                    utterance.lang = "en-US";
+                }
+                utterance.onstart = function () {
+                    if (token !== ttsCancelToken) return;
+                    if (started) return;
+                    started = true;
+                    if (ttsStartTimer) {
+                        clearTimeout(ttsStartTimer);
+                        ttsStartTimer = null;
+                    }
+                    // Android Chrome sometimes pauses a long queue; nudge it.
+                    ttsWatchdog = setInterval(function () {
+                        if (token !== ttsCancelToken) return;
+                        try { synth.resume(); } catch (err) { /* unavailable */ }
+                    }, 10000);
+                };
+                utterance.onend = (function (index) {
+                    return function () {
+                        if (token !== ttsCancelToken) return;
+                        if (index === chunks.length - 1) stopSpeech(chapterId);
+                    };
+                })(i);
+                utterance.onerror = function (event) {
+                    if (token !== ttsCancelToken) return;
+                    if (event && (event.error === "interrupted" || event.error === "canceled")) return;
+                    fail();
+                };
+                synth.speak(utterance);
+            }
         }
 
         function setTtsButtonState(chapterId, speaking) {
