@@ -421,6 +421,30 @@ export interface BDSpecRefineAnswer {
   answer: string;
 }
 
+/** Which AI Document Assist mode the wizard is running. */
+export type BDSpecAssistMode = "refine" | "enhance";
+
+/** One improvement area found by the Enhance analysis. */
+export interface BDSpecEnhancementArea {
+  id: string;
+  label: string;
+  rationale?: string;
+  recommended: boolean;
+}
+
+/** Document assessment produced before the Enhance question turns. */
+export interface BDSpecEnhancementAnalysis {
+  summary: string;
+  areas: BDSpecEnhancementArea[];
+}
+
+/** Labels the user should start with selected, i.e. the recommended areas. */
+export function recommendedEnhancementAreas(
+  analysis: BDSpecEnhancementAnalysis,
+): string[] {
+  return analysis.areas.filter((area) => area.recommended).map((a) => a.label);
+}
+
 /** The revised document produced by a refine revision call. */
 export interface BDSpecRefineRevision {
   name?: string;

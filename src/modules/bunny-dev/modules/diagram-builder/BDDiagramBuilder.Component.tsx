@@ -4,7 +4,7 @@
 // diagram. Listing/creation/AI generation lives on page 2
 // (BDDiagramListComponent).
 
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Workflow,
@@ -36,7 +36,11 @@ import {
   toMermaid,
   type BDDiagramNodeField,
 } from "./BDDiagram.Types";
-import { toDiagramMarkdown, toDiagramSvg } from "./BDDiagramExport";
+import {
+  toDiagramMarkdown,
+  toDiagramPng,
+  toDiagramSvg,
+} from "./BDDiagramExport";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
 import BDButton from "../../components/BDButton";
@@ -48,7 +52,7 @@ import BDConfirmDialog from "../../components/BDConfirmDialog";
 import BDModal from "../../components/BDModal";
 import BDEmptyState from "../../components/BDEmptyState";
 import { useBDToast } from "../../components/BDToast";
-import { downloadText } from "../../BDDownload";
+import { downloadBlob, downloadText } from "../../BDDownload";
 
 const CELL =
   "rounded border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400";
@@ -207,10 +211,13 @@ export function BDDiagramBuilderComponent({
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
   const [showSource, setShowSource] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const canvasRef = useRef<BDDiagramCanvasHandle>(null);
-  const modalCanvasRef = useRef<BDDiagramCanvasHandle>(null);
+  const [canvasHandle, setCanvasHandle] =
+    useState<BDDiagramCanvasHandle | null>(null);
+  const [modalCanvasHandle, setModalCanvasHandle] =
+    useState<BDDiagramCanvasHandle | null>(null);
 
   // Load the diagram once its live query arrives (render-time adjustment).
   if (record && loadedId !== record.id) {
@@ -260,6 +267,40 @@ export function BDDiagramBuilderComponent({
     setDeleting(false);
     toast({ title: "Diagram deleted", status: "success" });
     router.push(target);
+  };
+
+  const handleExportPng = async (handle: BDDiagramCanvasHandle | null) => {
+    if (!draft) return;
+    setExportingPng(true);
+    try {
+      const blob = await toDiagramPng(
+        handle?.getPreviewNode() ?? null,
+        handle?.getNaturalSize() ?? undefined,
+      );
+      if (!blob) {
+        toast({ title: "Nothing to export yet", status: "warning" });
+        return;
+      }
+      downloadBlob(`${draft.name}.png`, blob);
+    } catch (err) {
+      toast({
+        title: "PNG export failed",
+        description: err instanceof Error ? err.message : undefined,
+        status: "error",
+      });
+    } finally {
+      setExportingPng(false);
+    }
+  };
+
+  const exportSvgFrom = (handle: BDDiagramCanvasHandle | null) => {
+    if (!draft) return;
+    const svg = toDiagramSvg(handle?.getPreviewNode() ?? null);
+    if (!svg) {
+      toast({ title: "Nothing to export yet", status: "warning" });
+      return;
+    }
+    downloadText(`${draft.name}.svg`, svg, "image/svg+xml");
   };
 
   const changeType = (type: BDDiagramType) => {
@@ -343,9 +384,7 @@ export function BDDiagramBuilderComponent({
   const directionSupported = supportsDirection(draft.type);
   const previewChart = toMermaid(draft);
 
-  const renderExportActions = (canvas: {
-    current: BDDiagramCanvasHandle | null;
-  }) => (
+  const renderExportActions = (handle: BDDiagramCanvasHandle | null) => (
     <div className="flex flex-wrap gap-2">
       <BDButton
         size="sm"
@@ -373,16 +412,18 @@ export function BDDiagramBuilderComponent({
         size="sm"
         variant="secondary"
         icon={Download}
-        onClick={() => {
-          const svg = toDiagramSvg(canvas.current?.getPreviewNode() ?? null);
-          if (!svg) {
-            toast({ title: "Nothing to export yet", status: "warning" });
-            return;
-          }
-          downloadText(`${draft.name}.svg`, svg, "image/svg+xml");
-        }}
+        onClick={() => exportSvgFrom(handle)}
       >
         .svg
+      </BDButton>
+      <BDButton
+        size="sm"
+        variant="secondary"
+        icon={Download}
+        isLoading={exportingPng}
+        onClick={() => void handleExportPng(handle)}
+      >
+        .png
       </BDButton>
     </div>
   );
@@ -675,10 +716,10 @@ export function BDDiagramBuilderComponent({
         <section className="bd-diagram-section hidden min-h-0 flex-col xl:flex">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="bd-diagram-section-title">Preview</h3>
-            {renderExportActions(canvasRef)}
+            {renderExportActions(canvasHandle)}
           </div>
           <BDDiagramCanvas
-            ref={canvasRef}
+            ref={setCanvasHandle}
             chart={previewChart}
             className="min-h-0 flex-1"
             surfaceClassName="bd-diagram-surface"
@@ -701,11 +742,11 @@ export function BDDiagramBuilderComponent({
         title={`Preview — ${draft.name}`}
         size="xl"
         bodyScroll={false}
-        footer={renderExportActions(modalCanvasRef)}
+        footer={renderExportActions(modalCanvasHandle)}
       >
         <div className="flex h-full min-h-0 flex-col">
           <BDDiagramCanvas
-            ref={modalCanvasRef}
+            ref={setModalCanvasHandle}
             chart={previewChart}
             className="min-h-0 flex-1"
             surfaceClassName="bd-diagram-surface"

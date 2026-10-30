@@ -232,7 +232,7 @@ export function BDSpecDetailComponent({
                   icon={Wand2}
                   onClick={() => setRefineOpen(true)}
                 >
-                  AI Refine
+                  AI Assist
                 </BDButton>
                 <BDButton icon={Save} isLoading={saving} onClick={handleSave}>
                   Save

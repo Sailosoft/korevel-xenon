@@ -15,8 +15,11 @@ import {
 } from "../agent-manager/BDGeneration.Mode";
 import type {
   BDSpecArtifact,
+  BDSpecAssistMode,
   BDSpecDocMode,
   BDSpecDraft,
+  BDSpecEnhancementAnalysis,
+  BDSpecEnhancementArea,
   BDSpecRefineAnswer,
   BDSpecRefineOption,
   BDSpecRefineQuestion,
@@ -55,6 +58,11 @@ export interface BDSpecQuestionsParams {
   minQuestions: number;
   maxQuestions: number;
   refinementType: string;
+  /** Enhance mode focuses questions on the selected improvement areas. */
+  mode?: BDSpecAssistMode;
+  focusAreas?: string[];
+  /** Optional user-authored guidance for the whole refinement flow. */
+  instruction?: string;
   priorAnswers?: BDSpecRefineAnswer[];
   aiConfig?: BDAIConfigOverride;
 }
@@ -64,6 +72,18 @@ export interface BDSpecRevisionParams {
   refinementType: string;
   answers: BDSpecRefineAnswer[];
   docMode: BDSpecDocMode;
+  mode?: BDSpecAssistMode;
+  focusAreas?: string[];
+  /** Optional user-authored guidance for the whole refinement flow. */
+  instruction?: string;
+  aiConfig?: BDAIConfigOverride;
+}
+
+export interface BDSpecEnhancementParams {
+  document: BDSpecDocumentInput;
+  docMode: BDSpecDocMode;
+  /** Optional user-authored guidance for the analysis and later turns. */
+  instruction?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -180,6 +200,44 @@ const QUESTIONS_DSL: HelixAISchemaOptions = {
   },
 };
 
+const ENHANCEMENT_DSL: HelixAISchemaOptions = {
+  name: "spec_enhancement_analysis",
+  description: "An assessment of a document and its highest-impact gaps.",
+  properties: {
+    summary: {
+      type: "string",
+      description:
+        "One or two sentences diagnosing the document's main weakness and what enhancement should achieve.",
+    },
+    areas: {
+      type: "array",
+      description:
+        "Two to five distinct, concrete improvement areas, ordered by impact.",
+      items: {
+        type: "object",
+        description: "An improvement area.",
+        properties: {
+          label: {
+            type: "string",
+            description:
+              "Short action-oriented label, e.g. 'Clarify system boundaries'.",
+          },
+          rationale: {
+            type: "string",
+            description:
+              "Why this area matters for this specific document (one sentence).",
+          },
+          recommended: {
+            type: "boolean",
+            description:
+              "True for the highest-impact area(s) the editor recommends.",
+          },
+        },
+      },
+    },
+  },
+};
+
 const REVISION_DSL: HelixAISchemaOptions = {
   name: "spec_revision",
   description: "A revised spec document.",
@@ -217,6 +275,18 @@ const REVISION_DSL: HelixAISchemaOptions = {
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+const MAX_INSTRUCTION_LENGTH = 2000;
+
+/** Normalize optional user guidance into a consistent prompt block. */
+function instructionBlock(instruction?: string): string {
+  const trimmed = (instruction ?? "").trim().slice(0, MAX_INSTRUCTION_LENGTH);
+  if (!trimmed) return "";
+  return (
+    "\n\nUser instruction (follow this; it takes precedence over generic " +
+    `focus when they conflict):\n${trimmed}`
+  );
 }
 
 function normalizeSection(raw: unknown): BDSpecSectionDraft | null {
@@ -302,6 +372,87 @@ function normalizeQuestion(raw: unknown): BDSpecRefineQuestion | null {
   };
 }
 
+function normalizeEnhancementArea(
+  raw: unknown,
+): BDSpecEnhancementArea | null {
+  if (!raw || typeof raw !== "object") return null;
+  const area = raw as Record<string, unknown>;
+  const label = asString(area.label).trim();
+  if (!label) return null;
+  return {
+    id: crypto.randomUUID(),
+    label,
+    rationale: asString(area.rationale) || undefined,
+    recommended: area.recommended === true,
+  };
+}
+
+/**
+ * Assess a document and propose the highest-impact improvement areas for the
+ * Enhance mode. Never throws for empty AI output: a generic fallback area keeps
+ * the flow usable.
+ *
+ * @throws A clean `Error` when the AI call itself fails.
+ */
+export async function bdAnalyzeSpecEnhancement(
+  params: BDSpecEnhancementParams,
+): Promise<BDSpecEnhancementAnalysis> {
+  const document = bdSerializeTarget(params.document);
+
+  const system =
+    "You are a senior technical editor. Assess the document against its " +
+    "declared type and identify the highest-impact ways to improve it. " +
+    "Propose two to five distinct, concrete improvement areas that do not " +
+    "overlap; never suggest cosmetic rewording when a structural gap exists. " +
+    "Prioritize the user's instruction when selecting and ordering areas. " +
+    "Mark the single highest-impact area (or the few that are clearly equally " +
+    "critical) as recommended. Return only the structured JSON requested.";
+
+  const user =
+    `Document type: ${params.document.type}.` +
+    instructionBlock(params.instruction) +
+    `\n\nCurrent document:\n${document}`;
+
+  const raw = await bdGenerateStructured({
+    system,
+    user,
+    schema: ENHANCEMENT_DSL,
+    aiConfig: params.aiConfig,
+    temperature: 0.4,
+    maxToken: 8000,
+  });
+
+  const summary =
+    asString(raw.summary).trim() ||
+    "The document can be made clearer and more complete.";
+
+  const seen = new Set<string>();
+  const areas: BDSpecEnhancementArea[] = [];
+  for (const entry of Array.isArray(raw.areas) ? raw.areas : []) {
+    const area = normalizeEnhancementArea(entry);
+    if (!area || seen.has(area.label.toLowerCase())) continue;
+    seen.add(area.label.toLowerCase());
+    areas.push(area);
+    if (areas.length >= 5) break;
+  }
+
+  if (areas.length === 0) {
+    areas.push({
+      id: crypto.randomUUID(),
+      label: "Overall clarity and completeness",
+      rationale:
+        "The AI did not identify specific areas, so improve the document end to end.",
+      recommended: true,
+    });
+  }
+
+  if (!areas.some((area) => area.recommended)) {
+    areas[0].recommended = true;
+  }
+
+  return { summary, areas };
+}
+
 export async function bdGenerateSpec(
   params: BDSpecGenerateParams,
 ): Promise<BDSpecArtifact> {
@@ -381,19 +532,32 @@ export async function bdGenerateSpecQuestions(
           .join("\n")}`
       : "";
 
+  const isEnhance = params.mode === "enhance";
+  const focus =
+    isEnhance && params.focusAreas && params.focusAreas.length > 0
+      ? `\n\nSelected improvement areas (focus the questions here): ${params.focusAreas.join(
+          ", ",
+        )}.`
+      : "";
+
   const system =
     "You are a senior technical editor refining a software document. Ask " +
     "focused, high-leverage clarifying questions whose answers let you " +
-    "materially improve the document. For every question give EXACTLY four " +
-    "distinct, concrete, mutually exclusive answer options and mark the single " +
-    "best option with recommendedIndex. Return only the structured JSON " +
-    "requested.";
+    "materially improve the document. " +
+    (isEnhance
+      ? "The goal is enhancement: close the gaps in the selected improvement areas rather than re-asking general clarification. "
+      : "") +
+    "Follow the user's instruction when one is provided. " +
+    "For every question give EXACTLY four distinct, concrete, mutually " +
+    "exclusive answer options and mark the single best option with " +
+    "recommendedIndex. Return only the structured JSON requested.";
 
   const user =
     `Document type: ${params.document.type}. Refinement type: ${params.refinementType}. ` +
     `Refinement depth: ${params.level}. ` +
     `Turn ${params.turnIndex + 1} of ${params.totalTurns}. Ask between ` +
-    `${params.minQuestions} and ${params.maxQuestions} questions.\n\n` +
+    `${params.minQuestions} and ${params.maxQuestions} questions.${focus}` +
+    `${instructionBlock(params.instruction)}\n\n` +
     `Current document:\n${document}${prior}`;
 
   const raw = await bdGenerateStructured({
@@ -431,6 +595,13 @@ export async function bdReviseSpec(
     .map((a) => `- ${a.question} → ${a.answer}`)
     .join("\n");
 
+  const focus =
+    params.focusAreas && params.focusAreas.length > 0
+      ? `\n\nSelected improvement areas (address these in the revision): ${params.focusAreas.join(
+          ", ",
+        )}.`
+      : "";
+
   const structureHint =
     params.docMode === "single"
       ? 'Return the entire revised document in the "content" field and an empty sections array.'
@@ -438,15 +609,16 @@ export async function bdReviseSpec(
 
   const system =
     "You are a senior technical editor. Revise the document by applying the " +
-    "user's chosen answers. Preserve what already works, keep the writing " +
-    "information-dense and free of filler, and keep the document " +
-    "self-consistent. " +
+    "user's chosen answers and satisfying the user's instruction. Preserve " +
+    "what already works, keep the writing information-dense and free of " +
+    "filler, and keep the document self-consistent. " +
     structureHint +
     " Return only the structured JSON requested.";
 
   const user =
     `Document type: ${params.document.type}. Refinement type: ${params.refinementType}.\n\n` +
-    `Current document:\n${document}\n\nChosen answers:\n${answers}`;
+    `Current document:\n${document}\n\nChosen answers:\n${answers}${focus}` +
+    instructionBlock(params.instruction);
 
   const raw = await bdGenerateStructured({
     system,
