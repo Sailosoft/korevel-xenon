@@ -2,6 +2,24 @@
 
 export * from "./BDSpec.Types";
 export {
+  applySpecPatches,
+  normalizeSpecPatches,
+  serializeSpecTarget,
+  describeSpecPatch,
+  BDSpecPatchError,
+  BD_SPEC_PATCH_MAX_CHARS,
+  type BDSpecPatchOp,
+  type BDSpecPatchSection,
+  type BDSpecPatchable,
+  type BDSpecPatchSummary,
+} from "./BDSpec.Patch";
+export {
+  setBDSpecPendingPatches,
+  takeBDSpecPendingPatches,
+  type BDSpecPendingPatches,
+} from "./BDSpec.Pending";
+export { BDSpecChangesView } from "./BDSpecChangesView";
+export {
   BDSpecRepository,
   bdSpecRepository,
   BDSpecGroupRepository,

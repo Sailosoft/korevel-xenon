@@ -30,11 +30,13 @@ import {
   createSection,
   inferDocMode,
   specDraftToMarkdown,
-  type BDSpecArtifact,
+  type BDSpecGenerationArtifact,
   type BDSpecSectionDraft,
 } from "./BDSpec.Types";
-import { bdGenerateSpec } from "./BDSpecBuilder.Server";
-import { bdSerializeTarget } from "../agent-manager/BDGeneration.Mode";
+import { applySpecPatches, serializeSpecTarget } from "./BDSpec.Patch";
+import { setBDSpecPendingPatches } from "./BDSpec.Pending";
+import { bdGenerateSpec, bdPatchSpec } from "./BDSpecBuilder.Server";
+import BDSpecChangesView from "./BDSpecChangesView";
 import BDSpecCreateModal, {
   type BDSpecCreateInput,
 } from "./BDSpecCreateModal.Component";
@@ -61,27 +63,6 @@ function draftSectionsToRecords(
     ),
     content: s.content ?? "",
   }));
-}
-
-/** Merge generated sections into existing ones, matched by title. */
-function mergeSectionsByTitle(
-  existing: BDSpecSection[],
-  incoming: BDSpecSection[],
-): BDSpecSection[] {
-  const result = [...existing];
-  for (const section of incoming) {
-    const index = result.findIndex((s) => s.title === section.title);
-    if (index >= 0) {
-      result[index] = {
-        ...section,
-        id: result[index].id,
-        position: result[index].position,
-      };
-    } else {
-      result.push(section);
-    }
-  }
-  return result;
 }
 
 export interface BDSpecBuilderComponentProps {
@@ -133,48 +114,25 @@ export function BDSpecBuilderComponent({
     toast({ title: "Deleted", status: "success" });
   };
 
-  const applyArtifact = async (
-    artifact: BDSpecArtifact,
-    mode: BDGenerationMode,
+  const applyGeneration = async (
+    artifact: BDSpecGenerationArtifact,
+    _mode: BDGenerationMode,
     targetId?: string,
   ) => {
-    if (mode !== "create") {
+    if (artifact.kind === "patches") {
       if (!targetId) throw new Error("Select a document first.");
-      const target = await bdSpecRepository.get(targetId);
-      if (!target) throw new Error("The selected document no longer exists.");
-      const generated = artifact.specs[0];
-      const patch: Partial<BDSpecRecord> = {};
-
-      if (aiDocMode === "single") {
-        patch.docMode = "single";
-        patch.content = generated?.content ?? target.content ?? "";
-        if (mode === "replace") patch.sections = [];
-      } else {
-        patch.docMode = "sectioned";
-        const incoming = draftSectionsToRecords(generated?.sections);
-        patch.sections =
-          mode === "append"
-            ? [...target.sections, ...incoming]
-            : mode === "update"
-              ? mergeSectionsByTitle(target.sections, incoming)
-              : incoming;
-      }
-
-      if (mode === "replace" || mode === "update") {
-        patch.name = generated?.name ?? target.name;
-        patch.summary = generated?.summary ?? target.summary;
-        patch.status =
-          (generated?.status as BDSpecRecord["status"]) ?? target.status;
-        patch.type = (generated?.type as BDSpecRecord["type"]) ?? target.type;
-      }
-      await bdSpecRepository.update(targetId, patch);
+      setBDSpecPendingPatches({
+        specId: targetId,
+        patches: artifact.patches,
+        source: "generate",
+      });
       return;
     }
 
     let baseId: string | undefined;
     let firstId: string | undefined;
-    for (let index = 0; index < artifact.specs.length; index++) {
-      const draftSpec = artifact.specs[index];
+    for (let index = 0; index < artifact.artifact.specs.length; index++) {
+      const draftSpec = artifact.artifact.specs[index];
       const created = await bdSpecRepository.create({
         ...createSpec(
           projectId,
@@ -256,7 +214,7 @@ export function BDSpecBuilderComponent({
         }
       />
 
-      <BDGenerationPanel<BDSpecArtifact>
+      <BDGenerationPanel<BDSpecGenerationArtifact>
         projectId={projectId}
         subsystem="specs"
         open={aiOpen}
@@ -264,24 +222,65 @@ export function BDSpecBuilderComponent({
         title="AI Document Assist · Generate"
         description="Generate a spec document or several alternative variants to compare."
         placeholder="e.g. Propose two architectures for a multi-tenant SaaS"
-        generate={({ instruction, mode, aiConfig, targetContext }) =>
-          bdGenerateSpec({
-            instruction,
+        generate={async ({
+          instruction,
+          mode,
+          aiConfig,
+          targetContext,
+          targetId,
+        }): Promise<BDSpecGenerationArtifact> => {
+          if (mode === "create") {
+            const artifact = await bdGenerateSpec({
+              instruction,
+              mode,
+              type: aiType,
+              docMode: aiDocMode,
+              variants: 1,
+              targetContext,
+              aiConfig,
+            });
+            return { kind: "create", artifact };
+          }
+
+          if (!targetId) throw new Error("Select a document first.");
+          const target = groupRecords.find((record) => record.id === targetId);
+          if (!target) throw new Error("The selected document no longer exists.");
+
+          const { patches } = await bdPatchSpec({
+            documentContext: targetContext ?? serializeSpecTarget(target),
+            docMode: inferDocMode(target),
             mode,
-            type: aiType,
-            docMode: aiDocMode,
-            variants: 1,
-            targetContext,
+            instruction,
             aiConfig,
-          })
+          });
+          const { record: after, summary } = applySpecPatches(target, patches);
+          return { kind: "patches", patches, before: target, after, summary };
+        }}
+        onApply={applyGeneration}
+        onApplied={(proposal) => {
+          if (proposal.mode !== "create" && proposal.targetId) {
+            router.push(specHref(proposal.targetId));
+          }
+        }}
+        getAppliedToast={(_artifact, mode) =>
+          mode === "create"
+            ? { title: "Generated" }
+            : {
+                title: "AI changes staged",
+                description: "Review the diff and Save to persist.",
+              }
         }
-        onApply={applyArtifact}
+        getReviewDescription={(mode) =>
+          mode === "create"
+            ? "Nothing is written until you apply. Applying creates new documents."
+            : "Nothing is saved until you click Save in the document. Applying stages these patches in the document draft for review."
+        }
         defaultMode="create"
         targets={groupRecords.map((r) => ({ id: r.id, label: r.name }))}
         targetLabel="Document"
         buildTargetContext={(id) => {
           const record = groupRecords.find((r) => r.id === id);
-          return record ? bdSerializeTarget(record) : undefined;
+          return record ? serializeSpecTarget(record) : undefined;
         }}
         extraFields={
           <>
@@ -316,34 +315,54 @@ export function BDSpecBuilderComponent({
             </label>
           </>
         }
-        renderPreview={(artifact) => (
-          <div className="flex flex-col gap-3">
-            {artifact.specs.map((a, i) => (
-              <div key={i} className="rounded-xl border border-slate-200 p-3">
-                <div className="mb-2">
-                  <p className="text-sm font-semibold text-slate-800">{a.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {a.type} ·{" "}
-                    {aiDocMode === "single"
-                      ? "single content"
-                      : `${(a.sections ?? []).length} sections`}
-                    {a.variantLabel ? ` · ${a.variantLabel}` : ""}
-                  </p>
-                </div>
-                <div className="bd-scroll max-h-[50vh] overflow-y-auto rounded-lg border border-slate-100 p-3">
-                  <BDMarkdownView
-                    content={specDraftToMarkdown({
-                      name: a.name,
-                      summary: a.summary,
-                      content: a.content,
-                      sections: a.sections,
-                    })}
-                  />
-                </div>
+        renderPreview={(artifact) => {
+          if (artifact.kind === "create") {
+            return (
+              <div className="flex flex-col gap-3">
+                {artifact.artifact.specs.map((a, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 p-3">
+                    <div className="mb-2">
+                      <p className="text-sm font-semibold text-slate-800">
+                        {a.name}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {a.type} ·{" "}
+                        {aiDocMode === "single"
+                          ? "single content"
+                          : `${(a.sections ?? []).length} sections`}
+                        {a.variantLabel ? ` · ${a.variantLabel}` : ""}
+                      </p>
+                    </div>
+                    <div className="bd-scroll max-h-[50vh] overflow-y-auto rounded-lg border border-slate-100 p-3">
+                      <BDMarkdownView
+                        content={specDraftToMarkdown({
+                          name: a.name,
+                          summary: a.summary,
+                          content: a.content,
+                          sections: a.sections,
+                        })}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          }
+
+          return (
+            <div className="flex flex-col gap-3">
+              <BDSpecChangesView
+                before={artifact.before}
+                after={artifact.after}
+                patches={artifact.patches}
+                fileName={artifact.after.name}
+              />
+              <div className="bd-scroll max-h-[50vh] overflow-y-auto rounded-lg border border-slate-100 p-3">
+                <BDMarkdownView content={specDraftToMarkdown(artifact.after)} />
+              </div>
+            </div>
+          );
+        }}
       />
 
       <BDList<BDSpecRecord>

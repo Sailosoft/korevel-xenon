@@ -3,7 +3,7 @@
 // BDSpecDetail.Component — Specs page 3: one spec document. Owns display,
 // editing, save, exports, variants, AI refine, and variant comparison.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Copy,
@@ -12,6 +12,7 @@ import {
   FileText,
   GitCompare,
   Globe,
+  RotateCcw,
   Save,
   Wand2,
 } from "lucide-react";
@@ -24,8 +25,14 @@ import {
 } from "./BDSpec.Hooks";
 import { bdSpecRepository } from "./BDSpec.Repository";
 import { inferDocMode, slugify } from "./BDSpec.Types";
+import {
+  applySpecPatches,
+  type BDSpecPatchOp,
+} from "./BDSpec.Patch";
+import { takeBDSpecPendingPatches } from "./BDSpec.Pending";
 import { toSpecHtml, toSpecMarkdown } from "./BDSpecExport";
 import BDSpecComponent from "./BDSpec.Component";
+import BDSpecChangesView from "./BDSpecChangesView";
 import BDSpecRefineComponent from "./BDSpecRefine.Component";
 import BDPageHeader from "../../components/BDPageHeader";
 import BDBackLink from "../../components/BDBackLink";
@@ -63,6 +70,12 @@ export function BDSpecDetailComponent({
   const [refineOpen, setRefineOpen] = useState(false);
   const [deleting, setDeleting] = useState<BDSpecRecord | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pendingBaseline, setPendingBaseline] = useState<BDSpecRecord | null>(
+    null,
+  );
+  const [pendingPatches, setPendingPatches] = useState<BDSpecPatchOp[]>([]);
+  const [showPendingDiff, setShowPendingDiff] = useState(false);
+  const pendingConsumed = useRef(false);
 
   const validRecord =
     record && record.projectId === projectId && record.groupId === groupId
@@ -76,12 +89,76 @@ export function BDSpecDetailComponent({
       ? draftState.data
       : validRecord;
 
+  // Consume AI patches handed off from the group page. Only stage onto the live
+  // record when there is no local draft, so in-progress edits are never
+  // clobbered.
+  useEffect(() => {
+    if (pendingConsumed.current) return;
+    if (!validRecord || draftState) return;
+    const pending = takeBDSpecPendingPatches(specId);
+    if (!pending) return;
+    pendingConsumed.current = true;
+
+    // Defer the state updates out of the effect body: applying patches is an
+    // external-to-React transition and this also avoids cascading renders.
+    queueMicrotask(() => {
+      try {
+        const { record: next, summary } = applySpecPatches(
+          validRecord,
+          pending.patches,
+        );
+        setPendingBaseline(validRecord);
+        setPendingPatches(pending.patches);
+        setDraftState({ id: specId, data: next });
+        toast({
+          title: "AI changes staged",
+          description: `${summary.operations} change${
+            summary.operations === 1 ? "" : "s"
+          } — review and Save.`,
+          status: "success",
+        });
+      } catch (err) {
+        toast({
+          title: "AI changes could not be applied",
+          description: err instanceof Error ? err.message : undefined,
+          status: "error",
+        });
+      }
+    });
+  }, [validRecord, draftState, specId, toast]);
+
   const baseHref = `/modules/bunny-dev/projects/${projectId}/specs/${groupId}`;
   const specHref = (id: string) => `${baseHref}/${id}`;
 
   const update = (patch: Partial<BDSpecRecord>) => {
     if (!draft) return;
     setDraftState({ id: specId, data: { ...draft, ...patch } });
+  };
+
+  const applyAiPatches = (recordId: string, patches: BDSpecPatchOp[]) => {
+    if (!draft || draft.id !== recordId) {
+      throw new Error("The document changed. Close AI Assist and retry.");
+    }
+    const { record: next, summary } = applySpecPatches(draft, patches);
+    setPendingBaseline((prev) => prev ?? draft);
+    setPendingPatches((prev) => [...prev, ...patches]);
+    setDraftState({ id: specId, data: next });
+    toast({
+      title: "AI changes staged",
+      description: `${summary.operations} change${
+        summary.operations === 1 ? "" : "s"
+      } — review and Save.`,
+      status: "success",
+    });
+  };
+
+  const discardPending = () => {
+    if (!pendingBaseline) return;
+    setDraftState({ id: specId, data: pendingBaseline });
+    setPendingBaseline(null);
+    setPendingPatches([]);
+    setShowPendingDiff(false);
+    toast({ title: "AI changes discarded", status: "info" });
   };
 
   const familyRootId = draft?.variantOfId ?? draft?.id;
@@ -106,6 +183,9 @@ export function BDSpecDetailComponent({
         updatedAt: new Date().toISOString(),
       });
       setDraftState(null);
+      setPendingBaseline(null);
+      setPendingPatches([]);
+      setShowPendingDiff(false);
       toast({ title: "Spec saved", status: "success" });
     } finally {
       setSaving(false);
@@ -341,6 +421,48 @@ export function BDSpecDetailComponent({
             </div>
           )}
 
+          {pendingBaseline && pendingPatches.length > 0 && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-blue-800">
+                  AI changes staged · {pendingPatches.length} operation
+                  {pendingPatches.length === 1 ? "" : "s"}
+                </span>
+                <span className="text-xs text-blue-600">
+                  Review the changes and click Save to persist.
+                </span>
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <BDButton
+                    size="sm"
+                    variant="secondary"
+                    icon={GitCompare}
+                    onClick={() => setShowPendingDiff((value) => !value)}
+                  >
+                    {showPendingDiff ? "Hide changes" : "Review changes"}
+                  </BDButton>
+                  <BDButton
+                    size="sm"
+                    variant="ghost"
+                    icon={RotateCcw}
+                    onClick={discardPending}
+                  >
+                    Discard
+                  </BDButton>
+                </div>
+              </div>
+              {showPendingDiff && (
+                <div className="mt-3">
+                  <BDSpecChangesView
+                    before={pendingBaseline}
+                    after={draft}
+                    patches={pendingPatches}
+                    fileName={draft.name}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <BDSpecComponent
             record={draft}
             onChange={update}
@@ -356,14 +478,7 @@ export function BDSpecDetailComponent({
         projectId={projectId}
         documents={[draft]}
         initialDocumentId={draft.id}
-        onApply={(recordId, patch) => {
-          if (recordId !== draft.id) return;
-          update(patch);
-          toast({
-            title: "Refinement applied — review and save",
-            status: "success",
-          });
-        }}
+        onApply={applyAiPatches}
       />
 
       <BDConfirmDialog

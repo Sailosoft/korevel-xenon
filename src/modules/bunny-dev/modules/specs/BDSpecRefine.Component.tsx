@@ -19,7 +19,6 @@ import {
   BD_SPEC_REFINEMENT_GENERIC,
   inferDocMode,
   recommendedEnhancementAreas,
-  slugify,
   specDraftToMarkdown,
   specRefinementTypes,
   type BDSpecAssistMode,
@@ -27,8 +26,12 @@ import {
   type BDSpecRefineAnswer,
   type BDSpecRefineLevel,
   type BDSpecRefineQuestion,
-  type BDSpecSectionDraft,
 } from "./BDSpec.Types";
+import {
+  applySpecPatches,
+  BDSpecPatchError,
+  type BDSpecPatchOp,
+} from "./BDSpec.Patch";
 import { useBDAISettings } from "../ai-settings/BDAISettings.Context";
 import {
   bdAnalyzeSpecEnhancement,
@@ -40,6 +43,7 @@ import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 import BDBadge from "../../components/BDBadge";
 import BDMarkdownView from "../../components/BDMarkdownView";
+import BDSpecChangesView from "./BDSpecChangesView";
 
 type Phase = "setup" | "analysis" | "questions" | "review";
 
@@ -47,7 +51,8 @@ interface WorkingDoc {
   name: string;
   summary?: string;
   content?: string;
-  sections: BDSpecSectionDraft[];
+  docMode: BDSpecDocMode;
+  sections: BDSpecSection[];
 }
 
 export interface BDSpecRefineComponentProps {
@@ -56,7 +61,7 @@ export interface BDSpecRefineComponentProps {
   projectId: string;
   documents: BDSpecRecord[];
   initialDocumentId?: string;
-  onApply: (recordId: string, patch: Partial<BDSpecRecord>) => void;
+  onApply: (recordId: string, patches: BDSpecPatchOp[]) => void;
 }
 
 const LABEL = "text-[11px] font-medium text-slate-500";
@@ -120,27 +125,24 @@ function recordToWorking(record: BDSpecRecord): WorkingDoc {
     name: record.name,
     summary: record.summary,
     content: record.content,
-    sections: record.sections.map((s) => ({
-      title: s.title,
-      level: s.level,
-      summary: s.summary,
-      content: s.content,
-    })),
+    docMode: inferDocMode(record),
+    sections: record.sections.map((s) => ({ ...s })),
   };
 }
 
 function workingToInput(
   record: BDSpecRecord,
   doc: WorkingDoc,
-  docMode: BDSpecDocMode,
 ): BDSpecDocumentInput {
   return {
     name: doc.name,
     type: record.type,
     summary: doc.summary,
-    docMode,
+    docMode: doc.docMode,
     content: doc.content,
     sections: doc.sections.map((s) => ({
+      id: s.id,
+      anchor: s.anchor,
       title: s.title,
       level: s.level,
       summary: s.summary,
@@ -184,6 +186,11 @@ export function BDSpecRefineComponent({
   const [questions, setQuestions] = useState<BDSpecRefineQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<WorkingDoc | null>(null);
+  const [turnPatches, setTurnPatches] = useState<BDSpecPatchOp[]>([]);
+  const [accumulatedPatches, setAccumulatedPatches] = useState<
+    BDSpecPatchOp[]
+  >([]);
+  const [accumulatedTurn, setAccumulatedTurn] = useState(-1);
   const [priorAnswers, setPriorAnswers] = useState<BDSpecRefineAnswer[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +212,9 @@ export function BDSpecRefineComponent({
       setQuestions([]);
       setAnswers({});
       setPending(null);
+      setTurnPatches([]);
+      setAccumulatedPatches([]);
+      setAccumulatedTurn(-1);
       setPriorAnswers([]);
       setBusy(false);
       setError(null);
@@ -241,6 +251,9 @@ export function BDSpecRefineComponent({
     setQuestions([]);
     setAnswers({});
     setPending(null);
+    setTurnPatches([]);
+    setAccumulatedPatches([]);
+    setAccumulatedTurn(-1);
     setPriorAnswers([]);
     setTurnIndex(0);
     setError(null);
@@ -258,7 +271,7 @@ export function BDSpecRefineComponent({
     setError(null);
     try {
       const qs = await bdGenerateSpecQuestions({
-        document: workingToInput(selectedDocument, doc, docMode),
+        document: workingToInput(selectedDocument, doc),
         level,
         turnIndex: turn,
         totalTurns: levelConfig.turns,
@@ -283,6 +296,7 @@ export function BDSpecRefineComponent({
       setPriorAnswers(prior);
       setTurnIndex(turn);
       setPending(null);
+      setTurnPatches([]);
       setPhase("questions");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate questions.");
@@ -297,7 +311,7 @@ export function BDSpecRefineComponent({
     setError(null);
     try {
       const result = await bdAnalyzeSpecEnhancement({
-        document: workingToInput(selectedDocument, doc, docMode),
+        document: workingToInput(selectedDocument, doc),
         docMode,
         instruction,
         aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
@@ -323,6 +337,12 @@ export function BDSpecRefineComponent({
     }
     const doc = recordToWorking(selectedDocument);
     setWorking(doc);
+    setPending(null);
+    setTurnPatches([]);
+    setAccumulatedPatches([]);
+    setAccumulatedTurn(-1);
+    setPriorAnswers([]);
+    setTurnIndex(0);
     if (mode === "enhance") void runAnalysis(doc);
     else void fetchQuestions(0, doc, []);
   };
@@ -343,7 +363,7 @@ export function BDSpecRefineComponent({
     setError(null);
     try {
       const revision = await bdReviseSpec({
-        document: workingToInput(selectedDocument, doc, docMode),
+        document: workingToInput(selectedDocument, doc),
         refinementType,
         answers: answersList,
         docMode,
@@ -352,18 +372,23 @@ export function BDSpecRefineComponent({
         instruction,
         aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
       });
+
+      const { record: next } = applySpecPatches(doc, revision.patches);
       setPending({
-        name: revision.name?.trim() || doc.name,
-        summary: revision.summary ?? doc.summary,
-        content: docMode === "single" ? revision.content ?? doc.content : doc.content,
-        sections:
-          docMode === "sectioned"
-            ? revision.sections ?? doc.sections
-            : doc.sections,
+        name: next.name,
+        summary: next.summary,
+        content: next.content,
+        docMode: next.docMode ?? docMode,
+        sections: next.sections,
       });
+      setTurnPatches(revision.patches);
       setPhase("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revise the document.");
+      setError(
+        err instanceof BDSpecPatchError || err instanceof Error
+          ? err.message
+          : "Failed to revise the document.",
+      );
     } finally {
       setBusy(false);
     }
@@ -379,45 +404,37 @@ export function BDSpecRefineComponent({
     void generateRevision(working, answersArray());
   };
 
-  const finish = (doc: WorkingDoc) => {
+  const finish = (patches: BDSpecPatchOp[]) => {
     if (!selectedDocument) return;
-    const patch: Partial<BDSpecRecord> = {
-      name: doc.name,
-      summary: doc.summary,
-      updatedAt: new Date().toISOString(),
-    };
-    if (docMode === "single") {
-      patch.content = doc.content ?? "";
-    } else {
-      const existing = selectedDocument.sections;
-      patch.sections = doc.sections.map((s, i) => {
-        const prev = existing[i];
-        const section: BDSpecSection = {
-          id: prev?.id ?? crypto.randomUUID(),
-          title: s.title,
-          level: (s.level ?? 2) as BDSpecSection["level"],
-          anchor: slugify(s.title),
-          summary: s.summary,
-          content: s.content ?? "",
-          position: i,
-        };
-        return section;
-      });
+    try {
+      onApply(selectedDocument.id, patches);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to stage the changes.",
+      );
+      return;
     }
-    onApply(selectedDocument.id, patch);
     onOpenChange(false);
   };
 
   const handleAccept = (andFinish: boolean) => {
     if (!pending) return;
     const isLastTurn = turnIndex + 1 >= levelConfig.turns;
+    const alreadyAccumulated = accumulatedTurn === turnIndex;
+    const nextAccumulated = alreadyAccumulated
+      ? accumulatedPatches
+      : [...accumulatedPatches, ...turnPatches];
     if (andFinish || isLastTurn) {
-      finish(pending);
+      finish(nextAccumulated);
       return;
     }
     const doc = pending;
+    setAccumulatedPatches(nextAccumulated);
+    setAccumulatedTurn(turnIndex);
     setWorking(doc);
-    const nextPrior = [...priorAnswers, ...answersArray()];
+    const nextPrior = alreadyAccumulated
+      ? priorAnswers
+      : [...priorAnswers, ...answersArray()];
     setPriorAnswers(nextPrior);
     void fetchQuestions(
       turnIndex + 1,
@@ -816,15 +833,21 @@ export function BDSpecRefineComponent({
           </div>
         )}
 
-        {phase === "review" && pending && (
+        {phase === "review" && pending && working && (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <Check className="h-4 w-4 text-green-600" />
-              Review the revised document. Accept to keep it
+              Review the document changes. Accept to keep them
               {turnIndex + 1 >= levelConfig.turns
-                ? " and apply."
+                ? " and stage them for Save."
                 : " and continue to the next turn."}
             </div>
+            <BDSpecChangesView
+              before={working}
+              after={pending}
+              patches={turnPatches}
+              fileName={selectedDocument?.name}
+            />
             <div className="bd-scroll min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 p-4">
               <BDMarkdownView content={specDraftToMarkdown(pending)} />
             </div>

@@ -67,6 +67,13 @@ export interface BDGenerationPanelProps<TArtifact> {
   ) => Promise<void>;
   extraFields?: ReactNode;
   onApplied?: (proposal: BDBatchProposal) => void;
+  /** Customize the success toast after Apply (e.g. "AI changes staged"). */
+  getAppliedToast?: (
+    artifact: TArtifact,
+    mode: BDGenerationMode,
+  ) => { title: string; description?: string };
+  /** Customize the review modal description for the selected mode. */
+  getReviewDescription?: (mode: BDGenerationMode) => string;
   /** Existing records selectable as the append/update/replace target. */
   targets?: BDGenerationTarget[];
   /** Label for the target selector (e.g. "Schema group", "Board"). */
@@ -101,6 +108,8 @@ export function BDGenerationPanel<TArtifact>({
   onApply,
   extraFields,
   onApplied,
+  getAppliedToast,
+  getReviewDescription,
   targets,
   targetLabel = "Target",
   targetModes = DEFAULT_TARGET_MODES,
@@ -228,7 +237,12 @@ export function BDGenerationPanel<TArtifact>({
       await onApply(artifact, mode, effectiveTargetId);
       await resolveBatchProposal(proposal.id, "applied");
       onApplied?.(proposal);
-      toast({ title: "Applied successfully", status: "success" });
+      const appliedToast = getAppliedToast?.(artifact, mode);
+      toast({
+        title: appliedToast?.title ?? "Applied successfully",
+        description: appliedToast?.description,
+        status: "success",
+      });
       setArtifact(null);
       setProposal(null);
       setInstruction("");
@@ -375,13 +389,14 @@ export function BDGenerationPanel<TArtifact>({
         onClose={handleReject}
         title="Review generated artifacts"
         description={
-          mode === "create"
+          getReviewDescription?.(mode) ??
+          (mode === "create"
             ? "Nothing is written until you apply. Applying creates new records."
             : mode === "append"
               ? "Nothing is written until you apply. Applying adds the generated items to the selected target; existing items are kept."
               : mode === "update"
                 ? "Nothing is written until you apply. Applying merges the generated items into the selected target, preserving items not returned."
-                : "Nothing is written until you apply. Applying replaces the selected target's existing contents with the generated set."
+                : "Nothing is written until you apply. Applying replaces the selected target's existing contents with the generated set.")
         }
         size="xl"
         footer={
