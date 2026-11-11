@@ -1,19 +1,9 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
-import {
-  MDXEditor,
-  headingsPlugin,
-  listsPlugin,
-  quotePlugin,
-  thematicBreakPlugin,
-  markdownShortcutPlugin,
-  type MDXEditorMethods,
-} from "@mdxeditor/editor";
-import "@mdxeditor/editor/style.css";
-
+import { useState } from "react";
 import { Button, Modal } from "@heroui/react";
 import { Maximize2, Minimize2 } from "lucide-react";
+import BunnyMarkdownSurface from "./BunnyMarkdownSurface";
 
 /* ------------------------------------------------------------------ */
 /*  BunnyMDXEditor                                                     */
@@ -36,14 +26,6 @@ export interface BunnyMDXEditorProps {
   error?: string;
 }
 
-const MDX_PLUGINS = [
-  headingsPlugin(),
-  listsPlugin(),
-  quotePlugin(),
-  thematicBreakPlugin(),
-  markdownShortcutPlugin(),
-];
-
 export default function BunnyMDXEditor({
   id,
   value,
@@ -53,53 +35,7 @@ export default function BunnyMDXEditor({
   required,
   error,
 }: BunnyMDXEditorProps) {
-  const inlineRef = useRef<MDXEditorMethods>(null);
-  const dialogRef = useRef<MDXEditorMethods>(null);
-
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  // Sync external value into both editor instances
-  const syncEditors = useCallback((nextValue: string) => {
-    const currentInline = inlineRef.current?.getMarkdown() ?? "";
-    if (nextValue !== currentInline) {
-      inlineRef.current?.setMarkdown(nextValue);
-    }
-    const currentDialog = dialogRef.current?.getMarkdown() ?? "";
-    if (nextValue !== currentDialog) {
-      dialogRef.current?.setMarkdown(nextValue);
-    }
-  }, []);
-
-  // Sync when value changes externally (e.g. form reset)
-  useEffect(() => {
-    syncEditors(value);
-  }, [value, syncEditors]);
-
-  /* ---------- Shared editor element (avoids code duplication) -------- */
-  const renderEditor = (
-    editorRef: React.RefObject<MDXEditorMethods | null>,
-    compact = false,
-  ) => (
-    <div
-      className={
-        compact ? "min-h-[120px]" : "min-h-[400px] max-h-[70vh] overflow-y-auto"
-      }
-    >
-      <MDXEditor
-        ref={editorRef}
-        markdown={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        plugins={MDX_PLUGINS}
-        contentEditableClassName={
-          compact
-            ? "prose prose-sm dark:prose-invert max-w-none min-h-[100px] p-2 outline-none"
-            : "prose dark:prose-invert max-w-none min-h-[360px] p-4 outline-none"
-        }
-      />
-    </div>
-  );
-
   const showError = !!error;
 
   return (
@@ -126,8 +62,13 @@ export default function BunnyMDXEditor({
       )}
 
       {/* ---- Inline editor ---- */}
-      <div className="border rounded-md p-1 bg-background prose max-w-none dark:prose-invert">
-        {renderEditor(inlineRef, true)}
+      <div className="border rounded-md p-1 bg-background">
+        <BunnyMarkdownSurface
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          minHeight={120}
+        />
       </div>
 
       {showError && <p className="text-sm text-red-500 mt-1">{error}</p>}
@@ -151,8 +92,15 @@ export default function BunnyMDXEditor({
             </Modal.Header>
 
             <Modal.Body className="p-4 overflow-y-auto">
-              <div className="border rounded-md p-2 bg-background [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-medium [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:ml-4 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_p]:mb-2 [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded">
-                {renderEditor(dialogRef, false)}
+              <div className="border rounded-md p-2 bg-background">
+                {dialogOpen && (
+                  <BunnyMarkdownSurface
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    minHeight={360}
+                  />
+                )}
               </div>
             </Modal.Body>
 
