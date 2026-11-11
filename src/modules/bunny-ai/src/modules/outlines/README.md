@@ -244,7 +244,7 @@ mode-specific `context` between the artifact and the task turn.
 - **Context**: artifact only — no full map, no siblings.
 - **Algorithm**: write the current item as a fully self-contained unit.
 - **Pipeline execution**: the **only** mode that runs the batch concurrently
-  (bounded pool of 4) and reports each in-flight row; every other mode is
+  (bounded pool of 3) and reports each in-flight row; every other mode is
   strictly sequential.
 
 ### 5. `iterative_refine` — Iterative Refine
@@ -266,7 +266,7 @@ mode-specific `context` between the artifact and the task turn.
   global ~16k; empty items marked `(no content)`).
 - **Algorithm**: an audit, not a rewrite. Returns a JSON plan of typed findings:
   `insert`, `merge`, `reorder`, and `refine`. Item ids come from the bracketed
-  `[item <id>]` markers in the map.
+  `[item ]` markers in the map.
 - **Output**: JSON only, `planOnly` — the wizard renders it and never stores it
   as item content. Persisted to `outline.refinementPlan`.
 
@@ -307,3 +307,162 @@ writer and per-row mode selectors; `generateItemContentAction` rejects them.
 | `iterative_refine` | current existing content + optional directive | refined current content | no |
 | `critique` | full map + capped content | JSON plan (`planOnly`) | via apply |
 | `consolidate` | merge group + content (or full map) | JSON merged content (`planOnly`) | via apply |
+
+---
+
+## Mode mechanics: what actually differs
+
+The per-mode sections above describe each mode's *intent*. This section records
+the mechanical differences — the parts that are not in the prompt string: which
+fields are populated, which code path runs, what the response is allowed to
+become, and what is written afterwards.
+
+### Which mode is sibling-blind?
+
+`parallel` is the only mode where an item is written with **no awareness of any
+sibling at all** — not even titles or ordering:
+
+```ts
+const parallel = defineMode({
+  key: "parallel",
+  // Independent: nothing beyond the shared artifact frame.
+  context: () => null,
+});
+```
+
+`context: () => null` contributes no extra message, so the call is exactly three
+messages: the system instruction, `artifactContext`, and the final current-item
+task turn. The artifact frame never reads `params.items`
+(`bui.outline-chapter.generate-mode.ts:87-134`), and `resolveItemModeContext`
+returns `{}` for every mode except `chain_of_thought` and `control`
+(`bui.outline.action.content.ts:362-364`), so no sibling payload is even
+transported to the server.
+
+It is also the only mode the batch writer fans out: `isParallelMode()` matches
+`"parallel"` and nothing else (`bui.outline-chapter.component.pipeline.tsx:63-66`),
+running a sliding pool of `PARALLEL_CONCURRENCY = 3` (`:90`) over the content
+Route Handler, which is not serialized like a Server Action.
+
+Sibling-blind is **not** artifact-blind: outline title, description, AI
+instruction, summary, Topic, Author, skills and the word bounds are still
+injected. Total isolation does not exist, because `defineMode.build` always
+prepends `artifactContext` (`generate-mode.ts:300-320`).
+
+### Awareness matrix
+
+| Mode | Sibling titles/goals | Sibling content | Concurrent batch | Writes item content |
+|---|---|---|---|---|
+| `sequential` | yes (full map) | no | no | yes |
+| `chain_of_thought` | yes | yes, prior items as turns | no | yes |
+| `control` | only chosen references | only chosen references, uncapped | no | yes |
+| `parallel` | no | no | yes (3-wide) | yes |
+| `iterative_refine` | no | own existing content only | no | yes |
+| `critique` | yes (full map) | yes (capped) | no | no (`planOnly`) |
+| `consolidate` | merge group or full map | yes (capped) | no | no (`planOnly`) |
+
+### `control` vs `sequential`
+
+| Mechanism | `sequential` | `control` |
+|---|---|---|
+| Sibling channel | `params.items` (titles + goals only) | `params.siblingContext` (`action.content.ts:342-360`) |
+| Per-row persisted config | none | `referenceIds` column + `BUIOutlineChapterReferenceField` (`bui.outline-chapter.module.ts:83-88`) |
+| Defaulting | n/a | `options.referencedIds ?? persistedReferenceIds` (`action.content.ts:461-471`) — a stored row setting changes the prompt |
+| Binary branch | none | `referencing: false` → `{}` → the mode emits `### STANDALONE MODE` (`generate-mode.ts:364-369`) |
+| Sibling drafts | never — the map is built without content (`action.content.ts:477-482`) | `### REFERENCED ITEMS` with `Draft:` blocks (`generate-mode.ts:214-223`), **uncapped** |
+| Coupling | none | runs in the sequential loop, so a referenced item written earlier in the batch is real content (`pipeline.tsx:294-300`) |
+
+Control is therefore the only **write** mode whose context is a function of a
+stored per-row selection plus a batch-wide toggle, and the only one that can
+inject sibling *drafts* as reference. Its uncapped drafts can exceed the map's
+`MAX_MAP_CONTENT_ITEM_CHARS` / `MAX_MAP_CONTENT_TOTAL_CHARS` budget
+(`generate-mode.ts:66-68`), so a large reference set can produce a bigger prompt
+than `critique`'s "full map".
+
+### `critique` / `consolidate` vs `sequential`
+
+1. **`planOnly` is enforced in code, not in the prompt.** `generateItemContentAction`
+   throws before any fetch: `"… is a plan-only mode. Use the Refine wizard
+   instead of content writing."` (`action.content.ts:409-414`). The batch selector
+   filters them out (`pipeline.tsx:80-82`), and an outline stored with a plan-only
+   `generationMode` is silently rewritten to `"sequential"` for the batch
+   (`:132-137`).
+2. **`output: "json"` changes post-processing.** Raw text is never stored;
+   `extractJsonObject` + `parseRefinementFindings` validate and normalise each
+   finding and drop malformed entries (`action.content.ts:586-643`).
+3. **Persistence goes to the outline, not the item.** `persistRefinementPlanAction`
+   writes `outline.refinementPlan` / `refinementPlanUpdatedAt` (`:689-704`).
+   `sequential` writes `item.content`, `wordCount`, `status`.
+4. **Different data scope.** Critique builds `items` *with* `content` and can be
+   restricted to `scopeIds` (`:719-736`); sequential deliberately strips content.
+5. **Its output mutates the item graph transactionally.**
+   `applyRefinementPlanAction` runs inside
+   `buiDatabase.transaction("rw", books, chapters)` and performs insertions,
+   merge-content writes + row deletes, reorder, contiguous renumber, and
+   `referenceIds` remap (`:906-1017`). Sequential's only side effect is one
+   `panelUpdate` on one row.
+6. **`consolidate` is the satellite of the same pathway.** `mergeGroup` scopes it
+   to ids (`bui.outline.entity.ts:76-77`) and its `mergedContent` is the payload
+   the apply step writes into the anchor (`action.content.ts:792-804`, `:937-963`).
+
+### `iterative_refine` vs `sequential`
+
+```ts
+for (let pass = 1; pass <= maxPasses; pass += 1) {   // clamp 1..3, default 2
+  const params = { ..., currentItem: { ...item, content }, refineDirective: directive };
+  const next = await requestItemContent(params, ..., "iterative_refine", ...);
+  const ratio = changeRatio(content, next);          // diffWords
+  log.push({ pass, changeRatio: ratio, content: next });
+  content = next;
+  if (ratio < REFINE_CONVERGENCE_THRESHOLD) break;   // 0.05
+}
+```
+
+- **N calls per item**, bounded by `REFINE_MAX_PASSES = 3` /
+  `REFINE_DEFAULT_PASSES = 2` and cut short when the change ratio drops below
+  `0.05` (`action.content.ts:558-560`, `:831-863`). Sequential is exactly one call.
+- **State is carried in JS, not in the template.** `currentItem: { ...item,
+  content }` makes each pass consume the previous pass's output (`:845`,
+  `:860`).
+- **A directive can arrive from another mode.** `refineDirective` is populated
+  from an approved `refine` finding produced by `critique` (`:634-639`, `:846`),
+  so the two modes compose.
+- **Blind to siblings by construction.** `params.items` is still built
+  (`:839-844`), but neither `artifactContext` nor this mode's `context` ever
+  reads it (`generate-mode.ts:384-403`), so the map is dead weight.
+- **Different status lifecycle.** `runIterativeRefineAction` never sets
+  `status: "being_generated"` and never resets to `"empty"` on failure, unlike
+  `generateItemContentAction` (`:428-431`, `:508-514`).
+- **Batch and wizard semantics diverge.** `planOnly` is false, so
+  `iterative_refine` is in `WRITABLE_MODES` (`pipeline.tsx:80-82`) and the batch
+  loop will run it — but that path passes no directive and does a **single**
+  call (`:294-300`). The multi-pass loop exists only in the Refine wizard
+  (`bui.outline-chapter.component.refine.tsx:298-301`).
+
+### Entry points
+
+```
+batch writer (pipeline.tsx:179)
+  └─► generateItemContentAction (action.content.ts:403)
+        ├─ mode.planOnly → throw        ← critique / consolidate stop here (:409-414)
+        └─► requestItemContent → POST /api/bunny-ai/outlines/item-content
+              └─► buildItemContext → mode.context (generate-mode.ts:464)
+
+refine wizard (refine.tsx)
+  ├─► runCritiquePlanAction     (:710) → JSON → outline.refinementPlan
+  ├─► runConsolidateMergeAction (:761) → JSON → mergedContent per finding
+  └─► runIterativeRefineAction  (:812) → loop, 5% diff convergence
+        └─► requestItemContent → same Route Handler
+
+applyRefinementPlanAction (:881) → one Dexie rw transaction over books + chapters
+```
+
+### Invariants
+
+- `sequential`'s entire sibling awareness is "titles and goals of every item, in
+  order" — `fullMapContext` with `includeContent` off (`generate-mode.ts:137-165`).
+  It even repeats the current item inside that map.
+- The other modes add a *different* kind of awareness, not more of the same:
+  `control` adds selected sibling drafts, `critique` adds every sibling's content
+  (capped), `iterative_refine` adds its own previous draft across a loop.
+- Truncation is asymmetric: `fullMapContext` and `mergeGroupContext` cap content
+  (`generate-mode.ts:66-68`, `:158-161`), `referencedContext` does not (`:214-223`).
