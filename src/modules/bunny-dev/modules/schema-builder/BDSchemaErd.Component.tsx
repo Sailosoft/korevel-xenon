@@ -18,7 +18,10 @@ import { useMemo, useRef, useState } from "react";
 import { Copy, Database, Download, FileCode2, Save } from "lucide-react";
 import type { BDSchemaGroup, BDSchemaModel } from "../../BDDomain.Types";
 import { bdDiagramRepository } from "../diagram-builder/BDDiagram.Repository";
-import { toDiagramSvg } from "../diagram-builder/BDDiagramExport";
+import {
+  svgToPngBlob,
+  toDiagramSvg,
+} from "../diagram-builder/BDDiagramExport";
 import { buildErdDiagramRecord, toErdMermaid } from "./BDErdExport";
 import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
@@ -36,59 +39,6 @@ export interface BDSchemaErdComponentProps {
   group: BDSchemaGroup | null;
   /** Models of that group. */
   models: BDSchemaModel[];
-}
-
-/** Rasterize SVG markup to a PNG blob (2× scale, white background). */
-async function svgToPng(
-  svg: string,
-  fallbackWidth: number,
-  fallbackHeight: number,
-): Promise<Blob> {
-  const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
-  const root = doc.documentElement;
-  const numeric = (value: string | null): number => {
-    if (!value) return NaN;
-    const parsed = parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : NaN;
-  };
-  const viewBox = (root.getAttribute("viewBox") ?? "")
-    .split(/[\s,]+/)
-    .map((part) => parseFloat(part))
-    .filter((part) => Number.isFinite(part));
-
-  const width =
-    numeric(root.getAttribute("width")) || viewBox[2] || fallbackWidth || 800;
-  const height =
-    numeric(root.getAttribute("height")) || viewBox[3] || fallbackHeight || 600;
-
-  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("Could not load the SVG"));
-      el.src = url;
-    });
-
-    const scale = 2;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(height * scale));
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas is unavailable");
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
-    );
-    if (!blob) throw new Error("PNG encoding failed");
-    return blob;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }
 
 export function BDSchemaErdComponent({
@@ -157,7 +107,7 @@ export function BDSchemaErdComponent({
     }
     try {
       const size = canvasRef.current?.getNaturalSize();
-      const blob = await svgToPng(svg, size?.width || 800, size?.height || 600);
+      const blob = await svgToPngBlob(svg, size ?? undefined);
       downloadBlob(`${baseName}.png`, blob);
     } catch (err) {
       toast({

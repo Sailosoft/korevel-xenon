@@ -7,6 +7,34 @@ import { CatalogApp, type CatalogRelease } from "./CatalogReleases.Interface";
 
 export const catalogReleases: CatalogRelease[] = [
   {
+    version: "v5.3.1",
+    title: "Version 5.3.1: Spec Patch Engine, Diagram PNG Export, Mobile Speech & Helix Updates",
+    content: [
+      "BunnyDeveloper: Specs AI generation and the Document Assist refine wizard now return patch operations — set meta, update/insert/delete/replace sections, and anchored content replacement — applied only to the referenced regions instead of rewriting the whole document.",
+      "BunnyDeveloper: Added a patch review view that lists each operation and renders a unified before/after document diff, plus a session-scoped handoff so staged patches survive navigation from the spec group to the document page and can be saved or discarded there.",
+      "BunnyDeveloper: Introduced a shared anchored-region text patch engine (start/end patterns, whitespace-tolerant matching, sequential application) and reused it for file-management AI patches.",
+      "BunnyDeveloper: Generation panels now accept custom applied toasts and review descriptions; Specs stages AI changes as pending patches with explicit save or discard.",
+      "BunnyDeveloper: Schema Builder columns can be reordered by drag and drop with before/after insertion indicators.",
+      "BunnyDeveloper: Diagram Builder and the Schema ERD now export PNG images (2× scale, white background, capped at 8192 px) alongside Mermaid, Markdown, and SVG.",
+      "BunnyBook: Reworked chapter text-to-speech for mobile — markdown stripping, sentence-sized chunking, installed English voice selection, engine unlock, resume watchdog, start/error hints, and chunk progress — in both the reader and the GitHub HTML export.",
+      "Bunny(1st): Book Builder now enables \"generate all chapters\" by default for new and reset books.",
+      "Catalog: Fixed the Releases page collapse animation with CSS grid rows and added aria-expanded and inert handling.",
+      "Helix: Local Ollama base URL is configurable via OLLAMA_LOCAL_BASE_URL (Docker defaults to host.docker.internal), added gemma3:4b, and refreshed the Ollama Cloud model list.",
+      "System: Upgraded MDXEditor from 3.55 to 4.3.4, added @tailwindcss/typography, and introduced a lazily loaded markdown editor surface shared by Bunny and Bunny Legacy, with link, table, and code-block toolbars in the legacy editor."
+    ],
+    apps: [
+      CatalogApp.BunnyDeveloper,
+      CatalogApp.BunnyBook,
+      CatalogApp.BunnyBookBuilder,
+      CatalogApp.Catalog
+    ],
+    dates: [
+      "2026-10-27",
+      "2026-10-30",
+      "2026-11-12"
+    ]
+  },
+  {
     version: "v5.3.0",
     title: "Version 5.3.0: App Builder VSCode Redesign, Specs & Docs, Schema & Board Upgrades",
     content: [

@@ -18,16 +18,23 @@ import {
   BD_SPEC_REFINE_LEVEL_ORDER,
   BD_SPEC_REFINEMENT_GENERIC,
   inferDocMode,
-  slugify,
+  recommendedEnhancementAreas,
   specDraftToMarkdown,
   specRefinementTypes,
+  type BDSpecAssistMode,
+  type BDSpecEnhancementAnalysis,
   type BDSpecRefineAnswer,
   type BDSpecRefineLevel,
   type BDSpecRefineQuestion,
-  type BDSpecSectionDraft,
 } from "./BDSpec.Types";
+import {
+  applySpecPatches,
+  BDSpecPatchError,
+  type BDSpecPatchOp,
+} from "./BDSpec.Patch";
 import { useBDAISettings } from "../ai-settings/BDAISettings.Context";
 import {
+  bdAnalyzeSpecEnhancement,
   bdGenerateSpecQuestions,
   bdReviseSpec,
   type BDSpecDocumentInput,
@@ -36,14 +43,16 @@ import BDModal from "../../components/BDModal";
 import BDButton from "../../components/BDButton";
 import BDBadge from "../../components/BDBadge";
 import BDMarkdownView from "../../components/BDMarkdownView";
+import BDSpecChangesView from "./BDSpecChangesView";
 
-type Phase = "setup" | "questions" | "review";
+type Phase = "setup" | "analysis" | "questions" | "review";
 
 interface WorkingDoc {
   name: string;
   summary?: string;
   content?: string;
-  sections: BDSpecSectionDraft[];
+  docMode: BDSpecDocMode;
+  sections: BDSpecSection[];
 }
 
 export interface BDSpecRefineComponentProps {
@@ -52,37 +61,88 @@ export interface BDSpecRefineComponentProps {
   projectId: string;
   documents: BDSpecRecord[];
   initialDocumentId?: string;
-  onApply: (recordId: string, patch: Partial<BDSpecRecord>) => void;
+  onApply: (recordId: string, patches: BDSpecPatchOp[]) => void;
 }
 
 const LABEL = "text-[11px] font-medium text-slate-500";
+
+const MODE_OPTIONS: {
+  value: BDSpecAssistMode;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "refine",
+    label: "Refine",
+    hint: "You pick a focus and depth; the AI asks targeted questions.",
+  },
+  {
+    value: "enhance",
+    label: "Enhance",
+    hint: "The AI finds the biggest gaps, then asks recommended questions.",
+  },
+];
+
+const MAX_INSTRUCTION_LENGTH = 2000;
+
+function InstructionField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className={LABEL}>Instruction (optional)</span>
+        <span className="text-[10px] text-slate-400">
+          {value.length} / {MAX_INSTRUCTION_LENGTH}
+        </span>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) =>
+          onChange(e.target.value.slice(0, MAX_INSTRUCTION_LENGTH))
+        }
+        disabled={disabled}
+        maxLength={MAX_INSTRUCTION_LENGTH}
+        rows={3}
+        placeholder="e.g. Focus on security trade-offs, migration risks, and rollout steps."
+        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+      />
+      <p className="text-[11px] text-slate-400">
+        Adds to the selected focus. Tell the AI what to prioritize or avoid.
+      </p>
+    </div>
+  );
+}
 
 function recordToWorking(record: BDSpecRecord): WorkingDoc {
   return {
     name: record.name,
     summary: record.summary,
     content: record.content,
-    sections: record.sections.map((s) => ({
-      title: s.title,
-      level: s.level,
-      summary: s.summary,
-      content: s.content,
-    })),
+    docMode: inferDocMode(record),
+    sections: record.sections.map((s) => ({ ...s })),
   };
 }
 
 function workingToInput(
   record: BDSpecRecord,
   doc: WorkingDoc,
-  docMode: BDSpecDocMode,
 ): BDSpecDocumentInput {
   return {
     name: doc.name,
     type: record.type,
     summary: doc.summary,
-    docMode,
+    docMode: doc.docMode,
     content: doc.content,
     sections: doc.sections.map((s) => ({
+      id: s.id,
+      anchor: s.anchor,
       title: s.title,
       level: s.level,
       summary: s.summary,
@@ -110,16 +170,27 @@ export function BDSpecRefineComponent({
     : globalAiConfig;
 
   const [phase, setPhase] = useState<Phase>("setup");
+  const [mode, setMode] = useState<BDSpecAssistMode>("refine");
   const [documentId, setDocumentId] = useState(initialDocumentId ?? "");
   const [level, setLevel] = useState<BDSpecRefineLevel>("medium");
   const [refinementType, setRefinementType] = useState<string>(
     BD_SPEC_REFINEMENT_GENERIC,
   );
+  const [instruction, setInstruction] = useState("");
+  const [analysis, setAnalysis] = useState<BDSpecEnhancementAnalysis | null>(
+    null,
+  );
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [turnIndex, setTurnIndex] = useState(0);
   const [working, setWorking] = useState<WorkingDoc | null>(null);
   const [questions, setQuestions] = useState<BDSpecRefineQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<WorkingDoc | null>(null);
+  const [turnPatches, setTurnPatches] = useState<BDSpecPatchOp[]>([]);
+  const [accumulatedPatches, setAccumulatedPatches] = useState<
+    BDSpecPatchOp[]
+  >([]);
+  const [accumulatedTurn, setAccumulatedTurn] = useState(-1);
   const [priorAnswers, setPriorAnswers] = useState<BDSpecRefineAnswer[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,14 +200,21 @@ export function BDSpecRefineComponent({
     setPrevOpen(open);
     if (open) {
       setPhase("setup");
+      setMode("refine");
       setDocumentId(initialDocumentId ?? documents[0]?.id ?? "");
       setLevel("medium");
       setRefinementType(BD_SPEC_REFINEMENT_GENERIC);
+      setInstruction("");
+      setAnalysis(null);
+      setSelectedAreas([]);
       setTurnIndex(0);
       setWorking(null);
       setQuestions([]);
       setAnswers({});
       setPending(null);
+      setTurnPatches([]);
+      setAccumulatedPatches([]);
+      setAccumulatedTurn(-1);
       setPriorAnswers([]);
       setBusy(false);
       setError(null);
@@ -165,23 +243,44 @@ export function BDSpecRefineComponent({
       answer: answers[q.id] ?? "",
     }));
 
+  const changeMode = (next: BDSpecAssistMode) => {
+    if (next === mode) return;
+    setMode(next);
+    setAnalysis(null);
+    setSelectedAreas([]);
+    setQuestions([]);
+    setAnswers({});
+    setPending(null);
+    setTurnPatches([]);
+    setAccumulatedPatches([]);
+    setAccumulatedTurn(-1);
+    setPriorAnswers([]);
+    setTurnIndex(0);
+    setError(null);
+    if (next === "enhance") setLevel("high");
+  };
+
   const fetchQuestions = async (
     turn: number,
     doc: WorkingDoc,
     prior: BDSpecRefineAnswer[],
+    focusAreas: string[] = [],
   ) => {
     if (!selectedDocument) return;
     setBusy(true);
     setError(null);
     try {
       const qs = await bdGenerateSpecQuestions({
-        document: workingToInput(selectedDocument, doc, docMode),
+        document: workingToInput(selectedDocument, doc),
         level,
         turnIndex: turn,
         totalTurns: levelConfig.turns,
         minQuestions: levelConfig.minQuestions,
         maxQuestions: levelConfig.maxQuestions,
         refinementType,
+        mode,
+        focusAreas,
+        instruction,
         priorAnswers: prior,
         aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
       });
@@ -197,9 +296,35 @@ export function BDSpecRefineComponent({
       setPriorAnswers(prior);
       setTurnIndex(turn);
       setPending(null);
+      setTurnPatches([]);
       setPhase("questions");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate questions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runAnalysis = async (doc: WorkingDoc) => {
+    if (!selectedDocument) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await bdAnalyzeSpecEnhancement({
+        document: workingToInput(selectedDocument, doc),
+        docMode,
+        instruction,
+        aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
+      });
+      setAnalysis(result);
+      setSelectedAreas(recommendedEnhancementAreas(result));
+      setPhase("analysis");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to analyze the document.",
+      );
     } finally {
       setBusy(false);
     }
@@ -212,7 +337,24 @@ export function BDSpecRefineComponent({
     }
     const doc = recordToWorking(selectedDocument);
     setWorking(doc);
-    void fetchQuestions(0, doc, []);
+    setPending(null);
+    setTurnPatches([]);
+    setAccumulatedPatches([]);
+    setAccumulatedTurn(-1);
+    setPriorAnswers([]);
+    setTurnIndex(0);
+    if (mode === "enhance") void runAnalysis(doc);
+    else void fetchQuestions(0, doc, []);
+  };
+
+  const handleAnalyze = () => {
+    if (!working) return;
+    void runAnalysis(working);
+  };
+
+  const handleAskQuestions = () => {
+    if (!working || selectedAreas.length === 0) return;
+    void fetchQuestions(0, working, [], selectedAreas);
   };
 
   const generateRevision = async (doc: WorkingDoc, answersList: BDSpecRefineAnswer[]) => {
@@ -221,24 +363,32 @@ export function BDSpecRefineComponent({
     setError(null);
     try {
       const revision = await bdReviseSpec({
-        document: workingToInput(selectedDocument, doc, docMode),
+        document: workingToInput(selectedDocument, doc),
         refinementType,
         answers: answersList,
         docMode,
+        mode,
+        focusAreas: mode === "enhance" ? selectedAreas : [],
+        instruction,
         aiConfig: { provider: aiConfig.provider, model: aiConfig.model },
       });
+
+      const { record: next } = applySpecPatches(doc, revision.patches);
       setPending({
-        name: revision.name?.trim() || doc.name,
-        summary: revision.summary ?? doc.summary,
-        content: docMode === "single" ? revision.content ?? doc.content : doc.content,
-        sections:
-          docMode === "sectioned"
-            ? revision.sections ?? doc.sections
-            : doc.sections,
+        name: next.name,
+        summary: next.summary,
+        content: next.content,
+        docMode: next.docMode ?? docMode,
+        sections: next.sections,
       });
+      setTurnPatches(revision.patches);
       setPhase("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revise the document.");
+      setError(
+        err instanceof BDSpecPatchError || err instanceof Error
+          ? err.message
+          : "Failed to revise the document.",
+      );
     } finally {
       setBusy(false);
     }
@@ -254,47 +404,44 @@ export function BDSpecRefineComponent({
     void generateRevision(working, answersArray());
   };
 
-  const finish = (doc: WorkingDoc) => {
+  const finish = (patches: BDSpecPatchOp[]) => {
     if (!selectedDocument) return;
-    const patch: Partial<BDSpecRecord> = {
-      name: doc.name,
-      summary: doc.summary,
-      updatedAt: new Date().toISOString(),
-    };
-    if (docMode === "single") {
-      patch.content = doc.content ?? "";
-    } else {
-      const existing = selectedDocument.sections;
-      patch.sections = doc.sections.map((s, i) => {
-        const prev = existing[i];
-        const section: BDSpecSection = {
-          id: prev?.id ?? crypto.randomUUID(),
-          title: s.title,
-          level: (s.level ?? 2) as BDSpecSection["level"],
-          anchor: slugify(s.title),
-          summary: s.summary,
-          content: s.content ?? "",
-          position: i,
-        };
-        return section;
-      });
+    try {
+      onApply(selectedDocument.id, patches);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to stage the changes.",
+      );
+      return;
     }
-    onApply(selectedDocument.id, patch);
     onOpenChange(false);
   };
 
   const handleAccept = (andFinish: boolean) => {
     if (!pending) return;
     const isLastTurn = turnIndex + 1 >= levelConfig.turns;
+    const alreadyAccumulated = accumulatedTurn === turnIndex;
+    const nextAccumulated = alreadyAccumulated
+      ? accumulatedPatches
+      : [...accumulatedPatches, ...turnPatches];
     if (andFinish || isLastTurn) {
-      finish(pending);
+      finish(nextAccumulated);
       return;
     }
     const doc = pending;
+    setAccumulatedPatches(nextAccumulated);
+    setAccumulatedTurn(turnIndex);
     setWorking(doc);
-    const nextPrior = [...priorAnswers, ...answersArray()];
+    const nextPrior = alreadyAccumulated
+      ? priorAnswers
+      : [...priorAnswers, ...answersArray()];
     setPriorAnswers(nextPrior);
-    void fetchQuestions(turnIndex + 1, doc, nextPrior);
+    void fetchQuestions(
+      turnIndex + 1,
+      doc,
+      nextPrior,
+      mode === "enhance" ? selectedAreas : [],
+    );
   };
 
   const recommendedFirst = (q: BDSpecRefineQuestion) =>
@@ -309,7 +456,33 @@ export function BDSpecRefineComponent({
           Cancel
         </BDButton>
         <BDButton icon={Sparkles} isLoading={busy} onClick={handleStart}>
-          Start refinement
+          {mode === "enhance" ? "Analyze document" : "Start refinement"}
+        </BDButton>
+      </>
+    ) : phase === "analysis" ? (
+      <>
+        <BDButton
+          variant="ghost"
+          onClick={() => setPhase("setup")}
+          disabled={busy}
+        >
+          Back
+        </BDButton>
+        <BDButton
+          variant="secondary"
+          icon={RotateCcw}
+          onClick={handleAnalyze}
+          disabled={busy}
+        >
+          Retry analysis
+        </BDButton>
+        <BDButton
+          icon={Sparkles}
+          isLoading={busy}
+          onClick={handleAskQuestions}
+          disabled={selectedAreas.length === 0}
+        >
+          Ask questions
         </BDButton>
       </>
     ) : phase === "questions" ? (
@@ -358,21 +531,32 @@ export function BDSpecRefineComponent({
       </>
     );
 
+  const modeLabel = mode === "enhance" ? "Enhance" : "Refine";
   const title =
     phase === "setup"
-      ? "AI Document Assist · Refine"
-      : `Refine · Turn ${turnIndex + 1} of ${levelConfig.turns}`;
+      ? `AI Document Assist · ${modeLabel}`
+      : phase === "analysis"
+        ? "AI Document Assist · Enhance analysis"
+        : `${modeLabel} · Turn ${turnIndex + 1} of ${levelConfig.turns}`;
+  const description =
+    phase === "setup"
+      ? mode === "enhance"
+        ? "The AI assesses the document, proposes improvement areas, then asks recommended questions."
+        : "Choose how thoroughly to refine and pick a refinement type."
+      : phase === "analysis"
+        ? "Review the AI assessment, then pick the improvement areas to focus on."
+        : `${levelConfig.label} · ${
+            mode === "enhance"
+              ? `${selectedAreas.length} focus areas`
+              : refinementType
+          }`;
 
   return (
     <BDModal
       open={open}
       onClose={close}
       title={title}
-      description={
-        phase === "setup"
-          ? "Choose how thoroughly to refine and pick a refinement type."
-          : `${levelConfig.label} · ${refinementType}`
-      }
+      description={description}
       size="full"
       footer={footer}
     >
@@ -383,8 +567,51 @@ export function BDSpecRefineComponent({
           </p>
         )}
 
+        {(phase === "questions" || phase === "review") &&
+          instruction.trim() && (
+            <p
+              className="line-clamp-2 rounded-lg bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500"
+              title={instruction}
+            >
+              <span className="font-medium text-slate-600">Instruction:</span>{" "}
+              {instruction}
+            </p>
+          )}
+
         {phase === "setup" && (
           <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <span className={LABEL}>AI mode</span>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {MODE_OPTIONS.map((option) => {
+                  const active = mode === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-xs ${
+                        active
+                          ? "border-blue-300 bg-blue-50/60"
+                          : "border-slate-200"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="bd-spec-assist-mode"
+                          checked={active}
+                          onChange={() => changeMode(option.value)}
+                        />
+                        <span className="font-semibold text-slate-700">
+                          {option.label}
+                        </span>
+                      </span>
+                      <span className="text-slate-400">{option.hint}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             <label className="flex flex-col gap-1">
               <span className={LABEL}>Document</span>
               <select
@@ -392,6 +619,8 @@ export function BDSpecRefineComponent({
                 onChange={(e) => {
                   setDocumentId(e.target.value);
                   setRefinementType(BD_SPEC_REFINEMENT_GENERIC);
+                  setAnalysis(null);
+                  setSelectedAreas([]);
                 }}
                 disabled={documents.length === 0}
                 className="max-w-md rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
@@ -441,27 +670,103 @@ export function BDSpecRefineComponent({
               </div>
             </div>
 
-            <label className="flex flex-col gap-1">
-              <span className={LABEL}>Refinement type</span>
-              <select
-                value={refinementType}
-                onChange={(e) => setRefinementType(e.target.value)}
-                className="max-w-md rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
-              >
-                <option value={BD_SPEC_REFINEMENT_GENERIC}>
-                  {BD_SPEC_REFINEMENT_GENERIC}
-                </option>
-                {typeOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+            {mode === "refine" && (
+              <label className="flex flex-col gap-1">
+                <span className={LABEL}>Refinement type</span>
+                <select
+                  value={refinementType}
+                  onChange={(e) => setRefinementType(e.target.value)}
+                  className="max-w-md rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-blue-400"
+                >
+                  <option value={BD_SPEC_REFINEMENT_GENERIC}>
+                    {BD_SPEC_REFINEMENT_GENERIC}
                   </option>
-                ))}
-              </select>
-            </label>
+                  {typeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <InstructionField
+              value={instruction}
+              onChange={setInstruction}
+              disabled={busy}
+            />
 
             <p className="text-[11px] text-slate-400">
               Using {aiConfig.provider} / {aiConfig.model}
             </p>
+          </div>
+        )}
+
+        {phase === "analysis" && analysis && working && (
+          <div className="flex flex-col gap-4">
+            <InstructionField
+              value={instruction}
+              onChange={setInstruction}
+              disabled={busy}
+            />
+            <p className="text-[11px] text-slate-400">
+              Changing the instruction updates the next questions. Use Retry
+              analysis to refresh the areas below.
+            </p>
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+              <p className="text-sm font-semibold text-slate-800">
+                AI assessment
+              </p>
+              <p className="mt-1 text-xs text-slate-600">{analysis.summary}</p>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Wand2 className="h-4 w-4 text-blue-500" />
+              Choose the areas the AI should improve.
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {analysis.areas.map((area) => {
+                const checked = selectedAreas.includes(area.label);
+                return (
+                  <label
+                    key={area.id}
+                    className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                      checked
+                        ? "border-blue-300 bg-blue-50/60"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedAreas((prev) =>
+                          checked
+                            ? prev.filter((label) => label !== area.label)
+                            : [...prev, area.label],
+                        )
+                      }
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                        {area.label}
+                        {area.recommended && (
+                          <BDBadge color="info">Recommended</BDBadge>
+                        )}
+                      </span>
+                      {area.rationale && (
+                        <span className="text-slate-400">
+                          {area.rationale}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -528,15 +833,21 @@ export function BDSpecRefineComponent({
           </div>
         )}
 
-        {phase === "review" && pending && (
+        {phase === "review" && pending && working && (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <Check className="h-4 w-4 text-green-600" />
-              Review the revised document. Accept to keep it
+              Review the document changes. Accept to keep them
               {turnIndex + 1 >= levelConfig.turns
-                ? " and apply."
+                ? " and stage them for Save."
                 : " and continue to the next turn."}
             </div>
+            <BDSpecChangesView
+              before={working}
+              after={pending}
+              patches={turnPatches}
+              fileName={selectedDocument?.name}
+            />
             <div className="bd-scroll min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 p-4">
               <BDMarkdownView content={specDraftToMarkdown(pending)} />
             </div>

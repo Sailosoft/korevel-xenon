@@ -1,22 +1,35 @@
 "use server";
 
-// BDSpecBuilder.Server — AI spec generation, variants, and the AI Document
-// Assist refinement (questions + revisions).
+// BDSpecBuilder.Server — AI spec generation, variants, patch-based document
+// editing, and the AI Document Assist refinement (questions + revisions).
 
 import type { BDGenerationMode } from "../../BDDomain.Types";
-import type { HelixAISchemaOptions } from "@/src/modules/helix/src/HelixAISchemaTypes";
+import type {
+  HelixAISchemaOptions,
+  HelixStrictPropertyDefinition,
+} from "@/src/modules/helix/src/HelixAISchemaTypes";
 import {
   bdGenerateStructured,
   type BDAIConfigOverride,
 } from "../agent-manager/BDGeneration.Server";
 import {
   bdBuildModeUser,
+  bdModeGuidance,
   bdSerializeTarget,
 } from "../agent-manager/BDGeneration.Mode";
+import { BD_MAX_PATTERN_WORDS } from "../core/BDTextPatch";
+import {
+  normalizeSpecPatches,
+  serializeSpecTarget,
+  type BDSpecPatchOp,
+} from "./BDSpec.Patch";
 import type {
   BDSpecArtifact,
+  BDSpecAssistMode,
   BDSpecDocMode,
   BDSpecDraft,
+  BDSpecEnhancementAnalysis,
+  BDSpecEnhancementArea,
   BDSpecRefineAnswer,
   BDSpecRefineOption,
   BDSpecRefineQuestion,
@@ -55,6 +68,11 @@ export interface BDSpecQuestionsParams {
   minQuestions: number;
   maxQuestions: number;
   refinementType: string;
+  /** Enhance mode focuses questions on the selected improvement areas. */
+  mode?: BDSpecAssistMode;
+  focusAreas?: string[];
+  /** Optional user-authored guidance for the whole refinement flow. */
+  instruction?: string;
   priorAnswers?: BDSpecRefineAnswer[];
   aiConfig?: BDAIConfigOverride;
 }
@@ -64,6 +82,18 @@ export interface BDSpecRevisionParams {
   refinementType: string;
   answers: BDSpecRefineAnswer[];
   docMode: BDSpecDocMode;
+  mode?: BDSpecAssistMode;
+  focusAreas?: string[];
+  /** Optional user-authored guidance for the whole refinement flow. */
+  instruction?: string;
+  aiConfig?: BDAIConfigOverride;
+}
+
+export interface BDSpecEnhancementParams {
+  document: BDSpecDocumentInput;
+  docMode: BDSpecDocMode;
+  /** Optional user-authored guidance for the analysis and later turns. */
+  instruction?: string;
   aiConfig?: BDAIConfigOverride;
 }
 
@@ -180,34 +210,37 @@ const QUESTIONS_DSL: HelixAISchemaOptions = {
   },
 };
 
-const REVISION_DSL: HelixAISchemaOptions = {
-  name: "spec_revision",
-  description: "A revised spec document.",
+const ENHANCEMENT_DSL: HelixAISchemaOptions = {
+  name: "spec_enhancement_analysis",
+  description: "An assessment of a document and its highest-impact gaps.",
   properties: {
-    name: { type: "string", description: "Revised document name." },
-    summary: { type: "string", description: "Revised short summary." },
-    content: {
+    summary: {
       type: "string",
       description:
-        "Full markdown body when the document is single-content; empty when sectioned.",
+        "One or two sentences diagnosing the document's main weakness and what enhancement should achieve.",
     },
-    sections: {
+    areas: {
       type: "array",
       description:
-        "Full ordered sections when the document is sectioned; empty when single-content.",
+        "Two to five distinct, concrete improvement areas, ordered by impact.",
       items: {
         type: "object",
-        description: "A revised section.",
+        description: "An improvement area.",
         properties: {
-          title: { type: "string", description: "Section title." },
-          level: { type: "number", description: "Heading level 1-6." },
-          summary: {
+          label: {
             type: "string",
-            description: "One-sentence TL;DR of this section.",
+            description:
+              "Short action-oriented label, e.g. 'Clarify system boundaries'.",
           },
-          content: {
+          rationale: {
             type: "string",
-            description: "Section body in information-dense markdown.",
+            description:
+              "Why this area matters for this specific document (one sentence).",
+          },
+          recommended: {
+            type: "boolean",
+            description:
+              "True for the highest-impact area(s) the editor recommends.",
           },
         },
       },
@@ -215,8 +248,218 @@ const REVISION_DSL: HelixAISchemaOptions = {
   },
 };
 
+const PATCH_SECTION_PROPERTIES: Record<
+  string,
+  HelixStrictPropertyDefinition
+> = {
+  sectionId: {
+    type: "string",
+    description:
+      "Existing section id to preserve identity, or \"\" for a new section.",
+  },
+  title: { type: "string", description: "Section title." },
+  level: { type: "number", description: "Heading level 1-6." },
+  summary: {
+    type: "string",
+    description: "One-sentence TL;DR; empty for none.",
+  },
+  content: {
+    type: "string",
+    description: "Section body in information-dense markdown.",
+  },
+};
+
+const SPEC_PATCH_DSL: HelixAISchemaOptions = {
+  name: "spec_patches",
+  description:
+    "Ordered patch operations that modify a spec document without rewriting it.",
+  properties: {
+    patches: {
+      type: "array",
+      description: "Patch operations, applied to the document in order.",
+      items: {
+        type: "object",
+        description:
+          "A single patch operation. Always include every field; use \"\" or 0 when unused.",
+        properties: {
+          op: {
+            type: "string",
+            description:
+              "One of: setMeta, updateSection, insertSection, deleteSection, replaceSections, replaceContent.",
+          },
+          sectionId: {
+            type: "string",
+            description:
+              "For updateSection/deleteSection: exact id of the existing " +
+              "section (or its exact title if the id cannot be copied). For " +
+              "replaceSections items: the existing section id to preserve " +
+              "identity; empty for a new section.",
+          },
+          afterSectionId: {
+            type: "string",
+            description:
+              "For insertSection: exact id of the section to insert after; " +
+              "empty to append at the end.",
+          },
+          title: {
+            type: "string",
+            description:
+              "Section title for updateSection/insertSection; empty to keep " +
+              "the existing title on update.",
+          },
+          level: {
+            type: "number",
+            description:
+              "Heading level 1-6 for updateSection/insertSection; 0 to keep " +
+              "the existing level (update) or default to 2 (insert).",
+          },
+          summary: {
+            type: "string",
+            description:
+              "Section summary. For updateSection an empty string clears it; " +
+              "for insertSection empty means none.",
+          },
+          content: {
+            type: "string",
+            description:
+              "Section body markdown for updateSection/insertSection. For " +
+              "updateSection an empty string clears the body; copy the " +
+              "current content to keep it. For replaceContent, the text that " +
+              "replaces the anchored region.",
+          },
+          name: {
+            type: "string",
+            description:
+              "For setMeta: new document name; empty keeps the current name.",
+          },
+          docSummary: {
+            type: "string",
+            description:
+              "For setMeta: new document summary; empty keeps the current " +
+              "summary.",
+          },
+          status: {
+            type: "string",
+            description:
+              "For setMeta: new status; empty keeps the current status.",
+          },
+          docType: {
+            type: "string",
+            description:
+              "For setMeta: new document type; empty keeps the current type.",
+          },
+          sections: {
+            type: "array",
+            description:
+              "For replaceSections: the complete ordered section set.",
+            items: {
+              type: "object",
+              description: "A replacement section.",
+              properties: PATCH_SECTION_PROPERTIES,
+            },
+          },
+          patternStart: {
+            type: "string",
+            description:
+              "For replaceContent: first line(s) of the region to replace, " +
+              "copied verbatim and unique.",
+          },
+          patternEnd: {
+            type: "string",
+            description:
+              "For replaceContent: last line(s) of the region, copied " +
+              "verbatim and inclusive; empty replaces just the start match.",
+          },
+        },
+      },
+    },
+  },
+};
+
+const SPEC_PATCH_RULES =
+  "Rules for every patch:\n" +
+  "- Return only the smallest set of operations that satisfies the request; " +
+  "never return the whole document.\n" +
+  "- Always emit every schema field; use \"\" or 0 for unused fields.\n" +
+  "- Target existing sections with their exact `sectionId` copied from the " +
+  "document. If you cannot copy the id, use the exact section title.\n" +
+  "- `updateSection` replaces the section fields with the values you return; " +
+  "copy the current title/level/summary/content for fields you do not change. " +
+  "An empty `summary` or `content` clears that field.\n" +
+  "- `insertSection` adds a new section after `afterSectionId` (empty appends).\n" +
+  "- `deleteSection` removes a section and its children; use it only when the " +
+  "request explicitly asks to remove it.\n" +
+  "- `replaceSections` supplies the complete ordered section set and is only " +
+  "for replace mode.\n" +
+  "- Single-content documents use `setMeta` and `replaceContent` only. " +
+  "`replaceContent` replaces the inclusive region from `patternStart` to " +
+  "`patternEnd` (both copied verbatim; keep them short, unique, and at most " +
+  `${BD_MAX_PATTERN_WORDS} words; an empty \`patternEnd\` replaces just the ` +
+  "start match).\n" +
+  "- Sectioned documents never use `replaceContent`; single-content documents " +
+  "never use section operations.\n" +
+  "- Preserve everything the user did not ask to change. Never invent content.";
+
+function patchModeRule(
+  mode: Exclude<BDGenerationMode, "create">,
+  docMode: BDSpecDocMode,
+): string {
+  if (docMode === "single") {
+    switch (mode) {
+      case "append":
+        return (
+          "This is a single-content document: use replaceContent to insert " +
+          "the new text at an anchored position near the end, plus setMeta " +
+          "only when metadata must change. Never use section operations."
+        );
+      case "update":
+        return (
+          "This is a single-content document: use setMeta and replaceContent " +
+          "for changed regions only. Never use section operations."
+        );
+      case "replace":
+        return (
+          "This is a single-content document: use replaceContent with the " +
+          "complete replacement region(s), plus setMeta when metadata " +
+          "changes. Never use section operations."
+        );
+    }
+  }
+
+  switch (mode) {
+    case "append":
+      return (
+        "Return only insertSection operations, plus setMeta only when metadata " +
+        "must change. Do not modify existing sections."
+      );
+    case "update":
+      return (
+        "Return setMeta/updateSection/insertSection operations for new or " +
+        "changed sections only. Do not repeat unchanged sections. Do not " +
+        "delete unless the instruction explicitly asks."
+      );
+    case "replace":
+      return (
+        "Return one replaceSections operation with the COMPLETE ordered " +
+        "section set, plus setMeta when metadata changes."
+      );
+  }
+}
+
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+const MAX_INSTRUCTION_LENGTH = 2000;
+
+/** Normalize optional user guidance into a consistent prompt block. */
+function instructionBlock(instruction?: string): string {
+  const trimmed = (instruction ?? "").trim().slice(0, MAX_INSTRUCTION_LENGTH);
+  if (!trimmed) return "";
+  return (
+    "\n\nUser instruction (follow this; it takes precedence over generic " +
+    `focus when they conflict):\n${trimmed}`
+  );
 }
 
 function normalizeSection(raw: unknown): BDSpecSectionDraft | null {
@@ -302,6 +545,87 @@ function normalizeQuestion(raw: unknown): BDSpecRefineQuestion | null {
   };
 }
 
+function normalizeEnhancementArea(
+  raw: unknown,
+): BDSpecEnhancementArea | null {
+  if (!raw || typeof raw !== "object") return null;
+  const area = raw as Record<string, unknown>;
+  const label = asString(area.label).trim();
+  if (!label) return null;
+  return {
+    id: crypto.randomUUID(),
+    label,
+    rationale: asString(area.rationale) || undefined,
+    recommended: area.recommended === true,
+  };
+}
+
+/**
+ * Assess a document and propose the highest-impact improvement areas for the
+ * Enhance mode. Never throws for empty AI output: a generic fallback area keeps
+ * the flow usable.
+ *
+ * @throws A clean `Error` when the AI call itself fails.
+ */
+export async function bdAnalyzeSpecEnhancement(
+  params: BDSpecEnhancementParams,
+): Promise<BDSpecEnhancementAnalysis> {
+  const document = bdSerializeTarget(params.document);
+
+  const system =
+    "You are a senior technical editor. Assess the document against its " +
+    "declared type and identify the highest-impact ways to improve it. " +
+    "Propose two to five distinct, concrete improvement areas that do not " +
+    "overlap; never suggest cosmetic rewording when a structural gap exists. " +
+    "Prioritize the user's instruction when selecting and ordering areas. " +
+    "Mark the single highest-impact area (or the few that are clearly equally " +
+    "critical) as recommended. Return only the structured JSON requested.";
+
+  const user =
+    `Document type: ${params.document.type}.` +
+    instructionBlock(params.instruction) +
+    `\n\nCurrent document:\n${document}`;
+
+  const raw = await bdGenerateStructured({
+    system,
+    user,
+    schema: ENHANCEMENT_DSL,
+    aiConfig: params.aiConfig,
+    temperature: 0.4,
+    maxToken: 8000,
+  });
+
+  const summary =
+    asString(raw.summary).trim() ||
+    "The document can be made clearer and more complete.";
+
+  const seen = new Set<string>();
+  const areas: BDSpecEnhancementArea[] = [];
+  for (const entry of Array.isArray(raw.areas) ? raw.areas : []) {
+    const area = normalizeEnhancementArea(entry);
+    if (!area || seen.has(area.label.toLowerCase())) continue;
+    seen.add(area.label.toLowerCase());
+    areas.push(area);
+    if (areas.length >= 5) break;
+  }
+
+  if (areas.length === 0) {
+    areas.push({
+      id: crypto.randomUUID(),
+      label: "Overall clarity and completeness",
+      rationale:
+        "The AI did not identify specific areas, so improve the document end to end.",
+      recommended: true,
+    });
+  }
+
+  if (!areas.some((area) => area.recommended)) {
+    areas[0].recommended = true;
+  }
+
+  return { summary, areas };
+}
+
 export async function bdGenerateSpec(
   params: BDSpecGenerateParams,
 ): Promise<BDSpecArtifact> {
@@ -381,19 +705,32 @@ export async function bdGenerateSpecQuestions(
           .join("\n")}`
       : "";
 
+  const isEnhance = params.mode === "enhance";
+  const focus =
+    isEnhance && params.focusAreas && params.focusAreas.length > 0
+      ? `\n\nSelected improvement areas (focus the questions here): ${params.focusAreas.join(
+          ", ",
+        )}.`
+      : "";
+
   const system =
     "You are a senior technical editor refining a software document. Ask " +
     "focused, high-leverage clarifying questions whose answers let you " +
-    "materially improve the document. For every question give EXACTLY four " +
-    "distinct, concrete, mutually exclusive answer options and mark the single " +
-    "best option with recommendedIndex. Return only the structured JSON " +
-    "requested.";
+    "materially improve the document. " +
+    (isEnhance
+      ? "The goal is enhancement: close the gaps in the selected improvement areas rather than re-asking general clarification. "
+      : "") +
+    "Follow the user's instruction when one is provided. " +
+    "For every question give EXACTLY four distinct, concrete, mutually " +
+    "exclusive answer options and mark the single best option with " +
+    "recommendedIndex. Return only the structured JSON requested.";
 
   const user =
     `Document type: ${params.document.type}. Refinement type: ${params.refinementType}. ` +
     `Refinement depth: ${params.level}. ` +
     `Turn ${params.turnIndex + 1} of ${params.totalTurns}. Ask between ` +
-    `${params.minQuestions} and ${params.maxQuestions} questions.\n\n` +
+    `${params.minQuestions} and ${params.maxQuestions} questions.${focus}` +
+    `${instructionBlock(params.instruction)}\n\n` +
     `Current document:\n${document}${prior}`;
 
   const raw = await bdGenerateStructured({
@@ -418,53 +755,111 @@ export async function bdGenerateSpecQuestions(
   return questions;
 }
 
+function requireSpecPatches(raw: Record<string, unknown>): BDSpecPatchOp[] {
+  const patches = normalizeSpecPatches(raw);
+  if (patches.length === 0) {
+    throw new Error("The assistant returned no changes.");
+  }
+  return patches;
+}
+
+export interface BDSpecPatchParams {
+  /** Serialized target document, including section ids/anchors. */
+  documentContext: string;
+  /** How the target document is structured. */
+  docMode?: BDSpecDocMode;
+  mode: Exclude<BDGenerationMode, "create">;
+  instruction: string;
+  aiConfig?: BDAIConfigOverride;
+}
+
 /**
- * Revise the document given the user's answers for one turn.
+ * Ask the AI to edit an existing document and return patch operations. The
+ * client validates and stages them; nothing is persisted here.
  *
- * @throws A clean `Error` when the AI call fails.
+ * @throws A clean `Error` when the AI call fails or returns no changes.
  */
-export async function bdReviseSpec(
-  params: BDSpecRevisionParams,
-): Promise<BDSpecRefineRevision> {
-  const document = bdSerializeTarget(params.document);
-  const answers = params.answers
-    .map((a) => `- ${a.question} → ${a.answer}`)
-    .join("\n");
-
-  const structureHint =
-    params.docMode === "single"
-      ? 'Return the entire revised document in the "content" field and an empty sections array.'
-      : 'Return the complete revised "sections" array and an empty content field. Preserve the section hierarchy.';
-
+export async function bdPatchSpec(
+  params: BDSpecPatchParams,
+): Promise<{ patches: BDSpecPatchOp[] }> {
   const system =
-    "You are a senior technical editor. Revise the document by applying the " +
-    "user's chosen answers. Preserve what already works, keep the writing " +
-    "information-dense and free of filler, and keep the document " +
-    "self-consistent. " +
-    structureHint +
+    "You are a senior technical editor editing an existing document. Return " +
+    "only patch operations — never rewrite the whole document. " +
+    SPEC_PATCH_RULES +
     " Return only the structured JSON requested.";
 
   const user =
-    `Document type: ${params.document.type}. Refinement type: ${params.refinementType}.\n\n` +
-    `Current document:\n${document}\n\nChosen answers:\n${answers}`;
+    `Mode: ${params.mode}. ${bdModeGuidance(params.mode)}\n` +
+    `${patchModeRule(params.mode, params.docMode ?? "sectioned")}\n\n` +
+    `### Current document:\n${params.documentContext}\n\n` +
+    `### Instruction:\n${params.instruction}`;
 
   const raw = await bdGenerateStructured({
     system,
     user,
-    schema: REVISION_DSL,
+    schema: SPEC_PATCH_DSL,
+    aiConfig: params.aiConfig,
+    temperature: 0.3,
+    // Replace mode can return a complete section set for a long document;
+    // append/update only return minimal patches.
+    maxToken: params.mode === "replace" ? 32000 : 16000,
+  });
+
+  return { patches: requireSpecPatches(raw) };
+}
+
+/**
+ * Revise the document given the user's answers for one turn. Returns patch
+ * operations so the document is hot-swapped instead of rewritten.
+ *
+ * @throws A clean `Error` when the AI call fails or returns no changes.
+ */
+export async function bdReviseSpec(
+  params: BDSpecRevisionParams,
+): Promise<BDSpecRefineRevision> {
+  const document = serializeSpecTarget(params.document);
+  const answers = params.answers
+    .map((a) => `- ${a.question} → ${a.answer}`)
+    .join("\n");
+
+  const focus =
+    params.focusAreas && params.focusAreas.length > 0
+      ? `\n\nSelected improvement areas (address these in the revision): ${params.focusAreas.join(
+          ", ",
+        )}.`
+      : "";
+
+  const structureHint =
+    params.docMode === "single"
+      ? "This is a single-content document: use setMeta and replaceContent " +
+        "with short, unique anchored regions."
+      : "This is a sectioned document: use setMeta/updateSection/" +
+        "insertSection/deleteSection with the provided section ids.";
+
+  const system =
+    "You are a senior technical editor revising a document. Apply the user's " +
+    "chosen answers and instruction by returning a minimal set of patch " +
+    "operations — never rewrite the whole document. Preserve what already " +
+    "works, keep the writing information-dense and free of filler, and keep " +
+    "the document self-consistent. " +
+    structureHint +
+    "\n\n" +
+    SPEC_PATCH_RULES +
+    " Return only the structured JSON requested.";
+
+  const user =
+    `Document type: ${params.document.type}. Refinement type: ${params.refinementType}.\n\n` +
+    `Current document:\n${document}\n\nChosen answers:\n${answers}${focus}` +
+    instructionBlock(params.instruction);
+
+  const raw = await bdGenerateStructured({
+    system,
+    user,
+    schema: SPEC_PATCH_DSL,
     aiConfig: params.aiConfig,
     temperature: 0.4,
     maxToken: 16000,
   });
 
-  const name = asString(raw.name) || params.document.name;
-  const summary = asString(raw.summary) || params.document.summary;
-  const content = asString(raw.content) || undefined;
-  const sections = Array.isArray(raw.sections)
-    ? raw.sections
-        .map(normalizeSection)
-        .filter((s): s is BDSpecSectionDraft => s !== null)
-    : [];
-
-  return { name, summary, content, sections };
+  return { patches: requireSpecPatches(raw) };
 }

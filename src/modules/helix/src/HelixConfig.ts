@@ -107,6 +107,16 @@ export interface HelixConfig {
 }
 
 
+// ── Endpoint resolution ───────────────────────────────────────────────────────
+
+/**
+ * Base URL for the local Ollama provider. Read once at module load, so the value
+ * must be set before the server process starts (restart after editing .env).
+ * Docker users point this at host.docker.internal.
+ */
+const OLLAMA_LOCAL_BASE_URL =
+  process.env.OLLAMA_LOCAL_BASE_URL || "http://localhost:11434/v1";
+
 // ── Provider configurations ──────────────────────────────────────────────────
 
 export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
@@ -120,9 +130,9 @@ export const HELIX_AI_PROVIDERS: HelixAIProviderConfig[] = [
     provider: "ollamaLocal",
     apiKey: "ollama",
     model: process.env.OPEN_AI_MODEL || "gemma4:31b",
-    endpoint: "http://localhost:11434/v1",
-    // Ollama (local) serves transcription from its OpenAI-compatible /v1 base.
-    sttEndpoint: "http://localhost:11434/v1",
+    endpoint: OLLAMA_LOCAL_BASE_URL,
+    // Ollama (local) serves transcription from the same OpenAI-compatible /v1 base.
+    sttEndpoint: OLLAMA_LOCAL_BASE_URL,
   },
   {
     provider: "ollamaCloud",

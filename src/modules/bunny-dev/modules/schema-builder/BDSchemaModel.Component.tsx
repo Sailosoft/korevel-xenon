@@ -4,7 +4,15 @@
 // relations, and indexes. Edits a local draft and saves the whole model.
 
 import { useState } from "react";
-import { Plus, Trash2, Save, Sparkles, Link2, Pencil } from "lucide-react";
+import {
+  GripVertical,
+  Link2,
+  Pencil,
+  Plus,
+  Save,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import type {
   BDSchemaModel,
   BDSchemaProperty,
@@ -43,6 +51,25 @@ export interface BDSchemaModelComponentProps {
 }
 
 const CELL = "rounded border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400";
+
+type BDDropEdge = "before" | "after";
+
+function moveProperty(
+  properties: BDSchemaProperty[],
+  fromIndex: number,
+  toIndex: number,
+  edge: BDDropEdge,
+): BDSchemaProperty[] {
+  if (fromIndex === toIndex) return properties;
+  const moved = properties[fromIndex];
+  if (!moved) return properties;
+
+  const rest = properties.filter((_, index) => index !== fromIndex);
+  const target = fromIndex < toIndex ? toIndex - 1 : toIndex;
+  const insertAt = edge === "before" ? target : target + 1;
+  rest.splice(insertAt, 0, moved);
+  return rest;
+}
 
 const MODEL_FIELDS = [
   {
@@ -87,6 +114,9 @@ export function BDSchemaModelComponent({
     index: BDSchemaIndex | null;
     editIndex: number | null;
   }>({ open: false, index: null, editIndex: null });
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [dropEdge, setDropEdge] = useState<BDDropEdge>("before");
 
   // Load the selected model into the local draft when the drawer opens or the
   // target changes (render-time adjustment, not a setState-in-effect).
@@ -100,6 +130,9 @@ export function BDSchemaModelComponent({
     setRelationColumnOpen(false);
     setPendingInverses([]);
     setIndexEditor({ open: false, index: null, editIndex: null });
+    setDragIndex(null);
+    setOverIndex(null);
+    setDropEdge("before");
   }
 
   if (!draft || !form) {
@@ -135,6 +168,28 @@ export function BDSchemaModelComponent({
     const properties = draft.properties.map((p, i) =>
       i === index ? { ...p, ...patch } : p,
     );
+    update({ properties });
+  };
+
+  const resetDrag = () => {
+    setDragIndex(null);
+    setOverIndex(null);
+    setDropEdge("before");
+  };
+
+  const handlePropertyDrop = () => {
+    if (dragIndex === null || overIndex === null || dragIndex === overIndex) {
+      resetDrag();
+      return;
+    }
+
+    const properties = moveProperty(
+      draft.properties,
+      dragIndex,
+      overIndex,
+      dropEdge,
+    );
+    resetDrag();
     update({ properties });
   };
 
@@ -311,6 +366,9 @@ export function BDSchemaModelComponent({
             <table className="w-full border-collapse text-xs">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
+                  <th className="w-px px-1 py-1.5">
+                    <span className="sr-only">Reorder</span>
+                  </th>
                   <th className="px-2 py-1.5 text-left">Name</th>
                   <th className="px-2 py-1.5 text-left">Type</th>
                   <th className="px-2 py-1.5">Null</th>
@@ -321,110 +379,180 @@ export function BDSchemaModelComponent({
                 </tr>
               </thead>
               <tbody>
-                {draft.properties.map((property, index) => (
-                  <tr key={index} className="border-t border-slate-100">
-                    <td className="px-2 py-1">
-                      <input
-                        className={CELL}
-                        placeholder="name"
-                        value={property.name}
-                        onChange={(e) =>
-                          updateProperty(index, { name: e.target.value })
+                {draft.properties.map((property, index) => {
+                  const isDragging = dragIndex === index;
+                  const isOver =
+                    overIndex === index &&
+                    dragIndex !== null &&
+                    dragIndex !== index;
+                  const showBefore = isOver && dropEdge === "before";
+                  const showAfter = isOver && dropEdge === "after";
+
+                  return (
+                    <tr
+                      key={index}
+                      draggable
+                      onDragStart={(event) => {
+                        if (
+                          !(event.target as HTMLElement).closest(
+                            "[data-bd-drag-handle]",
+                          )
+                        ) {
+                          event.preventDefault();
+                          return;
                         }
-                      />
-                    </td>
-                    <td className="px-2 py-1">
-                      <select
-                        className={CELL}
-                        value={property.type}
-                        onChange={(e) =>
-                          updateProperty(index, {
-                            type: e.target.value as BDSchemaProperty["type"],
-                          })
-                        }
-                      >
-                        {BD_SCHEMA_TYPE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-2 py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={property.nullable}
-                        onChange={(e) =>
-                          updateProperty(index, { nullable: e.target.checked })
-                        }
-                      />
-                    </td>
-                    <td className="px-2 py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={!!property.primary}
-                        onChange={(e) => {
-                          updateProperty(index, {
-                            primary: e.target.checked,
-                            nullable: e.target.checked
-                              ? false
-                              : property.nullable,
-                          });
-                          if (e.target.checked) {
-                            update({
-                              primaryKey: [property.name],
-                              properties: draft.properties.map((p, i) =>
-                                i === index
-                                  ? { ...p, primary: true, nullable: false }
-                                  : p,
-                              ),
-                            });
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", String(index));
+                        setDragIndex(index);
+                      }}
+                      onDragEnd={resetDrag}
+                      onDragOver={(event) => {
+                        if (dragIndex === null || index === dragIndex) return;
+                        event.preventDefault();
+                        const rect =
+                          event.currentTarget.getBoundingClientRect();
+                        const edge: BDDropEdge =
+                          event.clientY - rect.top < rect.height / 2
+                            ? "before"
+                            : "after";
+                        if (overIndex !== index) setOverIndex(index);
+                        if (dropEdge !== edge) setDropEdge(edge);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handlePropertyDrop();
+                      }}
+                      className={[
+                        "border-t border-slate-100",
+                        isDragging ? "opacity-50" : "",
+                        showBefore
+                          ? "[&>td]:shadow-[inset_0_2px_0_0_#3b82f6]"
+                          : "",
+                        showAfter
+                          ? "[&>td]:shadow-[inset_0_-2px_0_0_#3b82f6]"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <td className="px-1 py-1 text-center align-middle">
+                        <button
+                          type="button"
+                          data-bd-drag-handle
+                          aria-label="Drag to reorder column"
+                          title="Drag to reorder column"
+                          className="mx-auto flex h-6 w-5 cursor-grab items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-500 active:cursor-grabbing"
+                        >
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          className={CELL}
+                          placeholder="name"
+                          value={property.name}
+                          onChange={(e) =>
+                            updateProperty(index, { name: e.target.value })
                           }
-                        }}
-                      />
-                    </td>
-                    <td className="px-2 py-1 text-center">
-                      <input
-                        type="checkbox"
-                        checked={!!property.unique}
-                        onChange={(e) =>
-                          updateProperty(index, { unique: e.target.checked })
-                        }
-                      />
-                    </td>
-                    <td className="px-2 py-1">
-                      <input
-                        className={CELL}
-                        value={
-                          property.default === undefined
-                            ? ""
-                            : String(property.default)
-                        }
-                        onChange={(e) =>
-                          updateProperty(index, {
-                            default: e.target.value === "" ? undefined : e.target.value,
-                          })
-                        }
-                      />
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      <button
-                        type="button"
-                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                        onClick={() =>
-                          update({
-                            properties: draft.properties.filter(
-                              (_, i) => i !== index,
-                            ),
-                          })
-                        }
-                        aria-label="Remove column"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <select
+                          className={CELL}
+                          value={property.type}
+                          onChange={(e) =>
+                            updateProperty(index, {
+                              type: e.target.value as BDSchemaProperty["type"],
+                            })
+                          }
+                        >
+                          {BD_SCHEMA_TYPE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={property.nullable}
+                          onChange={(e) =>
+                            updateProperty(index, { nullable: e.target.checked })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!property.primary}
+                          onChange={(e) => {
+                            updateProperty(index, {
+                              primary: e.target.checked,
+                              nullable: e.target.checked
+                                ? false
+                                : property.nullable,
+                            });
+                            if (e.target.checked) {
+                              update({
+                                primaryKey: [property.name],
+                                properties: draft.properties.map((p, i) =>
+                                  i === index
+                                    ? { ...p, primary: true, nullable: false }
+                                    : p,
+                                ),
+                              });
+                            }
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!property.unique}
+                          onChange={(e) =>
+                            updateProperty(index, { unique: e.target.checked })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          className={CELL}
+                          value={
+                            property.default === undefined
+                              ? ""
+                              : String(property.default)
+                          }
+                          onChange={(e) =>
+                            updateProperty(index, {
+                              default:
+                                e.target.value === ""
+                                  ? undefined
+                                  : e.target.value,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        <button
+                          type="button"
+                          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                          onClick={() =>
+                            update({
+                              properties: draft.properties.filter(
+                                (_, i) => i !== index,
+                              ),
+                            })
+                          }
+                          aria-label="Remove column"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -149,7 +149,7 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const [bookTitle, setBookTitle] = useState("");
   const [bookDesc, setBookDesc] = useState("");
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
-  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [isBulkGenerating, setIsBulkGenerating] = useState(true);
 
   const [selectedGenerationId, setSelectedGenerationId] = useState<number | null>(null);
   const [chapters, setChapters] = useState<IBLChapter[]>([]);
@@ -343,7 +343,7 @@ export function useBookBuilder(): TUseBookBuilderReturn {
         );
 
         setGeneratingChapterId(null);
-        setIsBulkGenerating(false);
+        setIsBulkGenerating(true);
         toast.success("All chapters generated successfully!");
       } else {
         setSelectedGenerationId(generationId);
@@ -618,7 +618,7 @@ export function useBookBuilder(): TUseBookBuilderReturn {
   const onNewBook = useCallback(() => {
     setBookTitle("");
     setBookDesc("");
-    setIsBulkGenerating(false);
+    setIsBulkGenerating(true);
     // Don't change selectedGenerationId — user can still see which book was selected
     // but the form is cleared for creating a new book
     toast("Book form cleared. Fill in new details and generate.");

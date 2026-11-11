@@ -12,7 +12,11 @@ export default function SpecDetailPage({
 
   return (
     <Suspense fallback={null}>
-      <BDSpecDetailComponent groupId={groupId} specId={specId} />
+      <BDSpecDetailComponent
+        key={specId}
+        groupId={groupId}
+        specId={specId}
+      />
     </Suspense>
   );
 }

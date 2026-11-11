@@ -10,6 +10,11 @@ import type {
   BDSpecType,
 } from "./BDSpec.Domain";
 import type { BDDocFormat } from "../core/BDShared.Types";
+import type {
+  BDSpecPatchable,
+  BDSpecPatchOp,
+  BDSpecPatchSummary,
+} from "./BDSpec.Patch";
 
 export type { BDSpecDocMode };
 
@@ -194,11 +199,43 @@ export function sectionMarkdown(section: BDSpecSection, depth = 0): string {
 // ── AI artifact drafts ─────────────────────────────────────────────────────
 
 export interface BDSpecSectionDraft {
+  /** Existing-section identity, used by patch prompts (absent for new drafts). */
+  id?: string;
+  anchor?: string;
   title: string;
   level?: number;
   /** Optional one-line TL;DR for the section. */
   summary?: string;
   content?: string;
+}
+
+/** A prompt-ready snapshot of an existing spec document. */
+export interface BDSpecDocumentSource {
+  name: string;
+  type: string;
+  summary?: string;
+  docMode: BDSpecDocMode;
+  content?: string;
+  sections: BDSpecSectionDraft[];
+}
+
+/** Build a prompt snapshot, preserving section ids/anchors for patch targeting. */
+export function specRecordToInput(record: BDSpecRecord): BDSpecDocumentSource {
+  return {
+    name: record.name,
+    type: record.type,
+    summary: record.summary,
+    docMode: inferDocMode(record),
+    content: record.content,
+    sections: record.sections.map((section) => ({
+      id: section.id,
+      anchor: section.anchor,
+      title: section.title,
+      level: section.level,
+      summary: section.summary,
+      content: section.content,
+    })),
+  };
 }
 
 export interface BDSpecDraft {
@@ -421,10 +458,42 @@ export interface BDSpecRefineAnswer {
   answer: string;
 }
 
-/** The revised document produced by a refine revision call. */
-export interface BDSpecRefineRevision {
-  name?: string;
-  summary?: string;
-  content?: string;
-  sections?: BDSpecSectionDraft[];
+/** Which AI Document Assist mode the wizard is running. */
+export type BDSpecAssistMode = "refine" | "enhance";
+
+/** One improvement area found by the Enhance analysis. */
+export interface BDSpecEnhancementArea {
+  id: string;
+  label: string;
+  rationale?: string;
+  recommended: boolean;
 }
+
+/** Document assessment produced before the Enhance question turns. */
+export interface BDSpecEnhancementAnalysis {
+  summary: string;
+  areas: BDSpecEnhancementArea[];
+}
+
+/** Labels the user should start with selected, i.e. the recommended areas. */
+export function recommendedEnhancementAreas(
+  analysis: BDSpecEnhancementAnalysis,
+): string[] {
+  return analysis.areas.filter((area) => area.recommended).map((a) => a.label);
+}
+
+/** The patch operations produced by a refine revision call. */
+export interface BDSpecRefineRevision {
+  patches: BDSpecPatchOp[];
+}
+
+/** Result of a Specs AI Generate call: a new artifact or patch operations. */
+export type BDSpecGenerationArtifact =
+  | { kind: "create"; artifact: BDSpecArtifact }
+  | {
+      kind: "patches";
+      patches: BDSpecPatchOp[];
+      before: BDSpecPatchable;
+      after: BDSpecPatchable;
+      summary: BDSpecPatchSummary;
+    };
