@@ -352,6 +352,34 @@ function CatalogReleasesInner() {
 }
 
 // ---------------------------------------------------------------------------
+// Collapsible — animates height with CSS grid rows so any content height fits
+// ---------------------------------------------------------------------------
+function Collapsible({
+  isExpanded,
+  transition = "grid-template-rows 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease",
+  children,
+}: {
+  isExpanded: boolean;
+  transition?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      aria-hidden={!isExpanded}
+      inert={!isExpanded}
+      style={{
+        display: "grid",
+        gridTemplateRows: isExpanded ? "1fr" : "0fr",
+        opacity: isExpanded ? 1 : 0,
+        transition,
+      }}
+    >
+      <div style={{ overflow: "hidden", minHeight: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MajorVersionSection — top-level collapsible group (e.g. "Version 4")
 // ---------------------------------------------------------------------------
 function MajorVersionSection({
@@ -386,6 +414,7 @@ function MajorVersionSection({
       <button
         type="button"
         onClick={onToggleMajor}
+        aria-expanded={isExpanded}
         className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left transition-colors"
         style={{
           cursor: "pointer",
@@ -435,14 +464,7 @@ function MajorVersionSection({
       </button>
 
       {/* Expanded content */}
-      <div
-        style={{
-          maxHeight: isExpanded ? "2000px" : "0px",
-          opacity: isExpanded ? 1 : 0,
-          overflow: "hidden",
-          transition: "max-height 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease",
-        }}
-      >
+      <Collapsible isExpanded={isExpanded}>
         <div
           className="px-6 pb-6 space-y-4"
           style={{ borderTop: `1px solid ${theme.cardFooterBorder}` }}
@@ -462,7 +484,7 @@ function MajorVersionSection({
             );
           })}
         </div>
-      </div>
+      </Collapsible>
     </div>
   );
 }
@@ -495,6 +517,7 @@ function MinorVersionGroup({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={isExpanded}
         className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors"
         style={{ cursor: "pointer", backgroundColor: "transparent", border: "none", outline: "none" }}
       >
@@ -539,13 +562,9 @@ function MinorVersionGroup({
       </button>
 
       {/* Expanded patch releases */}
-      <div
-        style={{
-          maxHeight: isExpanded ? "2000px" : "0px",
-          opacity: isExpanded ? 1 : 0,
-          overflow: "hidden",
-          transition: "max-height 0.35s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease",
-        }}
+      <Collapsible
+        isExpanded={isExpanded}
+        transition="grid-template-rows 0.35s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease"
       >
         <div className="px-5 pb-4 space-y-3">
           {group.releases.map((release, i) => (
@@ -555,7 +574,7 @@ function MinorVersionGroup({
             />
           ))}
         </div>
-      </div>
+      </Collapsible>
     </div>
   );
 }
